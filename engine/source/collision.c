@@ -7,6 +7,12 @@
 static const uint8_t *collision_grid = 0;
 
 static uint32_t map_width = 0;
+static int ignore_top = 0;
+
+void collision_set_ignore_top(int ignore)
+{
+    ignore_top = ignore;
+}
 static uint32_t map_height = 0;
 
 void collision_init(void)
@@ -142,7 +148,7 @@ int collision_can_move_from(
             int left = tx * TILE_SIZE;
             int top = ty * TILE_SIZE;
             /* Blocked when the box crosses the solid edge on this move. */
-            if ((c == COLLISION_TOP && dy > 0 && from_y + height <= top) ||
+            if ((c == COLLISION_TOP && !ignore_top && dy > 0 && from_y + height <= top) ||
                 (c == COLLISION_BOTTOM && dy < 0 && from_y >= top + TILE_SIZE) ||
                 (c == COLLISION_LEFT && dx > 0 && from_x + width <= left) ||
                 (c == COLLISION_RIGHT && dx < 0 && from_x >= left + TILE_SIZE))

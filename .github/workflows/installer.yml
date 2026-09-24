@@ -26,7 +26,7 @@ jobs:
       - name: Freeze the build tool (compiler/build_rom.py)
         run: |
           pip install pillow pyinstaller
-          pyinstaller --onefile --name shimmer-build --paths compiler --distpath pyi-dist compiler/build_rom.py
+          pyinstaller --onefile --name shimmer-build --paths compiler --add-data "compiler/engine_settings.json:." --distpath pyi-dist compiler/build_rom.py
 
       - uses: msys2/setup-msys2@v2
         with:

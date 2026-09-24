@@ -64,6 +64,12 @@ typedef struct
     uint16_t col_w, col_h;
 
     const uint16_t *palette;    /* 16 colors; index 0 transparent */
+
+    /* For the scene types (modes.c): per MODE_ANIM_* the state named
+     * for it ("jump", "fall"...) + 1, 0 = none (may be 0 = no names). */
+    const uint8_t *mode_states;
+    uint32_t platform_mask;     /* bit s: state s is a platform_player sprite */
+    uint32_t cursor_mask;       /* bit s: state s is a cursor sprite */
 } SpriteDef;
 
 typedef struct

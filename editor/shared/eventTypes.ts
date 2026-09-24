@@ -65,6 +65,34 @@ export interface TextSetSpeedEvent extends EventBase {
   speed: number;
 }
 
+/** Change a scene type engine setting (compiler/engine_settings.json)
+ * for the rest of the scene. */
+export interface SetEngineSettingEvent extends EventBase {
+  type: "set_engine_setting";
+  setting: string;
+  value: number | boolean | string;
+}
+
+export interface LaunchProjectileEvent extends EventBase {
+  type: "launch_projectile";
+  sprite: string;
+  actor?: ActorRef;
+  direction?: "facing" | "up" | "down" | "left" | "right" | "angle";
+  /** Degrees, 0 = right, 90 = up. */
+  angle?: number;
+  /** px per frame */
+  speed?: number;
+  /** frames, 0 = until it leaves the screen */
+  lifetime?: number;
+  hits?: "actors" | "group1" | "group2" | "group3" | "player";
+  /** Which On Player Hit script runs when it hits the player. */
+  group?: number;
+  pierce?: boolean;
+  through_walls?: boolean;
+  offset_x?: number;
+  offset_y?: number;
+}
+
 export interface SetFlagEvent extends EventBase {
   type: "set_flag";
   flag: string;
@@ -866,6 +894,8 @@ export type ScriptEventJSON =
   | TextSetFontEvent
   | TextSetFrameEvent
   | TextSetSpeedEvent
+  | SetEngineSettingEvent
+  | LaunchProjectileEvent
   | SetFlagEvent
   | ClearFlagEvent
   | IfFlagEvent

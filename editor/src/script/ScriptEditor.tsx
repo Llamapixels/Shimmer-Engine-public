@@ -93,6 +93,7 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
       firstTimer: timers.length ? timers[0].name || 0 : null,
       firstCustomScript: project?.project.customScripts?.[0]?.id ?? null,
       firstMusicTrack: assets?.music?.[0]?.name ?? null,
+      firstSprite: assets?.sprites?.find((a) => a.name !== "player")?.name ?? null,
     };
   }, [env, project, assets]);
 

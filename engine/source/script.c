@@ -17,6 +17,8 @@
 #include "scene.h"
 #include "game.h"
 #include "ui.h"
+#include "modes.h"
+#include "projectile.h"
 
 /*
  * One running script. Slot 0 is the "main" script (script_start) -
@@ -434,7 +436,10 @@ static void thread_step(ScriptThread *t, int is_main)
             return;
 
         case SCRIPT_WAIT:
-            t->wait_frames = ev->a;
+            /* This frame counts as the first one waited. */
+            if (ev->a <= 0)
+                break;
+            t->wait_frames = ev->a - 1;
             return;
 
         case SCRIPT_SET_VAR:
@@ -967,6 +972,14 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_TEXT_SET_SPEED:
             ui_set_speed(ev->a);
+            break;
+
+        case SCRIPT_SET_ENGINE_SETTING:
+            modes_set_setting(ev->a, ev->b);
+            break;
+
+        case SCRIPT_LAUNCH_PROJECTILE:
+            projectile_launch((const int16_t *)ev->ptr);
             break;
 
         case SCRIPT_END:

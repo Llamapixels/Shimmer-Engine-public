@@ -315,3 +315,29 @@
   min-width: 0;
   width: 100%;
 }
+
+.type-row {
+  display: flex;
+  gap: 6px;
+}
+
+.type-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.scene-engine {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  padding: 8px 10px;
+  margin: -6px 0 14px;
+}
+
+.scene-engine .engine-groups {
+  grid-template-columns: 1fr;
+}
+
+.scene-engine .engine-row {
+  grid-template-columns: 1fr 120px 36px;
+}

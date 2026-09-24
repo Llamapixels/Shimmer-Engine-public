@@ -361,7 +361,10 @@ typedef enum
 
     SCRIPT_TEXT_SET_FONT,      /* a = font index (ui.h) */
     SCRIPT_TEXT_SET_FRAME,     /* a = frame index */
-    SCRIPT_TEXT_SET_SPEED      /* a = frames per character */
+    SCRIPT_TEXT_SET_SPEED,     /* a = frames per character */
+
+    SCRIPT_SET_ENGINE_SETTING, /* a = MS_* index, b = value (modes.h) */
+    SCRIPT_LAUNCH_PROJECTILE   /* ptr = int16 PROJ_P_* array (projectile.h) */
 } ScriptOp;
 
 /*

@@ -20,6 +20,8 @@ import { BackgroundSelect, backgroundRefFor, MusicSelect, SpriteSelect } from ".
 import CommitInput from "./common/CommitInput";
 import NumberInput from "./common/NumberInput";
 import FieldRow from "./inspector/FieldRow";
+import { EngineFields } from "../engine/EngineSettingsCard";
+import { type EngineValue, modeLabel, settingsForMode } from "../engine/engineSettings";
 import "./PropertiesPanel.css";
 import Icon from "./common/Icon";
 
@@ -154,6 +156,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
   const playerSprite = useProjectStore((s) => s.project?.project.playerSprite) || "player";
   const [tab, setTab] = useState<"init" | "hit" | "timers">("init");
   const [hitGroup, setHitGroup] = useState<"1" | "2" | "3">("1");
+  const [showEngine, setShowEngine] = useState(false);
   const data = scene.data;
   const id = scene.fileId;
   const env = useEnv(`${id}:on_init`, scene, scenes, false);
@@ -189,15 +192,28 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
           />
         </FieldRow>
 
-        <FieldRow label="Type" hint={data.type && data.type !== "topdown" ? "Only Top Down runs in the engine so far - this scene plays as Top Down." : undefined}>
-          <select value={data.type ?? "topdown"} onChange={(e) => patch({ type: e.target.value as SceneType })}>
-            {SCENE_TYPES.map((t) => (
-              <option key={t.id} value={t.id} disabled={!t.ready && t.id !== data.type}>
-                {t.ready ? t.label : `${t.label} (coming later)`}
-              </option>
-            ))}
-          </select>
+        <FieldRow label="Type" hint={SCENE_TYPES.find((t) => t.id === (data.type ?? "topdown"))?.hint}>
+          <div className="type-row">
+            <select value={data.type ?? "topdown"} onChange={(e) => patch({ type: e.target.value === "topdown" ? undefined : (e.target.value as SceneType) })}>
+              {SCENE_TYPES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <button
+              className={`btn btn-small${showEngine ? " pin-btn-on" : ""}`}
+              title="This scene's own engine settings"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowEngine((v) => !v);
+              }}
+            >
+              Engine{data.engine && Object.keys(data.engine).length ? ` (${Object.keys(data.engine).length})` : ""}
+            </button>
+          </div>
         </FieldRow>
+        {showEngine && <SceneEngineOverrides scene={scene} />}
 
         <FieldRow label="Background">
           <BackgroundSelect value={data.background} onChange={(ref) => patch({ background: ref })} />
@@ -279,13 +295,41 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
   );
 }
 
-const SCENE_TYPES: { id: SceneType; label: string; ready: boolean }[] = [
-  { id: "topdown", label: "Top Down 2D", ready: true },
-  { id: "platformer", label: "Platformer", ready: false },
-  { id: "adventure", label: "Adventure", ready: false },
-  { id: "shmup", label: "Shoot Em' Up", ready: false },
-  { id: "pointnclick", label: "Point and Click", ready: false },
-];
+const SCENE_TYPES: { id: SceneType; label: string; hint: string }[] = [
+  { id: "topdown", label: "Top Down 2D", hint: "Walk around in 4 directions (or on a grid), talk to actors with A." },
+  { id: "platform", label: "Platformer", hint: "Side view with gravity: run, jump, ladders, one-way platforms, wall jumps, dashes." },
+  { id: "adventure", label: "Adventure", hint: "Free 8-way movement with momentum, running, dashing and pushing actors." },
+  { id: "shmup", label: "Shoot Em' Up", hint: "The screen scrolls the way the player faces at the start. Fire with Launch Projectile on a button." },
+  { id: "pointnclick", label: "Point and Click", hint: "The player is a cursor: move it over actors and triggers and press A." },
+  { id: "logo", label: "Logo", hint: "No player: a still screen for logos and title cards, run by the scene's scripts." },
+]
+
+/** A scene's own engine settings, over the project's (Settings > Engine). */
+function SceneEngineOverrides({ scene }: { scene: SceneRecord }) {
+  const updateScene = useProjectStore((s) => s.updateScene);
+  const projectEngine = useProjectStore((s) => s.project?.project.engine);
+  const mode = scene.data.type ?? "topdown";
+  const values = scene.data.engine ?? {};
+  const set = (key: string, value: EngineValue | undefined) =>
+    updateScene(
+      scene.fileId,
+      (s) => {
+        const next = { ...(s.engine ?? {}) };
+        if (value === undefined) delete next[key];
+        else next[key] = value;
+        return { ...s, engine: Object.keys(next).length ? next : undefined };
+      },
+      `engine:${key}`,
+    );
+  return (
+    <div className="scene-engine">
+      <p className="properties-note">
+        {modeLabel(mode)} settings for this scene only. Changed ones win over Settings &gt; Engine; Reset goes back to the project's.
+      </p>
+      <EngineFields defs={settingsForMode(mode)} values={values} base={projectEngine} onChange={set} />
+    </div>
+  );
+}
 
 /** Parallax speeds, as GB Studio lists them. 0 scrolls with the camera. */
 const PARALLAX_SPEEDS: { value: number | "fixed"; label: string }[] = [
@@ -982,6 +1026,15 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
             ))}
           </select>
         </FieldRow>
+
+        {scene.data.type === "platform" && (
+          <FieldRow label="Platform" hint="The player can stand on it (it only blocks from above) and rides along when it moves.">
+            <label className="script-field-bool">
+              <input type="checkbox" checked={!!npc.platform} onChange={(e) => patchNpc({ platform: e.target.checked || undefined })} />
+              {npc.platform ? "Stand on it" : "Off"}
+            </label>
+          </FieldRow>
+        )}
 
         <FieldRow
           label="Collision group"

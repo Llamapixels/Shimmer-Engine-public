@@ -7,6 +7,7 @@
 #include "script.h"
 #include "scenes_data.h"
 #include "input.h"
+#include "mode_settings.h"
 #include "music.h"
 
 /* sprite: player - 8 frame(s), up to 1 OBJ(s) / 4 VRAM tile(s) per frame */
@@ -153,7 +154,7 @@ static const uint16_t spr_player_palette[16] = { 0x0000, 0x0000, 0x40C8, 0x418D,
 
 const SpriteDef sprite_defs[1] =
 {
-    /* [0] player */ { spr_player_frames, 8, 1, 4, spr_player_anims, 8, spr_player_maps, 1, 0, 0, 16, 16, spr_player_palette },
+    /* [0] player */ { spr_player_frames, 8, 1, 4, spr_player_anims, 8, spr_player_maps, 1, 0, 0, 16, 16, spr_player_palette, 0, 0x0u, 0x0u },
 };
 const uint8_t player_sprite_index = 0;
 
@@ -162,6 +163,7 @@ const char *const item_names[1] =
     "Old Key",
 };
 
+static const int16_t mode_settings_0[MS_COUNT] = { 256, 0, 0, 0, 2, 512, 1, 400, 16, 44, 20, 1, 13, 0, 1, 2, 656, 14, 112, 1248, 1, 1, 832, 48, 12, 4, 4, 0, 768, 0, 0, 512, 0, 192, 1, 1, 256, 0, 4, 48, 10, 20, 1, 0, 96, 1, 512, 768, 16, 0, 64, 1, 0, 256, 64, 64, 0, 2, 384, 0, 4, 48, 10, 20, 0, 8, 1, 512, 10, 1, 128, 384, 0, 0, 0, 384, 1, 60, 1 };
 /* ---- scene: house_inside ---- */
 static const uint8_t house_inside_tiles[192] __attribute__((aligned(4))) =
 {
@@ -264,6 +266,8 @@ const SceneDef scene_house_inside =
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
     .layer_count   = 0,
+    .mode          = 0,
+    .settings      = mode_settings_0,
 };
 
 /* ---- scene: testmap ---- */
@@ -690,6 +694,8 @@ const SceneDef scene_testmap =
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
     .layer_count   = 0,
+    .mode          = 0,
+    .settings      = mode_settings_0,
 };
 
 /* ---- scene: teststream ---- */
@@ -1444,6 +1450,8 @@ const SceneDef scene_teststream =
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
     .layer_count   = 0,
+    .mode          = 0,
+    .settings      = mode_settings_0,
 };
 
 /* ---- scene: town ---- */
@@ -1866,8 +1874,8 @@ static const ScriptEvent town_npc1_script[2] =
 
 static const NpcDef town_npcs[2] =
 {
-    { 144, 288, 0, 0, 0, 0, town_npc0_script, 0, 1, 0, 0, 0, 0 },
-    { 200, 360, 0, 0, 0, 1, town_npc1_script, 0, 1, 0, 0, 0, 0 },
+    { 144, 288, 0, 0, 0, 0, town_npc0_script, 0, 1, 0, 0, 0, 0, 0 },
+    { 200, 360, 0, 0, 0, 1, town_npc1_script, 0, 1, 0, 0, 0, 0, 0 },
 };
 
 const SceneDef scene_town =
@@ -1897,6 +1905,8 @@ const SceneDef scene_town =
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
     .layer_count   = 0,
+    .mode          = 0,
+    .settings      = mode_settings_0,
 };
 
 const SceneDef *const scenes[SCENE_COUNT] =
