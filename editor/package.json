@@ -52,15 +52,6 @@
       {
         "from": "toolchain-bundle",
         "to": "toolchain"
-      },
-      {
-        "from": "../examples/demo",
-        "to": "examples/demo",
-        "filter": [
-          "**/*",
-          "!ROM/**",
-          "!build/**"
-        ]
       }
     ],
     "win": {
