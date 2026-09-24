@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdint.h>
 
 #include "save.h"
@@ -24,8 +25,9 @@ static uint8_t compute_checksum(const SaveData *data)
     const uint8_t *bytes = (const uint8_t *)data;
     uint8_t sum = 0;
 
-    /* Every byte except the checksum field itself, which is last. */
-    for (uint32_t i = 0; i < sizeof(SaveData) - 1; i++)
+    /* Every byte before the checksum field. Not sizeof - 1: the struct
+     * has tail padding after checksum, so that would include it. */
+    for (uint32_t i = 0; i < offsetof(SaveData, checksum); i++)
         sum += bytes[i];
 
     return sum;

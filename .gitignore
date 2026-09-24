@@ -21,3 +21,6 @@ gb-studio-source/
 
 # Editor build script the "Build ROM" button writes
 .shimmer-build.sh
+
+# Python bytecode
+__pycache__/

@@ -380,6 +380,81 @@ variable instead of a literal number:
         Release any camera lock (actor, point, or left over from a
         camera_move_to) and resume following the player normally.
 
+GB Studio parity events (compile_parity_event()). Positions are in tiles
+unless "units": "pixels" is given; "then"/"else" work as in if_flag:
+    { "type": "if_expression", "expression": "$score$ >= 10 && held(a)",
+      "then": [...], "else": [...] }
+    { "type": "set_var_expression", "var": "<name>", "expression": "..." }
+    { "type": "loop_while", "expression": "...", "body": [...] }
+    { "type": "loop_for", "var": "i", "from": 0, "comparison": "<", "to": 10,
+      "stepOp": "add", "step": 1, "body": [...] }
+        Expressions: see compiler/expr.py (C operators, $name$ or bare
+        variable names, min/max/abs/rnd/isqrt, actor_x/actor_y/actor_dir,
+        held/pressed, flag/item, saved/peek, scene, time). "from"/"to"/
+        "step" may be {"var": ...} like set_var's "value".
+    { "type": "set_var_true" | "set_var_false", "var": ... }
+    { "type": "var_inc" | "var_dec", "var": ... }
+    { "type": "if_var_true" | "if_var_false", "var": ..., "then", "else" }
+    { "type": "var_set_flags" | "var_add_flags" | "var_clear_flags",
+      "var": ..., "bits": [0, 3] }            bits 0-15 of the variable
+    { "type": "if_var_flags", "var": ..., "bits": [...], "then", "else" }
+        True when every listed bit is set.
+    { "type": "vars_reset" }   { "type": "seed_rng" }   { "type": "idle" }
+    { "type": "rate_limit", "var": "<name>", "frames": 30, "body": [...] }
+        Skips "body" if it ran less than "frames" frames ago ("var" keeps
+        the time it last ran).
+    { "type": "label", "label": "top" }   { "type": "goto", "label": "top" }
+        Jump within the same script (not into or out of a sub-script).
+    { "type": "switch", "var": ..., "cases": [{ "value": 1, "then": [...] }],
+      "else": [...] }
+    { "type": "if_color_supported" | "if_device_gba", "then": [...] }
+    { "type": "if_device_sgb", "else": [...] }
+        Resolved at compile time: a GBA supports color, is a GBA, isn't an SGB.
+    { "type": "actor_invoke", "actor": ... }
+        Runs that NPC's on_interact here (inlined; "self" inside it means
+        that NPC).
+    { "type": "thread_start", "var": "<optional handle var>", "script": [...] }
+    { "type": "thread_stop", "var": "<handle var>" }
+    { "type": "timer_script_set", "timer": 1-4, "frames": 60, "script": [...] }
+    { "type": "timer_restart" | "timer_disable", "timer": 1-4 }
+    { "type": "input_script_set", "buttons": ["a"], "override": false,
+      "script": [...] }
+    { "type": "input_script_remove", "buttons": ["a"] }
+    { "type": "music_routine", "routine": 0-15, "script": [...] }
+        "script"s run as separate background scripts (see script.h).
+    { "type": "actor_set_position_vars" | "actor_move_to_vars", "actor": ...,
+      "varX": ..., "varY": ..., "units": "tiles" }
+    { "type": "actor_set_position_relative" | "actor_move_relative",
+      "actor": ..., "x": 1, "y": 0, "units": "tiles" }
+    { "type": "actor_set_frame_var", "actor": ..., "var": ... }
+    { "type": "actor_set_move_speed", "actor": ..., "speed": 1-8 }  px/frame
+    { "type": "actor_set_anim_speed", "actor": ..., "speed": 0-255 }
+        Frames per animation frame; 0 = the sprite's own speed.
+    { "type": "actor_set_collisions", "actor": ..., "enabled": true }
+    { "type": "actor_push", "actor": ..., "continue": false }
+    { "type": "if_actor_at_position", "actor": ..., "x": 5, "y": 8, ... }
+    { "type": "if_actor_direction", "actor": ..., "direction": "up", ... }
+    { "type": "if_actor_distance", "actor": ..., "other": ..., "op": "<=",
+      "distance": 3, ... }                     whole tiles, Euclidean
+    { "type": "if_actor_relative", "actor": ..., "other": ...,
+      "relation": "up" | "down" | "left" | "right", ... }
+    { "type": "if_input", "buttons": ["a", "b"], ... }        held right now
+    { "type": "if_current_scene", "scene": "<name>", ... }
+    { "type": "scene_push" | "scene_pop" | "scene_pop_all" | "scene_reset" }
+    { "type": "data_save" | "data_load" | "data_clear", "slot": 0-2 }
+    { "type": "if_data_saved", "slot": 0-2, ... }
+    { "type": "data_peek", "slot": 0-2, "source": "<var in the save>",
+      "var": "<var to store it in>" }
+    { "type": "sprites_show" }   { "type": "sprites_hide" }
+    { "type": "palette_set", "target": "background" | "sprite", "bank": 0-15,
+      "index": 0-15, "colors": ["#rrggbb", ...] }
+    { "type": "replace_tile", "x": 5, "y": 3, "sourceX": 0, "sourceY": 0 }
+        Copies the map entry at the source tile onto (x, y).
+    { "type": "sound_tone", "frequency": 440, "frames": 30 }
+    { "type": "sound_beep", "pitch": 1-8, "frames": 30 }
+    { "type": "sound_crash", "frames": 30 }
+    { "type": "mute_channel", "channel": 1-4, "muted": true }
+
 Any "text" event's "text", a "choice" event's "prompt"/"options", or a
 "menu" event's option "label"s may embed a variable's current value with
 "{varname}" (e.g. "text": "You have {score} points!") - substituted with
@@ -410,6 +485,8 @@ import sys
 from PIL import Image
 
 from uge import UgeError, build_uge_songs, track_const as uge_track_const
+from expr import ExprError, compile_expression, to_rpn as expr_to_rpn
+import expr as X
 
 # Shared music folder (engine/music/) - .uge songs are compiled from here
 # into engine/data/uge_songs.c; module files go through the Makefile's
@@ -1205,6 +1282,26 @@ def interpolate_vars(text, ctx, where):
     return VAR_REF_RE.sub(repl, text)
 
 
+def _button_mask(buttons, where):
+    """A button name or list of names -> a C INPUT_* mask expression."""
+    if isinstance(buttons, str):
+        buttons = [buttons]
+    if not isinstance(buttons, list) or not buttons:
+        raise BuildError(
+            f"{where}: \"buttons\" must be a button name, or a "
+            "list of button names.")
+    consts = []
+    for b in buttons:
+        name = str(b).strip().lower()
+        const = BUTTON_NAME_TO_CONST.get(name)
+        if const is None:
+            known = ", ".join(sorted(BUTTON_NAME_TO_CONST))
+            raise BuildError(
+                f"{where}: unknown button '{b}'. Use one of: {known}")
+        consts.append(const)
+    return consts[0] if len(consts) == 1 else "(" + " | ".join(consts) + ")"
+
+
 def _compile_branch(out, if_op, fields, jump_field, ev, ctx, where):
     """Shared if_flag/if_item/if_var logic: emit the IF (with `fields` as
     its fixed operands), compile "then" right after it, and - if "else"
@@ -1408,23 +1505,7 @@ def compile_events(events, out, ctx, where):
             out.append(_instr("SCRIPT_ACTOR_MOVE_TO", a=idx, b=x, c=y))
 
         elif etype == "wait_button":
-            buttons = ev.get("buttons")
-            if isinstance(buttons, str):
-                buttons = [buttons]
-            if not isinstance(buttons, list) or not buttons:
-                raise BuildError(
-                    f"{ev_where}: \"buttons\" must be a button name, or a "
-                    "list of button names.")
-            consts = []
-            for b in buttons:
-                name = str(b).strip().lower()
-                const = BUTTON_NAME_TO_CONST.get(name)
-                if const is None:
-                    known = ", ".join(sorted(BUTTON_NAME_TO_CONST))
-                    raise BuildError(
-                        f"{ev_where}: unknown button '{b}'. Use one of: {known}")
-                consts.append(const)
-            mask_expr = consts[0] if len(consts) == 1 else "(" + " | ".join(consts) + ")"
+            mask_expr = _button_mask(ev.get("buttons"), ev_where)
             out.append(_instr("SCRIPT_WAIT_BUTTON", a=mask_expr))
 
         elif etype == "choice":
@@ -1595,6 +1676,9 @@ def compile_events(events, out, ctx, where):
         elif etype == "stop_music":
             out.append(_instr("SCRIPT_STOP_MUSIC"))
 
+        elif compile_parity_event(etype, ev, out, ctx, ev_where):
+            pass
+
         else:
             raise BuildError(
                 f"{ev_where}: unknown event type '{etype}'. Use one of: "
@@ -1608,21 +1692,605 @@ def compile_events(events, out, ctx, where):
                 "camera_move_to, camera_release, call_script, "
                 "comment, group, loop, stop_script, math, "
                 "actor_get_position, actor_get_direction, camera_shake, "
-                "array_var_math, fade_out, fade_in, play_music, stop_music.")
+                "array_var_math, fade_out, fade_in, play_music, stop_music, "
+                f"{', '.join(PARITY_EVENT_TYPES)}.")
 
     return out
+
+
+# ---------------------------------------------------------------------------
+# GB Studio parity events - the ones that emit the ops added after
+# SCRIPT_STOP_MUSIC in script.h (expressions, threads, timer/input/music-
+# routine scripts, save slots, the scene stack, ...), plus events that
+# lower onto older ops (labels, switch, compile-time device checks).
+# ---------------------------------------------------------------------------
+
+POSITION_UNITS = {"tiles": TILE, "pixels": 1}
+
+COMPARE_TO_EXPR = {
+    "==": "EXPR_EQ", "!=": "EXPR_NE", "<": "EXPR_LT",
+    "<=": "EXPR_LE", ">": "EXPR_GT", ">=": "EXPR_GE",
+}
+
+TIMER_SCRIPT_SLOTS = 4          # script.c's TIMER_SLOTS
+MUSIC_ROUTINES = 16
+SAVE_SLOT_COUNT = 3             # save.h's SAVE_SLOT_COUNT
+PALETTE_TARGETS = {"background": 0, "sprite": 1}
+HEX_COLOR_RE = re.compile(r"^#?([0-9a-fA-F]{6})$")
+
+
+def _units_scale(ev, where):
+    units = str(ev.get("units", "tiles")).lower()
+    if units not in POSITION_UNITS:
+        raise BuildError(f"{where}: unknown \"units\" '{units}'. Use \"tiles\" or \"pixels\".")
+    return POSITION_UNITS[units]
+
+
+def _value_node(ev, field, ctx, where, default=None):
+    """A VarOrLiteral field as an expression node."""
+    if field not in ev and default is not None:
+        return X.const(default)
+    is_var, val = _var_or_literal(ev, field, ctx, where)
+    return X.var(val) if is_var else X.const(val)
+
+
+def _bits_mask(ev, field, where):
+    """"bits": [0..15] -> the int16 value with those bits set."""
+    bits = _require(ev, field, where)
+    if isinstance(bits, int) and not isinstance(bits, bool):
+        bits = [bits]
+    if not isinstance(bits, list):
+        raise BuildError(f"{where}: \"{field}\" must be a list of bit numbers 0-15.")
+    mask = 0
+    for b in bits:
+        mask |= 1 << resolve_small_int(b, field, where, 0, 15)
+    return mask - 0x10000 if mask & 0x8000 else mask
+
+
+def _slot(ev, where, field="slot"):
+    return resolve_small_int(ev.get(field, 0), field, where, 0, SAVE_SLOT_COUNT - 1)
+
+
+def _timer_slot(ev, where):
+    # 1-based in JSON, like GB Studio's Timer 1-4.
+    return resolve_small_int(ev.get("timer", 1), "timer", where, 1, TIMER_SCRIPT_SLOTS) - 1
+
+
+def _expr_branch(out, node, ev, ctx, where):
+    """if/else on an expression (string or AST node)."""
+    ptr = emit_expr(ctx, node, where)
+    _compile_branch(out, "SCRIPT_IF_EXPR", {"ptr": ptr}, "b", ev, ctx, where)
+
+
+def _loop_on_expr(out, node, body, ctx, where, step=None):
+    """while (node) { body; step }"""
+    top = len(out)
+    ptr = emit_expr(ctx, node, where)
+    if_index = len(out)
+    out.append(_instr("SCRIPT_IF_EXPR", ptr=ptr))
+    compile_events(body or [], out, ctx, where)
+    if step:
+        out.append(step)
+    out.append(_instr("SCRIPT_GOTO", a=top))
+    out[if_index]["b"] = len(out)
+
+
+# Every event type compile_parity_event() handles (for error messages).
+PARITY_EVENT_TYPES = [
+    "if_expression", "set_var_expression", "loop_while", "loop_for",
+    "set_var_true", "set_var_false", "var_inc", "var_dec", "if_var_true",
+    "if_var_false", "var_set_flags", "var_add_flags", "var_clear_flags",
+    "if_var_flags", "vars_reset", "seed_rng", "rate_limit", "label", "goto",
+    "switch", "if_color_supported", "if_device_gba", "if_device_sgb",
+    "actor_invoke", "thread_start", "thread_stop", "timer_script_set",
+    "timer_restart", "timer_disable", "input_script_set",
+    "input_script_remove", "music_routine", "actor_set_position_vars",
+    "actor_move_to_vars", "actor_set_position_relative",
+    "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
+    "actor_set_anim_speed", "actor_set_collisions", "actor_push",
+    "if_actor_at_position", "if_actor_direction", "if_actor_distance",
+    "if_actor_relative", "if_input", "if_current_scene", "scene_push",
+    "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
+    "data_clear", "if_data_saved", "data_peek", "sprites_show",
+    "sprites_hide", "palette_set", "replace_tile", "sound_tone", "sound_beep",
+    "sound_crash", "mute_channel", "idle",
+]
+
+
+def compile_parity_event(etype, ev, out, ctx, where):
+    """Compile one of the GB Studio parity events. Returns False if
+    `etype` isn't one of them."""
+
+    # ---- Expressions ----
+    if etype == "if_expression":
+        _expr_branch(out, _require(ev, "expression", where), ev, ctx, where)
+
+    elif etype == "set_var_expression":
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        ptr = emit_expr(ctx, _require(ev, "expression", where), where)
+        out.append(_instr("SCRIPT_SET_VAR_EXPR", a=idx, ptr=ptr))
+
+    elif etype == "loop_while":
+        _loop_on_expr(out, _require(ev, "expression", where), ev.get("body"), ctx, where)
+
+    elif etype == "loop_for":
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        is_var, start = _var_or_literal(ev, "from", ctx, where)
+        out.append(_instr("SCRIPT_COPY_VAR" if is_var else "SCRIPT_SET_VAR", a=idx, b=start))
+        cmp = COMPARE_TO_EXPR.get(ev.get("comparison", "<="))
+        if cmp is None:
+            raise BuildError(f"{where}: unknown \"comparison\" '{ev.get('comparison')}'. "
+                             f"Use one of: {', '.join(COMPARE_TO_EXPR)}")
+        ops = MATH_OP_TO_SCRIPT.get(ev.get("stepOp", "add"))
+        if ops is None:
+            raise BuildError(f"{where}: unknown \"stepOp\" '{ev.get('stepOp')}'. "
+                             f"Use one of: {', '.join(MATH_OP_TO_SCRIPT)}")
+        if "step" in ev:
+            step_is_var, step = _var_or_literal(ev, "step", ctx, where)
+        else:
+            step_is_var, step = False, 1
+        step_ins = _instr(ops[1] if step_is_var else ops[0], a=idx, b=step)
+        node = X.op(cmp, X.var(idx), _value_node(ev, "to", ctx, where))
+        _loop_on_expr(out, node, ev.get("body"), ctx, where, step=step_ins)
+
+    # ---- Variables ----
+    elif etype in ("set_var_true", "set_var_false"):
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        out.append(_instr("SCRIPT_SET_VAR", a=idx, b=1 if etype == "set_var_true" else 0))
+
+    elif etype in ("var_inc", "var_dec"):
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        out.append(_instr("SCRIPT_ADD_VAR", a=idx, b=1 if etype == "var_inc" else -1))
+
+    elif etype in ("if_var_true", "if_var_false"):
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        if_op = "SCRIPT_IF_VAR_NE" if etype == "if_var_true" else "SCRIPT_IF_VAR_EQ"
+        _compile_branch(out, if_op, {"a": idx, "b": 0}, "c", ev, ctx, where)
+
+    elif etype == "var_set_flags":
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        out.append(_instr("SCRIPT_SET_VAR", a=idx, b=_bits_mask(ev, "bits", where)))
+
+    elif etype in ("var_add_flags", "var_clear_flags"):
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        mask = _bits_mask(ev, "bits", where)
+        if etype == "var_add_flags":
+            node = X.op("EXPR_BOR", X.var(idx), X.const(mask))
+        else:
+            node = X.op("EXPR_BAND", X.var(idx), X.const(~mask))
+        out.append(_instr("SCRIPT_SET_VAR_EXPR", a=idx, ptr=emit_expr(ctx, node, where)))
+
+    elif etype == "if_var_flags":
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        mask = _bits_mask(ev, "bits", where)
+        node = X.op("EXPR_EQ", X.op("EXPR_BAND", X.var(idx), X.const(mask)), X.const(mask))
+        _expr_branch(out, node, ev, ctx, where)
+
+    elif etype == "vars_reset":
+        out.append(_instr("SCRIPT_VARS_RESET"))
+
+    elif etype == "seed_rng":
+        out.append(_instr("SCRIPT_SEED_RNG"))
+
+    # ---- Control flow ----
+    elif etype == "rate_limit":
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        frames = resolve_small_int(ev.get("frames", 30), "frames", where, 1, INT16_MAX)
+        rl_index = len(out)
+        out.append(_instr("SCRIPT_RATE_LIMIT", a=idx, b=frames))
+        compile_events(ev.get("body", []), out, ctx, where)
+        out[rl_index]["c"] = len(out)
+
+    elif etype == "label":
+        name = _require(ev, "label", where)
+        if not isinstance(name, str) or not name.strip():
+            raise BuildError(f"{where}: \"label\" must be a non-empty name.")
+        defined = ctx["_labels"]["defined"]
+        if name in defined:
+            raise BuildError(f"{where}: label '{name}' is defined twice in this script.")
+        defined[name] = len(out)
+
+    elif etype == "goto":
+        name = _require(ev, "label", where)
+        ctx["_labels"]["gotos"].append((len(out), name, where))
+        out.append(_instr("SCRIPT_GOTO"))
+
+    elif etype == "switch":
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        cases = ev.get("cases", [])
+        if not isinstance(cases, list):
+            raise BuildError(f"{where}: \"cases\" must be a list.")
+        end_gotos = []
+        seen = set()
+        for ci, case in enumerate(cases):
+            case_where = f"{where} case {ci}"
+            if not isinstance(case, dict):
+                raise BuildError(f"{case_where}: must be an object with a \"value\".")
+            value = resolve_int16(_require(case, "value", case_where), "value", case_where)
+            if value in seen:
+                raise BuildError(f"{case_where}: value {value} already has a case.")
+            seen.add(value)
+            if_index = len(out)
+            out.append(_instr("SCRIPT_IF_VAR_EQ", a=idx, b=value))
+            compile_events(case.get("then", []), out, ctx, case_where)
+            end_gotos.append(len(out))
+            out.append(_instr("SCRIPT_GOTO"))
+            out[if_index]["c"] = len(out)
+        compile_events(ev.get("else", []), out, ctx, f"{where} else")
+        for g in end_gotos:
+            out[g]["a"] = len(out)
+
+    elif etype in ("if_color_supported", "if_device_gba"):
+        # Always true on a GBA - resolved at compile time.
+        compile_events(ev.get("then", []), out, ctx, where)
+
+    elif etype == "if_device_sgb":
+        compile_events(ev.get("else", []), out, ctx, where)
+
+    # ---- Scripts / threads ----
+    elif etype == "actor_invoke":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        if idx < 0:
+            raise BuildError(f"{where}: \"actor\" must be an NPC - the player has no "
+                             "on_interact script to invoke.")
+        events = ctx.get("npc_events", {}).get(idx)
+        if events:
+            stack = ctx.setdefault("_invoke_stack", [])
+            if idx in stack:
+                raise BuildError(f"{where}: NPC {idx}'s on_interact invokes itself "
+                                 "(directly or through another actor_invoke).")
+            stack.append(idx)
+            saved_self = ctx.get("self_actor_index")
+            ctx["self_actor_index"] = idx
+            try:
+                compile_events(events, out, ctx, f"{where} -> NPC {idx} on_interact")
+            finally:
+                ctx["self_actor_index"] = saved_self
+                stack.pop()
+
+    elif etype == "thread_start":
+        handle_var = ev.get("var")
+        a = resolve_var(handle_var, ctx, where) if handle_var else -1
+        ptr = compile_subscript(ev.get("script", []), ctx, where)
+        out.append(_instr("SCRIPT_THREAD_START", a=a, ptr=ptr))
+
+    elif etype == "thread_stop":
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        out.append(_instr("SCRIPT_THREAD_STOP", a=idx))
+
+    elif etype == "timer_script_set":
+        slot = _timer_slot(ev, where)
+        frames = resolve_small_int(_require(ev, "frames", where), "frames", where, 1, INT16_MAX)
+        ptr = compile_subscript(ev.get("script", []), ctx, where)
+        out.append(_instr("SCRIPT_TIMER_SET", a=slot, b=frames, ptr=ptr))
+
+    elif etype == "timer_restart":
+        out.append(_instr("SCRIPT_TIMER_RESTART", a=_timer_slot(ev, where)))
+
+    elif etype == "timer_disable":
+        out.append(_instr("SCRIPT_TIMER_DISABLE", a=_timer_slot(ev, where)))
+
+    elif etype == "input_script_set":
+        mask = _button_mask(ev.get("buttons"), where)
+        override = 1 if ev.get("override", False) else 0
+        ptr = compile_subscript(ev.get("script", []), ctx, where)
+        out.append(_instr("SCRIPT_INPUT_SCRIPT_SET", a=mask, b=override, ptr=ptr))
+
+    elif etype == "input_script_remove":
+        out.append(_instr("SCRIPT_INPUT_SCRIPT_REMOVE", a=_button_mask(ev.get("buttons"), where)))
+
+    elif etype == "music_routine":
+        routine = resolve_small_int(ev.get("routine", 0), "routine", where, 0, MUSIC_ROUTINES - 1)
+        ptr = compile_subscript(ev.get("script", []), ctx, where)
+        out.append(_instr("SCRIPT_MUSIC_ROUTINE", a=routine, ptr=ptr))
+
+    # ---- Actors ----
+    elif etype in ("actor_set_position_vars", "actor_move_to_vars"):
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        vx = resolve_var(_require(ev, "varX", where), ctx, where)
+        vy = resolve_var(_require(ev, "varY", where), ctx, where)
+        pixels = 1 if _units_scale(ev, where) == 1 else 0
+        op_name = ("SCRIPT_ACTOR_SET_POSITION_VARS" if etype == "actor_set_position_vars"
+                   else "SCRIPT_ACTOR_MOVE_TO_VARS")
+        out.append(_instr(op_name, a=idx, b=vx, c=vy, d=pixels))
+
+    elif etype in ("actor_set_position_relative", "actor_move_relative"):
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        scale = _units_scale(ev, where)
+        dx = resolve_int16(ev.get("x", 0) * scale, "x", where)
+        dy = resolve_int16(ev.get("y", 0) * scale, "y", where)
+        op_name = ("SCRIPT_ACTOR_SET_POSITION_REL" if etype == "actor_set_position_relative"
+                   else "SCRIPT_ACTOR_MOVE_REL")
+        out.append(_instr(op_name, a=idx, b=dx, c=dy))
+
+    elif etype == "actor_set_frame_var":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        v = resolve_var(_require(ev, "var", where), ctx, where)
+        out.append(_instr("SCRIPT_ACTOR_SET_FRAME_VAR", a=idx, b=v))
+
+    elif etype == "actor_set_move_speed":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        speed = resolve_small_int(_require(ev, "speed", where), "speed", where, 1, 8)
+        out.append(_instr("SCRIPT_ACTOR_SET_MOVE_SPEED", a=idx, b=speed))
+
+    elif etype == "actor_set_anim_speed":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        speed = resolve_small_int(_require(ev, "speed", where), "speed", where, 0, 255)
+        out.append(_instr("SCRIPT_ACTOR_SET_ANIM_SPEED", a=idx, b=speed))
+
+    elif etype == "actor_set_collisions":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        out.append(_instr("SCRIPT_ACTOR_SET_COLLISIONS", a=idx, b=1 if ev.get("enabled", True) else 0))
+
+    elif etype == "actor_push":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        out.append(_instr("SCRIPT_ACTOR_PUSH", a=idx, b=1 if ev.get("continue", False) else 0))
+
+    elif etype == "if_actor_at_position":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        scale = _units_scale(ev, where)
+        x = resolve_int16(_require(ev, "x", where) * scale, "x", where)
+        y = resolve_int16(_require(ev, "y", where) * scale, "y", where)
+        node = X.op("EXPR_AND",
+                    X.op("EXPR_EQ", X.op("EXPR_ACTOR_X", X.const(idx)), X.const(x)),
+                    X.op("EXPR_EQ", X.op("EXPR_ACTOR_Y", X.const(idx)), X.const(y)))
+        _expr_branch(out, node, ev, ctx, where)
+
+    elif etype == "if_actor_direction":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        dir_name = str(_require(ev, "direction", where)).lower()
+        if dir_name not in DIRECTION_MAP:
+            raise BuildError(f"{where}: unknown direction '{dir_name}'. Use: down, up, right, left.")
+        node = X.op("EXPR_EQ", X.op("EXPR_ACTOR_DIR", X.const(idx)), X.const(DIRECTION_MAP[dir_name]))
+        _expr_branch(out, node, ev, ctx, where)
+
+    elif etype == "if_actor_distance":
+        # Like GB Studio: both positions in whole tiles, then compare the
+        # squared Euclidean distance against distance squared.
+        a = resolve_actor(_require(ev, "actor", where), ctx, where)
+        b = resolve_actor(_require(ev, "other", where), ctx, where)
+        cmp = COMPARE_TO_EXPR.get(ev.get("op", "<="))
+        if cmp is None:
+            raise BuildError(f"{where}: unknown \"op\" '{ev.get('op')}'. "
+                             f"Use one of: {', '.join(COMPARE_TO_EXPR)}")
+
+        def tiles(tok, actor):
+            return X.op("EXPR_SHR", X.op(tok, X.const(actor)), X.const(3))
+
+        dx = X.op("EXPR_SUB", tiles("EXPR_ACTOR_X", a), tiles("EXPR_ACTOR_X", b))
+        dy = X.op("EXPR_SUB", tiles("EXPR_ACTOR_Y", a), tiles("EXPR_ACTOR_Y", b))
+        dist = _value_node(ev, "distance", ctx, where)
+        node = X.op(cmp,
+                    X.op("EXPR_ADD", X.op("EXPR_MUL", dx, dx), X.op("EXPR_MUL", dy, dy)),
+                    X.op("EXPR_MUL", dist, dist))
+        _expr_branch(out, node, ev, ctx, where)
+
+    elif etype == "if_actor_relative":
+        a = resolve_actor(_require(ev, "actor", where), ctx, where)
+        b = resolve_actor(_require(ev, "other", where), ctx, where)
+        relation = str(ev.get("relation", "up")).lower()
+        table = {
+            "up": ("EXPR_ACTOR_Y", "EXPR_LT"), "down": ("EXPR_ACTOR_Y", "EXPR_GT"),
+            "left": ("EXPR_ACTOR_X", "EXPR_LT"), "right": ("EXPR_ACTOR_X", "EXPR_GT"),
+        }
+        if relation not in table:
+            raise BuildError(f"{where}: unknown \"relation\" '{relation}'. Use: up, down, left, right.")
+        axis, cmp = table[relation]
+        node = X.op(cmp, X.op(axis, X.const(a)), X.op(axis, X.const(b)))
+        _expr_branch(out, node, ev, ctx, where)
+
+    # ---- Input / scene / data ----
+    elif etype == "if_input":
+        mask = _button_mask(ev.get("buttons"), where)
+        _expr_branch(out, X.op("EXPR_HELD", X.const(mask)), ev, ctx, where)
+
+    elif etype == "if_current_scene":
+        scene_name = _require(ev, "scene", where)
+        if scene_name not in ctx["name_to_index"]:
+            known = ", ".join(sorted(ctx["name_to_index"]))
+            raise BuildError(f"{where}: unknown scene '{scene_name}'. Known scenes: {known}")
+        node = X.op("EXPR_EQ", X.op("EXPR_SCENE"), X.const(ctx["name_to_index"][scene_name]))
+        _expr_branch(out, node, ev, ctx, where)
+
+    elif etype in ("scene_push", "scene_pop", "scene_pop_all", "scene_reset"):
+        op_name = {"scene_push": "SCRIPT_SCENE_PUSH", "scene_pop": "SCRIPT_SCENE_POP",
+                   "scene_pop_all": "SCRIPT_SCENE_POP", "scene_reset": "SCRIPT_SCENE_RESET"}[etype]
+        out.append(_instr(op_name, a=1 if etype == "scene_pop_all" else 0))
+
+    elif etype in ("data_save", "data_load", "data_clear"):
+        op_name = {"data_save": "SCRIPT_DATA_SAVE", "data_load": "SCRIPT_DATA_LOAD",
+                   "data_clear": "SCRIPT_DATA_CLEAR"}[etype]
+        out.append(_instr(op_name, a=_slot(ev, where)))
+
+    elif etype == "if_data_saved":
+        _expr_branch(out, X.op("EXPR_SAVED", X.const(_slot(ev, where))), ev, ctx, where)
+
+    elif etype == "data_peek":
+        slot = _slot(ev, where)
+        source = resolve_var(_require(ev, "source", where), ctx, where)
+        idx = resolve_var(_require(ev, "var", where), ctx, where)
+        node = X.op("EXPR_PEEK", X.const(slot), X.const(source))
+        out.append(_instr("SCRIPT_SET_VAR_EXPR", a=idx, ptr=emit_expr(ctx, node, where)))
+
+    # ---- Screen ----
+    elif etype == "sprites_show":
+        out.append(_instr("SCRIPT_SPRITES_SHOW"))
+
+    elif etype == "sprites_hide":
+        out.append(_instr("SCRIPT_SPRITES_HIDE"))
+
+    elif etype == "palette_set":
+        target = str(ev.get("target", "background")).lower()
+        if target not in PALETTE_TARGETS:
+            raise BuildError(f"{where}: unknown \"target\" '{target}'. Use \"background\" or \"sprite\".")
+        bank = resolve_small_int(ev.get("bank", 0), "bank", where, 0, 15)
+        index = resolve_small_int(ev.get("index", 0), "index", where, 0, 15)
+        colors = ev.get("colors", [ev["color"]] if "color" in ev else None)
+        if isinstance(colors, str):
+            colors = [colors]
+        if not isinstance(colors, list) or not colors or index + len(colors) > 16:
+            raise BuildError(f"{where}: \"colors\" must be a list of 1-{16 - index} "
+                             "\"#rrggbb\" colors (a bank holds 16).")
+        for i, col in enumerate(colors):
+            m = HEX_COLOR_RE.match(str(col))
+            if not m:
+                raise BuildError(f"{where}: color '{col}' isn't a \"#rrggbb\" hex color.")
+            h = m.group(1)
+            value = gba_color((int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)))
+            a = (PALETTE_TARGETS[target] << 8) | (bank << 4) | (index + i)
+            out.append(_instr("SCRIPT_PALETTE_SET", a=a, b=f"0x{value:04X}"))
+
+    elif etype == "replace_tile":
+        x = resolve_small_int(_require(ev, "x", where), "x", where, 0, 255)
+        y = resolve_small_int(_require(ev, "y", where), "y", where, 0, 255)
+        sx = resolve_small_int(_require(ev, "sourceX", where), "sourceX", where, 0, 255)
+        sy = resolve_small_int(_require(ev, "sourceY", where), "sourceY", where, 0, 255)
+        out.append(_instr("SCRIPT_REPLACE_TILE", a=x, b=y, c=sx, d=sy))
+
+    # ---- Sound ----
+    elif etype == "sound_tone":
+        hz = resolve_small_int(ev.get("frequency", 440), "frequency", where, 64, 20000)
+        frames = resolve_small_int(ev.get("frames", 30), "frames", where, 1, INT16_MAX)
+        out.append(_instr("SCRIPT_SOUND_TONE", a=hz, b=frames))
+
+    elif etype == "sound_beep":
+        pitch = resolve_small_int(ev.get("pitch", 4), "pitch", where, 1, 8)
+        frames = resolve_small_int(ev.get("frames", 30), "frames", where, 1, INT16_MAX)
+        out.append(_instr("SCRIPT_SOUND_BEEP", a=pitch, b=frames))
+
+    elif etype == "sound_crash":
+        frames = resolve_small_int(ev.get("frames", 30), "frames", where, 1, INT16_MAX)
+        out.append(_instr("SCRIPT_SOUND_CRASH", b=frames))
+
+    elif etype == "mute_channel":
+        ch = resolve_small_int(_require(ev, "channel", where), "channel", where, 1, 4)
+        out.append(_instr("SCRIPT_MUTE_CHANNEL", a=ch - 1, b=1 if ev.get("muted", True) else 0))
+
+    # ---- Timing ----
+    elif etype == "idle":
+        out.append(_instr("SCRIPT_WAIT", a=0))   # yields until next frame
+
+    else:
+        return False
+    return True
+
+
+class CompiledScript(list):
+    """compile_script()'s result: the instruction list, plus `aux` - the
+    expression arrays and sub-scripts (thread/timer/input/music-routine
+    bodies) its instructions point at through "ptr", in dependency
+    order. emit_script() writes those out first, since C needs them
+    declared before the array that references them."""
+
+    def __init__(self):
+        super().__init__()
+        self.aux = []
 
 
 def compile_script(events, ctx, where):
     """Compile a top-level events list into a complete, SCRIPT_END-terminated
-    instruction list, ready for emit_script()."""
-    out = []
-    compile_events(events, out, ctx, where)
-    out.append(_instr("SCRIPT_END"))
+    instruction list, ready for emit_script().
+
+    Also used for sub-scripts: every script (and so every array of
+    instruction indices) gets its own label scope for "label"/"goto"."""
+    out = CompiledScript()
+    outer_aux = ctx.get("_aux")
+    outer_labels = ctx.get("_labels")
+    ctx["_aux"] = out.aux
+    ctx["_labels"] = {"defined": {}, "gotos": []}
+    try:
+        compile_events(events, out, ctx, where)
+        out.append(_instr("SCRIPT_END"))
+        labels = ctx["_labels"]
+        for goto_index, name, goto_where in labels["gotos"]:
+            if name not in labels["defined"]:
+                known = ", ".join(sorted(labels["defined"])) or "(none in this script)"
+                raise BuildError(
+                    f"{goto_where}: no label '{name}' in this script. Known labels: "
+                    f"{known}. (A goto can't jump into or out of a thread, timer, "
+                    "input or music-routine script.)")
+            out[goto_index]["a"] = labels["defined"][name]
+    finally:
+        ctx["_aux"] = outer_aux
+        ctx["_labels"] = outer_labels
     return out
 
 
+def _aux_ident(ctx, kind):
+    n = ctx.get("_aux_counter", 0)
+    ctx["_aux_counter"] = n + 1
+    return f"{kind}_{n}"
+
+
+def compile_subscript(events, ctx, where):
+    """Compile `events` as a separate ScriptEvent array (a thread, timer,
+    input or music-routine body) and return its C identifier, for an
+    instruction's "ptr". It's queued on the enclosing script's aux list,
+    after any aux of its own."""
+    if events is None:
+        events = []
+    if not isinstance(events, list):
+        raise BuildError(f"{where}: \"script\" must be a list of events.")
+    sub = compile_script(events, ctx, f"{where} script")
+    ident = _aux_ident(ctx, "subscript")
+    ctx["_aux"].extend(sub.aux)
+    ctx["_aux"].append(("script", ident, list(sub)))
+    return ident
+
+
+class _ExprResolver:
+    """Name lookups for expr.py, reporting errors against `where`."""
+
+    def __init__(self, ctx, where):
+        self.ctx = ctx
+        self.where = where
+
+    def var(self, name):
+        return resolve_var(name, self.ctx, self.where)
+
+    def actor(self, ref):
+        return resolve_actor(ref, self.ctx, self.where)
+
+    def flag(self, name):
+        return resolve_flag(name, self.ctx, self.where)
+
+    def item(self, name):
+        return resolve_item(name, self.ctx, self.where)
+
+    def button(self, name):
+        return _button_mask([name], self.where)
+
+
+def emit_expr(ctx, node, where):
+    """Queue an expression (an expression string, or an expr.py AST node
+    built by a lowered event) as an int16_t RPN array and return its C
+    identifier, for an instruction's "ptr"."""
+    try:
+        if isinstance(node, str):
+            rpn = compile_expression(node, _ExprResolver(ctx, where))
+        else:
+            rpn = expr_to_rpn(node)
+    except ExprError as e:
+        raise BuildError(f"{where}: expression error: {e}")
+    ident = _aux_ident(ctx, "expr")
+    ctx["_aux"].append(("expr", ident, rpn))
+    return ident
+
+
 def emit_script(c_parts, ident, instructions):
+    for kind, aux_ident, data in getattr(instructions, "aux", []):
+        if kind == "expr":
+            c_parts.append(f"static const int16_t {aux_ident}[{len(data)}] =")
+            c_parts.append("{")
+            c_parts.append("    " + ", ".join(str(t) for t in data))
+            c_parts.append("};")
+            c_parts.append("")
+        else:
+            _emit_script_array(c_parts, aux_ident, data)
+    _emit_script_array(c_parts, ident, instructions)
+
+
+def _emit_script_array(c_parts, ident, instructions):
     c_parts.append(f"static const ScriptEvent {ident}[{len(instructions)}] =")
     c_parts.append("{")
     for ins in instructions:
@@ -3267,6 +3935,14 @@ def build(project_dir, out_dir):
 
         ctx["npc_name_to_index"] = npc_name_to_index
         ctx["npc_sprite_of"] = npc_sprite_of
+        # For "actor_invoke": each NPC's on_interact events (or its
+        # "dialogue" shorthand), inlined wherever it's invoked.
+        ctx["npc_events"] = {
+            j: (npc["on_interact"] if "on_interact" in npc
+                else [{"type": "text", "text": npc["dialogue"]}] if npc.get("dialogue")
+                else None)
+            for j, npc in enumerate(npcs)
+        }
         ctx["scene_npc_count"] = len(npcs)
         ctx["self_actor_index"] = None
 
