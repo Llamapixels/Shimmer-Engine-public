@@ -22,8 +22,11 @@ const VAR_IN_TEXT = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 export function sceneScripts(scene: SceneJSON): (EventScript | undefined)[] {
   return [
     scene.on_init,
-    ...(scene.doors ?? []).map((d) => d.events),
-    ...(scene.npcs ?? []).map((n) => n.on_interact),
+    scene.on_player_hit?.["1"],
+    scene.on_player_hit?.["2"],
+    scene.on_player_hit?.["3"],
+    ...(scene.doors ?? []).flatMap((d) => [d.events, d.on_leave]),
+    ...(scene.npcs ?? []).flatMap((n) => [n.on_interact, n.on_init, n.on_update, n.on_hit]),
     ...(scene.timers ?? []).map((t) => t.script),
   ];
 }
@@ -272,12 +275,21 @@ function mapSceneEvents(
 
   const next: SceneJSON = { ...scene };
   if (scene.on_init) next.on_init = mapScript(scene.on_init);
+  if (scene.on_player_hit) {
+    const hit = { ...scene.on_player_hit };
+    for (const g of ["1", "2", "3"] as const) if (hit[g]) hit[g] = mapScript(hit[g]);
+    next.on_player_hit = hit;
+  }
   if (scene.doors) {
     next.doors = scene.doors.map((d) => {
       let nd = d;
       if (d.events) {
         const e = mapScript(d.events);
         if (e !== d.events) nd = { ...nd, events: e };
+      }
+      if (d.on_leave) {
+        const e = mapScript(d.on_leave);
+        if (e !== d.on_leave) nd = { ...nd, on_leave: e };
       }
       if (kind === "scene" && d.target_scene === from) {
         nd = { ...nd, target_scene: to };
@@ -288,9 +300,14 @@ function mapSceneEvents(
   }
   if (scene.npcs) {
     next.npcs = scene.npcs.map((n) => {
-      if (!n.on_interact) return n;
-      const e = mapScript(n.on_interact);
-      return e !== n.on_interact ? { ...n, on_interact: e } : n;
+      let nn = n;
+      for (const key of ["on_interact", "on_init", "on_update", "on_hit"] as const) {
+        const cur = n[key];
+        if (!cur) continue;
+        const e = mapScript(cur);
+        if (e !== cur) nn = { ...nn, [key]: e };
+      }
+      return nn;
     });
   }
   if (scene.timers) {

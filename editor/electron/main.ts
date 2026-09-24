@@ -285,6 +285,17 @@ function registerIpcHandlers(): void {
     shell.showItemInFolder(abs);
   });
 
+  handle(IPC_CHANNELS.openProjectFolder, async (payload: { rootPath: string }) => {
+    checkRoot(payload.rootPath);
+    const err = await shell.openPath(payload.rootPath);
+    if (err) throw new Error(err);
+  });
+
+  handle(IPC_CHANNELS.exportDefaultUi, async (payload: { rootPath: string }) => {
+    checkRoot(payload.rootPath);
+    return projectIO.exportDefaultUi(payload.rootPath);
+  });
+
   handle(IPC_CHANNELS.buildRom, async (payload: BuildRomPayload) => {
     checkRoot(payload.rootPath);
     if (buildRunner.isBuildRunning()) {

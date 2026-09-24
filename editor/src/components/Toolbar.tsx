@@ -69,6 +69,17 @@ export default function Toolbar() {
         </span>
       </button>
 
+      <button
+        className="toolbar-section-select"
+        onClick={() => rootPath && void window.api.openProjectFolder({ rootPath })}
+        disabled={!rootPath}
+        title="Open this project's folder in your file manager"
+      >
+        <span>
+          <Icon name="folder" /> Open Folder
+        </span>
+      </button>
+
       <button ref={btnRef} className="toolbar-section-select" onClick={() => setMenuOpen((v) => !v)} aria-haspopup="menu" aria-expanded={menuOpen}>
         <span>{current.label}</span>
         <span className="toolbar-section-select-chevron" aria-hidden>

@@ -234,7 +234,7 @@ static const ScriptEvent house_inside_door0_script[3] =
 
 static const DoorDef house_inside_doors[1] =
 {
-    { 7, 14, 2, 2, house_inside_door0_script },
+    { 7, 14, 2, 2, house_inside_door0_script, 0 },
 };
 
 const SceneDef scene_house_inside =
@@ -259,6 +259,10 @@ const SceneDef scene_house_inside =
     .timers        = 0,
     .timer_count   = 0,
     .on_init       = 0,
+    .player_sprite = 0xFF,
+    .player_hit    = { 0, 0, 0 },
+    .parallax      = { { 0, 0 } },
+    .parallax_count = 0,
 };
 
 /* ---- scene: testmap ---- */
@@ -654,8 +658,8 @@ static const ScriptEvent testmap_door1_script[3] =
 
 static const DoorDef testmap_doors[2] =
 {
-    { 5, 5, 2, 2, testmap_door0_script },
-    { 58, 10, 2, 2, testmap_door1_script },
+    { 5, 5, 2, 2, testmap_door0_script, 0 },
+    { 58, 10, 2, 2, testmap_door1_script, 0 },
 };
 
 const SceneDef scene_testmap =
@@ -680,6 +684,10 @@ const SceneDef scene_testmap =
     .timers        = 0,
     .timer_count   = 0,
     .on_init       = 0,
+    .player_sprite = 0xFF,
+    .player_hit    = { 0, 0, 0 },
+    .parallax      = { { 0, 0 } },
+    .parallax_count = 0,
 };
 
 /* ---- scene: teststream ---- */
@@ -1404,7 +1412,7 @@ static const ScriptEvent teststream_door0_script[3] =
 
 static const DoorDef teststream_doors[1] =
 {
-    { 5, 5, 2, 2, teststream_door0_script },
+    { 5, 5, 2, 2, teststream_door0_script, 0 },
 };
 
 const SceneDef scene_teststream =
@@ -1429,6 +1437,10 @@ const SceneDef scene_teststream =
     .timers        = 0,
     .timer_count   = 0,
     .on_init       = 0,
+    .player_sprite = 0xFF,
+    .player_hit    = { 0, 0, 0 },
+    .parallax      = { { 0, 0 } },
+    .parallax_count = 0,
 };
 
 /* ---- scene: town ---- */
@@ -1827,8 +1839,8 @@ static const ScriptEvent town_door1_script[3] =
 
 static const DoorDef town_doors[2] =
 {
-    { 15, 38, 2, 2, town_door0_script },
-    { 40, 10, 2, 2, town_door1_script },
+    { 15, 38, 2, 2, town_door0_script, 0 },
+    { 40, 10, 2, 2, town_door1_script, 0 },
 };
 
 static const ScriptEvent town_npc0_script[8] =
@@ -1851,8 +1863,8 @@ static const ScriptEvent town_npc1_script[2] =
 
 static const NpcDef town_npcs[2] =
 {
-    { 144, 288, 0, 0, 0, 0, town_npc0_script },
-    { 200, 360, 0, 0, 0, 1, town_npc1_script },
+    { 144, 288, 0, 0, 0, 0, town_npc0_script, 0, 1, 0, 0, 0, 0 },
+    { 200, 360, 0, 0, 0, 1, town_npc1_script, 0, 1, 0, 0, 0, 0 },
 };
 
 const SceneDef scene_town =
@@ -1877,6 +1889,10 @@ const SceneDef scene_town =
     .timers        = 0,
     .timer_count   = 0,
     .on_init       = 0,
+    .player_sprite = 0xFF,
+    .player_hit    = { 0, 0, 0 },
+    .parallax      = { { 0, 0 } },
+    .parallax_count = 0,
 };
 
 const SceneDef *const scenes[SCENE_COUNT] =
