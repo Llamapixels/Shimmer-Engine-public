@@ -271,7 +271,7 @@ Event script types (used in "on_interact" and door "events" lists):
         Branch on whether the player holds an item. "else" is optional.
     { "type": "play_sound", "sound": "blip" | "door" | "save" | "item" }
         Play one of the engine's small fixed set of sound effects.
-    { "type": "play_music", "track": "<engine/music asset name>", "loop": true }
+    { "type": "play_music", "track": "<assets/music song name>", "loop": true }
         Start (or restart) a music track from a script, not just a scene's
         own "music" property (see below) - e.g. from an on_init, so it
         loops in the background until changed/stopped. Already-playing the
@@ -463,14 +463,11 @@ moment the text is actually shown on screen, not when the script runs the
 event, so it stays live across pages/frames.
 
 A scene can also switch music on entering it:
-    "music": "template"        <- optional, matches an engine/music/ file
-                                   (without extension): a .uge song
-                                   (hUGETracker / GB Studio, played on the
-                                   GBA's Game Boy sound channels) resolves to
-                                   its UGE_* id in uge_songs.h, a .mod/.xm/
-                                   .s3m/.it module to the MOD_* constant
-                                   mmutil generates for it. Leave unset to
-                                   keep whatever's already playing.
+    "music": "town"            <- optional, a .uge song (hUGETracker /
+                                   GB Studio) in the project's assets/music/
+                                   folder, without the extension. Played on
+                                   the GBA's Game Boy sound channels. Leave
+                                   unset to keep whatever's already playing.
 
 This is the "compiler" box from the architecture:
     editor (later) -> project files -> THIS -> engine data -> .gba
@@ -488,11 +485,9 @@ from uge import UgeError, build_uge_songs, track_const as uge_track_const
 from expr import ExprError, compile_expression, to_rpn as expr_to_rpn
 import expr as X
 
-# Shared music folder (engine/music/) - .uge songs are compiled from here
-# into engine/data/uge_songs.c; module files go through the Makefile's
-# mmutil rule instead.
-ENGINE_MUSIC_DIR = Path(__file__).resolve().parent.parent / "engine" / "music"
-MODULE_MUSIC_EXTS = (".mod", ".xm", ".s3m", ".it")
+# Each project's .uge songs live in <project>/assets/music/ and are
+# compiled into engine/data/uge_songs.c.
+PROJECT_MUSIC_DIR = Path("assets") / "music"
 
 
 TILE = 8
@@ -1671,7 +1666,7 @@ def compile_events(events, out, ctx, where):
             if not isinstance(track, str) or not track.strip():
                 raise BuildError(f"{ev_where}: \"track\" must be a non-empty music asset name.")
             loop = 1 if ev.get("loop", True) else 0
-            out.append(_instr("SCRIPT_PLAY_MUSIC", a=music_track_const(track), b=loop))
+            out.append(_instr("SCRIPT_PLAY_MUSIC", a=music_track_const(track, ctx, ev_where), b=loop))
 
         elif etype == "stop_music":
             out.append(_instr("SCRIPT_STOP_MUSIC"))
@@ -2627,13 +2622,9 @@ def c_array(ctype, name, values, fmt, per_line, align=True):
 
 def _uses_play_music(node):
     """True if `node` (any nested JSON value - typically the whole
-    project dict) contains a play_music event anywhere: a scene's
-    on_init, a door's events, an NPC's on_interact, a timer's script,
-    a custom script, or nested inside any of those (then/else/body/
-    children/menu options branches). Used to decide whether
-    scenes_data.c needs #include "soundbank.h" - a scene's own
-    "music" property already gets its own, narrower check (see
-    build_scenes_c()); this covers music started only from a script."""
+    project dict) contains a play_music event anywhere, including
+    nested branches. Used to decide whether scenes_data.c needs
+    #include "music.h"."""
     if isinstance(node, dict):
         if node.get("type") == "play_music":
             return True
@@ -2643,26 +2634,17 @@ def _uses_play_music(node):
     return False
 
 
-def music_track_const(name):
-    """A music asset name/filename (e.g. "template", "template.mod" or
-    "town.uge", matching MusicSelect's picker / a scene's "music"
-    property / a play_music event's "track") to its C track id: UGE_*
-    (uge_songs.h, see compiler/uge.py) for an engine/music/*.uge song,
-    else the soundbank.h MOD_* identifier mmutil generates. A bare
-    name that matches both a .uge and a module file picks the module,
-    so projects from before .uge support keep the track they had.
-    Module names aren't validated here - an unknown/misspelled one
-    surfaces as an "undeclared identifier" from the devkitARM build."""
-    path = Path(name)
-    ext = path.suffix.lower()
-    stem = path.stem if ext in (".uge",) + MODULE_MUSIC_EXTS else name
-    is_uge = ext == ".uge" or (
-        ext not in MODULE_MUSIC_EXTS
-        and (ENGINE_MUSIC_DIR / f"{stem}.uge").is_file()
-        and not any((ENGINE_MUSIC_DIR / f"{stem}{e}").is_file() for e in MODULE_MUSIC_EXTS))
-    if is_uge:
-        return uge_track_const(stem)
-    return "MOD_" + "".join(ch.upper() if ch.isalnum() else "_" for ch in stem)
+def music_track_const(name, ctx, where):
+    """A music name (e.g. "town" or "town.uge", as a scene's "music"
+    property or a play_music event's "track" gives it) to its UGE_*
+    track id in uge_songs.h, checked against the project's
+    assets/music/*.uge files."""
+    stem = name[:-4] if name.lower().endswith(".uge") else name
+    known = ctx["music_names"]
+    if stem not in known:
+        listed = ", ".join(sorted(known)) or "(none - add .uge files to assets/music/)"
+        raise BuildError(f"{where}: unknown music '{name}'. Songs in this project: {listed}")
+    return uge_track_const(stem)
 
 
 def c_ident(name):
@@ -2809,6 +2791,7 @@ def build(project_dir, out_dir):
         "timer_name_to_index": {},
         "scene_timer_count": 0,
         "custom_scripts": custom_scripts,
+        "music_names": {p.stem for p in (project_dir / PROJECT_MUSIC_DIR).glob("*.uge")},
     }
 
     # -----------------------------------------------------------------------
@@ -3593,11 +3576,8 @@ def build(project_dir, out_dir):
     if (any(scene.get("music") for _, scene in scene_data_list)
             or _uses_play_music(project)
             or any(_uses_play_music(scene) for _, scene in scene_data_list)):
-        # music.h pulls in both track-id headers: soundbank.h (MOD_*,
-        # generated by the Makefile's mmutil rule - not on disk when
-        # this script runs, only by the time this file gets compiled)
-        # and uge_songs.h (UGE_*, written by build() below).
-        # _uses_play_music(project) catches project.json's top-level
+        # music.h pulls in uge_songs.h (UGE_* ids, written by build()
+        # below). _uses_play_music(project) catches project.json's top-level
         # customScripts[]; each scene's own dict (on_init/doors/npcs/
         # timers) is checked separately since scene JSON lives in its
         # own file, not nested inside project.json.
@@ -3895,7 +3875,7 @@ def build(project_dir, out_dir):
         start_direction = DIRECTION_MAP[start_dir_name]
 
         music_name = scene.get("music")
-        music_const = music_track_const(music_name) if music_name else None
+        music_const = music_track_const(music_name, ctx, f"{name}: \"music\"") if music_name else None
 
         doors = scene.get("doors", [])
         validate_doors(doors, name, w, h, name_to_index)
@@ -4204,7 +4184,7 @@ def build(project_dir, out_dir):
 
     out_dir.mkdir(parents=True, exist_ok=True)
     try:
-        uge_names = build_uge_songs(ENGINE_MUSIC_DIR, out_dir)
+        uge_names = build_uge_songs(project_dir / PROJECT_MUSIC_DIR, out_dir)
     except UgeError as e:
         raise BuildError(str(e)) from None
     if uge_names:

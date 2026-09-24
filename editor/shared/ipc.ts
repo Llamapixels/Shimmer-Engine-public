@@ -131,6 +131,41 @@ export interface RevealPayload {
 }
 
 // ---------------------------------------------------------------------------
+// Songs (assets/music/<name>.uge)
+// ---------------------------------------------------------------------------
+
+export interface SaveSongPayload {
+  rootPath: string;
+  /** File stem under assets/music/. */
+  name: string;
+  /** The .uge file's bytes, base64. */
+  dataBase64: string;
+}
+
+export interface CreateSongPayload {
+  rootPath: string;
+  /** Desired name; cleaned up and de-duped. */
+  name: string;
+  dataBase64: string;
+}
+
+export interface SongNamePayload {
+  rootPath: string;
+  name: string;
+}
+
+export interface RenameSongPayload {
+  rootPath: string;
+  from: string;
+  to: string;
+}
+
+export interface PickedFile {
+  fileName: string;
+  dataBase64: string;
+}
+
+// ---------------------------------------------------------------------------
 // Build ROM
 // ---------------------------------------------------------------------------
 
@@ -192,6 +227,14 @@ export interface ShimmerEngineApi {
   newProjectDialog(): Promise<IpcResult<NewProjectDialogResult | null>>;
   createProject(payload: CreateProjectPayload): Promise<IpcResult<OpenProjectResult>>;
   revealInFolder(payload: RevealPayload): Promise<IpcResult<void>>;
+  saveSong(payload: SaveSongPayload): Promise<IpcResult<void>>;
+  /** Resolves to the name the song was actually saved under. */
+  createSong(payload: CreateSongPayload): Promise<IpcResult<string>>;
+  deleteSong(payload: SongNamePayload): Promise<IpcResult<void>>;
+  /** Resolves to the new name. */
+  renameSong(payload: RenameSongPayload): Promise<IpcResult<string>>;
+  /** File picker for a .mid file; null if cancelled. */
+  pickMidiFile(): Promise<IpcResult<PickedFile | null>>;
   /** Runs the compiler + devkitARM build for a project, streaming
    * progress via onBuildLog while it runs. Resolves once the build has
    * finished (or failed to start/was cancelled) - see BuildRomResult. */
@@ -219,6 +262,11 @@ export const IPC_CHANNELS = {
   newProjectDialog: "project:new-dialog",
   createProject: "project:create",
   revealInFolder: "asset:reveal",
+  saveSong: "song:save",
+  createSong: "song:create",
+  deleteSong: "song:delete",
+  renameSong: "song:rename",
+  pickMidiFile: "song:pick-midi",
   buildRom: "build:run",
   cancelBuild: "build:cancel",
   /** Main -> renderer push event (webContents.send), not an

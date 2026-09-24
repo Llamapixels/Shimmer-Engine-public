@@ -2,22 +2,12 @@
 #define ADVANCE_MUSIC_H
 
 /*
- * Music from engine/music/, in either of two formats:
- *
- *  - .uge (hUGETracker / GB Studio songs): played by huge.c, a port of
- *    GB Studio's hUGEDriver, on the GBA's four Game Boy-style PSG
- *    channels. Track ids are UGE_* constants from the generated
- *    uge_songs.h (compiler/build_project.py writes it).
- *  - .mod/.xm/.s3m/.it: played by Maxmod through the GBA's DMA sample
- *    channels. Track ids are MOD_* constants from the soundbank.h the
- *    Makefile's mmutil rule generates.
- *
- * Both kinds of id share one int: UGE ids start at MUSIC_UGE_BASE,
- * well above any MOD id, so music_play() can tell them apart.
+ * Music: .uge songs (hUGETracker / GB Studio) from the project's
+ * assets/music/ folder, played by huge.c - a port of GB Studio's
+ * hUGEDriver - on the GBA's four Game Boy-style PSG channels. Track
+ * ids are the UGE_* constants (0..UGE_SONG_COUNT-1) in the generated
+ * uge_songs.h (compiler/build_project.py writes it).
  */
-#define MUSIC_UGE_BASE 0x1000
-
-#include "soundbank.h"
 #include "uge_songs.h"
 
 /* Call once at startup, after audio_init(). */
@@ -26,7 +16,7 @@ void music_init(void);
 /* Call once every frame (right after VBlankIntrWait()). */
 void music_update(void);
 
-/* Start a track by its MOD_* or UGE_* id. loop = 1 to repeat. */
+/* Start a track by its UGE_* id. loop = 1 to repeat. */
 void music_play(int track_id, int loop);
 
 void music_stop(void);

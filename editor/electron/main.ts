@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { IPC_CHANNELS } from "../shared/ipc.js";
@@ -8,6 +9,10 @@ import type {
   CreateBackgroundPayload,
   CreateProjectPayload,
   CreateScenePayload,
+  CreateSongPayload,
+  RenameSongPayload,
+  SaveSongPayload,
+  SongNamePayload,
   DeleteScenePayload,
   ImportAssetsPayload,
   IpcResult,
@@ -195,6 +200,38 @@ function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.createBackground, async (payload: CreateBackgroundPayload) => {
     checkRoot(payload.rootPath);
     return projectIO.createBackground(payload);
+  });
+
+  handle(IPC_CHANNELS.saveSong, async (payload: SaveSongPayload) => {
+    checkRoot(payload.rootPath);
+    return projectIO.saveSong(payload.rootPath, payload.name, payload.dataBase64);
+  });
+
+  handle(IPC_CHANNELS.createSong, async (payload: CreateSongPayload) => {
+    checkRoot(payload.rootPath);
+    return projectIO.createSong(payload.rootPath, payload.name, payload.dataBase64);
+  });
+
+  handle(IPC_CHANNELS.deleteSong, async (payload: SongNamePayload) => {
+    checkRoot(payload.rootPath);
+    return projectIO.deleteSong(payload.rootPath, payload.name);
+  });
+
+  handle(IPC_CHANNELS.renameSong, async (payload: RenameSongPayload) => {
+    checkRoot(payload.rootPath);
+    return projectIO.renameSong(payload.rootPath, payload.from, payload.to);
+  });
+
+  handle(IPC_CHANNELS.pickMidiFile, async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Import MIDI file",
+      properties: ["openFile"],
+      filters: [{ name: "MIDI files", extensions: ["mid", "midi"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const file = result.filePaths[0];
+    return { fileName: path.basename(file), dataBase64: (await readFile(file)).toString("base64") };
   });
 
   handle(IPC_CHANNELS.newProjectDialog, async () => {

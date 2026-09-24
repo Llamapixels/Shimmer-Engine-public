@@ -288,7 +288,7 @@ typedef enum
      * music from anywhere a script runs (an On Init, a door, an NPC,
      * a timer), not just on scene load.
      */
-    SCRIPT_PLAY_MUSIC,        /* a = MOD_* or UGE_* track id (compiler
+    SCRIPT_PLAY_MUSIC,        /* a = UGE_* track id (compiler
                                 * resolves a music asset name to this at
                                 * compile time - see build_project.py's
                                 * "play_music" case), b = 1 to loop
