@@ -39,7 +39,8 @@ jobs:
       - name: Install devkitARM, gba-tools and libgba
         shell: msys2 {0}
         run: |
-          wget -q https://pkg.devkitpro.org/devkitpro-keyring.pkg.tar.zst
+          set -x
+          curl -sS -A "pacman/6.1.0 (MSYS2)" -D - -o devkitpro-keyring.pkg.tar.zst https://pkg.devkitpro.org/devkitpro-keyring.pkg.tar.zst | head -20
           pacman -U --noconfirm devkitpro-keyring.pkg.tar.zst
           pacman-key --populate devkitpro
           cat >> /etc/pacman.conf <<'EOF'
