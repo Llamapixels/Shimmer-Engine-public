@@ -219,7 +219,6 @@ export interface CancelBuildResult {
 export interface ShimmerEngineApi {
   openProjectDialog(): Promise<IpcResult<OpenProjectResult | null>>;
   /** Copy the demo project into Documents (once) and open it. */
-  openExample(): Promise<IpcResult<OpenProjectResult>>;
   openProjectAtPath(rootPath: string): Promise<IpcResult<OpenProjectResult>>;
   saveProject(payload: SaveProjectPayload): Promise<IpcResult<void>>;
   saveScene(payload: SaveScenePayload): Promise<IpcResult<void>>;
@@ -274,7 +273,6 @@ export interface ShimmerEngineApi {
 
 export const IPC_CHANNELS = {
   openProjectDialog: "project:open-dialog",
-  openExample: "project:open-example",
   openProjectAtPath: "project:open-path",
   saveProject: "project:save",
   saveScene: "scene:save",

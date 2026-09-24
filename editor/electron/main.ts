@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
-import { cp, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { IPC_CHANNELS } from "../shared/ipc.js";
@@ -133,17 +133,6 @@ function handle<Args extends unknown[], T>(
 function registerIpcHandlers(): void {
   // "Open example": copy the demo project somewhere writable (Documents)
   // the first time, then open that copy.
-  handle(IPC_CHANNELS.openExample, async () => {
-    const src = app.isPackaged
-      ? path.join(process.resourcesPath, "examples", "demo")
-      : path.resolve(__dirname, "..", "..", "..", "examples", "demo");
-    const dest = path.join(app.getPath("documents"), "Shimmer Engine", "Demo");
-    if (!existsSync(path.join(dest, "project.json"))) {
-      await cp(src, dest, { recursive: true, filter: (f) => !/(^|[\\/])(ROM|build)([\\/]|$)/.test(path.relative(src, f)) });
-    }
-    return trackRoot(await projectIO.openProjectAtPath(dest));
-  });
-
   handle(IPC_CHANNELS.openProjectDialog, async () => {
     if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -336,6 +325,7 @@ function registerIpcHandlers(): void {
 
 app.setName("Shimmer Engine");
 
+const ITCH_URL = "https://holocatt.itch.io/shimmerengine";
 const REDDIT_URL = "https://www.reddit.com/r/ShimmerEngine/";
 
 /** The app menu: Electron's standard File/Edit/View/Window menus, then
@@ -355,7 +345,10 @@ function buildMenu(): Menu {
     },
     {
       label: "Community",
-      submenu: [{ label: "Shimmer Engine on Reddit", click: () => void shell.openExternal(REDDIT_URL) }],
+      submenu: [
+        { label: "Shimmer Engine on Reddit", click: () => void shell.openExternal(REDDIT_URL) },
+        { label: "Check for Updates", click: () => void shell.openExternal(ITCH_URL) },
+      ],
     },
   ];
   return Menu.buildFromTemplate(template);
