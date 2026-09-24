@@ -17,7 +17,8 @@ import type {
   ImportAssetsPayload,
   IpcResult,
   ReadAssetPayload,
-  ReplacePlayerSpritePayload,
+  RenameSpritePayload,
+  SpriteNamePayload,
   RevealPayload,
   SaveProjectPayload,
   SaveScenePayload,
@@ -185,16 +186,26 @@ function registerIpcHandlers(): void {
     return projectIO.importAssetFiles(payload.rootPath, payload.kind, result.filePaths);
   });
 
-  handle(IPC_CHANNELS.replacePlayerSprite, async (payload: ReplacePlayerSpritePayload) => {
+  handle(IPC_CHANNELS.replaceSpriteImage, async (payload: SpriteNamePayload) => {
     checkRoot(payload.rootPath);
     if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: "Replace player sprite sheet",
+      title: `Replace ${payload.name}.png`,
       properties: ["openFile"],
       filters: [{ name: "PNG images", extensions: ["png"] }],
     });
     if (result.canceled || result.filePaths.length === 0) return null;
-    return projectIO.replacePlayerSprite(payload.rootPath, result.filePaths[0]);
+    return projectIO.replaceSpriteImage(payload.rootPath, payload.name, result.filePaths[0]);
+  });
+
+  handle(IPC_CHANNELS.renameSprite, async (payload: RenameSpritePayload) => {
+    checkRoot(payload.rootPath);
+    return projectIO.renameSprite(payload.rootPath, payload.from, payload.to);
+  });
+
+  handle(IPC_CHANNELS.deleteSprite, async (payload: SpriteNamePayload) => {
+    checkRoot(payload.rootPath);
+    return projectIO.deleteSprite(payload.rootPath, payload.name);
   });
 
   handle(IPC_CHANNELS.createBackground, async (payload: CreateBackgroundPayload) => {

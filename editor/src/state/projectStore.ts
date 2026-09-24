@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { migrateProjectSprites } from "../sprites/model";
 import type { AssetListing } from "../../shared/ipc";
 import type { EventScript } from "../../shared/eventTypes";
 import type { DoorJSON, NpcJSON, ProjectData, ProjectJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
@@ -162,6 +163,10 @@ interface ProjectState {
   updateScene: (sceneId: string, updater: (scene: SceneJSON) => SceneJSON, coalesceKey?: string) => void;
   updateProject: (updater: (p: ProjectJSON) => ProjectJSON, coalesceKey?: string) => void;
   renameRef: (kind: RefKind, from: string, to: string) => void;
+  /** After a sprite's PNG was renamed on disk: point every use of it
+   * (NPCs, prefabs, the player, its spriteSheets entry) at the new name -
+   * in the undo history too, since the old file is gone. */
+  renameSpriteRefs: (from: string, to: string) => void;
   /** Rename a scene-scoped name (an NPC's or timer's) and fix up every
    * reference to it in that scene's scripts, as one undo step. */
   renameInScene: (
@@ -209,6 +214,27 @@ interface ProjectState {
   renamePrefab: (id: string, name: string) => void;
   updatePrefabTemplate: (id: string, template: Partial<NpcJSON> | Partial<DoorJSON>) => void;
   removePrefab: (id: string) => void;
+}
+
+/** Every reference to sprite `from` renamed to `to`. */
+function renameSpriteIn(project: ProjectJSON, scenes: SceneRecord[], from: string, to: string) {
+  let pj = project;
+  if ((pj.playerSprite || "player") === from) pj = { ...pj, playerSprite: to };
+  if (pj.spriteSheets?.some((s) => s.name === from))
+    pj = { ...pj, spriteSheets: pj.spriteSheets.map((s) => (s.name === from ? { ...s, name: to } : s)) };
+  if (pj.prefabs?.some((p) => (p.template as Partial<NpcJSON>).sprite === from))
+    pj = {
+      ...pj,
+      prefabs: pj.prefabs.map((p) =>
+        (p.template as Partial<NpcJSON>).sprite === from ? { ...p, template: { ...p.template, sprite: to } } : p,
+      ),
+    };
+  const nextScenes = scenes.map((rec) =>
+    rec.data.npcs?.some((n) => n.sprite === from)
+      ? { ...rec, data: { ...rec.data, npcs: rec.data.npcs.map((n) => (n.sprite === from ? { ...n, sprite: to } : n)) } }
+      : rec,
+  );
+  return { project: pj, scenes: nextScenes };
 }
 
 function loadedState(data: ProjectData) {
@@ -288,6 +314,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   };
 
   const afterOpen = (data: ProjectData) => {
+    // Sprite sheets saved by the previous sprite editor get upgraded once.
+    const migrated = migrateProjectSprites(data.project);
+    if (migrated !== data.project) {
+      data = { ...data, project: migrated };
+      persistProject(data.rootPath, migrated);
+    }
     set(loadedState(data));
     rememberRecent(data.rootPath);
     void get().refreshAssets();
@@ -429,6 +461,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
       if (pj !== project.project) persistProject(project.rootPath, pj);
       set({ project: { ...project, project: pj, scenes } });
+    },
+
+    renameSpriteRefs: (from, to) => {
+      const { project, past, future } = get();
+      if (!project || from === to) return;
+      const fix = (snap: Snapshot): Snapshot => {
+        const r = renameSpriteIn(snap.project, snap.scenes, from, to);
+        return { project: r.project, scenes: r.scenes };
+      };
+      const next = fix({ project: project.project, scenes: project.scenes });
+      next.scenes.forEach((rec, i) => {
+        if (rec !== project.scenes[i]) persistScene(project.rootPath, rec.fileId, rec.data);
+      });
+      if (next.project !== project.project) persistProject(project.rootPath, next.project);
+      set({
+        project: { ...project, project: next.project, scenes: next.scenes },
+        past: past.map(fix),
+        future: future.map(fix),
+        lastCoalesce: null,
+      });
     },
 
     renameInScene: (sceneId, kind, from, to, index, updater) => {

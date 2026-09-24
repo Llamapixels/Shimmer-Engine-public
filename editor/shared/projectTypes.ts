@@ -40,30 +40,13 @@ export interface PaletteJSON {
   colors: string[];
 }
 
-/**
- * Real GB Studio (src/shared/lib/resources/types.ts) authors a sprite
- * sheet's states as `{ id, name, animationType, flipLeft, animations }`,
- * where `animationType` fixes which set of named directional animations
- * a sheet has (src/shared/lib/sprites/helpers.ts):
- *   fixed / fixed_movement         - idle (+ moving)
- *   horizontal / horizontal_movement - idleRight, idleLeft (+ movingRight/Left)
- *   multi / multi_movement         - idle{Right,Left,Up,Down} (+ moving{...})
- *   platform_player                - idle{Right,Left}, jumping{Right,Left},
- *                                     moving{Right,Left}, climbing
- *   cursor                         - idle, hover
- * Shimmer Engine keeps the previous round's flatter, user-named
- * `states` list (rather than nesting a per-direction `animations` array
- * inside one state object per GB Studio's shape) - each state instead
- * carries an optional `slot`, which is the single named slot (above)
- * it fills. SpriteSheetJSON's `animationType` says which slot set is in
- * play; the editor uses `slot` to know which states are that type's
- * defaults (so it can add/remove states on a type change without
- * touching anything the slot set doesn't mention) and, together with
- * `flipLeft`, to know which states are derived mirrors of a sibling
- * "Right" state rather than independently authored (see `flipLeft`
- * below). A state with no `slot` is a plain custom state (including
- * every state authored before this feature existed) and is never
- * touched by animationType/flipLeft bookkeeping. */
+/*
+ * Sprites, laid out like GB Studio's (gb-studio-source/src/shared/lib/
+ * resources/types.ts): a sprite is a PNG in assets/sprites/ plus an entry
+ * in project.json "spriteSheets" (matched by name). compiler/sprites.py
+ * turns it into GBA hardware sprites; see its docstring for the details.
+ */
+
 export type SpriteAnimationType =
   | "fixed"
   | "fixed_movement"
@@ -74,276 +57,78 @@ export type SpriteAnimationType =
   | "platform_player"
   | "cursor";
 
-/** The named animation slots each SpriteAnimationType defines, in the
- * order the editor should create/display them. A "*Left" slot is the
- * one a sheet's `flipLeft` (default true) can derive from its "*Right"
- * sibling instead of being independently authored - see SpriteStateJSON. */
-export const SPRITE_ANIMATION_SLOTS: Record<SpriteAnimationType, { slot: string; label: string }[]> = {
-  fixed: [{ slot: "idle", label: "Idle" }],
-  fixed_movement: [
-    { slot: "idle", label: "Idle" },
-    { slot: "moving", label: "Walk" },
-  ],
-  horizontal: [
-    { slot: "idleRight", label: "Idle Right" },
-    { slot: "idleLeft", label: "Idle Left" },
-  ],
-  horizontal_movement: [
-    { slot: "idleRight", label: "Idle Right" },
-    { slot: "idleLeft", label: "Idle Left" },
-    { slot: "movingRight", label: "Walk Right" },
-    { slot: "movingLeft", label: "Walk Left" },
-  ],
-  multi: [
-    { slot: "idleRight", label: "Idle Right" },
-    { slot: "idleLeft", label: "Idle Left" },
-    { slot: "idleUp", label: "Idle Up" },
-    { slot: "idleDown", label: "Idle Down" },
-  ],
-  multi_movement: [
-    { slot: "idleRight", label: "Idle Right" },
-    { slot: "idleLeft", label: "Idle Left" },
-    { slot: "idleUp", label: "Idle Up" },
-    { slot: "idleDown", label: "Idle Down" },
-    { slot: "movingRight", label: "Walk Right" },
-    { slot: "movingLeft", label: "Walk Left" },
-    { slot: "movingUp", label: "Walk Up" },
-    { slot: "movingDown", label: "Walk Down" },
-  ],
-  platform_player: [
-    { slot: "idleRight", label: "Idle Right" },
-    { slot: "idleLeft", label: "Idle Left" },
-    { slot: "jumpingRight", label: "Jump Right" },
-    { slot: "jumpingLeft", label: "Jump Left" },
-    { slot: "movingRight", label: "Walk Right" },
-    { slot: "movingLeft", label: "Walk Left" },
-    { slot: "climbing", label: "Climb" },
-  ],
-  cursor: [
-    { slot: "idle", label: "Idle" },
-    { slot: "hover", label: "Hover" },
-  ],
-};
+export type SpriteMode = "8x8" | "8x16";
 
-/** Slots derivable from a "Right" sibling when `flipLeft` is on (default),
- * mapped to that sibling's slot name. See SpriteStateJSON's `slot`. */
-export const SPRITE_LEFT_SLOT_TO_RIGHT: Record<string, string> = {
-  idleLeft: "idleRight",
-  movingLeft: "movingRight",
-  jumpingLeft: "jumpingRight",
-};
-
-/** GBA hardware OBJ sizes an authored sprite's `canvasWidth`/`canvasHeight`
- * is constrained to - see engine/source/sprite.c's `size_table` (12
- * entries, the only shapes the GBA/this engine can render as one OBJ). */
-export const GBA_SPRITE_SIZES: { width: number; height: number }[] = [
-  { width: 8, height: 8 },
-  { width: 16, height: 16 },
-  { width: 32, height: 32 },
-  { width: 64, height: 64 },
-  { width: 16, height: 8 },
-  { width: 32, height: 8 },
-  { width: 32, height: 16 },
-  { width: 64, height: 32 },
-  { width: 8, height: 16 },
-  { width: 8, height: 32 },
-  { width: 16, height: 32 },
-  { width: 32, height: 64 },
-];
-
-/** One authored animation state on a sprite sheet (see SpriteSheetJSON):
- * an ordered list of frame indices into the sheet's compiled 8-frame set
- * (0,1=down 2,3=up 4,5=right 6,7=left, same numbering entity.h's
- * EntityAnimState/sprite_set_frame() use) and a per-state speed in
- * VBlanks per frame. Targeted by name from an "actor_set_state" event
- * (see eventTypes.ts's ActorSetStateEvent). */
-export interface SpriteStateJSON {
-  name: string;
-  frames: number[];
-  /** VBlanks per frame. Compiler default (if omitted) is 8, matching the
-   * engine's ENTITY_ANIM_SPEED. */
-  speed?: number;
-  /** Optional, parallel to `frames`: `flips[i]` true means that
-   * occurrence of `frames[i]` is shown horizontally mirrored. The
-   * compiler bakes a mirrored copy of that frame's pixel data into the
-   * sprite sheet at compile time (no engine-side runtime flip involved -
-   * see build_project.py's emit_sprite_states) - NOT supported for the
-   * "player" sheet, which has no source PNG for the compiler to mirror
-   * (its frame data is the pre-baked engine/data/player_graphics.h).
-   * Omitted, or all-false: compiles identically to before this field
-   * existed. */
-  flips?: boolean[];
-  /** Which SpriteAnimationType slot (see SPRITE_ANIMATION_SLOTS) this
-   * state fills, e.g. "movingRight". Optional/additive: a state with no
-   * `slot` (every state authored before this field existed) is a plain
-   * custom state, completely untouched by animationType-driven default
-   * generation or flipLeft derivation. When `slot` ends in "Left" and
-   * the sheet's `flipLeft` is not explicitly false, this state's
-   * `frames`/`flips`/`speed` above are ignored - the compiler (and the
-   * editor's own preview) derive them from the sibling state whose
-   * `slot` is the "Right" counterpart (SPRITE_LEFT_SLOT_TO_RIGHT),
-   * mirrored via the same per-frame `flips` bake this field already
-   * supports. Left as its own authored data (used verbatim) once
-   * `flipLeft` is set to false. */
-  slot?: string;
-  /** Optional, and mutually exclusive with `frames` above at the
-   * data-authoring level (both fields stay present for backward compat,
-   * but when `frameRefs` is a non-empty list this state is shown/
-   * compiled from these tile-composed frames instead of the legacy
-   * numbered-frame set): ordered ids into the sheet's `frames`
-   * (SpriteFrameJSON.id), shown in this order at `speed`. Omitted, or
-   * an empty list (every state authored before this feature existed):
-   * this state keeps using `frames`/`flips` exactly as before - no
-   * behavior change. */
-  frameRefs?: string[];
-}
-
-/**
- * One tile placed into a composed ("metasprite") frame - see
- * SpriteFrameJSON. Models real GB Studio's `MetaspriteTile` (x/y,
- * sliceX/sliceY, flipX/flipY, priority), minus its dual monochrome-
- * palette (OBP0/OBP1) + color-palette fields: GB Studio needs both
- * because its ROMs run on plain DMG (2 sprite palettes, 4 colors) AND
- * GBC (8 richer palettes) at once, with a monochrome fallback mode.
- * Shimmer Engine targets GBA only - no monochrome fallback, no
- * dual-hardware split - so a placed tile just gets ONE palette-bank
- * selector (`palette`, 0-15, GBA OBJ palette RAM), a deliberate GBA
- * simplification rather than an oversight.
- */
-export interface PlacedTileJSON {
-  /** Stable id for editor selection (GB Studio's MetaspriteTile.id).
-   * Optional/additive - the compiler ignores it; the editor assigns one
-   * to any tile missing it. */
-  id?: string;
-  /** Position of this tile's top-left corner relative to the frame
-   * canvas's top-left, in PIXELS - any integer (pixel-precise, like GB
-   * Studio; every GBA OBJ has its own per-pixel x/y). A tile may hang
-   * partly outside the canvas; one lying entirely outside it is dropped
-   * (GB Studio's removeMetaspriteTilesOutsideCanvas rule). */
+/** A rectangle cut out of the sprite's PNG and placed on a frame's canvas.
+ * Unlike GB Studio's 8x8/8x16 tiles it can be any size (width/height
+ * default to 8 x the sprite mode's height); the compiler packs the drawn
+ * frame into GBA OBJs of up to 64x64 either way. */
+export interface SpriteTileJSON {
+  id: string;
+  /** Position on the canvas, px (top-left = 0,0). */
   x: number;
   y: number;
-  /** Which source tile this shows, as a tile-grid column/row within the
-   * imported sheet PNG (col = pixelX/8, row = pixelY/8) - NOT a pixel
-   * offset. In the sheet's "8x16" spriteMode a tile is 8 wide and 16
-   * tall: it covers sheet rows sheetY and sheetY+1 (see
-   * SpriteSheetJSON.spriteMode). */
-  sheetX: number;
-  sheetY: number;
-  /** Horizontal/vertical mirror flags for this tile only. */
+  /** Top-left of the cut-out in the PNG, px. */
+  sliceX: number;
+  sliceY: number;
+  width?: number;
+  height?: number;
   flipX?: boolean;
   flipY?: boolean;
-  /** GBA OBJ palette bank, 0-15. Omitted = inherit the sheet's normal
-   * palette bank (see build_project.py's npc_palette_bank). */
-  palette?: number;
-  /** "Display behind background layer" - true draws this tile at OBJ
-   * priority behind the scene's BG0 layer instead of the normal
-   * in-front position (see engine/source/sprite.c's
-   * ADV_ATTR2_PRIORITY_*). */
+  /** Draw behind the scene's background layer. */
   priority?: boolean;
 }
 
-/** One authored, tile-composed animation frame (real GB Studio's
- * `Metasprite`): an id (referenced by a state's `frameRefs`, see
- * SpriteStateJSON) plus the list of tiles placed to make it up. A frame
- * with an empty/missing `tiles` list, or exactly one tile positioned at
- * (0,0) covering the sheet's whole canvas with no flip/priority/custom
- * palette, compiles through the engine's original single-OAM-entry
- * "legacy" path - see build_project.py's emit_sprite_states and
- * engine/source/sprite.c's sprite_init_multi doc comment. */
+/** One frame ("metasprite"): tiles drawn in order, later ones on top. */
 export interface SpriteFrameJSON {
   id: string;
-  tiles: PlacedTileJSON[];
+  tiles: SpriteTileJSON[];
 }
 
-/** A collision box: offset + size in pixels within a 16x16 sprite canvas.
- * Also reused inline by "actor_set_collision_box" events (as x/y/width/
- * height fields directly on the event, not nested like this). */
-export interface CollisionBoxJSON {
-  x?: number;
-  y?: number;
+export interface SpriteAnimationJSON {
+  id: string;
+  frames: SpriteFrameJSON[];
+  /** VBlanks per frame; omitted = the sheet's animSpeed. */
+  speed?: number;
+}
+
+/** An animation state: always 8 animations, in GB Studio's order (idle
+ * right/left/up/down, moving right/left/up/down); which of them the
+ * animation type actually uses is up to animationMap(). */
+export interface SpriteStateJSON {
+  id: string;
+  /** "" = the default state (shown as "Default"). */
+  name: string;
+  animationType: SpriteAnimationType;
+  /** Show the right-facing animations mirrored for left. */
+  flipLeft: boolean;
+  animations: SpriteAnimationJSON[];
+}
+
+export interface SpriteBoundsJSON {
+  x: number;
+  y: number;
   width: number;
   height: number;
 }
 
-/** Optional per-sprite-sheet animation/collision metadata (project.json
- * "spriteSheets", matched by `name` to an NpcJSON's "sprite", or the
- * special name "player" for the built-in player sheet). Additive/
- * optional: a sprite sheet with no entry here (or one with neither
- * `states` nor `collisionBox`) compiles exactly as it always has - the
- * engine's legacy fixed 4-direction/8-frame convention and a collision
- * box equal to the full sprite rect. See compiler/build_project.py's
- * module docstring for the authoritative format. */
 export interface SpriteSheetJSON {
+  version: 2;
+  /** assets/sprites/<name>.png */
   name: string;
-  states?: SpriteStateJSON[];
-  collisionBox?: CollisionBoxJSON;
-  /** Which set of named animation slots this sheet's states are drawn
-   * from (see SPRITE_ANIMATION_SLOTS) - purely an authoring aid for the
-   * editor's default-state generation and flipLeft derivation; the
-   * compiler doesn't need it (it drives everything off each state's own
-   * `slot`). Optional/additive: omitted (every sheet from before this
-   * field existed) means "no animationType has been picked yet" - the
-   * editor treats such a sheet's states as plain custom states and does
-   * not run default-generation or flipLeft derivation on it, even though
-   * conceptually the closest GB Studio equivalent is "multi". */
-  animationType?: SpriteAnimationType;
-  /** When true (the default, matching GB Studio), every state whose
-   * `slot` names a "*Left" animation (idleLeft/movingLeft/jumpingLeft)
-   * is NOT independently authored - its frames are derived by mirroring
-   * its "Right" sibling (see SpriteStateJSON.slot). Set false to author
-   * Left states' frames independently instead. Optional/additive:
-   * omitted behaves as true, but only has any effect on states that
-   * actually carry a "*Left" `slot` - a sheet with no slot-tagged states
-   * (every sheet from before this feature existed) is unaffected either
-   * way. */
-  flipLeft?: boolean;
-  /** The in-game rendered size of this sprite, in pixels - independent
-   * of the imported sheet image's own dimensions. Must be one of the 12
-   * sizes a GBA hardware OBJ can actually be (GBA_SPRITE_SIZES). Optional/
-   * additive: omitted defaults to this sprite's current effective frame
-   * size (16x16 - see SPRITE_FRAME_W/H in build_project.py), so existing
-   * sprites keep rendering at exactly the size they always have.
-   * NOTE (scoped-down for this pass): choosing a size other than 16x16
-   * only changes this compiled metadata (NpcSpriteDef/PlayerSpriteDef's
-   * width/height in scene.h) - the engine doesn't yet resize the actual
-   * hardware OBJ or fill the extra canvas with real pixel data (frames
-   * are still always converted/baked at 16x16 from a single sheet
-   * block). That needs the follow-up per-tile frame-composition pass
-   * (choosing which sheet tiles fill which canvas cell); until then this
-   * is forward-compatible metadata only, round-tripped through
-   * project.json and the compiler. */
-  canvasWidth?: number;
-  canvasHeight?: number;
-  /** ROUND 3 CONTRACT (supersedes the canvasWidth notes above for sheets
-   * that use composed frames): canvasWidth/canvasHeight are free integers,
-   * 1..240 x 1..160 (GBA screen), default 16x16 - no longer restricted to
-   * GBA_SPRITE_SIZES, because a composed frame is built from many OBJs.
-   *
-   * Anchoring (engine + compiler + editor all agree on this): the actor's
-   * position (Entity x/y) is the top-left of its 16x16 collision/footprint
-   * cell. The canvas is placed so its bottom-centre sits on that cell's
-   * bottom-centre (GB Studio's convention - bigger sprites grow upward and
-   * sideways), then shifted by canvasOriginX/Y. So a placed tile at canvas
-   * pixel (tx, ty) is drawn at entity-relative offset
-   *   dx = tx + floor((16 - canvasWidth) / 2) + canvasOriginX
-   *   dy = ty + (16 - canvasHeight)           + canvasOriginY
-   * For the default 16x16 canvas and 0/0 origin that is exactly (tx, ty),
-   * i.e. today's behaviour. */
-  canvasOriginX?: number;
-  canvasOriginY?: number;
-  /** Size of one placed tile, GB Studio's per-sheet "Sprite Mode":
-   * "8x16" (default when omitted, same as GB Studio's default) or "8x8".
-   * On GBA an 8x16 tile is one "tall" hardware OBJ (shape tall, size 0)
-   * using two consecutive VRAM tiles (1D mapping), so it costs half the
-   * OAM entries of two 8x8 tiles. */
-  spriteMode?: "8x8" | "8x16";
-  /** Authored tile-composed ("metasprite") frames - see SpriteFrameJSON.
-   * Referenced by a state's `frameRefs`, not by the legacy numbered
-   * `frames` a state's own `frames` field points into. Optional/
-   * additive: omitted, or a sheet whose states all use plain `frames`
-   * (every sheet from before this feature existed), compiles through
-   * the exact same legacy path as always - untouched by this field. */
-  frames?: SpriteFrameJSON[];
+  /** Frame canvas size, px (up to 256x256). Its bottom-centre sits on the
+   * bottom-centre of the actor's 16x16 footprint, shifted by the origin. */
+  canvasWidth: number;
+  canvasHeight: number;
+  canvasOriginX: number;
+  canvasOriginY: number;
+  /** Collision box, relative to the actor's 16x16 footprint. */
+  bounds: SpriteBoundsJSON;
+  /** Default VBlanks per animation frame. */
+  animSpeed: number;
+  /** Default tile size when placing tiles from the palette. */
+  spriteMode: SpriteMode;
+  states: SpriteStateJSON[];
 }
 
 export interface ProjectJSON {
@@ -362,6 +147,8 @@ export interface ProjectJSON {
   prefabs?: PrefabJSON[];
   /** See SpriteSheetJSON. */
   spriteSheets?: SpriteSheetJSON[];
+  /** The player's sprite (assets/sprites/<name>.png); default "player". */
+  playerSprite?: string;
 }
 
 export interface DoorJSON {

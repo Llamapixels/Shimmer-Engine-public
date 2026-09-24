@@ -122,6 +122,7 @@ export async function openProjectAtPath(rootPath: string): Promise<OpenProjectRe
     scenes.push({ fileId, data });
   }
 
+  await ensurePlayerSprite(rootPath, project).catch(() => undefined);
   return { data: { rootPath, project, scenes } };
 }
 
@@ -246,23 +247,7 @@ export async function listAssets(rootPath: string): Promise<AssetListing> {
   const sprites = await listFolder(rootPath, "project", "assets/sprites", IMAGE_EXTS);
   const music = await listFolder(rootPath, "project", MUSIC_DIR, MUSIC_EXTS);
 
-  let playerSprite: AssetInfo | null = null;
-  if (engineRoot) {
-    const p = path.join(engineRoot, "engine", "data", "player.png");
-    if (await exists(p)) {
-      const st = await fs.stat(p);
-      playerSprite = {
-        name: "player",
-        fileName: "player.png",
-        relPath: "engine/data/player.png",
-        base: "engine",
-        bytes: st.size,
-        mtimeMs: st.mtimeMs,
-      };
-    }
-  }
-
-  return { backgrounds, sprites, music, playerSprite, engineRoot };
+  return { backgrounds, sprites, music, engineRoot };
 }
 
 /** A file name that doesn't collide with anything already in `dir`:
@@ -312,42 +297,54 @@ export async function importAssetFiles(rootPath: string, kind: AssetKind, source
   return listAssets(rootPath);
 }
 
-/** Overwrites engine/data/player.png (the built-in player sprite sheet)
- * with `sourcePath`. Unlike importAssetFiles, this replaces a fixed file
- * in place rather than adding a new one under assets/sprites, and it's
- * validated against the exact 96x16 six-frame layout the compiler's
- * legacy player-graphics generation (and the older tools/
- * png_to_gba_sprite.py it replaced) requires - the player's non-composed
- * fallback animation (engine/source/main.c) is still hardcoded to that
- * fixed 8-frame layout, so a differently-sized sheet would silently
- * break it rather than just being "a bigger sprite sheet" the way an
- * NPC's composed-only sheet can be. */
-export async function replacePlayerSprite(rootPath: string, sourcePath: string): Promise<AssetListing> {
-  const ext = path.extname(sourcePath).toLowerCase();
-  if (ext !== ".png") throw new Error(`"${path.basename(sourcePath)}" isn't a PNG file.`);
+const SPRITES_DIR = "assets/sprites";
 
+function spritePath(rootPath: string, name: string): string {
+  if (!/^[a-z0-9_]+$/i.test(name)) throw new Error(`"${name}" isn't a valid sprite name (use a-z, 0-9 and _).`);
+  return path.join(rootPath, SPRITES_DIR, `${name}.png`);
+}
+
+/** Overwrites assets/sprites/<name>.png with `sourcePath`. */
+export async function replaceSpriteImage(rootPath: string, name: string, sourcePath: string): Promise<AssetListing> {
+  if (path.extname(sourcePath).toLowerCase() !== ".png") throw new Error(`"${path.basename(sourcePath)}" isn't a PNG file.`);
   const data = await fs.readFile(sourcePath);
-  let size: { width: number; height: number };
   try {
-    size = readPngSize(data);
+    readPngSize(data);
   } catch {
     throw new Error(`"${path.basename(sourcePath)}" isn't a valid PNG file.`);
   }
-  if (size.width !== 96 || size.height !== 16) {
-    throw new Error(
-      `The player sprite sheet must be exactly 96x16 px (six 16x16 frames: ` +
-        `down x2, up x2, right x2 - left is mirrored automatically) - "${path.basename(sourcePath)}" ` +
-        `is ${size.width}x${size.height}.`
-    );
-  }
-
-  const engineRoot = await findEngineRoot(rootPath);
-  if (!engineRoot) throw new Error("Couldn't find the Shimmer Engine toolchain folder above this project.");
-  const destDir = path.join(engineRoot, "engine", "data");
-  await fs.mkdir(destDir, { recursive: true });
-  await fs.writeFile(path.join(destDir, "player.png"), data);
-
+  const file = spritePath(rootPath, name);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, data);
   return listAssets(rootPath);
+}
+
+/** Renames assets/sprites/<from>.png. Returns the new name (cleaned up,
+ * and refused if another sprite already has it). */
+export async function renameSprite(rootPath: string, from: string, to: string): Promise<string> {
+  const name = safeStem(to, "");
+  if (!name) throw new Error("Sprite names need at least one letter or digit.");
+  if (name === from) return name;
+  if (await exists(spritePath(rootPath, name))) throw new Error(`There's already a sprite called "${name}".`);
+  await fs.rename(spritePath(rootPath, from), spritePath(rootPath, name));
+  return name;
+}
+
+export async function deleteSprite(rootPath: string, name: string): Promise<void> {
+  await fs.rm(spritePath(rootPath, name));
+}
+
+/** Sprites are per project: a project that uses the default player sprite
+ * but has no assets/sprites/player.png gets a copy of the engine's. */
+async function ensurePlayerSprite(rootPath: string, project: ProjectJSON): Promise<void> {
+  if ((project.playerSprite || "player") !== "player") return;
+  const dest = path.join(rootPath, SPRITES_DIR, "player.png");
+  if (await exists(dest)) return;
+  const engineRoot = await findEngineRoot(rootPath);
+  const src = engineRoot && path.join(engineRoot, "engine", "data", "player.png");
+  if (!src || !(await exists(src))) return;
+  await fs.mkdir(path.dirname(dest), { recursive: true });
+  await fs.copyFile(src, dest);
 }
 
 export function importFilters(kind: AssetKind): { name: string; extensions: string[] }[] {
