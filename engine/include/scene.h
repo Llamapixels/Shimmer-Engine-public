@@ -81,6 +81,22 @@ typedef struct
  * PARALLAX_FIXED = doesn't scroll.
  */
 #define PARALLAX_FIXED 128
+
+/*
+ * A full background layer (GBA BG2/BG3) behind or in front of the map -
+ * scene JSON "layers". Its tiles and palettes are part of the scene's
+ * own; the map is 32x32 (size 0), 64x32 (1) or 32x64 (2) tiles and
+ * repeats. Speeds are 8.8 fixed point: scroll = camera * speed / 256
+ * plus a drift of auto_x/auto_y 256ths of a pixel per frame.
+ */
+typedef struct
+{
+    const uint16_t *map;
+    uint8_t size;
+    uint8_t front;      /* 1 = over the map and actors, 0 = behind the map */
+    int16_t speed_x, speed_y;
+    int16_t auto_x, auto_y;
+} BgLayer;
 typedef struct
 {
     uint8_t rows;
@@ -164,6 +180,9 @@ typedef struct
                                           * Hit" per collision group */
     ParallaxLayer parallax[3];
     uint8_t parallax_count;     /* 0 = no parallax */
+
+    BgLayer layers[2];          /* BG2, BG3 */
+    uint8_t layer_count;
 } SceneDef;
 
 /* Load background, palettes, collision and camera bounds. */

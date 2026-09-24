@@ -9,10 +9,13 @@
  *
  * Mode 1 = brightness increase (brighten toward white).
  * Mode 2 = brightness decrease (darken toward black).
- * We target BG0 + OBJ + backdrop so everything fades together.
+ * We target BG0, the background layers (BG2/BG3), OBJ and the backdrop
+ * so everything but the dialogue box fades together.
  */
 
 #define BLDCNT_BG0_1ST   (1 << 0)
+#define BLDCNT_BG2_1ST   (1 << 2)
+#define BLDCNT_BG3_1ST   (1 << 3)
 #define BLDCNT_OBJ_1ST   (1 << 4)
 #define BLDCNT_BD_1ST    (1 << 5)
 #define BLDCNT_BRIGHTEN  (1 << 6)
@@ -39,6 +42,8 @@ static void start_fade(TransitionColor color, int frames, int dir)
 
     REG_BLDCNT =
         BLDCNT_BG0_1ST |
+        BLDCNT_BG2_1ST |
+        BLDCNT_BG3_1ST |
         BLDCNT_OBJ_1ST |
         BLDCNT_BD_1ST |
         (color == TRANSITION_WHITE ? BLDCNT_BRIGHTEN : BLDCNT_DARKEN);

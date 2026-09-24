@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { Direction, EventScript, ScriptEventJSON } from "../../shared/eventTypes";
 import type {
+  BgLayerJSON,
   DoorJSON,
   NpcJSON,
   NpcMovement,
@@ -15,7 +16,7 @@ import ScriptEditor, { type ScriptUpdater } from "../script/ScriptEditor";
 import type { ScriptEnv } from "../script/ScriptFields";
 import { countRefs } from "../script/scriptRefs";
 import { sceneName, useProjectStore } from "../state/projectStore";
-import { BackgroundSelect, MusicSelect, SpriteSelect } from "./common/AssetSelect";
+import { BackgroundSelect, backgroundRefFor, MusicSelect, SpriteSelect } from "./common/AssetSelect";
 import CommitInput from "./common/CommitInput";
 import NumberInput from "./common/NumberInput";
 import FieldRow from "./inspector/FieldRow";
@@ -206,6 +207,8 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
           <MusicSelect value={data.music} onChange={(m) => patch({ music: m })} />
         </FieldRow>
 
+        <LayersEditor scene={scene} />
+
         <ParallaxEditor scene={scene} />
 
         <FieldRow label="Player sprite">
@@ -320,7 +323,10 @@ function ParallaxEditor({ scene }: { scene: SceneRecord }) {
 
   let used = 0;
   return (
-    <FieldRow label="Parallax" hint={layers.length ? "Horizontal bands of the screen, top to bottom, scrolling at their own speed. The last band fills the rest of the screen." : undefined}>
+    <FieldRow
+      label="Parallax strips (GB Studio style)"
+      hint={layers.length ? "Horizontal strips of the screen, top to bottom, each scrolling the map at its own speed. The last strip fills the rest of the screen." : undefined}
+    >
       <select value={layers.length} onChange={(e) => setCount(Number(e.target.value))}>
         <option value={0}>None</option>
         <option value={1}>1 Layer</option>
@@ -364,6 +370,123 @@ function ParallaxEditor({ scene }: { scene: SceneRecord }) {
         );
       })}
     </FieldRow>
+  );
+}
+
+/** Layer scroll speeds (a multiple of the camera's). */
+const LAYER_SPEEDS = [0, 0.125, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+
+function speedLabel(v: number) {
+  if (v === 0) return "Fixed";
+  if (v === 1) return "With the map";
+  const frac: Record<number, string> = { 0.125: "⅛", 0.25: "¼", 0.5: "½", 0.75: "¾", 1.25: "1¼", 1.5: "1½", 2: "2" };
+  return `${frac[v] ?? v}× speed`;
+}
+
+/** GBA background layers (BG2/BG3): full images behind or over the map. */
+function LayersEditor({ scene }: { scene: SceneRecord }) {
+  const updateScene = useProjectStore((s) => s.updateScene);
+  const assets = useProjectStore((s) => s.assets);
+  const layers = scene.data.layers ?? [];
+  const set = (next: BgLayerJSON[], key?: string) =>
+    updateScene(scene.fileId, (s) => ({ ...s, layers: next.length ? next : undefined }), key);
+  const patch = (i: number, p: Partial<BgLayerJSON>, key?: string) =>
+    set(
+      layers.map((l, j) => (j === i ? { ...l, ...p } : l)),
+      key ? `layer${i}:${key}` : undefined,
+    );
+  const firstOther = (assets?.backgrounds ?? []).map((a) => backgroundRefFor(a.relPath)).find((r) => r !== scene.data.background);
+
+  return (
+    <FieldRow
+      label={`Background layers (${layers.length}/2)`}
+      hint="Full images scrolling behind (or over) the map at their own speed - the GBA's own parallax. Up to 512×256 or 256×512 px; they repeat. The map's transparent pixels show the layers behind it. Layer 1 is drawn over layer 2."
+    >
+      {layers.map((layer, i) => (
+        <div key={i} className="layer-card">
+          <div className="layer-card-head">
+            <span className="parallax-index">{i + 1}</span>
+            <div className="seg">
+              <button
+                className={!layer.front ? "seg-on" : ""}
+                onClick={(e) => {
+                  e.preventDefault();
+                  patch(i, { front: undefined });
+                }}
+              >
+                Behind map
+              </button>
+              <button
+                className={layer.front ? "seg-on" : ""}
+                onClick={(e) => {
+                  e.preventDefault();
+                  patch(i, { front: true });
+                }}
+              >
+                In front
+              </button>
+            </div>
+            <button
+              className="link-btn link-btn-danger"
+              onClick={(e) => {
+                e.preventDefault();
+                set(layers.filter((_, j) => j !== i));
+              }}
+            >
+              Remove
+            </button>
+          </div>
+          <BackgroundSelect value={layer.image} onChange={(image) => patch(i, { image })} />
+          <div className="layer-grid">
+            <span>Speed X</span>
+            <select value={layer.speed_x ?? 0.5} onChange={(e) => patch(i, { speed_x: Number(e.target.value) })}>
+              {LAYER_SPEEDS.map((v) => (
+                <option key={v} value={v}>
+                  {speedLabel(v)}
+                </option>
+              ))}
+            </select>
+            <span>Speed Y</span>
+            <select value={layer.speed_y ?? 0.5} onChange={(e) => patch(i, { speed_y: Number(e.target.value) })}>
+              {LAYER_SPEEDS.map((v) => (
+                <option key={v} value={v}>
+                  {speedLabel(v)}
+                </option>
+              ))}
+            </select>
+            <span title="Pixels per frame it moves on its own, e.g. drifting clouds">Drift X</span>
+            <DriftInput value={layer.auto_x ?? 0} onChange={(auto_x) => patch(i, { auto_x: auto_x || undefined }, "ax")} />
+            <span title="Pixels per frame it moves on its own">Drift Y</span>
+            <DriftInput value={layer.auto_y ?? 0} onChange={(auto_y) => patch(i, { auto_y: auto_y || undefined }, "ay")} />
+          </div>
+        </div>
+      ))}
+      {layers.length < 2 && (
+        <button
+          className="btn btn-small"
+          onClick={(e) => {
+            e.preventDefault();
+            set([...layers, { image: firstOther ?? "", speed_x: 0.5, speed_y: 0.5 }]);
+          }}
+        >
+          + Add layer
+        </button>
+      )}
+    </FieldRow>
+  );
+}
+
+/** Drift in px/frame, typed as a decimal (-8..8). */
+function DriftInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <CommitInput
+      value={String(value)}
+      onCommit={(v) => {
+        const n = Number(v.trim() || 0);
+        if (!Number.isFinite(n) || n < -8 || n > 8) return "A number from -8 to 8 (pixels per frame).";
+        onChange(Math.round(n * 256) / 256);
+      }}
+    />
   );
 }
 

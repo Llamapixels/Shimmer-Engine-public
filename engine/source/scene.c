@@ -17,6 +17,7 @@ void scene_load(const SceneDef *scene)
 
     /* Before the map: streaming fills rows around each band's scroll. */
     background_set_parallax(scene->parallax, scene->parallax_count);
+    background_set_layers(scene->layers, scene->layer_count);
 
     background_load_palettes(
         scene->palettes,

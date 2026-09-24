@@ -61,7 +61,11 @@ uint16_t background_get_tile(int x, int y);
  * ParallaxLayer in scene.h). Call before the scene's first
  * background_set_scroll(). */
 void background_set_parallax(const ParallaxLayer *layers, int count);
-void background_vblank(void);   /* call right after each VBlankIntrWait() */
+void background_vblank(void);
+
+/* Full background layers for the scene being loaded (BG2/BG3; count 0
+ * turns them off). See BgLayer in scene.h. */
+void background_set_layers(const BgLayer *layers, int count);   /* call right after each VBlankIntrWait() */
 
 void background_set_scroll(
     int x,
