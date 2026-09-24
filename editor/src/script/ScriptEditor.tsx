@@ -1,7 +1,8 @@
 import { createContext, memo, useCallback, useContext, useMemo, useRef, useState, type DragEvent } from "react";
 import { create } from "zustand";
 
-import type { EventScript, MenuEvent, ScriptEventJSON } from "../../shared/eventTypes";
+import type { EventScript, MenuEvent, ScriptEventJSON, SwitchEvent } from "../../shared/eventTypes";
+import NumberInput from "../components/common/NumberInput";
 import PopoverMenu, { type MenuItem } from "../components/common/PopoverMenu";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import AddEventMenu from "./AddEventMenu";
@@ -238,7 +239,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
   const headerRef = useRef<HTMLDivElement>(null);
 
   const def = getEventDef(ev.type);
-  const hasChildren = !!def?.branches || !!def?.menuOptions;
+  const hasChildren = !!def?.branches || !!def?.menuOptions || !!def?.switchCases;
   const color = def ? CATEGORY_COLOR[def.category] : "#666";
 
   /** Merge changes into this event, reading the *latest* script so a
@@ -361,13 +362,14 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
             <pre className="event-unknown-json">{JSON.stringify(ev, null, 2)}</pre>
           )}
           {def?.fields.map((f) => (
-            <div key={f.key} className={`event-field${f.kind === "multiline" || f.kind === "buttons" ? " event-field-wide" : ""}`}>
+            <div key={f.key} className={`event-field${WIDE_FIELDS.has(f.kind) ? " event-field-wide" : ""}`}>
               <span className="event-field-label">{f.label}</span>
               <div className="event-field-control">
                 <FieldControl field={f} ev={ev} env={env} patch={patch} />
               </div>
             </div>
           ))}
+          {def?.switchCases && ev.type === "switch" && <SwitchCases ev={ev} loc={loc} />}
           {def?.branches?.map((b) => {
             const list = (ev as unknown as Record<string, EventScript | undefined>)[b.key] ?? [];
             return (
@@ -398,44 +400,75 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
   );
 });
 
+const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits"]);
+
 const MAX_MENU_OPTIONS = 4;
 const MIN_MENU_OPTIONS = 2;
+const MIN_SWITCH_CASES = 1;
+const MAX_SWITCH_CASES = 16;
 
-function MenuOptions({ ev, loc }: { ev: MenuEvent; loc: EventLocation }) {
+type Entry = { then?: EventScript };
+
+/**
+ * A list of { then } entries, each with its own nested event list - a
+ * menu's options or a switch's cases (the numeric slots in
+ * scriptTree.ts). `head` renders the per-entry field (label or value).
+ */
+function BranchEntries<T extends Entry>({
+  ev,
+  loc,
+  listKey,
+  entries,
+  noun,
+  min,
+  max,
+  head,
+  describe,
+  create,
+}: {
+  ev: ScriptEventJSON;
+  loc: EventLocation;
+  listKey: "options" | "cases";
+  entries: T[];
+  noun: string;
+  min: number;
+  max: number;
+  head: (entry: T, i: number, edit: (fn: (e: T) => T, coalesce?: string) => void) => React.ReactNode;
+  describe: (entry: T) => string;
+  create: (entries: T[]) => T;
+}) {
   const { apply } = useEditor();
 
-  const editOptions = (fn: (opts: MenuEvent["options"]) => MenuEvent["options"], coalesceField?: string) =>
+  const editEntries = (fn: (entries: T[]) => T[], coalesceField?: string) =>
     apply(
       (root) => {
         const at = findByKey(root, eventKey(ev));
         const cur = at && getEvent(root, at);
-        if (!at || !cur || cur.type !== "menu") return root;
-        return replaceEvent(root, at, { ...cur, options: fn(cur.options) });
+        if (!at || !cur || cur.type !== ev.type) return root;
+        const list = (cur as unknown as Record<string, T[]>)[listKey] ?? [];
+        return replaceEvent(root, at, { ...cur, [listKey]: fn(list) } as ScriptEventJSON);
       },
       coalesceField ? `${eventKey(ev)}:${coalesceField}` : undefined,
     );
 
   return (
     <div className="menu-options">
-      {ev.options.map((opt, i) => (
+      {entries.map((entry, i) => (
         <div key={i} className="event-branch">
           <div className="menu-option-head">
-            <span className="event-branch-label">Option {i + 1}</span>
-            <input
-              className="menu-option-label"
-              value={opt.label}
-              onChange={(e) => {
-                const label = e.target.value;
-                editOptions((opts) => opts.map((o, j) => (j === i ? { ...o, label } : o)), `label${i}`);
-              }}
-            />
+            <span className="event-branch-label">
+              {noun} {i + 1}
+            </span>
+            {head(entry, i, (fn, coalesce) =>
+              editEntries((list) => list.map((e, j) => (j === i ? fn(e) : e)), coalesce && `${coalesce}${i}`),
+            )}
             <button
               className="icon-btn"
-              title="Move option up"
+              title={`Move ${noun.toLowerCase()} up`}
               disabled={i === 0}
               onClick={() =>
-                editOptions((opts) => {
-                  const c = opts.slice();
+                editEntries((list) => {
+                  const c = list.slice();
                   [c[i - 1], c[i]] = [c[i], c[i - 1]];
                   return c;
                 })
@@ -445,26 +478,81 @@ function MenuOptions({ ev, loc }: { ev: MenuEvent; loc: EventLocation }) {
             </button>
             <button
               className="icon-btn"
-              title="Remove option"
-              disabled={ev.options.length <= MIN_MENU_OPTIONS}
+              title={`Remove ${noun.toLowerCase()}`}
+              disabled={entries.length <= min}
               onClick={() => {
-                if ((opt.then?.length ?? 0) > 0 && !window.confirm(`Remove "${opt.label}" and its events?`)) return;
-                editOptions((opts) => opts.filter((_, j) => j !== i));
+                if ((entry.then?.length ?? 0) > 0 && !window.confirm(`Remove ${describe(entry)} and its events?`)) return;
+                editEntries((list) => list.filter((_, j) => j !== i));
               }}
             >
               ×
             </button>
           </div>
-          <EventList path={[...loc.path, { index: loc.index, slot: i }]} list={opt.then ?? []} />
+          <EventList path={[...loc.path, { index: loc.index, slot: i }]} list={entry.then ?? []} />
         </div>
       ))}
-      <button
-        className="link-btn"
-        disabled={ev.options.length >= MAX_MENU_OPTIONS}
-        onClick={() => editOptions((opts) => [...opts, { label: `Option ${opts.length + 1}`, then: [] }])}
-      >
-        ＋ Add option {ev.options.length >= MAX_MENU_OPTIONS ? "(max 4)" : ""}
+      <button className="link-btn" disabled={entries.length >= max} onClick={() => editEntries((list) => [...list, create(list)])}>
+        ＋ Add {noun.toLowerCase()} {entries.length >= max ? `(max ${max})` : ""}
       </button>
     </div>
+  );
+}
+
+type MenuOption = MenuEvent["options"][number];
+
+function MenuOptions({ ev, loc }: { ev: MenuEvent; loc: EventLocation }) {
+  return (
+    <BranchEntries<MenuOption>
+      ev={ev}
+      loc={loc}
+      listKey="options"
+      entries={ev.options}
+      noun="Option"
+      min={MIN_MENU_OPTIONS}
+      max={MAX_MENU_OPTIONS}
+      describe={(o) => `"${o.label}"`}
+      create={(opts) => ({ label: `Option ${opts.length + 1}`, then: [] })}
+      head={(opt, _i, edit) => (
+        <input
+          className="menu-option-label"
+          value={opt.label}
+          onChange={(e) => {
+            const label = e.target.value;
+            edit((o) => ({ ...o, label }), "label");
+          }}
+        />
+      )}
+    />
+  );
+}
+
+type SwitchCase = SwitchEvent["cases"][number];
+
+function SwitchCases({ ev, loc }: { ev: SwitchEvent; loc: EventLocation }) {
+  const values = ev.cases.map((c) => c.value);
+  return (
+    <BranchEntries<SwitchCase>
+      ev={ev}
+      loc={loc}
+      listKey="cases"
+      entries={ev.cases}
+      noun="Case"
+      min={MIN_SWITCH_CASES}
+      max={MAX_SWITCH_CASES}
+      describe={(c) => `the case for ${c.value}`}
+      create={(cases) => ({ value: cases.length ? Math.max(...cases.map((c) => c.value)) + 1 : 0, then: [] })}
+      head={(c, i, edit) => (
+        <span className={`switch-case-value${values.indexOf(c.value) !== i ? " switch-case-dup" : ""}`}>
+          <span className="pos-label">=</span>
+          <NumberInput
+            className="menu-option-label"
+            value={c.value}
+            min={-32768}
+            max={32767}
+            onChange={(value) => edit((x) => ({ ...x, value }), "value")}
+          />
+        </span>
+      )}
+    />
   );
 }

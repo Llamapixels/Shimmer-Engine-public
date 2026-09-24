@@ -36,12 +36,23 @@ export type FieldKind =
   | "collisionBox"
   | "mathOp"
   | "arrayOp"
-  | "fadeColor";
+  | "fadeColor"
+  | "expression"
+  | "units"
+  | "bits"
+  | "relation"
+  | "color"
+  | "paletteTarget"
+  | "optionalVariable"
+  | "offset";
 
 export interface FieldDef {
-  /** JSON key. For "tilePos" this is a prefix-less pair: the event's
-   * own "x"/"y" keys. */
+  /** JSON key. For "tilePos"/"offset" this is a prefix-less pair: the
+   * event's own "x"/"y" keys (or xKey/yKey below). */
   key: string;
+  /** "tilePos" only: the keys holding the pair, if not "x"/"y". */
+  xKey?: string;
+  yKey?: string;
   label: string;
   kind: FieldKind;
   min?: number;
@@ -49,7 +60,7 @@ export interface FieldDef {
   placeholder?: string;
 }
 
-export type BranchKey = "then" | "else" | "body" | "children";
+export type BranchKey = "then" | "else" | "body" | "children" | "script";
 
 export type EventCategory =
   | "Dialogue"
@@ -62,6 +73,8 @@ export type EventCategory =
   | "Camera"
   | "Scene"
   | "Timing & Input"
+  | "Screen"
+  | "Save Data"
   | "Sound"
   | "Scripts"
   | "Misc";
@@ -77,6 +90,8 @@ export const CATEGORY_ORDER: EventCategory[] = [
   "Camera",
   "Scene",
   "Timing & Input",
+  "Screen",
+  "Save Data",
   "Sound",
   "Scripts",
   "Misc",
@@ -95,6 +110,8 @@ export const CATEGORY_COLOR: Record<EventCategory, string> = {
   Camera: "#b58cff",
   Scene: "#e5484d",
   "Timing & Input": "#9aa0ae",
+  Screen: "#d9a441",
+  "Save Data": "#8fbf4a",
   Sound: "#ff7ab6",
   Scripts: "#7a8cff",
   Misc: "#6b7280",
@@ -124,6 +141,8 @@ export interface EventDef {
   branches?: { key: BranchKey; label: string }[];
   /** "menu" has its own per-option branch list instead. */
   menuOptions?: boolean;
+  /** "switch": a per-case branch list (shown before "branches"). */
+  switchCases?: boolean;
   create: (ctx: CreateContext) => ScriptEventJSON;
   summary: (ev: ScriptEventJSON) => string;
 }
@@ -154,6 +173,30 @@ const MATH_OP_SYMBOL: Record<import("../../shared/eventTypes").MathOp, string> =
   mul: "×",
   div: "÷",
   mod: "%",
+};
+
+const IF_BRANCHES: { key: BranchKey; label: string }[] = [
+  { key: "then", label: "Then" },
+  { key: "else", label: "Else" },
+];
+
+function unitsLabel(units: unknown): string {
+  return units === "pixels" ? " px" : "";
+}
+
+function bitsLabel(bits: number[] | undefined): string {
+  return bits && bits.length ? bits.map((b) => `#${b}`).join(" ") : "(none)";
+}
+
+function buttonsLabel(b: string | string[]): string {
+  return (Array.isArray(b) ? b : [b]).map((x) => x.toUpperCase()).join(" / ");
+}
+
+const RELATION_LABEL: Record<string, string> = {
+  up: "is above",
+  down: "is below",
+  left: "is left of",
+  right: "is right of",
 };
 
 // Helper so each summary gets its own narrowed event type.
@@ -713,6 +756,785 @@ export const EVENT_DEFS: EventDef[] = [
     branches: [{ key: "children", label: "Events" }],
     create: () => ({ type: "group", label: "Group", children: [] }),
     summary: (ev) => ev.label || "Group",
+  }),
+
+  // ---- GB Studio parity events (compile_parity_event() in
+  // compiler/build_project.py) ----
+
+  // Control flow
+  def({
+    type: "if_expression",
+    label: "If Expression",
+    category: "Control Flow",
+    description:
+      "Run Then if a math expression is true (not 0). Use variable names (or $name$), + - * / %, == != < <= > >=, " +
+      "&& || !, and functions like min, max, abs, rnd(n), actor_x(player), held(a), flag(name).",
+    fields: [{ key: "expression", label: "Expression", kind: "expression" }],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_expression", expression: c.variables[0] ? `${c.variables[0]} == 0` : "true", then: [], else: [] }),
+    summary: (ev) => short(ev.expression) || "(empty)",
+  }),
+  def({
+    type: "loop_while",
+    label: "Loop While",
+    category: "Control Flow",
+    description: "Repeat Events while an expression is true, checking before each run.",
+    fields: [{ key: "expression", label: "While", kind: "expression" }],
+    branches: [{ key: "body", label: "Events" }],
+    create: (c) => ({ type: "loop_while", expression: c.variables[0] ? `${c.variables[0]} < 10` : "false", body: [] }),
+    summary: (ev) => short(ev.expression) || "(empty)",
+  }),
+  def({
+    type: "loop_for",
+    label: "Loop For",
+    category: "Control Flow",
+    description: "Set a variable to From, then repeat Events while it compares true to To, stepping it after each run.",
+    fields: [
+      { key: "var", label: "Variable", kind: "variable" },
+      { key: "from", label: "From", kind: "varOrLiteral", min: MIN_I16, max: MAX_I16 },
+      { key: "comparison", label: "While", kind: "compareOp" },
+      { key: "to", label: "To", kind: "varOrLiteral", min: MIN_I16, max: MAX_I16 },
+      { key: "stepOp", label: "Step", kind: "mathOp" },
+      { key: "step", label: "By", kind: "varOrLiteral", min: MIN_I16, max: MAX_I16 },
+    ],
+    branches: [{ key: "body", label: "Events" }],
+    create: (c) => ({
+      type: "loop_for",
+      var: c.variables[0] ?? "",
+      from: 0,
+      comparison: "<",
+      to: 10,
+      stepOp: "add",
+      step: 1,
+      body: [],
+    }),
+    summary: (ev) =>
+      `${ev.var || "?"} = ${valLabel(ev.from)}; ${ev.var || "?"} ${ev.comparison} ${valLabel(ev.to)}; ` +
+      `${ev.var || "?"} ${MATH_OP_SYMBOL[ev.stepOp] ?? "+"}= ${valLabel(ev.step)}`,
+  }),
+  def({
+    type: "switch",
+    label: "Switch",
+    category: "Control Flow",
+    description: "Run the case whose value matches a variable, or Else if none does.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    switchCases: true,
+    branches: [{ key: "else", label: "Else" }],
+    create: (c) => ({
+      type: "switch",
+      var: c.variables[0] ?? "",
+      cases: [
+        { value: 0, then: [] },
+        { value: 1, then: [] },
+      ],
+      else: [],
+    }),
+    summary: (ev) => `${ev.var || "?"}: ${ev.cases.map((c) => c.value).join(", ")}`,
+  }),
+  def({
+    type: "label",
+    label: "Label",
+    category: "Control Flow",
+    description: "Marks a place in this script for Go To Label to jump to.",
+    fields: [{ key: "label", label: "Label", kind: "text", placeholder: "name" }],
+    create: () => ({ type: "label", label: "start" }),
+    summary: (ev) => ev.label || "(unnamed)",
+  }),
+  def({
+    type: "goto",
+    label: "Go To Label",
+    category: "Control Flow",
+    description: "Jump to a Label in this same script (not into or out of a thread, timer or button script).",
+    fields: [{ key: "label", label: "Label", kind: "text", placeholder: "name" }],
+    create: () => ({ type: "goto", label: "start" }),
+    summary: (ev) => ev.label || "(unnamed)",
+  }),
+  def({
+    type: "rate_limit",
+    label: "Rate Limit",
+    category: "Control Flow",
+    description: "Skip Events if they ran less than this many frames ago. The variable stores when they last ran.",
+    fields: [
+      { key: "var", label: "Variable", kind: "variable" },
+      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+    ],
+    branches: [{ key: "body", label: "Events" }],
+    create: (c) => ({ type: "rate_limit", var: c.variables[0] ?? "", frames: 30, body: [] }),
+    summary: (ev) => `once per ${ev.frames} frames`,
+  }),
+  def({
+    type: "if_color_supported",
+    label: "If Color Supported",
+    category: "Control Flow",
+    description: "From GB Studio. Always true on a GBA, so only Then is compiled.",
+    fields: [],
+    branches: IF_BRANCHES,
+    create: () => ({ type: "if_color_supported", then: [], else: [] }),
+    summary: () => "always true on GBA",
+  }),
+  def({
+    type: "if_device_gba",
+    label: "If Device Is GBA",
+    category: "Control Flow",
+    description: "From GB Studio. Always true here, so only Then is compiled.",
+    fields: [],
+    branches: IF_BRANCHES,
+    create: () => ({ type: "if_device_gba", then: [], else: [] }),
+    summary: () => "always true",
+  }),
+  def({
+    type: "if_device_sgb",
+    label: "If Device Is Super Game Boy",
+    category: "Control Flow",
+    description: "From GB Studio. Always false on a GBA, so only Else is compiled.",
+    fields: [],
+    branches: IF_BRANCHES,
+    create: () => ({ type: "if_device_sgb", then: [], else: [] }),
+    summary: () => "always false",
+  }),
+
+  // Variables
+  def({
+    type: "set_var_expression",
+    label: "Evaluate Expression",
+    category: "Math",
+    description: "Set a variable to the result of a math expression, e.g. (score + 5) * 2 or max(hp, 0).",
+    fields: [
+      { key: "var", label: "Variable", kind: "variable" },
+      { key: "expression", label: "Expression", kind: "expression" },
+    ],
+    create: (c) => ({
+      type: "set_var_expression",
+      var: c.variables[0] ?? "",
+      expression: c.variables[0] ? `${c.variables[0]} + 1` : "0",
+    }),
+    summary: (ev) => `${ev.var || "?"} = ${short(ev.expression) || "?"}`,
+  }),
+  def({
+    type: "var_inc",
+    label: "Increment Variable",
+    category: "Variables",
+    description: "Add 1 to a variable.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    create: (c) => ({ type: "var_inc", var: c.variables[0] ?? "" }),
+    summary: (ev) => `${ev.var || "?"} += 1`,
+  }),
+  def({
+    type: "var_dec",
+    label: "Decrement Variable",
+    category: "Variables",
+    description: "Subtract 1 from a variable.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    create: (c) => ({ type: "var_dec", var: c.variables[0] ?? "" }),
+    summary: (ev) => `${ev.var || "?"} -= 1`,
+  }),
+  def({
+    type: "set_var_true",
+    label: "Set Variable To True",
+    category: "Variables",
+    description: "Set a variable to 1.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    create: (c) => ({ type: "set_var_true", var: c.variables[0] ?? "" }),
+    summary: (ev) => `${ev.var || "?"} = true`,
+  }),
+  def({
+    type: "set_var_false",
+    label: "Set Variable To False",
+    category: "Variables",
+    description: "Set a variable to 0.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    create: (c) => ({ type: "set_var_false", var: c.variables[0] ?? "" }),
+    summary: (ev) => `${ev.var || "?"} = false`,
+  }),
+  def({
+    type: "if_var_true",
+    label: "If Variable Is True",
+    category: "Variables",
+    description: "Run Then if the variable isn't 0.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_var_true", var: c.variables[0] ?? "", then: [], else: [] }),
+    summary: (ev) => ev.var || "?",
+  }),
+  def({
+    type: "if_var_false",
+    label: "If Variable Is False",
+    category: "Variables",
+    description: "Run Then if the variable is 0.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_var_false", var: c.variables[0] ?? "", then: [], else: [] }),
+    summary: (ev) => `not ${ev.var || "?"}`,
+  }),
+  def({
+    type: "var_set_flags",
+    label: "Set Variable Flags",
+    category: "Variables",
+    description: "Treat a variable as 16 on/off flags: set it to exactly the chosen flags (all others off).",
+    fields: [
+      { key: "var", label: "Variable", kind: "variable" },
+      { key: "bits", label: "Flags", kind: "bits" },
+    ],
+    create: (c) => ({ type: "var_set_flags", var: c.variables[0] ?? "", bits: [] }),
+    summary: (ev) => `${ev.var || "?"} = ${bitsLabel(ev.bits)}`,
+  }),
+  def({
+    type: "var_add_flags",
+    label: "Add Variable Flags",
+    category: "Variables",
+    description: "Turn the chosen flags of a variable on, leaving the others as they are.",
+    fields: [
+      { key: "var", label: "Variable", kind: "variable" },
+      { key: "bits", label: "Flags", kind: "bits" },
+    ],
+    create: (c) => ({ type: "var_add_flags", var: c.variables[0] ?? "", bits: [] }),
+    summary: (ev) => `${ev.var || "?"} += ${bitsLabel(ev.bits)}`,
+  }),
+  def({
+    type: "var_clear_flags",
+    label: "Clear Variable Flags",
+    category: "Variables",
+    description: "Turn the chosen flags of a variable off, leaving the others as they are.",
+    fields: [
+      { key: "var", label: "Variable", kind: "variable" },
+      { key: "bits", label: "Flags", kind: "bits" },
+    ],
+    create: (c) => ({ type: "var_clear_flags", var: c.variables[0] ?? "", bits: [] }),
+    summary: (ev) => `${ev.var || "?"} -= ${bitsLabel(ev.bits)}`,
+  }),
+  def({
+    type: "if_var_flags",
+    label: "If Variable Has Flags",
+    category: "Variables",
+    description: "Run Then if every chosen flag of the variable is on.",
+    fields: [
+      { key: "var", label: "Variable", kind: "variable" },
+      { key: "bits", label: "Flags", kind: "bits" },
+    ],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_var_flags", var: c.variables[0] ?? "", bits: [0], then: [], else: [] }),
+    summary: (ev) => `${ev.var || "?"} has ${bitsLabel(ev.bits)}`,
+  }),
+  def({
+    type: "vars_reset",
+    label: "Reset All Variables",
+    category: "Variables",
+    description: "Set every variable back to 0.",
+    fields: [],
+    create: () => ({ type: "vars_reset" }),
+    summary: () => "all = 0",
+  }),
+  def({
+    type: "seed_rng",
+    label: "Seed Random Numbers",
+    category: "Variables",
+    description: "Reseed the random number generator from the frame counter and held buttons.",
+    fields: [],
+    create: () => ({ type: "seed_rng" }),
+    summary: () => "",
+  }),
+
+  // Actors
+  def({
+    type: "actor_invoke",
+    label: "Invoke Actor Script",
+    category: "Actors",
+    description: "Run an NPC's On Interact script here, as if the player had talked to it.",
+    fields: [{ key: "actor", label: "Actor", kind: "actor" }],
+    create: (c) => ({ type: "actor_invoke", actor: c.firstActor ?? "self" }),
+    summary: (ev) => actorLabel(ev.actor),
+  }),
+  def({
+    type: "actor_set_position_vars",
+    label: "Set Actor Position To Variables",
+    category: "Actors",
+    description: "Teleport an actor to the position held in two variables.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "varX", label: "X Variable", kind: "variable" },
+      { key: "varY", label: "Y Variable", kind: "variable" },
+      { key: "units", label: "Units", kind: "units" },
+    ],
+    create: (c) => ({
+      type: "actor_set_position_vars",
+      actor: c.firstActor ?? "self",
+      varX: c.variables[0] ?? "",
+      varY: c.variables[1] ?? c.variables[0] ?? "",
+      units: "tiles",
+    }),
+    summary: (ev) => `${actorLabel(ev.actor)} → ($${ev.varX || "?"}, $${ev.varY || "?"})${unitsLabel(ev.units)}`,
+  }),
+  def({
+    type: "actor_move_to_vars",
+    label: "Move Actor To Variables",
+    category: "Actors",
+    description: "Walk an actor to the position held in two variables. Waits until it arrives.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "varX", label: "X Variable", kind: "variable" },
+      { key: "varY", label: "Y Variable", kind: "variable" },
+      { key: "units", label: "Units", kind: "units" },
+    ],
+    create: (c) => ({
+      type: "actor_move_to_vars",
+      actor: c.firstActor ?? "self",
+      varX: c.variables[0] ?? "",
+      varY: c.variables[1] ?? c.variables[0] ?? "",
+      units: "tiles",
+    }),
+    summary: (ev) => `${actorLabel(ev.actor)} walks to ($${ev.varX || "?"}, $${ev.varY || "?"})${unitsLabel(ev.units)}`,
+  }),
+  def({
+    type: "actor_set_position_relative",
+    label: "Set Actor Position Relative",
+    category: "Actors",
+    description: "Teleport an actor by an offset from where it is now.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "offset", label: "Offset", kind: "offset" },
+      { key: "units", label: "Units", kind: "units" },
+    ],
+    create: (c) => ({ type: "actor_set_position_relative", actor: c.firstActor ?? "self", x: 0, y: 0, units: "tiles" }),
+    summary: (ev) => `${actorLabel(ev.actor)} by (${ev.x}, ${ev.y})${unitsLabel(ev.units)}`,
+  }),
+  def({
+    type: "actor_move_relative",
+    label: "Move Actor Relative",
+    category: "Actors",
+    description: "Walk an actor by an offset from where it is now. Waits until it arrives.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "offset", label: "Offset", kind: "offset" },
+      { key: "units", label: "Units", kind: "units" },
+    ],
+    create: (c) => ({ type: "actor_move_relative", actor: c.firstActor ?? "self", x: 0, y: 0, units: "tiles" }),
+    summary: (ev) => `${actorLabel(ev.actor)} walks by (${ev.x}, ${ev.y})${unitsLabel(ev.units)}`,
+  }),
+  def({
+    type: "actor_set_frame_var",
+    label: "Set Actor Frame To Variable",
+    category: "Actors",
+    description: "Show the sprite frame whose index is held in a variable.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "var", label: "Variable", kind: "variable" },
+    ],
+    create: (c) => ({ type: "actor_set_frame_var", actor: c.firstActor ?? "self", var: c.variables[0] ?? "" }),
+    summary: (ev) => `${actorLabel(ev.actor)} → frame $${ev.var || "?"}`,
+  }),
+  def({
+    type: "actor_set_move_speed",
+    label: "Set Actor Movement Speed",
+    category: "Actors",
+    description: "How fast scripted moves walk the actor, in pixels per frame.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "speed", label: "Speed (px/frame)", kind: "int", min: 1, max: 8 },
+    ],
+    create: (c) => ({ type: "actor_set_move_speed", actor: c.firstActor ?? "self", speed: 1 }),
+    summary: (ev) => `${actorLabel(ev.actor)} speed ${ev.speed}`,
+  }),
+  def({
+    type: "actor_set_anim_speed",
+    label: "Set Actor Animation Speed",
+    category: "Actors",
+    description: "Frames each animation frame is shown for. 0 uses the sprite's own speed.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "speed", label: "Frames", kind: "int", min: 0, max: 255 },
+    ],
+    create: (c) => ({ type: "actor_set_anim_speed", actor: c.firstActor ?? "self", speed: 0 }),
+    summary: (ev) => `${actorLabel(ev.actor)} ${ev.speed === 0 ? "default speed" : `${ev.speed} frames/frame`}`,
+  }),
+  def({
+    type: "actor_set_collisions",
+    label: "Set Actor Collisions",
+    category: "Actors",
+    description: "Turn collisions off to let an actor walk through walls and other actors.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "enabled", label: "Collisions", kind: "bool" },
+    ],
+    create: (c) => ({ type: "actor_set_collisions", actor: c.firstActor ?? "self", enabled: false }),
+    summary: (ev) => `${actorLabel(ev.actor)} collisions ${ev.enabled ? "on" : "off"}`,
+  }),
+  def({
+    type: "actor_push",
+    label: "Push Actor Away From Player",
+    category: "Actors",
+    description: "Push an actor one step in the direction the player faces. \"Slide\" keeps it going until it hits something.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "continue", label: "Slide", kind: "bool" },
+    ],
+    create: (c) => ({ type: "actor_push", actor: c.firstActor ?? "self", continue: false }),
+    summary: (ev) => `${actorLabel(ev.actor)}${ev.continue ? " (slide)" : ""}`,
+  }),
+  def({
+    type: "if_actor_at_position",
+    label: "If Actor At Position",
+    category: "Actors",
+    description: "Run Then if an actor is exactly at a position.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "pos", label: "Position", kind: "tilePos" },
+      { key: "units", label: "Units", kind: "units" },
+    ],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_actor_at_position", actor: c.firstActor ?? "self", x: 0, y: 0, units: "tiles", then: [], else: [] }),
+    summary: (ev) => `${actorLabel(ev.actor)} at (${ev.x}, ${ev.y})${unitsLabel(ev.units)}`,
+  }),
+  def({
+    type: "if_actor_direction",
+    label: "If Actor Facing Direction",
+    category: "Actors",
+    description: "Run Then if an actor faces a direction.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "direction", label: "Facing", kind: "direction" },
+    ],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_actor_direction", actor: c.firstActor ?? "player", direction: "down", then: [], else: [] }),
+    summary: (ev) => `${actorLabel(ev.actor)} faces ${ev.direction}`,
+  }),
+  def({
+    type: "if_actor_distance",
+    label: "If Actor Distance From Actor",
+    category: "Actors",
+    description: "Compare the distance between two actors, in whole tiles.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "op", label: "Distance is", kind: "compareOp" },
+      { key: "distance", label: "Tiles", kind: "varOrLiteral", min: 0, max: 255 },
+      { key: "other", label: "From", kind: "actor" },
+    ],
+    branches: IF_BRANCHES,
+    create: (c) => ({
+      type: "if_actor_distance",
+      actor: "player",
+      op: "<=",
+      distance: 3,
+      other: c.firstActor ?? "self",
+      then: [],
+      else: [],
+    }),
+    summary: (ev) => `${actorLabel(ev.actor)} ${ev.op} ${valLabel(ev.distance)} tiles from ${actorLabel(ev.other)}`,
+  }),
+  def({
+    type: "if_actor_relative",
+    label: "If Actor Relative To Actor",
+    category: "Actors",
+    description: "Run Then if an actor is above, below, left of or right of another.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "relation", label: "Is", kind: "relation" },
+      { key: "other", label: "Other actor", kind: "actor" },
+    ],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_actor_relative", actor: "player", relation: "up", other: c.firstActor ?? "self", then: [], else: [] }),
+    summary: (ev) => `${actorLabel(ev.actor)} ${RELATION_LABEL[ev.relation] ?? ev.relation} ${actorLabel(ev.other)}`,
+  }),
+
+  // Scene
+  def({
+    type: "if_current_scene",
+    label: "If Current Scene Is",
+    category: "Scene",
+    description: "Run Then if the game is in a scene. Useful in custom scripts.",
+    fields: [{ key: "scene", label: "Scene", kind: "scene" }],
+    branches: IF_BRANCHES,
+    create: (c) => ({ type: "if_current_scene", scene: c.sceneNames[0] ?? "", then: [], else: [] }),
+    summary: (ev) => ev.scene || "?",
+  }),
+  def({
+    type: "scene_push",
+    label: "Store Current Scene",
+    category: "Scene",
+    description: "Remember this scene and the player's position, to return to with Restore Previous Scene.",
+    fields: [],
+    create: () => ({ type: "scene_push" }),
+    summary: () => "",
+  }),
+  def({
+    type: "scene_pop",
+    label: "Restore Previous Scene",
+    category: "Scene",
+    description: "Go back to the last stored scene and position. Ends the script.",
+    fields: [],
+    create: () => ({ type: "scene_pop" }),
+    summary: () => "",
+  }),
+  def({
+    type: "scene_pop_all",
+    label: "Restore First Scene",
+    category: "Scene",
+    description: "Go back to the first stored scene and forget the rest. Ends the script.",
+    fields: [],
+    create: () => ({ type: "scene_pop_all" }),
+    summary: () => "",
+  }),
+  def({
+    type: "scene_reset",
+    label: "Clear Stored Scenes",
+    category: "Scene",
+    description: "Forget every stored scene.",
+    fields: [],
+    create: () => ({ type: "scene_reset" }),
+    summary: () => "",
+  }),
+
+  // Timing & input
+  def({
+    type: "idle",
+    label: "Idle",
+    category: "Timing & Input",
+    description: "Wait for one frame.",
+    fields: [],
+    create: () => ({ type: "idle" }),
+    summary: () => "1 frame",
+  }),
+  def({
+    type: "if_input",
+    label: "If Button Held",
+    category: "Timing & Input",
+    description: "Run Then if any of the chosen buttons is held down right now.",
+    fields: [{ key: "buttons", label: "Buttons", kind: "buttons" }],
+    branches: IF_BRANCHES,
+    create: () => ({ type: "if_input", buttons: "a", then: [], else: [] }),
+    summary: (ev) => buttonsLabel(ev.buttons),
+  }),
+  def({
+    type: "input_script_set",
+    label: "Attach Script To Button",
+    category: "Timing & Input",
+    description:
+      "Run a script whenever a button is pressed, until removed or the scene changes. \"Override\" replaces the " +
+      "button's normal action (A = talk, Start = pause menu).",
+    fields: [
+      { key: "buttons", label: "Buttons", kind: "buttons" },
+      { key: "override", label: "Override", kind: "bool" },
+    ],
+    branches: [{ key: "script", label: "On press" }],
+    create: () => ({ type: "input_script_set", buttons: "a", override: false, script: [] }),
+    summary: (ev) => `${buttonsLabel(ev.buttons)}${ev.override ? " (override)" : ""}`,
+  }),
+  def({
+    type: "input_script_remove",
+    label: "Remove Button Script",
+    category: "Timing & Input",
+    description: "Stop running the script attached to these buttons.",
+    fields: [{ key: "buttons", label: "Buttons", kind: "buttons" }],
+    create: () => ({ type: "input_script_remove", buttons: "a" }),
+    summary: (ev) => buttonsLabel(ev.buttons),
+  }),
+  def({
+    type: "timer_script_set",
+    label: "Attach Timer Script",
+    category: "Timing & Input",
+    description: "Run a script every so many frames, in the background, until disabled or the scene changes.",
+    fields: [
+      { key: "timer", label: "Timer", kind: "int", min: 1, max: 4 },
+      { key: "frames", label: "Every (frames)", kind: "int", min: 1, max: MAX_I16 },
+    ],
+    branches: [{ key: "script", label: "On tick" }],
+    create: () => ({ type: "timer_script_set", timer: 1, frames: 60, script: [] }),
+    summary: (ev) => `timer ${ev.timer} every ${ev.frames} frames`,
+  }),
+  def({
+    type: "timer_restart",
+    label: "Restart Timer",
+    category: "Timing & Input",
+    description: "Start a timer's countdown over from the beginning.",
+    fields: [{ key: "timer", label: "Timer", kind: "int", min: 1, max: 4 }],
+    create: () => ({ type: "timer_restart", timer: 1 }),
+    summary: (ev) => `timer ${ev.timer}`,
+  }),
+  def({
+    type: "timer_disable",
+    label: "Disable Timer",
+    category: "Timing & Input",
+    description: "Stop a timer's script from running.",
+    fields: [{ key: "timer", label: "Timer", kind: "int", min: 1, max: 4 }],
+    create: () => ({ type: "timer_disable", timer: 1 }),
+    summary: (ev) => `timer ${ev.timer}`,
+  }),
+
+  // Scripts
+  def({
+    type: "thread_start",
+    label: "Start Thread",
+    category: "Scripts",
+    description:
+      "Run events in the background while this script carries on. Store the handle in a variable to stop it later. " +
+      "Threads end when the scene changes.",
+    fields: [{ key: "var", label: "Handle variable", kind: "optionalVariable" }],
+    branches: [{ key: "script", label: "Thread" }],
+    create: () => ({ type: "thread_start", var: "", script: [] }),
+    summary: (ev) => (ev.var ? `handle → ${ev.var}` : ""),
+  }),
+  def({
+    type: "thread_stop",
+    label: "Stop Thread",
+    category: "Scripts",
+    description: "Stop the thread whose handle is stored in a variable.",
+    fields: [{ key: "var", label: "Handle variable", kind: "variable" }],
+    create: (c) => ({ type: "thread_stop", var: c.variables[0] ?? "" }),
+    summary: (ev) => ev.var || "?",
+  }),
+
+  // Screen
+  def({
+    type: "sprites_hide",
+    label: "Hide All Sprites",
+    category: "Screen",
+    description: "Hide every sprite (actors and the player) until Show All Sprites.",
+    fields: [],
+    create: () => ({ type: "sprites_hide" }),
+    summary: () => "",
+  }),
+  def({
+    type: "sprites_show",
+    label: "Show All Sprites",
+    category: "Screen",
+    description: "Show sprites again after Hide All Sprites.",
+    fields: [],
+    create: () => ({ type: "sprites_show" }),
+    summary: () => "",
+  }),
+  def({
+    type: "palette_set",
+    label: "Set Palette Color",
+    category: "Screen",
+    description: "Change one color of a background or sprite palette bank until the next scene load.",
+    fields: [
+      { key: "target", label: "Palette", kind: "paletteTarget" },
+      { key: "bank", label: "Bank", kind: "int", min: 0, max: 15 },
+      { key: "index", label: "Color #", kind: "int", min: 0, max: 15 },
+      { key: "color", label: "Color", kind: "color" },
+    ],
+    create: () => ({ type: "palette_set", target: "background", bank: 0, index: 1, color: "#ffffff" }),
+    summary: (ev) => `${ev.target} ${ev.bank}:${ev.index} = ${ev.color ?? ev.colors?.join(", ") ?? "?"}`,
+  }),
+  def({
+    type: "replace_tile",
+    label: "Replace Tile",
+    category: "Screen",
+    description: "Copy the tile at the source position onto another tile of this scene's map (until the scene reloads).",
+    fields: [
+      { key: "pos", label: "Tile", kind: "tilePos" },
+      { key: "source", label: "Copy from", kind: "tilePos", xKey: "sourceX", yKey: "sourceY" },
+    ],
+    create: () => ({ type: "replace_tile", x: 0, y: 0, sourceX: 0, sourceY: 0 }),
+    summary: (ev) => `(${ev.x}, ${ev.y}) ← (${ev.sourceX}, ${ev.sourceY})`,
+  }),
+
+  // Save data
+  def({
+    type: "data_save",
+    label: "Save Data",
+    category: "Save Data",
+    description: "Save the game (variables, flags, items, scene and position) to a slot. Slot 0 is the pause menu's.",
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    create: () => ({ type: "data_save", slot: 0 }),
+    summary: (ev) => `slot ${ev.slot}`,
+  }),
+  def({
+    type: "data_load",
+    label: "Load Data",
+    category: "Save Data",
+    description: "Load a save slot and go to its scene. Ends the script if the slot has a save; otherwise carries on.",
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    create: () => ({ type: "data_load", slot: 0 }),
+    summary: (ev) => `slot ${ev.slot}`,
+  }),
+  def({
+    type: "data_clear",
+    label: "Clear Data",
+    category: "Save Data",
+    description: "Delete the save in a slot.",
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    create: () => ({ type: "data_clear", slot: 0 }),
+    summary: (ev) => `slot ${ev.slot}`,
+  }),
+  def({
+    type: "if_data_saved",
+    label: "If Data Saved",
+    category: "Save Data",
+    description: "Run Then if a save slot holds a save.",
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    branches: IF_BRANCHES,
+    create: () => ({ type: "if_data_saved", slot: 0, then: [], else: [] }),
+    summary: (ev) => `slot ${ev.slot}`,
+  }),
+  def({
+    type: "data_peek",
+    label: "Read Variable From Save",
+    category: "Save Data",
+    description: "Copy a variable's value out of a save slot without loading it (0 if the slot is empty).",
+    fields: [
+      { key: "slot", label: "Slot", kind: "int", min: 0, max: 2 },
+      { key: "source", label: "Saved variable", kind: "variable" },
+      { key: "var", label: "Store in", kind: "variable" },
+    ],
+    create: (c) => ({ type: "data_peek", slot: 0, source: c.variables[0] ?? "", var: c.variables[0] ?? "" }),
+    summary: (ev) => `${ev.var || "?"} = slot ${ev.slot}'s ${ev.source || "?"}`,
+  }),
+
+  // Sound
+  def({
+    type: "sound_tone",
+    label: "Play Tone",
+    category: "Sound",
+    description: "Play a square-wave tone on sound channel 1.",
+    fields: [
+      { key: "frequency", label: "Frequency (Hz)", kind: "int", min: 64, max: 20000 },
+      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+    ],
+    create: () => ({ type: "sound_tone", frequency: 440, frames: 30 }),
+    summary: (ev) => `${ev.frequency} Hz, ${ev.frames}f`,
+  }),
+  def({
+    type: "sound_beep",
+    label: "Play Beep",
+    category: "Sound",
+    description: "Play a short noise-channel beep (pitch 1-8).",
+    fields: [
+      { key: "pitch", label: "Pitch", kind: "int", min: 1, max: 8 },
+      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+    ],
+    create: () => ({ type: "sound_beep", pitch: 4, frames: 30 }),
+    summary: (ev) => `pitch ${ev.pitch}, ${ev.frames}f`,
+  }),
+  def({
+    type: "sound_crash",
+    label: "Play Crash",
+    category: "Sound",
+    description: "Play a noise burst on sound channel 4.",
+    fields: [{ key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 }],
+    create: () => ({ type: "sound_crash", frames: 30 }),
+    summary: (ev) => `${ev.frames}f`,
+  }),
+  def({
+    type: "mute_channel",
+    label: "Mute Music Channel",
+    category: "Sound",
+    description: "Keep a .uge song off one of the four sound channels (e.g. to free it for sound effects).",
+    fields: [
+      { key: "channel", label: "Channel", kind: "int", min: 1, max: 4 },
+      { key: "muted", label: "Muted", kind: "bool" },
+    ],
+    create: () => ({ type: "mute_channel", channel: 1, muted: true }),
+    summary: (ev) => `channel ${ev.channel} ${ev.muted ? "muted" : "unmuted"}`,
+  }),
+  def({
+    type: "music_routine",
+    label: "Set Music Routine",
+    category: "Sound",
+    description: "Run a script whenever the playing .uge song hits effect 6xx with x = this routine number.",
+    fields: [{ key: "routine", label: "Routine", kind: "int", min: 0, max: 15 }],
+    branches: [{ key: "script", label: "On effect" }],
+    create: () => ({ type: "music_routine", routine: 0, script: [] }),
+    summary: (ev) => `routine ${ev.routine}`,
   }),
 ];
 

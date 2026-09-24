@@ -1,7 +1,8 @@
 /**
  * Immutable operations on nested event scripts, for the drag-and-drop
  * editor. A script is a list of events; some events own nested lists
- * ("then"/"else" branches, or a menu's per-option "then"). A ListPath
+ * ("then"/"else" branches, or a menu option's or switch case's "then").
+ * A ListPath
  * says how to walk from the root list down to one of those nested
  * lists: each step is "the event at this index, then its X slot".
  */
@@ -10,16 +11,31 @@ import type { EventScript, ScriptEventJSON } from "../../shared/eventTypes";
 import { getEventDef } from "./eventCatalog";
 
 /** A branch key (from that event type's EventDef.branches - "then"/
- * "else"/"body"/"children" today, more as new branching events are
- * added), or a menu option index. */
-export type Slot = "then" | "else" | "body" | "children" | number;
+ * "else"/"body"/"children"/"script" today, more as new branching events
+ * are added), or an index into a menu's options / a switch's cases. */
+export type Slot = "then" | "else" | "body" | "children" | "script" | number;
 
-/** This event type's own branch keys (empty for a leaf event, or for
- * "menu" which uses numeric option-index slots instead - see
- * childSlots()). Driven entirely by eventCatalog.ts's EventDef.branches
- * so a new branching event type needs no changes here. */
+/** This event type's own branch keys (empty for a leaf event). Driven
+ * entirely by eventCatalog.ts's EventDef.branches so a new branching
+ * event type needs no changes here. Menu options and switch cases are
+ * numeric slots on top of these - see childSlots(). */
 function branchKeys(ev: ScriptEventJSON): Slot[] {
   return (getEventDef(ev.type)?.branches?.map((b) => b.key) ?? []) as Slot[];
+}
+
+/** An event's list of { then } entries - a menu's options or a switch's
+ * cases - reached through numeric slots, and the key it's stored under. */
+type OptionEntry = { then?: EventScript };
+
+function optionListKey(ev: ScriptEventJSON): "options" | "cases" | null {
+  if (ev.type === "menu") return "options";
+  if (ev.type === "switch") return "cases";
+  return null;
+}
+
+function optionList(ev: ScriptEventJSON): OptionEntry[] | undefined {
+  const key = optionListKey(ev);
+  return key ? ((ev as unknown as Record<string, OptionEntry[] | undefined>)[key] ?? []) : undefined;
 }
 
 export interface PathStep {
@@ -87,7 +103,7 @@ export function findByKey(root: EventScript, key: string, path: ListPath = []): 
 
 export function getSlotList(ev: ScriptEventJSON, slot: Slot): EventScript | undefined {
   if (typeof slot === "number") {
-    return ev.type === "menu" ? ev.options[slot]?.then : undefined;
+    return optionList(ev)?.[slot]?.then;
   }
   if (!branchKeys(ev).includes(slot)) return undefined;
   return (ev as unknown as Record<string, EventScript | undefined>)[slot];
@@ -113,10 +129,12 @@ export function getEvent(root: EventScript, loc: EventLocation): ScriptEventJSON
 
 function withSlotList(ev: ScriptEventJSON, slot: Slot, list: EventScript): ScriptEventJSON {
   if (typeof slot === "number") {
-    if (ev.type !== "menu") return ev;
-    const options = ev.options.slice();
-    options[slot] = { ...options[slot], then: list };
-    return carryKey(ev, { ...ev, options });
+    const key = optionListKey(ev);
+    const entries = optionList(ev);
+    if (!key || !entries) return ev;
+    const copy = entries.slice();
+    copy[slot] = { ...copy[slot], then: list };
+    return carryKey(ev, { ...ev, [key]: copy } as ScriptEventJSON);
   }
   return carryKey(ev, { ...ev, [slot]: list } as ScriptEventJSON);
 }
@@ -176,9 +194,11 @@ function removeByRef(list: EventScript, target: ScriptEventJSON): EventScript {
       continue;
     }
     let next = ev;
-    if (ev.type === "menu") {
+    const optKey = optionListKey(ev);
+    const entries = optionList(ev);
+    if (optKey && entries) {
       let optChanged = false;
-      const options = ev.options.map((o) => {
+      const mapped = entries.map((o) => {
         if (!o.then) return o;
         const t = removeByRef(o.then, target);
         if (t !== o.then) {
@@ -187,14 +207,13 @@ function removeByRef(list: EventScript, target: ScriptEventJSON): EventScript {
         }
         return o;
       });
-      if (optChanged) next = carryKey(ev, { ...ev, options });
-    } else {
-      for (const slot of branchKeys(ev)) {
-        const inner = (next as unknown as Record<string, EventScript | undefined>)[slot as string];
-        if (!inner) continue;
-        const r = removeByRef(inner, target);
-        if (r !== inner) next = carryKey(ev, { ...next, [slot as string]: r } as ScriptEventJSON);
-      }
+      if (optChanged) next = carryKey(ev, { ...ev, [optKey]: mapped } as ScriptEventJSON);
+    }
+    for (const slot of branchKeys(ev)) {
+      const inner = (next as unknown as Record<string, EventScript | undefined>)[slot as string];
+      if (!inner) continue;
+      const r = removeByRef(inner, target);
+      if (r !== inner) next = carryKey(ev, { ...next, [slot as string]: r } as ScriptEventJSON);
     }
     if (next !== ev) changed = true;
     out.push(next);
@@ -251,8 +270,8 @@ export function moveEvent(
 
 /** Every nested list inside one event, with the slot that reaches it. */
 export function childSlots(ev: ScriptEventJSON): Slot[] {
-  if (ev.type === "menu") return ev.options.map((_, i) => i);
-  return branchKeys(ev);
+  const entries = optionList(ev);
+  return [...(entries ? entries.map((_, i) => i) : []), ...branchKeys(ev)];
 }
 
 /** Calls fn on every event in the tree (depth-first, parents first). */

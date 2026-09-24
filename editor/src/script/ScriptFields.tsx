@@ -1,4 +1,16 @@
-import type { ArrayVarMathOp, ButtonName, CompareOp, Direction, FadeColor, MathOp, ScriptEventJSON, SoundEffect } from "../../shared/eventTypes";
+import type {
+  ActorRelation,
+  ArrayVarMathOp,
+  ButtonName,
+  CompareOp,
+  Direction,
+  FadeColor,
+  MathOp,
+  PaletteTarget,
+  PositionUnits,
+  ScriptEventJSON,
+  SoundEffect,
+} from "../../shared/eventTypes";
 import type { SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import NamedListSelect from "../components/common/NamedListSelect";
 import NumberInput from "../components/common/NumberInput";
@@ -48,6 +60,22 @@ const FADE_COLORS: { color: FadeColor; label: string }[] = [
   { color: "white", label: "White" },
 ];
 
+const UNITS: { units: PositionUnits; label: string }[] = [
+  { units: "tiles", label: "Tiles" },
+  { units: "pixels", label: "Pixels" },
+];
+const RELATIONS: { relation: ActorRelation; label: string }[] = [
+  { relation: "up", label: "above" },
+  { relation: "down", label: "below" },
+  { relation: "left", label: "left of" },
+  { relation: "right", label: "right of" },
+];
+const PALETTE_TARGETS: { target: PaletteTarget; label: string }[] = [
+  { target: "background", label: "Background" },
+  { target: "sprite", label: "Sprite" },
+];
+const BITS = Array.from({ length: 16 }, (_, i) => i);
+
 interface Props {
   field: FieldDef;
   ev: ScriptEventJSON;
@@ -65,6 +93,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
   const constants = useProjectStore((s) => s.project?.project.constants ?? []);
   const spriteSheets = useProjectStore((s) => s.project?.project.spriteSheets ?? []);
   const musicTracks = useProjectStore((s) => s.assets?.music ?? []);
+  const variables = useProjectStore((s) => s.project?.project.variables) ?? [];
 
   switch (field.kind) {
     case "text":
@@ -372,14 +401,19 @@ export function FieldControl({ field, ev, env, patch }: Props) {
     }
 
     case "tilePos": {
-      const x = typeof rec.x === "number" ? rec.x : 0;
-      const y = typeof rec.y === "number" ? rec.y : 0;
+      const xKey = field.xKey ?? "x";
+      const yKey = field.yKey ?? "y";
+      const x = typeof rec[xKey] === "number" ? (rec[xKey] as number) : 0;
+      const y = typeof rec[yKey] === "number" ? (rec[yKey] as number) : 0;
+      // A pixel position can be up to the map's pixel size; the pick
+      // button always fills in tiles.
+      const max = rec.units === "pixels" ? 2047 : 255;
       return (
         <div className="script-field-pos">
           <span className="pos-label">X</span>
-          <NumberInput value={x} min={0} max={255} onChange={(n) => patch({ x: n }, true)} />
+          <NumberInput value={x} min={0} max={max} onChange={(n) => patch({ [xKey]: n }, true)} />
           <span className="pos-label">Y</span>
-          <NumberInput value={y} min={0} max={255} onChange={(n) => patch({ y: n }, true)} />
+          <NumberInput value={y} min={0} max={max} onChange={(n) => patch({ [yKey]: n }, true)} />
           <button
             className="btn btn-small"
             title={
@@ -391,7 +425,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             onClick={() =>
               setTilePick({
                 label: field.label,
-                onPick: (px, py) => patch({ x: px, y: py }),
+                onPick: (px, py) => patch(rec.units === "pixels" ? { [xKey]: px * 8, [yKey]: py * 8 } : { [xKey]: px, [yKey]: py }),
               })
             }
           >
@@ -469,6 +503,120 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           <span className="pos-label">H</span>
           <NumberInput value={height} min={1} max={255} onChange={(n) => patch({ height: n }, true)} />
         </div>
+      );
+    }
+
+    case "offset": {
+      const x = typeof rec.x === "number" ? rec.x : 0;
+      const y = typeof rec.y === "number" ? rec.y : 0;
+      const lim = rec.units === "pixels" ? 2047 : 255;
+      return (
+        <div className="script-field-pos script-field-offset">
+          <span className="pos-label">X</span>
+          <NumberInput value={x} min={-lim} max={lim} onChange={(n) => patch({ x: n }, true)} />
+          <span className="pos-label">Y</span>
+          <NumberInput value={y} min={-lim} max={lim} onChange={(n) => patch({ y: n }, true)} />
+        </div>
+      );
+    }
+
+    case "expression":
+      return (
+        <input
+          className="script-field-expression"
+          spellCheck={false}
+          value={String(value ?? "")}
+          placeholder="e.g. score >= 10 && held(a)"
+          onChange={(e) => patch({ [field.key]: e.target.value }, true)}
+        />
+      );
+
+    case "units":
+      return (
+        <select value={String(value ?? "tiles")} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {UNITS.map((u) => (
+            <option key={u.units} value={u.units}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+      );
+
+    case "relation":
+      return (
+        <select value={String(value ?? "up")} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {RELATIONS.map((r) => (
+            <option key={r.relation} value={r.relation}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      );
+
+    case "paletteTarget":
+      return (
+        <select value={String(value ?? "background")} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {PALETTE_TARGETS.map((t) => (
+            <option key={t.target} value={t.target}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      );
+
+    case "color": {
+      // Hand-written palette_set JSON may use a "colors" list instead;
+      // show its first entry, and replace the list on edit.
+      const list = Array.isArray(rec.colors) ? (rec.colors as unknown[]) : [];
+      const raw = value ?? list[0];
+      const cur = typeof raw === "string" && /^#?[0-9a-fA-F]{6}$/.test(raw) ? `#${raw.replace("#", "").toLowerCase()}` : "#000000";
+      return (
+        <div className="script-field-color">
+          <input type="color" value={cur} onChange={(e) => patch({ [field.key]: e.target.value, colors: undefined }, true)} />
+          <span className="script-field-color-hex">
+            {cur}
+            {list.length > 1 ? ` (+${list.length - 1} more in JSON, replaced on edit)` : ""}
+          </span>
+        </div>
+      );
+    }
+
+    case "bits": {
+      const selected = new Set(Array.isArray(value) ? (value as number[]) : []);
+      const toggle = (b: number) => {
+        const next = new Set(selected);
+        if (next.has(b)) next.delete(b);
+        else next.add(b);
+        patch({ [field.key]: BITS.filter((x) => next.has(x)) });
+      };
+      return (
+        <div className="chips">
+          {BITS.map((b) => (
+            <button key={b} className={`chip${selected.has(b) ? " chip-on" : ""}`} onClick={() => toggle(b)}>
+              {b}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    case "optionalVariable": {
+      const cur = String(value ?? "");
+      const missing = cur !== "" && !variables.includes(cur);
+      return (
+        <select
+          className={missing ? "select-invalid" : undefined}
+          value={cur}
+          onChange={(e) => patch({ [field.key]: e.target.value })}
+        >
+          <option value="">(don't store)</option>
+          {missing && <option value={cur}>{cur} (not in project!)</option>}
+          {variables.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
       );
     }
 

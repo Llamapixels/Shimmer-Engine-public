@@ -387,6 +387,464 @@ export interface StopMusicEvent extends EventBase {
   type: "stop_music";
 }
 
+// ---- GB Studio parity events (compiler/build_project.py's
+// compile_parity_event()) ----
+
+/** Position fields are in tiles unless units is "pixels". */
+export type PositionUnits = "tiles" | "pixels";
+
+/** A math expression string - see compiler/expr.py for the syntax
+ * ($name$ or bare variable names, C operators, min/max/abs/rnd/isqrt,
+ * actor_x/actor_y/actor_dir, held/pressed, flag/item, saved/peek,
+ * scene, time). */
+export type Expression = string;
+
+export interface IfExpressionEvent extends EventBase {
+  type: "if_expression";
+  expression: Expression;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+export interface SetVarExpressionEvent extends EventBase {
+  type: "set_var_expression";
+  var: string;
+  expression: Expression;
+}
+
+export interface LoopWhileEvent extends EventBase {
+  type: "loop_while";
+  expression: Expression;
+  body?: EventScript;
+}
+
+/** var = from; while (var comparison to) { body; var stepOp= step } */
+export interface LoopForEvent extends EventBase {
+  type: "loop_for";
+  var: string;
+  from: VarOrLiteral;
+  comparison: CompareOp;
+  to: VarOrLiteral;
+  stepOp: MathOp;
+  step: VarOrLiteral;
+  body?: EventScript;
+}
+
+export interface SetVarTrueEvent extends EventBase {
+  type: "set_var_true";
+  var: string;
+}
+
+export interface SetVarFalseEvent extends EventBase {
+  type: "set_var_false";
+  var: string;
+}
+
+export interface VarIncEvent extends EventBase {
+  type: "var_inc";
+  var: string;
+}
+
+export interface VarDecEvent extends EventBase {
+  type: "var_dec";
+  var: string;
+}
+
+export interface IfVarTrueEvent extends EventBase {
+  type: "if_var_true";
+  var: string;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+export interface IfVarFalseEvent extends EventBase {
+  type: "if_var_false";
+  var: string;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** Bit flags on a variable: "bits" are bit numbers 0-15. set replaces
+ * the value with just those bits, add ORs them in, clear removes them. */
+export interface VarSetFlagsEvent extends EventBase {
+  type: "var_set_flags";
+  var: string;
+  bits: number[];
+}
+
+export interface VarAddFlagsEvent extends EventBase {
+  type: "var_add_flags";
+  var: string;
+  bits: number[];
+}
+
+export interface VarClearFlagsEvent extends EventBase {
+  type: "var_clear_flags";
+  var: string;
+  bits: number[];
+}
+
+/** True when every listed bit is set. */
+export interface IfVarFlagsEvent extends EventBase {
+  type: "if_var_flags";
+  var: string;
+  bits: number[];
+  then?: EventScript;
+  else?: EventScript;
+}
+
+export interface VarsResetEvent extends EventBase {
+  type: "vars_reset";
+}
+
+export interface SeedRngEvent extends EventBase {
+  type: "seed_rng";
+}
+
+/** Waits one frame. */
+export interface IdleEvent extends EventBase {
+  type: "idle";
+}
+
+/** Skips "body" if it ran less than "frames" frames ago; "var" stores
+ * when it last ran. */
+export interface RateLimitEvent extends EventBase {
+  type: "rate_limit";
+  var: string;
+  frames: number;
+  body?: EventScript;
+}
+
+export interface LabelEvent extends EventBase {
+  type: "label";
+  label: string;
+}
+
+/** Jumps to a Label in the same script. */
+export interface GotoEvent extends EventBase {
+  type: "goto";
+  label: string;
+}
+
+export interface SwitchCase {
+  value: number;
+  then?: EventScript;
+}
+
+export interface SwitchEvent extends EventBase {
+  type: "switch";
+  var: string;
+  cases: SwitchCase[];
+  else?: EventScript;
+}
+
+/** Always true on a GBA (resolved at compile time). */
+export interface IfColorSupportedEvent extends EventBase {
+  type: "if_color_supported";
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** Always true on a GBA (resolved at compile time). */
+export interface IfDeviceGbaEvent extends EventBase {
+  type: "if_device_gba";
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** Always false on a GBA (resolved at compile time). */
+export interface IfDeviceSgbEvent extends EventBase {
+  type: "if_device_sgb";
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** Runs an NPC's on_interact script here (inlined at compile time). */
+export interface ActorInvokeEvent extends EventBase {
+  type: "actor_invoke";
+  actor: ActorRef;
+}
+
+/** Runs "script" in the background alongside this one. "var" (optional,
+ * "" = none) receives the thread's handle, for Stop Thread. */
+export interface ThreadStartEvent extends EventBase {
+  type: "thread_start";
+  var?: string;
+  script?: EventScript;
+}
+
+export interface ThreadStopEvent extends EventBase {
+  type: "thread_stop";
+  var: string;
+}
+
+/** Timer 1-4: runs "script" every "frames" frames until disabled or
+ * the scene changes. Separate from the scene's own "timers" list. */
+export interface TimerScriptSetEvent extends EventBase {
+  type: "timer_script_set";
+  timer: number;
+  frames: number;
+  script?: EventScript;
+}
+
+export interface TimerRestartEvent extends EventBase {
+  type: "timer_restart";
+  timer: number;
+}
+
+export interface TimerDisableEvent extends EventBase {
+  type: "timer_disable";
+  timer: number;
+}
+
+/** Runs "script" whenever one of the buttons is pressed. "override"
+ * replaces the button's normal action (A = talk, START = pause menu). */
+export interface InputScriptSetEvent extends EventBase {
+  type: "input_script_set";
+  buttons: ButtonName | ButtonName[];
+  override?: boolean;
+  script?: EventScript;
+}
+
+export interface InputScriptRemoveEvent extends EventBase {
+  type: "input_script_remove";
+  buttons: ButtonName | ButtonName[];
+}
+
+/** Runs "script" whenever the playing .uge song hits effect 6xx with
+ * x = routine. */
+export interface MusicRoutineEvent extends EventBase {
+  type: "music_routine";
+  routine: number;
+  script?: EventScript;
+}
+
+export interface ActorSetPositionVarsEvent extends EventBase {
+  type: "actor_set_position_vars";
+  actor: ActorRef;
+  varX: string;
+  varY: string;
+  units?: PositionUnits;
+}
+
+export interface ActorMoveToVarsEvent extends EventBase {
+  type: "actor_move_to_vars";
+  actor: ActorRef;
+  varX: string;
+  varY: string;
+  units?: PositionUnits;
+}
+
+export interface ActorSetPositionRelativeEvent extends EventBase {
+  type: "actor_set_position_relative";
+  actor: ActorRef;
+  x: number;
+  y: number;
+  units?: PositionUnits;
+}
+
+export interface ActorMoveRelativeEvent extends EventBase {
+  type: "actor_move_relative";
+  actor: ActorRef;
+  x: number;
+  y: number;
+  units?: PositionUnits;
+}
+
+export interface ActorSetFrameVarEvent extends EventBase {
+  type: "actor_set_frame_var";
+  actor: ActorRef;
+  var: string;
+}
+
+/** Scripted-move speed in pixels per frame (1-8). */
+export interface ActorSetMoveSpeedEvent extends EventBase {
+  type: "actor_set_move_speed";
+  actor: ActorRef;
+  speed: number;
+}
+
+/** Frames per animation frame (0 = the sprite's own speed). */
+export interface ActorSetAnimSpeedEvent extends EventBase {
+  type: "actor_set_anim_speed";
+  actor: ActorRef;
+  speed: number;
+}
+
+export interface ActorSetCollisionsEvent extends EventBase {
+  type: "actor_set_collisions";
+  actor: ActorRef;
+  enabled: boolean;
+}
+
+/** Pushes the actor away from the player; "continue" slides it until it
+ * hits something. */
+export interface ActorPushEvent extends EventBase {
+  type: "actor_push";
+  actor: ActorRef;
+  continue?: boolean;
+}
+
+export interface IfActorAtPositionEvent extends EventBase {
+  type: "if_actor_at_position";
+  actor: ActorRef;
+  x: number;
+  y: number;
+  units?: PositionUnits;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+export interface IfActorDirectionEvent extends EventBase {
+  type: "if_actor_direction";
+  actor: ActorRef;
+  direction: Direction;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** Distance in whole tiles (Euclidean), like GB Studio's. */
+export interface IfActorDistanceEvent extends EventBase {
+  type: "if_actor_distance";
+  actor: ActorRef;
+  other: ActorRef;
+  op: CompareOp;
+  distance: VarOrLiteral;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** "up" = actor is above other, and so on. */
+export type ActorRelation = "up" | "down" | "left" | "right";
+
+export interface IfActorRelativeEvent extends EventBase {
+  type: "if_actor_relative";
+  actor: ActorRef;
+  other: ActorRef;
+  relation: ActorRelation;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** True while any of the buttons is held. */
+export interface IfInputEvent extends EventBase {
+  type: "if_input";
+  buttons: ButtonName | ButtonName[];
+  then?: EventScript;
+  else?: EventScript;
+}
+
+export interface IfCurrentSceneEvent extends EventBase {
+  type: "if_current_scene";
+  scene: string;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** Remembers the current scene and player position. */
+export interface ScenePushEvent extends EventBase {
+  type: "scene_push";
+}
+
+/** Returns to the last remembered scene. */
+export interface ScenePopEvent extends EventBase {
+  type: "scene_pop";
+}
+
+/** Returns to the first remembered scene and forgets the rest. */
+export interface ScenePopAllEvent extends EventBase {
+  type: "scene_pop_all";
+}
+
+export interface SceneResetEvent extends EventBase {
+  type: "scene_reset";
+}
+
+/** Save slot 0-2 (slot 0 is the pause menu's). */
+export interface DataSaveEvent extends EventBase {
+  type: "data_save";
+  slot: number;
+}
+
+export interface DataLoadEvent extends EventBase {
+  type: "data_load";
+  slot: number;
+}
+
+export interface DataClearEvent extends EventBase {
+  type: "data_clear";
+  slot: number;
+}
+
+export interface IfDataSavedEvent extends EventBase {
+  type: "if_data_saved";
+  slot: number;
+  then?: EventScript;
+  else?: EventScript;
+}
+
+/** Reads variable "source" out of a save slot into "var". */
+export interface DataPeekEvent extends EventBase {
+  type: "data_peek";
+  slot: number;
+  source: string;
+  var: string;
+}
+
+export interface SpritesShowEvent extends EventBase {
+  type: "sprites_show";
+}
+
+export interface SpritesHideEvent extends EventBase {
+  type: "sprites_hide";
+}
+
+export type PaletteTarget = "background" | "sprite";
+
+/** Sets palette colors starting at "index" of bank "bank". The editor
+ * writes one "color"; hand-written JSON may give a "colors" list. */
+export interface PaletteSetEvent extends EventBase {
+  type: "palette_set";
+  target: PaletteTarget;
+  bank: number;
+  index: number;
+  color?: string;
+  colors?: string[];
+}
+
+/** Copies the map entry at tile (sourceX, sourceY) onto tile (x, y). */
+export interface ReplaceTileEvent extends EventBase {
+  type: "replace_tile";
+  x: number;
+  y: number;
+  sourceX: number;
+  sourceY: number;
+}
+
+export interface SoundToneEvent extends EventBase {
+  type: "sound_tone";
+  frequency: number;
+  frames: number;
+}
+
+export interface SoundBeepEvent extends EventBase {
+  type: "sound_beep";
+  pitch: number;
+  frames: number;
+}
+
+export interface SoundCrashEvent extends EventBase {
+  type: "sound_crash";
+  frames: number;
+}
+
+/** Channel 1-4 (the GBA's Game Boy sound channels). */
+export interface MuteChannelEvent extends EventBase {
+  type: "mute_channel";
+  channel: number;
+  muted: boolean;
+}
+
 export type ScriptEventJSON =
   | TextEvent
   | SetFlagEvent
@@ -431,7 +889,72 @@ export type ScriptEventJSON =
   | FadeOutEvent
   | FadeInEvent
   | PlayMusicEvent
-  | StopMusicEvent;
+  | StopMusicEvent
+  | IfExpressionEvent
+  | SetVarExpressionEvent
+  | LoopWhileEvent
+  | LoopForEvent
+  | SetVarTrueEvent
+  | SetVarFalseEvent
+  | VarIncEvent
+  | VarDecEvent
+  | IfVarTrueEvent
+  | IfVarFalseEvent
+  | VarSetFlagsEvent
+  | VarAddFlagsEvent
+  | VarClearFlagsEvent
+  | IfVarFlagsEvent
+  | VarsResetEvent
+  | SeedRngEvent
+  | IdleEvent
+  | RateLimitEvent
+  | LabelEvent
+  | GotoEvent
+  | SwitchEvent
+  | IfColorSupportedEvent
+  | IfDeviceGbaEvent
+  | IfDeviceSgbEvent
+  | ActorInvokeEvent
+  | ThreadStartEvent
+  | ThreadStopEvent
+  | TimerScriptSetEvent
+  | TimerRestartEvent
+  | TimerDisableEvent
+  | InputScriptSetEvent
+  | InputScriptRemoveEvent
+  | MusicRoutineEvent
+  | ActorSetPositionVarsEvent
+  | ActorMoveToVarsEvent
+  | ActorSetPositionRelativeEvent
+  | ActorMoveRelativeEvent
+  | ActorSetFrameVarEvent
+  | ActorSetMoveSpeedEvent
+  | ActorSetAnimSpeedEvent
+  | ActorSetCollisionsEvent
+  | ActorPushEvent
+  | IfActorAtPositionEvent
+  | IfActorDirectionEvent
+  | IfActorDistanceEvent
+  | IfActorRelativeEvent
+  | IfInputEvent
+  | IfCurrentSceneEvent
+  | ScenePushEvent
+  | ScenePopEvent
+  | ScenePopAllEvent
+  | SceneResetEvent
+  | DataSaveEvent
+  | DataLoadEvent
+  | DataClearEvent
+  | IfDataSavedEvent
+  | DataPeekEvent
+  | SpritesShowEvent
+  | SpritesHideEvent
+  | PaletteSetEvent
+  | ReplaceTileEvent
+  | SoundToneEvent
+  | SoundBeepEvent
+  | SoundCrashEvent
+  | MuteChannelEvent;
 
 export type EventScript = ScriptEventJSON[];
 
@@ -448,6 +971,10 @@ export function countEvents(script: EventScript | undefined): number {
     if (ev.type === "menu") {
       for (const opt of ev.options) n += countEvents(opt.then);
     }
+    if (ev.type === "switch") {
+      for (const c of ev.cases) n += countEvents(c.then);
+    }
+    if ("script" in ev && Array.isArray(ev.script)) n += countEvents(ev.script);
     if ("body" in ev && ev.body) n += countEvents(ev.body);
     if ("children" in ev && ev.children) n += countEvents(ev.children);
   }
