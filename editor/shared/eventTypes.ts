@@ -48,6 +48,23 @@ export interface TextEvent extends EventBase {
   text: string;
 }
 
+/** Dialogue look from here on (compiler/ui.py): a font/frame name
+ * (assets/fonts, assets/frames, or "default"), or frames per character. */
+export interface TextSetFontEvent extends EventBase {
+  type: "text_set_font";
+  font: string;
+}
+
+export interface TextSetFrameEvent extends EventBase {
+  type: "text_set_frame";
+  frame: string;
+}
+
+export interface TextSetSpeedEvent extends EventBase {
+  type: "text_set_speed";
+  speed: number;
+}
+
 export interface SetFlagEvent extends EventBase {
   type: "set_flag";
   flag: string;
@@ -846,6 +863,9 @@ export interface MuteChannelEvent extends EventBase {
 
 export type ScriptEventJSON =
   | TextEvent
+  | TextSetFontEvent
+  | TextSetFrameEvent
+  | TextSetSpeedEvent
   | SetFlagEvent
   | ClearFlagEvent
   | IfFlagEvent

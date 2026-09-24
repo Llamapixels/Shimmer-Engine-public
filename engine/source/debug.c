@@ -2,61 +2,20 @@
 #include <stdint.h>
 
 #include "debug.h"
-#include "font_data.h"
+#include "ui.h"
 
-/*
- * Same VRAM as dialogue.c's box (see that file for the full layout
- * comment) - dialogue_init() already loaded the font tiles/palette
- * at startup, this just draws into unused rows of the same map.
- */
-#define DLG_SCREEN_BASE_BLOCK  23
-#define DLG_MAP \
-    ((volatile uint16_t *)(0x06000000 + DLG_SCREEN_BASE_BLOCK * 0x800))
-#define DLG_PALETTE_BANK 15
-
-/* Dialogue/menu box owns rows 16-19 (see dialogue.c). This HUD stays
- * up top, well clear of it. */
-#define HUD_TOP_ROW  0
-#define HUD_ROWS     4
-#define HUD_COLS     30
-
-#define TRANSPARENT_TILE   0
-#define GLYPH_TILE_OFFSET  1
-#define BLANK_TILE         GLYPH_TILE_OFFSET   /* tile for ' ' */
-
+/* Top-of-screen HUD on BG1 (ui.c), clear of the dialogue box. */
 static int dbg_active = 0;
-
-static void put_tile(int row, int col, uint16_t tile_index)
-{
-    if (row < 0 || row >= 32 || col < 0 || col >= 32)
-        return;
-
-    DLG_MAP[row * 32 + col] =
-        (tile_index & 0x3FF) |
-        ((uint16_t)DLG_PALETTE_BANK << 12);
-}
-
-static uint16_t char_tile(char ch)
-{
-    if (ch < FONT_FIRST_CHAR || ch > FONT_LAST_CHAR)
-        return BLANK_TILE;
-
-    return (uint16_t)(ch - FONT_FIRST_CHAR) + GLYPH_TILE_OFFSET;
-}
 
 static void clear_hud(void)
 {
-    for (int r = 0; r < HUD_ROWS; r++)
-        for (int c = 0; c < HUD_COLS; c++)
-            put_tile(HUD_TOP_ROW + r, c, TRANSPARENT_TILE);
+    ui_hud_clear();
+    ui_hud_flush();
 }
 
 static void draw_text(int row, int col, const char *text)
 {
-    int i;
-
-    for (i = 0; text[i] != 0 && col + i < HUD_COLS; i++)
-        put_tile(HUD_TOP_ROW + row, col + i, char_tile(text[i]));
+    ui_hud_text(row, col * 8, text);
 }
 
 /*
@@ -99,7 +58,7 @@ static int format_int(char *buf, int value)
 static void draw_hud(const SceneDef *scene, const Entity *player,
                       uint32_t flags, uint32_t inventory)
 {
-    clear_hud();
+    ui_hud_clear();
 
     /* Row 0: scene name. */
     draw_text(0, 1, (scene && scene->name) ? scene->name : "(no scene)");
@@ -150,6 +109,7 @@ static void draw_hud(const SceneDef *scene, const Entity *player,
     inv_line[ip] = 0;
 
     draw_text(3, 1, inv_line);
+    ui_hud_flush();
 }
 
 void debug_init(void)

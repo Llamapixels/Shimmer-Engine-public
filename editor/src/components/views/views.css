@@ -508,3 +508,13 @@
   padding: 0 3px;
   font-size: 10px;
 }
+
+.settings-field .name-row {
+  flex-wrap: nowrap;
+  margin-bottom: 0;
+}
+
+.settings-field .name-row select {
+  flex: 1;
+  min-width: 0;
+}

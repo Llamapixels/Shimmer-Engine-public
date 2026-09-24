@@ -16,6 +16,7 @@
 #include "background.h"
 #include "scene.h"
 #include "game.h"
+#include "ui.h"
 
 /*
  * One running script. Slot 0 is the "main" script (script_start) -
@@ -954,6 +955,18 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_MUSIC_ROUTINE:
             music_set_routine(ev->a, (const ScriptEvent *)ev->ptr);
+            break;
+
+        case SCRIPT_TEXT_SET_FONT:
+            ui_set_font(ev->a);
+            break;
+
+        case SCRIPT_TEXT_SET_FRAME:
+            ui_set_frame(ev->a);
+            break;
+
+        case SCRIPT_TEXT_SET_SPEED:
+            ui_set_speed(ev->a);
             break;
 
         case SCRIPT_END:

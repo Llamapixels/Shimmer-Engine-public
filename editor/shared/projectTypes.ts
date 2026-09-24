@@ -149,6 +149,19 @@ export interface ProjectJSON {
   spriteSheets?: SpriteSheetJSON[];
   /** The player's sprite (assets/sprites/<name>.png); default "player". */
   playerSprite?: string;
+  /** Dialogue look - see UiSettingsJSON. */
+  ui?: UiSettingsJSON;
+}
+
+/** project.json "ui" (compiler/ui.py). Fonts are assets/fonts/<name>.png,
+ * frames assets/frames/<name>.png; "default" is the built-in one. */
+export interface UiSettingsJSON {
+  /** Font dialogue starts with; default: the first font, else "default". */
+  font?: string;
+  /** Box frame dialogue starts with; same default rule. */
+  frame?: string;
+  /** Frames per character, 0 (instant) to 30; default 1. */
+  textSpeed?: number;
 }
 
 export interface DoorJSON {

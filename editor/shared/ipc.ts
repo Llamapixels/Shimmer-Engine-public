@@ -67,7 +67,7 @@ export interface ReadAssetResult {
   dataUrl: string;
 }
 
-export type AssetKind = "backgrounds" | "sprites" | "music";
+export type AssetKind = "backgrounds" | "sprites" | "music" | "fonts" | "frames";
 
 export interface AssetInfo {
   /** File stem - what scene JSON refers to for sprites ("npc1") and
@@ -85,6 +85,11 @@ export interface AssetListing {
   backgrounds: AssetInfo[];
   sprites: AssetInfo[];
   music: AssetInfo[];
+  /** Dialogue fonts (assets/fonts/*.png) and box frames (assets/frames/
+   * *.png, plus a GB Studio-style assets/ui/frame.png as "frame"). The
+   * built-in "default" of each isn't listed. See compiler/ui.py. */
+  fonts: AssetInfo[];
+  frames: AssetInfo[];
   /** Absolute path of the folder containing engine/, or null if this
    * project isn't inside a Shimmer Engine checkout (music and the
    * player sprite can't be listed then). */

@@ -356,8 +356,12 @@ typedef enum
     SCRIPT_SOUND_BEEP,         /* a = pitch 1-8, b = frames */
     SCRIPT_SOUND_CRASH,        /* b = frames */
     SCRIPT_MUTE_CHANNEL,       /* a = PSG channel 0-3, b = 1 mute / 0 */
-    SCRIPT_MUSIC_ROUTINE       /* a = routine 0-15, ptr = script (0 =
+    SCRIPT_MUSIC_ROUTINE,      /* a = routine 0-15, ptr = script (0 =
                                  * clear) */
+
+    SCRIPT_TEXT_SET_FONT,      /* a = font index (ui.h) */
+    SCRIPT_TEXT_SET_FRAME,     /* a = frame index */
+    SCRIPT_TEXT_SET_SPEED      /* a = frames per character */
 } ScriptOp;
 
 /*

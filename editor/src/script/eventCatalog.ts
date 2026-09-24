@@ -44,7 +44,9 @@ export type FieldKind =
   | "color"
   | "paletteTarget"
   | "optionalVariable"
-  | "offset";
+  | "offset"
+  | "font"
+  | "frame";
 
 export interface FieldDef {
   /** JSON key. For "tilePos"/"offset" this is a prefix-less pair: the
@@ -216,7 +218,8 @@ export const EVENT_DEFS: EventDef[] = [
     type: "text",
     label: "Display Text",
     category: "Dialogue",
-    description: "Show a dialogue box. A new line starts a new page. Use {varname} to show a variable.",
+    description:
+      "Show a dialogue box. A new line starts a new page; long text carries on to the next page. {varname} shows a variable, !F:name! switches font, !S2! sets the text speed (frames per letter, 0 = instant).",
     fields: [{ key: "text", label: "Text", kind: "multiline" }],
     create: () => ({ type: "text", text: "" }),
     summary: (ev) => `"${short(ev.text)}"`,
@@ -252,6 +255,33 @@ export const EVENT_DEFS: EventDef[] = [
       ],
     }),
     summary: (ev) => ev.options.map((o) => o.label).join(" / "),
+  }),
+  def({
+    type: "text_set_font",
+    label: "Set Font",
+    category: "Dialogue",
+    description: "Font for dialogue from now on. Fonts are PNGs in assets/fonts (GB Studio fonts work as-is).",
+    fields: [{ key: "font", label: "Font", kind: "font" }],
+    create: () => ({ type: "text_set_font", font: "default" }),
+    summary: (ev) => ev.font || "(no font)",
+  }),
+  def({
+    type: "text_set_frame",
+    label: "Set Dialogue Frame",
+    category: "Dialogue",
+    description: "Box frame for dialogue from now on. Frames are 24x24 PNGs in assets/frames.",
+    fields: [{ key: "frame", label: "Frame", kind: "frame" }],
+    create: () => ({ type: "text_set_frame", frame: "default" }),
+    summary: (ev) => ev.frame || "(no frame)",
+  }),
+  def({
+    type: "text_set_speed",
+    label: "Set Text Speed",
+    category: "Dialogue",
+    description: "How fast dialogue letters appear: frames per letter, 0 = the whole page at once.",
+    fields: [{ key: "speed", label: "Frames per letter", kind: "int", min: 0, max: 30 }],
+    create: () => ({ type: "text_set_speed", speed: 1 }),
+    summary: (ev) => (ev.speed === 0 ? "instant" : `${ev.speed} frame${ev.speed === 1 ? "" : "s"} per letter`),
   }),
 
   // ---- Flags ----
