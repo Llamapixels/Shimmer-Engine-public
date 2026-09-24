@@ -72,6 +72,8 @@ typedef struct
                               * on_hit (else the scene's player_hit[g-1]) */
     const ScriptEvent *on_hit;
     const ScriptEvent *on_update;   /* looping background thread, 0 = none */
+    uint8_t platform;        /* Platformer: stand on it (only blocks from
+                              * above) and ride it when it moves */
 } NpcDef;
 
 /*
@@ -183,6 +185,9 @@ typedef struct
 
     BgLayer layers[2];          /* BG2, BG3 */
     uint8_t layer_count;
+
+    uint8_t mode;               /* SCENE_MODE_* (mode_settings.h) */
+    const int16_t *settings;    /* MS_COUNT engine settings - see modes.h */
 } SceneDef;
 
 /* Load background, palettes, collision and camera bounds. */

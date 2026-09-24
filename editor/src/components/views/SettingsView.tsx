@@ -4,6 +4,7 @@ import { countRefs, type RefKind } from "../../script/scriptRefs";
 import { sceneName, useProjectStore } from "../../state/projectStore";
 import CommitInput from "../common/CommitInput";
 import DialogueCard from "./DialogueCard";
+import EngineSettingsCard from "../../engine/EngineSettingsCard";
 import { NAMED_LIST_LIMIT, validateName, type NamedListKind } from "../common/NamedListSelect";
 import "./views.css";
 
@@ -77,6 +78,7 @@ export default function SettingsView() {
               </p>
             </div>
             <DialogueCard />
+            <EngineSettingsCard />
             {LISTS.map((l) => (
               <NameListCard key={l.kind} {...l} />
             ))}

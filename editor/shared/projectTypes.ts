@@ -151,6 +151,9 @@ export interface ProjectJSON {
   playerSprite?: string;
   /** Dialogue look - see UiSettingsJSON. */
   ui?: UiSettingsJSON;
+  /** Scene type engine settings (compiler/engine_settings.json keys);
+   * missing ones use their defaults. */
+  engine?: Record<string, number | boolean | string>;
 }
 
 /** project.json "ui" (compiler/ui.py). Fonts are assets/fonts/<name>.png,
@@ -206,6 +209,9 @@ export interface NpcJSON {
   /** Loops in the background (at most once per frame) while the scene is up. */
   on_update?: EventScript;
   on_hit?: EventScript;
+  /** Platformer scenes: the player can stand on it (it only blocks from
+   * above) and rides along when it moves. */
+  platform?: boolean;
 }
 
 /** One parallax band; the last one runs to the bottom of the screen and
@@ -230,9 +236,8 @@ export interface BgLayerJSON {
   front?: boolean;
 }
 
-/** Only top-down exists in the engine so far; the others are listed in the
- * editor for later. */
-export type SceneType = "topdown" | "platformer" | "adventure" | "shmup" | "pointnclick";
+/** GB Studio's scene types (compiler/engine_settings.json "modes"). */
+export type SceneType = "topdown" | "platform" | "adventure" | "shmup" | "pointnclick" | "logo";
 
 export interface TimerJSON {
   name?: string;
@@ -258,6 +263,8 @@ export interface SceneJSON {
   player_start_direction?: Direction;
   music?: string;
   type?: SceneType;
+  /** This scene's own engine settings, over the project's. */
+  engine?: Record<string, number | boolean | string>;
   /** The player's sprite in this scene; default: the project's. */
   player_sprite?: string;
   /** Horizontal bands scrolling at different speeds, top to bottom (1-3). */

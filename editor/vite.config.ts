@@ -16,5 +16,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // src/engineSettings.ts imports ../compiler/engine_settings.json.
+    fs: { allow: [".."] },
   },
 });

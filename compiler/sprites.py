@@ -413,6 +413,7 @@ class CompiledSprite:
         self.anims = []         # [(frame indices, speed)]
         self.state_maps = []    # [8 anim indices], engine slot order
         self.state_names = {}   # name -> state index
+        self.state_types = []   # animationType per state
         self.bounds = (0, 0, 16, 16)
         self.palette = []
         self.max_objs = 0
@@ -464,6 +465,7 @@ def compile_sprite(sheet, image, where):
     for si, st in enumerate(sheet["states"]):
         swhere = f"{where}: state '{st.get('name') or 'Default'}'"
         cs.state_names[st.get("name", "")] = si
+        cs.state_types.append(st.get("animationType", "multi_movement"))
         anims = st.get("animations") or []
         mapping = animation_map(st.get("animationType", "multi_movement"), bool(st.get("flipLeft", True)))
 
@@ -505,6 +507,12 @@ def _bytes_c(values, per_line=16):
                       for i in range(0, len(values), per_line))
 
 
+# Animation state names the scene types use when a sprite has them, in
+# engine/include/modes.h's MODE_ANIM_* order.
+MODE_ANIM_NAMES = ["jump", "fall", "climb", "run", "dash", "wall_slide", "float",
+                   "knockback", "crouch", "hover", "push"]
+
+
 def emit_sprite(cs, ident, source_name):
     """C definitions for one CompiledSprite. Returns (code, SpriteDef
     initializer)."""
@@ -538,8 +546,17 @@ def emit_sprite(cs, ident, source_name):
     out.append(f"static const uint8_t {ident}_maps[{len(maps)}] = {{ {', '.join(map(str, maps))} }};")
     out.append(f"static const uint16_t {ident}_palette[16] = {{ "
                + ", ".join(f"0x{v:04X}" for v in cs.palette) + " };")
+    # States the scene types look for by name (modes.h MODE_ANIM_*).
+    by_name = {n.strip().lower(): i for n, i in cs.state_names.items() if n}
+    named = [by_name.get(n, -1) + 1 for n in MODE_ANIM_NAMES]
+    states_ref = "0"
+    if any(named):
+        states_ref = f"{ident}_mode_states"
+        out.append(f"static const uint8_t {states_ref}[{len(named)}] = {{ {', '.join(map(str, named))} }};")
+    platform_mask = sum(1 << i for i, t in enumerate(cs.state_types) if t == "platform_player" and i < 32)
+    cursor_mask = sum(1 << i for i, t in enumerate(cs.state_types) if t == "cursor" and i < 32)
     bx, by, bw, bh = cs.bounds
     init = (f"{{ {ident + '_frames' if frames else '0'}, {len(cs.frames)}, {cs.max_objs}, {cs.max_vram}, "
             f"{ident}_anims, {len(cs.anims)}, {ident}_maps, {len(cs.state_maps)}, "
-            f"{bx}, {by}, {bw}, {bh}, {ident}_palette }}")
+            f"{bx}, {by}, {bw}, {bh}, {ident}_palette, {states_ref}, 0x{platform_mask:X}u, 0x{cursor_mask:X}u }}")
     return "\n\n".join(out), init

@@ -11,6 +11,7 @@
  */
 
 import type { EventScript, ScriptEventJSON } from "../../shared/eventTypes";
+import { SETTING_BY_KEY } from "../engine/engineSettings";
 
 export type FieldKind =
   | "text"
@@ -46,7 +47,12 @@ export type FieldKind =
   | "optionalVariable"
   | "offset"
   | "font"
-  | "frame";
+  | "frame"
+  | "sprite"
+  | "select"
+  | "float"
+  | "engineSetting"
+  | "engineValue";
 
 export interface FieldDef {
   /** JSON key. For "tilePos"/"offset" this is a prefix-less pair: the
@@ -60,6 +66,8 @@ export interface FieldDef {
   min?: number;
   max?: number;
   placeholder?: string;
+  /** "select": the choices. */
+  options?: { value: string; label: string }[];
 }
 
 export type BranchKey = "then" | "else" | "body" | "children" | "script";
@@ -79,6 +87,7 @@ export type EventCategory =
   | "Save Data"
   | "Sound"
   | "Scripts"
+  | "Engine"
   | "Misc";
 
 export const CATEGORY_ORDER: EventCategory[] = [
@@ -96,6 +105,7 @@ export const CATEGORY_ORDER: EventCategory[] = [
   "Save Data",
   "Sound",
   "Scripts",
+  "Engine",
   "Misc",
 ];
 
@@ -116,6 +126,7 @@ export const CATEGORY_COLOR: Record<EventCategory, string> = {
   "Save Data": "#8fbf4a",
   Sound: "#ff7ab6",
   Scripts: "#7a8cff",
+  Engine: "#e07b39",
   Misc: "#6b7280",
 };
 
@@ -132,6 +143,8 @@ export interface CreateContext {
   firstCustomScript: string | null;
   /** name of the first song in assets/music, if any. */
   firstMusicTrack: string | null;
+  /** name of a sprite other than the player's, if any. */
+  firstSprite: string | null;
 }
 
 export interface EventDef {
@@ -151,6 +164,10 @@ export interface EventDef {
 
 const MAX_I16 = 32767;
 const MIN_I16 = -32768;
+
+function settingLabel(key: string): string {
+  return SETTING_BY_KEY[key]?.label ?? key;
+}
 
 function actorLabel(a: unknown): string {
   if (a === "self") return "self";
@@ -255,6 +272,73 @@ export const EVENT_DEFS: EventDef[] = [
       ],
     }),
     summary: (ev) => ev.options.map((o) => o.label).join(" / "),
+  }),
+  def({
+    type: "set_engine_setting",
+    label: "Set Engine Setting",
+    category: "Engine",
+    description: "Change one of the scene type's settings (Settings > Engine) for the rest of this scene - e.g. lower gravity underwater, or turn on double jump after a power-up.",
+    fields: [
+      { key: "setting", label: "Setting", kind: "engineSetting" },
+      { key: "value", label: "Value", kind: "engineValue" },
+    ],
+    create: () => ({ type: "set_engine_setting", setting: "pl_extra_jumps", value: 1 }),
+    summary: (ev) => `${settingLabel(ev.setting)} = ${String(ev.value)}`,
+  }),
+  def({
+    type: "launch_projectile",
+    label: "Launch Projectile",
+    category: "Engine",
+    description: "Fire a sprite in a straight line from an actor. It runs the On Hit script of the actor it hits (or the scene's On Player Hit when it hits the player). Attach it to a button with Attach Script To Button to shoot.",
+    fields: [
+      { key: "sprite", label: "Sprite", kind: "sprite" },
+      { key: "actor", label: "From", kind: "actor" },
+      {
+        key: "direction",
+        label: "Direction",
+        kind: "select",
+        options: [
+          { value: "facing", label: "The way it's facing" },
+          { value: "up", label: "Up" },
+          { value: "down", label: "Down" },
+          { value: "left", label: "Left" },
+          { value: "right", label: "Right" },
+          { value: "angle", label: "Angle…" },
+        ],
+      },
+      { key: "angle", label: "Angle (0 = right, 90 = up)", kind: "int", min: -360, max: 360 },
+      { key: "speed", label: "Speed (px/frame)", kind: "float", min: 0.25, max: 8 },
+      { key: "lifetime", label: "Lifetime (frames, 0 = until off screen)", kind: "int", min: 0, max: MAX_I16 },
+      {
+        key: "hits",
+        label: "Hits",
+        kind: "select",
+        options: [
+          { value: "actors", label: "Actors in any collision group" },
+          { value: "group1", label: "Actors in group 1" },
+          { value: "group2", label: "Actors in group 2" },
+          { value: "group3", label: "Actors in group 3" },
+          { value: "player", label: "The player" },
+        ],
+      },
+      { key: "group", label: "Hits the player as group", kind: "int", min: 1, max: 3 },
+      { key: "pierce", label: "Keeps going after a hit", kind: "bool" },
+      { key: "through_walls", label: "Flies through walls", kind: "bool" },
+      { key: "offset_x", label: "Start offset X (px)", kind: "int", min: -128, max: 128 },
+      { key: "offset_y", label: "Start offset Y (px)", kind: "int", min: -128, max: 128 },
+    ],
+    create: (c) => ({
+      type: "launch_projectile",
+      sprite: c.firstSprite ?? "player",
+      actor: "player",
+      direction: "facing",
+      angle: 0,
+      speed: 3,
+      lifetime: 0,
+      hits: "actors",
+      group: 1,
+    }),
+    summary: (ev) => `${ev.sprite} from ${actorLabel(ev.actor ?? "player")}, ${ev.direction === "angle" ? `${ev.angle ?? 0}°` : ev.direction ?? "facing"}`,
   }),
   def({
     type: "text_set_font",

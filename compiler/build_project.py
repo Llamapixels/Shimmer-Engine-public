@@ -43,6 +43,7 @@ item" baked into the engine.
 
 Scene JSON collision, "collision": one string per tile row, one character
 per tile: "." walkable, "#" solid, "~" water (blocks walking), "!" damage,
+"H" ladder (walkable; climbed in Platformer scenes),
 and one-way tiles "^" "v" "<" ">" whose top/bottom/left/right edge is solid
 (they can't be entered across that edge, only from the other sides).
 
@@ -93,6 +94,8 @@ Scene JSON NPC format:
             "on_update": [ ... ],      <- optional, loops in a background
                                            thread (at most once a frame)
             "on_hit": [ ... ],         <- optional, see collision_group
+            "platform": true,          <- optional, Platformer scenes: the
+                                           player stands on it and rides it
             "on_interact": [ ... ]     <- optional, full event script (see
                                            below) run when the player talks
                                            to this NPC. Overrides "dialogue"
@@ -115,7 +118,13 @@ More scene settings (GB Studio's scene inspector):
     "on_player_hit": {"1": [...], "2": [...], "3": [...]}
                                    <- runs when the player touches an NPC
                                        of that collision group
-    "type": "topdown"              <- editor only for now (the one mode)
+    "type": "platform"             <- scene type (GB Studio's): topdown
+                                       (default), platform, adventure, shmup,
+                                       pointnclick or logo - how the player
+                                       moves; see compiler/modes.py
+    "engine": {"pl_grav": 0.3}     <- this scene's own engine settings, over
+                                       project.json "engine" (the full list
+                                       is compiler/engine_settings.json)
     "layers": [                    <- up to 2 GBA background layers (BG2/BG3),
         {"image": "../assets/backgrounds/sky.png",   full images scrolling
          "speed_x": 0.25, "speed_y": 0,              at speed x the camera
@@ -193,6 +202,18 @@ Event script types (used in "on_interact" and door "events" lists):
         "!S5!" sets the text speed (frames per character, 0 = instant)
         from that point on. Text too long for the box continues on the
         next page.
+    { "type": "set_engine_setting", "setting": "pl_extra_jumps", "value": 1 }
+        Change an engine setting (compiler/engine_settings.json) for the
+        rest of the scene.
+    { "type": "launch_projectile", "sprite": "bullet", "actor": "player",
+      "direction": "facing" | "up" | "down" | "left" | "right" | "angle",
+      "angle": 45, "speed": 3, "lifetime": 0, "hits": "actors",
+      "group": 1, "pierce": false, "through_walls": false,
+      "offset_x": 0, "offset_y": 0 }
+        Fire a sprite in a straight line (angle: degrees, 0 = right, 90 =
+        up; lifetime 0 = until it leaves the screen). hits: "actors" (any
+        with a collision group), "group1".."group3", or "player" (runs the
+        scene's on_player_hit for "group").
     { "type": "text_set_font", "font": "<name>" }
     { "type": "text_set_frame", "frame": "<name>" }
     { "type": "text_set_speed", "speed": 0-30 }
@@ -420,6 +441,7 @@ from PIL import Image
 from sprites import (SheetImage, SpriteError, check_sheet, compile_sprite, default_sheet,
                      emit_sprite)
 from ui import UiError, build_ui, encode_char, ui_to_c
+import modes as M
 from uge import UgeError, build_uge_songs, track_const as uge_track_const
 from expr import ExprError, compile_expression, to_rpn as expr_to_rpn
 import expr as X
@@ -454,9 +476,10 @@ COLLISION_CHARS = {
     "v": 5,   # one-way: bottom edge solid
     "<": 6,   # one-way: left edge solid
     ">": 7,   # one-way: right edge solid
+    "H": 8,   # ladder (walkable; Platformer scenes climb it)
 }
 COLLISION_NAMES = {0: "walkable", 1: "solid", 2: "water", 3: "damage",
-                   4: "top", 5: "bottom", 6: "left", 7: "right"}
+                   4: "top", 5: "bottom", 6: "left", 7: "right", 8: "ladder"}
 
 # Direction name -> engine constant
 DIRECTION_MAP = {
@@ -570,6 +593,7 @@ PREVIEW_COLORS = {
     5: (255, 220, 0, 110),
     6: (255, 220, 0, 110),
     7: (255, 220, 0, 110),
+    8: (160, 90, 20, 110),
 }
 
 
@@ -1117,6 +1141,69 @@ def resolve_state(actor_idx, ref, ctx, where):
 PLAYER_ACTOR_INDEX = -2
 
 
+PROJECTILE_TARGETS = {"player": 0, "group1": 1, "group2": 2, "group3": 3, "actors": 4}
+PROJECTILE_DIRECTIONS = {"right": (1, 0), "left": (-1, 0), "up": (0, -1), "down": (0, 1)}
+
+
+def compile_projectile(ev, ctx, where):
+    """A "launch_projectile" event -> the int16 PROJ_P_* array
+    (engine/include/projectile.h); returns its C identifier."""
+    import math
+    sprite = _require(ev, "sprite", where)
+    if sprite not in ctx["sprite_index"]:
+        raise BuildError(f"{where}: unknown sprite '{sprite}'.")
+    bank = ctx["scene_banks"].get(sprite)
+    if bank is None:
+        raise BuildError(f"{where}: sprite '{sprite}' has no palette in this scene.")
+    source = resolve_actor(ev.get("actor", "player"), ctx, where)
+    speed = ev.get("speed", 2)
+    if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 < speed <= 8:
+        raise BuildError(f"{where}: \"speed\" must be a number of pixels per frame, above 0 and up to 8.")
+    speed_fx = int(round(speed * 256))
+    direction = ev.get("direction", "facing")
+    facing, vx, vy = 0, 0, 0
+    if direction == "facing":
+        facing = 1
+    elif direction == "angle":
+        angle = ev.get("angle", 0)
+        if not isinstance(angle, (int, float)) or isinstance(angle, bool):
+            raise BuildError(f"{where}: \"angle\" must be a number of degrees (0 = right, 90 = up).")
+        vx = int(round(math.cos(math.radians(angle)) * speed_fx))
+        vy = int(round(-math.sin(math.radians(angle)) * speed_fx))
+    elif direction in PROJECTILE_DIRECTIONS:
+        dx, dy = PROJECTILE_DIRECTIONS[direction]
+        vx, vy = dx * speed_fx, dy * speed_fx
+    else:
+        raise BuildError(f"{where}: \"direction\" must be facing, up, down, left, right or angle.")
+    life = resolve_small_int(ev.get("lifetime", 0), "lifetime", where, 0, 32767)
+    hits = ev.get("hits", "actors")
+    if hits not in PROJECTILE_TARGETS:
+        raise BuildError(f"{where}: \"hits\" must be one of: {', '.join(PROJECTILE_TARGETS)}.")
+    group = resolve_small_int(ev.get("group", 1), "group", where, 1, 3)
+    flags = (1 if ev.get("pierce") else 0) | (2 if ev.get("through_walls") else 0)
+    off_x = resolve_small_int(ev.get("offset_x", 0), "offset_x", where, -128, 128)
+    off_y = resolve_small_int(ev.get("offset_y", 0), "offset_y", where, -128, 128)
+    data = [ctx["sprite_index"][sprite], bank, source, facing, vx, vy, speed_fx, life, group,
+            PROJECTILE_TARGETS[hits], flags, off_x, off_y]
+    ident = _aux_ident(ctx, "projectile")
+    ctx["_aux"].append(("expr", ident, data))
+    return ident
+
+
+def projectile_sprites(obj):
+    """Sprite names of every "launch_projectile" event anywhere in obj."""
+    found = []
+    if isinstance(obj, dict):
+        if obj.get("type") == "launch_projectile" and isinstance(obj.get("sprite"), str):
+            found.append(obj["sprite"])
+        for v in obj.values():
+            found += projectile_sprites(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            found += projectile_sprites(v)
+    return found
+
+
 def resolve_actor(ref, ctx, where):
     """Resolve an "actor" event field (a name, an index, "self", or
     "player") to the NPC's 0-based index within its scene's npcs[]
@@ -1342,6 +1429,18 @@ def compile_events(events, out, ctx, where):
         elif etype == "text_set_speed":
             speed = resolve_small_int(_require(ev, "speed", ev_where), "speed", ev_where, 0, 30)
             out.append(_instr("SCRIPT_TEXT_SET_SPEED", a=speed))
+
+        elif etype == "set_engine_setting":
+            key = _require(ev, "setting", ev_where)
+            try:
+                idx = M.setting_index(key, ev_where)
+                value = M.setting_value(key, _require(ev, "value", ev_where), ev_where)
+            except M.ModeError as e:
+                raise BuildError(str(e)) from None
+            out.append(_instr("SCRIPT_SET_ENGINE_SETTING", a=idx, b=value))
+
+        elif etype == "launch_projectile":
+            out.append(_instr("SCRIPT_LAUNCH_PROJECTILE", ptr=compile_projectile(ev, ctx, ev_where)))
 
         elif etype == "set_flag":
             idx = resolve_flag(_require(ev, "flag", ev_where), ctx, ev_where)
@@ -2632,6 +2731,8 @@ def build(project_dir, out_dir):
         "scene_npc_count": 0,
         "self_actor_index": None,
         "sprite_state_names": {},   # filled in below, once the sprites are compiled
+        "sprite_index": {},         # sprite name -> sprite_defs[] index (same)
+        "scene_banks": {},          # sprite name -> OBJ palette bank, per scene
         "timer_name_to_index": {},
         "scene_timer_count": 0,
         "custom_scripts": custom_scripts,
@@ -2653,13 +2754,16 @@ def build(project_dir, out_dir):
     # -----------------------------------------------------------------------
     player_sprite = project.get("playerSprite") or "player"
     sprite_names = [player_sprite]
+    custom_projectiles = projectile_sprites(project.get("customScripts") or [])
     for _, scene in scene_data_list:
-        for sname in [scene.get("player_sprite")] + [npc.get("sprite") or player_sprite for npc in scene.get("npcs", [])]:
+        for sname in ([scene.get("player_sprite")] + [npc.get("sprite") or player_sprite for npc in scene.get("npcs", [])]
+                      + projectile_sprites(scene) + custom_projectiles):
             if sname and sname not in sprite_names:
                 sprite_names.append(sname)
     if len(sprite_names) > 255:
         raise BuildError(f"{len(sprite_names)} different sprites are used; the most is 255.")
     compiled_sprites = compile_project_sprites(project, project_dir, sprite_names)
+    ctx["sprite_index"] = {n: i for i, n in enumerate(sprite_names)}
     ctx["sprite_state_names"] = {n: cs.state_names for n, cs in compiled_sprites.items()}
 
     # -----------------------------------------------------------------------
@@ -2675,6 +2779,7 @@ def build(project_dir, out_dir):
         '#include "script.h"',
         '#include "scenes_data.h"',
         '#include "input.h"',   # INPUT_* constants, for "wait_button" events
+        '#include "mode_settings.h"',   # MS_COUNT
     ]
 
     if (any(scene.get("music") for _, scene in scene_data_list)
@@ -2724,6 +2829,7 @@ def build(project_dir, out_dir):
     # -----------------------------------------------------------------------
     # Per-scene data.
     # -----------------------------------------------------------------------
+    settings_idents = {}   # engine settings arrays, shared by scenes with the same ones
     for scene_file, scene in scene_data_list:
         name = scene.get("name", scene_file.stem)
         ident = c_ident(name)
@@ -2813,8 +2919,21 @@ def build(project_dir, out_dir):
         ctx["npc_name_to_index"] = npc_name_to_index
         ctx["npc_sprite_of"] = npc_sprite_of
         scene_banks = assign_palette_banks(
-            [npc.get("sprite") or player_sprite for npc in npcs],
+            [npc.get("sprite") or player_sprite for npc in npcs] + projectile_sprites(scene) + custom_projectiles,
             scene_player_sprite, compiled_sprites, name)
+        ctx["scene_banks"] = scene_banks
+
+        # Scene type and its engine settings (compiler/modes.py).
+        try:
+            scene_mode = M.scene_mode(scene, name)
+            settings = M.resolve(project.get("engine"), scene.get("engine"), f"{name}: \"engine\"")
+        except M.ModeError as e:
+            raise BuildError(str(e)) from None
+        settings_key = tuple(settings)
+        if settings_key not in settings_idents:
+            settings_idents[settings_key] = f"mode_settings_{len(settings_idents)}"
+            c_parts.append(f"static const int16_t {settings_idents[settings_key]}[MS_COUNT] = {{ "
+                           + ", ".join(map(str, settings)) + " };")
         # For "actor_invoke": each NPC's on_interact events (or its
         # "dialogue" shorthand), inlined wherever it's invoked.
         ctx["npc_events"] = {
@@ -3003,7 +3122,8 @@ def build(project_dir, out_dir):
                 npc_values.append(
                     f"    {{ {nx}, {ny}, {dir_val}, {sprite_idx}, "
                     f"{scene_banks[sname]}, {movement_val}, {script_ref}, "
-                    f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref} }},")
+                    f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref}, "
+                    f"{1 if npc.get('platform') else 0} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")
@@ -3089,6 +3209,8 @@ def build(project_dir, out_dir):
                                f"{l['speed_x']}, {l['speed_y']}, {l['auto_x']}, {l['auto_y']} }},")
             c_parts.append("    },")
         c_parts.append(f"    .layer_count   = {len(layer_data)},")
+        c_parts.append(f"    .mode          = {scene_mode},")
+        c_parts.append(f"    .settings      = {settings_idents[settings_key]},")
         c_parts.append("};")
         c_parts.append("")
 
@@ -3156,6 +3278,7 @@ def build(project_dir, out_dir):
     if uge_names:
         print(f"Wrote {out_dir / 'uge_songs.c'} ({len(uge_names)} .uge song(s))")
     write_if_changed(out_dir / "ui_data.c", ui_to_c(ctx["ui"]))
+    write_if_changed(out_dir / "mode_settings.h", M.header())
     write_if_changed(out_dir / "scenes_data.c", "\n".join(c_parts))
     write_if_changed(out_dir / "scenes_data.h", "\n".join(header))
     print(f"Wrote {out_dir / 'scenes_data.c'}")

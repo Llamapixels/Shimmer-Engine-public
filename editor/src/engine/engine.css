@@ -1,0 +1,113 @@
+.settings-card-wide {
+  grid-column: 1 / -1;
+}
+
+.engine-mode-tabs {
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.engine-mode-tabs button {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.engine-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px 20px;
+  align-items: start;
+}
+
+.engine-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.engine-row {
+  display: grid;
+  grid-template-columns: 1fr 150px 40px;
+  gap: 2px 8px;
+  align-items: center;
+  font-size: 12px;
+  padding: 3px 0;
+}
+
+.engine-label {
+  color: var(--text-primary);
+}
+
+.engine-badge {
+  margin-left: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.engine-desc {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.engine-row select,
+.engine-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.engine-number {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.engine-number input {
+  flex: 1;
+}
+
+.engine-unit {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.engine-bool {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.engine-bool input {
+  width: auto;
+}
+
+.engine-reset {
+  font-size: 11px;
+}
+
+.engine-row input:not([type="checkbox"]),
+.engine-row select {
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 4px 6px;
+  outline: none;
+  font-size: 12px;
+}
+
+.engine-row input:focus,
+.engine-row select:focus {
+  border-color: var(--accent);
+}

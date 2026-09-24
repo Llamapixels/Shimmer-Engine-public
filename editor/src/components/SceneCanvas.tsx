@@ -64,6 +64,7 @@ const COLLISION_TYPES: { id: Brush; label: string; color: string; edge?: "top" |
   { id: ">", label: "Right", color: "rgba(255, 210, 0, 0.45)", edge: "right" },
   { id: "~", label: "Water", color: "rgba(64, 128, 255, 0.5)" },
   { id: "!", label: "Damage", color: "rgba(255, 160, 0, 0.5)" },
+  { id: "H", label: "Ladder", color: "rgba(64, 220, 120, 0.5)" },
 ];
 const COLLISION_BY_CHAR = new Map(COLLISION_TYPES.map((c) => [c.id as string, c]));
 

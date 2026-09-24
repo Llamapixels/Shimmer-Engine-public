@@ -1,3 +1,6 @@
+import EngineValueInput from "../engine/EngineValueInput";
+import { ENGINE_MODES, ENGINE_SETTINGS, type EngineValue, SETTING_BY_KEY } from "../engine/engineSettings";
+import { SpriteSelect } from "../components/common/AssetSelect";
 import type {
   ActorRelation,
   ArrayVarMathOp,
@@ -12,6 +15,7 @@ import type {
   SoundEffect,
 } from "../../shared/eventTypes";
 import type { SceneJSON, SceneRecord } from "../../shared/projectTypes";
+import CommitInput from "../components/common/CommitInput";
 import NamedListSelect from "../components/common/NamedListSelect";
 import NumberInput from "../components/common/NumberInput";
 import { playerSpriteName } from "../sprites/model";
@@ -348,6 +352,74 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             </option>
           ))}
         </select>
+      );
+    }
+
+    case "sprite":
+      return <SpriteSelect value={String(value ?? "player")} onChange={(v) => patch({ [field.key]: v ?? "player" })} />;
+
+    case "select":
+      return (
+        <select value={String(value ?? field.options?.[0]?.value ?? "")} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {(field.options ?? []).map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      );
+
+    case "float":
+      return (
+        <CommitInput
+          value={String(typeof value === "number" ? value : 0)}
+          onCommit={(v: string) => {
+            const n = Number(v.trim());
+            const lo = field.min ?? -1e9;
+            const hi = field.max ?? 1e9;
+            if (!v.trim() || !Number.isFinite(n) || n < lo || n > hi) return `A number from ${lo} to ${hi}.`;
+            patch({ [field.key]: Math.round(n * 256) / 256 });
+          }}
+        />
+      );
+
+    case "engineSetting": {
+      const cur = String(value ?? "");
+      return (
+        <select
+          value={cur}
+          onChange={(e) => {
+            const d = SETTING_BY_KEY[e.target.value];
+            patch({ [field.key]: e.target.value, value: d ? d.default : 0 });
+          }}
+        >
+          {!SETTING_BY_KEY[cur] && <option value={cur}>{cur || "Choose…"}</option>}
+          {ENGINE_MODES.map((m) => {
+            const defs = ENGINE_SETTINGS.filter((d) => d.mode === m.id || (m.id === "topdown" && d.mode === "all"));
+            if (!defs.length) return null;
+            return (
+              <optgroup key={m.id} label={m.label}>
+                {defs.map((d) => (
+                  <option key={d.key} value={d.key}>
+                    {d.mode === "all" ? `Any: ${d.label}` : d.label}
+                  </option>
+                ))}
+              </optgroup>
+            );
+          })}
+        </select>
+      );
+    }
+
+    case "engineValue": {
+      const d = SETTING_BY_KEY[String(rec.setting ?? "")];
+      if (!d) return <span className="properties-note">Pick a setting first.</span>;
+      return (
+        <EngineValueInput
+          def={d}
+          value={(value as EngineValue | undefined) ?? d.default}
+          onChange={(v) => patch({ [field.key]: v })}
+        />
       );
     }
 
