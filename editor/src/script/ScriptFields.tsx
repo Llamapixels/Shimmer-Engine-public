@@ -96,6 +96,8 @@ export function FieldControl({ field, ev, env, patch }: Props) {
   const project = useProjectStore((s) => s.project?.project);
   const spriteSheets = project?.spriteSheets ?? [];
   const musicTracks = useProjectStore((s) => s.assets?.music ?? []);
+  const fonts = useProjectStore((s) => s.assets?.fonts ?? []);
+  const frames = useProjectStore((s) => s.assets?.frames ?? []);
   const variables = useProjectStore((s) => s.project?.project.variables) ?? [];
 
   switch (field.kind) {
@@ -321,6 +323,28 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           {names.map((n) => (
             <option key={n} value={n}>
               {n}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    case "font":
+    case "frame": {
+      const folder = field.kind === "font" ? "assets/fonts" : "assets/frames";
+      const names = ["default", ...(field.kind === "font" ? fonts : frames).map((a) => a.name).filter((n) => n !== "default")];
+      const cur = String(value ?? "");
+      const known = names.includes(cur);
+      return (
+        <select
+          className={!known ? "select-invalid" : undefined}
+          value={cur}
+          onChange={(e) => patch({ [field.key]: e.target.value })}
+        >
+          {!known && <option value={cur}>{cur ? `${cur} (not in ${folder})` : "Choose…"}</option>}
+          {names.map((n) => (
+            <option key={n} value={n}>
+              {n === "default" ? "default (built in)" : n}
             </option>
           ))}
         </select>

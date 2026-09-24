@@ -148,6 +148,16 @@ Event script types (used in "on_interact" and door "events" lists):
     { "type": "text", "text": "..." }
         Show a dialogue box. "\n" in the text starts a new page. Pauses the
         script until the player dismisses it.
+        Text codes (as in GB Studio): "!F:fontname!" switches font and
+        "!S5!" sets the text speed (frames per character, 0 = instant)
+        from that point on. Text too long for the box continues on the
+        next page.
+    { "type": "text_set_font", "font": "<name>" }
+    { "type": "text_set_frame", "frame": "<name>" }
+    { "type": "text_set_speed", "speed": 0-30 }
+        Font / dialogue frame / text speed for all text from now on. Fonts
+        are assets/fonts/*.png, frames assets/frames/*.png; "default" is the
+        built-in one (see compiler/ui.py).
     { "type": "set_flag", "flag": "<name>" }
     { "type": "clear_flag", "flag": "<name>" }
         Set/clear a named flag from project.json's "flags" list.
@@ -368,6 +378,7 @@ from PIL import Image
 
 from sprites import (SheetImage, SpriteError, check_sheet, compile_sprite, default_sheet,
                      emit_sprite)
+from ui import UiError, build_ui, encode_char, ui_to_c
 from uge import UgeError, build_uge_songs, track_const as uge_track_const
 from expr import ExprError, compile_expression, to_rpn as expr_to_rpn
 import expr as X
@@ -488,6 +499,9 @@ FADE_COLOR_TO_SCRIPT = {"black": 0, "white": 1}
 # Matches a "{varname}" reference inside text/prompt/option/label
 # strings - see interpolate_vars().
 VAR_REF_RE = re.compile(r"\{([^{}]+)\}")
+# Text codes (GB Studio's): "!F:fontname!" switches font, "!S5!" / "!S:5!"
+# sets the text speed (frames per character, 0 = instant).
+TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!")
 
 # Event "wait_button" button names -> engine/include/input.h INPUT_* bits.
 BUTTON_NAME_TO_CONST = {
@@ -1061,19 +1075,48 @@ def _var_or_literal(ev, field, ctx, where):
 
 
 def interpolate_vars(text, ctx, where):
-    """Replace every "{varname}" in `text` with a 2-byte runtime marker
-    (0x02 followed by the variable's index byte) that dialogue.c
-    substitutes with that variable's current decimal value when it's
-    actually shown - see script.h's ScriptEvent doc comment and
-    dialogue.c's expand_word()/expand_range_text(). c_string_literal()
-    (called afterwards, same as for any other text) already escapes
-    these two non-printable bytes safely, including the "would be
-    misread as a longer hex escape" case - nothing extra needed here."""
-    def repl(match):
-        idx = resolve_var(match.group(1), ctx, where)
-        return "\x02" + chr(idx)
+    """Compile dialogue text for the engine (engine/include/ui.h):
+    "{varname}" -> 0x02 + the variable's index (0x05 for 128+; shown as
+    its value), "!F:font!" -> 0x03 + font index, "!S5!" -> 0x04 + speed
+    (each argument byte stored +1, see ui.h), and every
+    other character to the byte the fonts use for it (Latin-1, or a font's
+    .json "mapping"; anything else shows as "?"). c_string_literal()
+    escapes the non-printable bytes afterwards."""
+    ui = ctx.get("ui")
+    out = []
+    pos = 0
 
-    return VAR_REF_RE.sub(repl, text)
+    def plain(s):
+        out.append("".join(encode_char(ch, ui) for ch in s) if ui else s)
+
+    for m in TEXT_CODE_RE.finditer(text):
+        plain(text[pos:m.start()])
+        pos = m.end()
+        # Argument bytes are stored +1 so none of them is ever a 0 (which
+        # would end the C string).
+        if m.group(1) is not None:
+            idx = resolve_var(m.group(1), ctx, where)
+            out.append(("\x02" if idx < 128 else "\x05") + chr((idx & 0x7F) + 1))
+        elif m.group(2) is not None:
+            out.append("\x03" + chr(resolve_ui_name(m.group(2), "font", ctx, where) + 1))
+        else:
+            speed = int(m.group(3))
+            if speed > 30:
+                raise BuildError(f"{where}: text speed !S{speed}! is too slow - use 0 to 30 frames per character.")
+            out.append("\x04" + chr(speed + 1))
+    plain(text[pos:])
+    return "".join(out)
+
+
+def resolve_ui_name(name, kind, ctx, where):
+    """A font or frame name -> its index in ui_data.c."""
+    ui = ctx.get("ui")
+    names = ui[f"{kind}_names"] if ui else []
+    name = str(name).strip()
+    if name not in names:
+        known = ", ".join(names) or "(none)"
+        raise BuildError(f"{where}: unknown {kind} '{name}'. {kind.capitalize()}s in this project: {known}")
+    return names.index(name)
 
 
 def _button_mask(buttons, where):
@@ -1160,6 +1203,18 @@ def compile_events(events, out, ctx, where):
             text = _require(ev, "text", ev_where)
             text = interpolate_vars(text, ctx, ev_where)
             out.append(_instr("SCRIPT_TEXT", text=c_string_literal(text)))
+
+        elif etype == "text_set_font":
+            idx = resolve_ui_name(_require(ev, "font", ev_where), "font", ctx, ev_where)
+            out.append(_instr("SCRIPT_TEXT_SET_FONT", a=idx))
+
+        elif etype == "text_set_frame":
+            idx = resolve_ui_name(_require(ev, "frame", ev_where), "frame", ctx, ev_where)
+            out.append(_instr("SCRIPT_TEXT_SET_FRAME", a=idx))
+
+        elif etype == "text_set_speed":
+            speed = resolve_small_int(_require(ev, "speed", ev_where), "speed", ev_where, 0, 30)
+            out.append(_instr("SCRIPT_TEXT_SET_SPEED", a=speed))
 
         elif etype == "set_flag":
             idx = resolve_flag(_require(ev, "flag", ev_where), ctx, ev_where)
@@ -2102,6 +2157,8 @@ def _emit_script_array(c_parts, ident, instructions):
 # ---------------------------------------------------------------------------
 
 DEFAULT_PLAYER_PNG = Path(__file__).resolve().parent.parent / "engine" / "data" / "player.png"
+# Built-in dialogue font/frame/cursor (compiler/ui.py).
+DEFAULT_UI_DIR = Path(__file__).resolve().parent.parent / "engine" / "data" / "ui"
 
 
 def compile_project_sprites(project, project_dir, names):
@@ -2389,6 +2446,16 @@ def build(project_dir, out_dir):
         "custom_scripts": custom_scripts,
         "music_names": {p.stem for p in (project_dir / PROJECT_MUSIC_DIR).glob("*.uge")},
     }
+
+    # Dialogue fonts, frames and cursor (compiler/ui.py) - needed before any
+    # text is compiled, for "!F:font!" codes and character mapping.
+    referenced = json.dumps(project) + "".join(json.dumps(s) for _, s in scene_data_list)
+    try:
+        ctx["ui"] = build_ui(project, project_dir, DEFAULT_UI_DIR, referenced)
+    except UiError as e:
+        raise BuildError(str(e)) from None
+    for f in ctx["ui"]["fonts"]:
+        print(f"  font: {f['name']} ({'fixed' if f['fixed'] else 'variable'} width, {len(f['widths'])} characters)")
 
     # -----------------------------------------------------------------------
     # Sprites: the player's plus every NPC's (see compiler/sprites.py).
@@ -2816,6 +2883,7 @@ def build(project_dir, out_dir):
         raise BuildError(str(e)) from None
     if uge_names:
         print(f"Wrote {out_dir / 'uge_songs.c'} ({len(uge_names)} .uge song(s))")
+    write_if_changed(out_dir / "ui_data.c", ui_to_c(ctx["ui"]))
     write_if_changed(out_dir / "scenes_data.c", "\n".join(c_parts))
     write_if_changed(out_dir / "scenes_data.h", "\n".join(header))
     print(f"Wrote {out_dir / 'scenes_data.c'}")

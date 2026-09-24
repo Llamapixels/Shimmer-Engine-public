@@ -220,6 +220,10 @@ function assetFolder(kind: AssetKind): { base: AssetBase; rel: string; exts: str
       return { base: "project", rel: "assets/sprites", exts: IMAGE_EXTS };
     case "music":
       return { base: "project", rel: MUSIC_DIR, exts: MUSIC_EXTS };
+    case "fonts":
+      return { base: "project", rel: "assets/fonts", exts: IMAGE_EXTS };
+    case "frames":
+      return { base: "project", rel: "assets/frames", exts: IMAGE_EXTS };
   }
 }
 
@@ -254,8 +258,16 @@ export async function listAssets(rootPath: string): Promise<AssetListing> {
   const backgrounds = await listFolder(rootPath, "project", "assets/backgrounds", IMAGE_EXTS);
   const sprites = await listFolder(rootPath, "project", "assets/sprites", IMAGE_EXTS);
   const music = await listFolder(rootPath, "project", MUSIC_DIR, MUSIC_EXTS);
+  const fonts = await listFolder(rootPath, "project", "assets/fonts", IMAGE_EXTS);
+  const frames = await listFolder(rootPath, "project", "assets/frames", IMAGE_EXTS);
+  // GB Studio keeps its one frame in assets/ui/frame.png; compiler/ui.py
+  // picks that up as a frame called "frame".
+  if (!frames.some((f) => f.name === "frame")) {
+    const ui = (await listFolder(rootPath, "project", "assets/ui", IMAGE_EXTS)).find((f) => f.name === "frame");
+    if (ui) frames.unshift(ui);
+  }
 
-  return { backgrounds, sprites, music, engineRoot };
+  return { backgrounds, sprites, music, fonts, frames, engineRoot };
 }
 
 /** A file name that doesn't collide with anything already in `dir`:
@@ -299,8 +311,13 @@ export async function importAssetFiles(rootPath: string, kind: AssetKind, source
       throw new Error(`"${path.basename(src)}" isn't a ${folder.exts.join("/")} file.`);
     }
     const stem = safeStem(path.basename(src, path.extname(src)), kind === "music" ? "track" : "image");
-    const fileName = await uniqueFileName(destDir, stem, ext);
+    const fileName = await uniqueFileName(destDir, stem, ext, kind === "fonts" ? [ext, ".json"] : [ext]);
     await fs.copyFile(src, path.join(destDir, fileName));
+    // A GB Studio font's .json (character mapping) comes along with it.
+    const meta = src.slice(0, -ext.length) + ".json";
+    if (kind === "fonts" && (await exists(meta))) {
+      await fs.copyFile(meta, path.join(destDir, fileName.slice(0, -ext.length) + ".json"));
+    }
   }
   return listAssets(rootPath);
 }

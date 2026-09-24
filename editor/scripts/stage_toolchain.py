@@ -68,8 +68,8 @@ def main():
     shutil.copytree(REPO / "engine" / "source", engine / "source", ignore=shutil.ignore_patterns("*.save"))
     shutil.copytree(REPO / "engine" / "include", engine / "include")
     (engine / "data").mkdir()
-    for name in ("font_data.c", "font_data.h", "player.png"):
-        shutil.copy2(REPO / "engine" / "data" / name, engine / "data" / name)
+    shutil.copy2(REPO / "engine" / "data" / "player.png", engine / "data" / "player.png")
+    shutil.copytree(REPO / "engine" / "data" / "ui", engine / "data" / "ui")
     # findEngineRoot() looks for engine/source in the bundled toolchain.
 
     # devkitPro subset.
