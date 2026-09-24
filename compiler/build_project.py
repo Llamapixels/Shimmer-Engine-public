@@ -116,6 +116,17 @@ More scene settings (GB Studio's scene inspector):
                                    <- runs when the player touches an NPC
                                        of that collision group
     "type": "topdown"              <- editor only for now (the one mode)
+    "layers": [                    <- up to 2 GBA background layers (BG2/BG3),
+        {"image": "../assets/backgrounds/sky.png",   full images scrolling
+         "speed_x": 0.25, "speed_y": 0,              at speed x the camera
+         "auto_x": 0.5, "auto_y": 0,                 (0-4; 1 = with the map)
+         "front": false}                             plus px/frame drift
+    ]                                                (-8..8). front: drawn
+                                                     over the map and actors
+                                                     instead of behind.
+        Layer images are up to 512x256 or 256x512 and repeat. With a layer
+        behind, only transparent pixels of the scene's background show it.
+        The scene and its layers share the 1024 tiles and 15 palettes.
 A door may also have "on_leave": [...], run when the player steps back out.
 
 A scene can also run an event script automatically, once, every time it
@@ -750,8 +761,17 @@ def assign_banks(unique_tiles, backdrop, name, tile_positions, palette_map=None)
     return bank_lists, tile_bank
 
 
-def convert_background(path, name, palette_map=None, tile_overrides=None):
-    image = load_background(path, tile_overrides, name)
+# Stand-in "colour" for see-through pixels when only real transparency
+# counts (scenes with background layers - see convert_background()).
+SEE_THROUGH = (-1, -1, -1)
+
+
+def convert_background(path, name, palette_map=None, tile_overrides=None, see_through_only=False, image=None):
+    """`see_through_only`: only transparent pixels become palette index 0
+    (see-through to the layers behind); otherwise the most common colour
+    is the backdrop, free in every palette bank."""
+    if image is None:
+        image = load_background(path, tile_overrides, name)
     w_tiles = image.width // TILE
     h_tiles = image.height // TILE
 
@@ -759,8 +779,11 @@ def convert_background(path, name, palette_map=None, tile_overrides=None):
     data = image.tobytes()
     raw = [tuple(data[i:i + 4]) for i in range(0, len(data), 4)]
     solid = [p for p in raw if p[3] != 0]
-    backdrop = most_common_color(
-        [p[:3] for p in solid]) if solid else (0, 0, 0)
+    if see_through_only:
+        backdrop = SEE_THROUGH
+    else:
+        backdrop = most_common_color(
+            [p[:3] for p in solid]) if solid else (0, 0, 0)
 
     def px(x, y):
         r, g, b, a = raw[y * image.width + x]
@@ -805,7 +828,7 @@ def convert_background(path, name, palette_map=None, tile_overrides=None):
     # Palette data: 16 colors per bank, slot 0 = backdrop.
     palette = []
     for bank in banks:
-        entries = [gba_color(backdrop)] + [gba_color(c) for c in bank]
+        entries = [gba_color(backdrop if backdrop != SEE_THROUGH else (0, 0, 0))] + [gba_color(c) for c in bank]
         entries += [0] * (16 - len(entries))
         palette.extend(entries)
 
@@ -834,6 +857,80 @@ def convert_background(path, name, palette_map=None, tile_overrides=None):
         "map": screen,
         "colors": 1 + len(set().union(*[set(b) for b in banks])),
     }
+
+
+# Background layers (GBA BG2/BG3) - see "layers" in the docstring.
+LAYER_SIZES = {(32, 32): 0, (64, 32): 1, (32, 64): 2}   # tiles -> BGxCNT size
+MAX_LAYERS = 2
+LAYER_SPEED_MAX = 4.0
+
+
+def _fixed8(value, field, where, lo, hi):
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not lo <= value <= hi:
+        raise BuildError(f"{where}: \"{field}\" must be a number from {lo} to {hi}.")
+    return int(round(value * 256))
+
+
+def convert_layer(scene_file, layer, i, scene_name):
+    """One entry of a scene's "layers": its image, padded with transparency
+    up to a hardware background size (256 or 512 px each way, at most
+    512x256 or 256x512; the layer repeats beyond that), converted like a
+    background. Returns (bg dict, layer settings)."""
+    where = f"{scene_name}: layer {i + 1}"
+    if not isinstance(layer, dict) or not layer.get("image"):
+        raise BuildError(f"{where}: needs an \"image\".")
+    path = (scene_file.parent / layer["image"]).resolve()
+    if not path.exists():
+        raise BuildError(f"{where}: image not found: {path}")
+    image = Image.open(path).convert("RGBA")
+    w = 256 if image.width <= 256 else 512 if image.width <= 512 else 0
+    h = 256 if image.height <= 256 else 512 if image.height <= 512 else 0
+    if not w or not h or (w, h) == (512, 512):
+        raise BuildError(
+            f"{where}: {path.name} is {image.width}x{image.height}; layers can be up to "
+            "512x256 or 256x512 pixels (they repeat to fill the screen). Use 256 or 512 "
+            "pixels wide for a seamless repeat.")
+    padded = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    padded.paste(image, (0, 0))
+    bg = convert_background(path, f"{where} ({path.name})", see_through_only=True, image=padded)
+    settings = {
+        "size": LAYER_SIZES[(w // TILE, h // TILE)],
+        "front": 1 if layer.get("front") else 0,
+        "speed_x": _fixed8(layer.get("speed_x", 0.5), "speed_x", where, 0, LAYER_SPEED_MAX),
+        "speed_y": _fixed8(layer.get("speed_y", 0.5), "speed_y", where, 0, LAYER_SPEED_MAX),
+        "auto_x": _fixed8(layer.get("auto_x", 0), "auto_x", where, -8, 8),
+        "auto_y": _fixed8(layer.get("auto_y", 0), "auto_y", where, -8, 8),
+    }
+    return bg, settings
+
+
+def merge_layer(main, layer_bg, where):
+    """Add a layer's tiles and palette banks to the scene's own (all BG
+    layers share one tile set and the 15 BG palette banks). Returns the
+    layer's map with tile and bank numbers moved past the scene's."""
+    tile_off = main["tile_count"] - 1          # the layer's blank tile 0 is dropped
+    bank_off = main["palette_count"]
+    if tile_off + layer_bg["tile_count"] > MAX_TILES:
+        raise BuildError(
+            f"{where}: the scene and its layers need {tile_off + layer_bg['tile_count']} unique "
+            f"tiles between them; the most is {MAX_TILES}.")
+    if bank_off + layer_bg["palette_count"] > MAX_BANKS:
+        raise BuildError(
+            f"{where}: the scene and its layers need {bank_off + layer_bg['palette_count']} "
+            f"palettes between them; the most is {MAX_BANKS} (each 8x8 tile uses one "
+            "palette of up to 15 colours).")
+    main["tiles"] = main["tiles"] + layer_bg["tiles"][32:]
+    main["tile_count"] += layer_bg["tile_count"] - 1
+    main["palette"] = main["palette"] + layer_bg["palette"]
+    main["palette_count"] += layer_bg["palette_count"]
+    out = []
+    for e in layer_bg["map"]:
+        t = e & 0x3FF
+        if t == 0:
+            out.append(0)
+        else:
+            out.append((t + tile_off) | (e & 0x0C00) | (((e >> 12) + bank_off) << 12))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -2635,8 +2732,20 @@ def build(project_dir, out_dir):
         if not bg_path.exists():
             raise BuildError(f"{name}: background not found: {bg_path}")
 
-        bg = convert_background(bg_path, name, scene.get("palette_map"), scene.get("tile_overrides"))
+        layers = scene.get("layers") or []
+        if not isinstance(layers, list) or len(layers) > MAX_LAYERS:
+            raise BuildError(f"{name}: \"layers\" must be a list of up to {MAX_LAYERS} background layers.")
+        # With a layer behind it, only the background's transparent pixels
+        # are see-through (normally its most common colour is the backdrop).
+        behind = any(isinstance(l, dict) and not l.get("front") for l in layers)
+        bg = convert_background(bg_path, name, scene.get("palette_map"), scene.get("tile_overrides"),
+                                see_through_only=behind)
         w, h = bg["width"], bg["height"]
+        layer_data = []
+        for li, layer in enumerate(layers):
+            layer_bg, settings = convert_layer(scene_file, layer, li, name)
+            settings["map"] = merge_layer(bg, layer_bg, f"{name}: layer {li + 1}")
+            layer_data.append(settings)
 
         # New scene with no collision yet: write an all-walkable grid.
         if "collision" not in scene:
@@ -2736,6 +2845,9 @@ def build(project_dir, out_dir):
         ctx["scene_timer_count"] = len(timers)
 
         c_parts.append(f"/* ---- scene: {name} ---- */")
+        for li, layer in enumerate(layer_data):
+            c_parts.append(c_array("uint16_t", f"{ident}_layer{li}_map", layer["map"], "0x{:04X}", 16))
+            c_parts.append("")
         c_parts.append(c_array("uint8_t", f"{ident}_tiles",
                                bg["tiles"], "0x{:02X}", 16))
         c_parts.append("")
@@ -2970,6 +3082,13 @@ def build(project_dir, out_dir):
         c_parts.append(f"    .player_hit    = {{ {', '.join(player_hit_refs)} }},")
         c_parts.append("    .parallax      = { " + ", ".join(f"{{ {r}, {sp} }}" for r, sp in (parallax or [(0, 0)])) + " },")
         c_parts.append(f"    .parallax_count = {len(parallax)},")
+        if layer_data:
+            c_parts.append("    .layers        = {")
+            for li, l in enumerate(layer_data):
+                c_parts.append(f"        {{ {ident}_layer{li}_map, {l['size']}, {l['front']}, "
+                               f"{l['speed_x']}, {l['speed_y']}, {l['auto_x']}, {l['auto_y']} }},")
+            c_parts.append("    },")
+        c_parts.append(f"    .layer_count   = {len(layer_data)},")
         c_parts.append("};")
         c_parts.append("")
 

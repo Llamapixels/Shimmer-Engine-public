@@ -215,6 +215,21 @@ export interface ParallaxLayerJSON {
   speed: number | "fixed";
 }
 
+/** A full GBA background layer (BG2/BG3) behind or in front of the map.
+ * The image is up to 512x256 or 256x512 and repeats. */
+export interface BgLayerJSON {
+  /** Relative to the scene file, like "background". */
+  image: string;
+  /** Scroll speed as a multiple of the camera's, 0-4 (1 = moves with the map). */
+  speed_x?: number;
+  speed_y?: number;
+  /** Drift in pixels per frame (-8..8), e.g. clouds. */
+  auto_x?: number;
+  auto_y?: number;
+  /** Drawn over the map and actors instead of behind. */
+  front?: boolean;
+}
+
 /** Only top-down exists in the engine so far; the others are listed in the
  * editor for later. */
 export type SceneType = "topdown" | "platformer" | "adventure" | "shmup" | "pointnclick";
@@ -247,6 +262,8 @@ export interface SceneJSON {
   player_sprite?: string;
   /** Horizontal bands scrolling at different speeds, top to bottom (1-3). */
   parallax?: ParallaxLayerJSON[];
+  /** Up to 2 full background layers (the first is drawn over the second). */
+  layers?: BgLayerJSON[];
   on_init?: EventScript;
   /** GB Studio's "On Player Hit", per actor collision group. */
   on_player_hit?: { "1"?: EventScript; "2"?: EventScript; "3"?: EventScript };

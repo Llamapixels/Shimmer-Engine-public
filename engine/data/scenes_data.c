@@ -263,6 +263,7 @@ const SceneDef scene_house_inside =
     .player_hit    = { 0, 0, 0 },
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
+    .layer_count   = 0,
 };
 
 /* ---- scene: testmap ---- */
@@ -688,6 +689,7 @@ const SceneDef scene_testmap =
     .player_hit    = { 0, 0, 0 },
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
+    .layer_count   = 0,
 };
 
 /* ---- scene: teststream ---- */
@@ -1441,6 +1443,7 @@ const SceneDef scene_teststream =
     .player_hit    = { 0, 0, 0 },
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
+    .layer_count   = 0,
 };
 
 /* ---- scene: town ---- */
@@ -1893,6 +1896,7 @@ const SceneDef scene_town =
     .player_hit    = { 0, 0, 0 },
     .parallax      = { { 0, 0 } },
     .parallax_count = 0,
+    .layer_count   = 0,
 };
 
 const SceneDef *const scenes[SCENE_COUNT] =

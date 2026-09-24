@@ -65,6 +65,18 @@ static volatile int band_x[BAND_MAX];    /* current scroll of each band */
 static int band_last_tx[BAND_MAX];       /* streaming: last tile x per band */
 static volatile int irq_band = 0;
 
+/*
+ * Background layers on BG2/BG3: same tiles and palettes as BG0 (char
+ * block 0), maps in screen blocks 24-25 and 26-27 (free: BG0's map is
+ * 28-31, the dialogue box uses char block 2 and screen block 23).
+ */
+#define LAYER_MAX 2
+static const uint8_t LAYER_SB[LAYER_MAX] = { 24, 26 };
+static int layer_count = 0;
+static BgLayer layer_def[LAYER_MAX];
+static int32_t layer_drift_x[LAYER_MAX], layer_drift_y[LAYER_MAX];   /* 1/256 px */
+static int layer_cam_x = 0, layer_cam_y = 0;
+
 static const uint16_t *loaded_map = 0;
 static uint32_t loaded_width = 0;
 static uint32_t loaded_height = 0;
@@ -343,8 +355,82 @@ void background_set_parallax(const ParallaxLayer *layers, int count)
     }
 }
 
+static void layers_apply(void)
+{
+    for (int i = 0; i < layer_count; i++)
+    {
+        const BgLayer *l = &layer_def[i];
+        int x = (int)(((int32_t)layer_cam_x * l->speed_x + layer_drift_x[i]) >> 8);
+        int y = (int)(((int32_t)layer_cam_y * l->speed_y + layer_drift_y[i]) >> 8);
+        if (i == 0)
+        {
+            REG_BG2HOFS = (uint16_t)x;
+            REG_BG2VOFS = (uint16_t)y;
+        }
+        else
+        {
+            REG_BG3HOFS = (uint16_t)x;
+            REG_BG3VOFS = (uint16_t)y;
+        }
+    }
+}
+
+void background_set_layers(const BgLayer *layers, int count)
+{
+    if (count > LAYER_MAX)
+        count = LAYER_MAX;
+    layer_count = count;
+    REG_DISPCNT &= ~(BG2_ENABLE | BG3_ENABLE);
+
+    for (int i = 0; i < count; i++)
+    {
+        const BgLayer *l = &layers[i];
+        layer_def[i] = *l;
+        layer_drift_x[i] = layer_drift_y[i] = 0;
+
+        /* size 0 = 32x32, 1 = 64x32, 2 = 32x64: 1 or 2 screen blocks,
+         * one after the other (left/right or top/bottom). */
+        int entries = l->size ? 2048 : 1024;
+        volatile uint16_t *dst = (volatile uint16_t *)(0x06000000 + LAYER_SB[i] * 0x800);
+        if (l->size == 1)
+        {
+            /* 64 wide: the compiler's map is row-major 64x32; the
+             * hardware wants the left 32 columns, then the right. */
+            for (int y = 0; y < 32; y++)
+                for (int x = 0; x < 64; x++)
+                    dst[(x / 32) * 1024 + y * 32 + (x % 32)] = l->map[y * 64 + x];
+        }
+        else
+        {
+            for (int j = 0; j < entries; j++)
+                dst[j] = l->map[j];
+        }
+
+        uint16_t cnt = (uint16_t)((l->front ? 0 : 3) |       /* priority */
+                                  (0 << 2) |                  /* char block 0, BG0's tiles */
+                                  (LAYER_SB[i] << 8) |
+                                  (l->size << 14));
+        if (i == 0)
+            REG_BG2CNT = cnt;
+        else
+            REG_BG3CNT = cnt;
+        REG_DISPCNT |= i == 0 ? BG2_ENABLE : BG3_ENABLE;
+    }
+    layers_apply();
+}
+
 void background_vblank(void)
 {
+    if (layer_count > 0)
+    {
+        for (int i = 0; i < layer_count; i++)
+        {
+            layer_drift_x[i] += layer_def[i].auto_x;
+            layer_drift_y[i] += layer_def[i].auto_y;
+        }
+        layers_apply();
+    }
+
     if (band_count < 2)
         return;
     REG_BG0HOFS = (uint16_t)band_x[0];
@@ -422,6 +508,11 @@ void background_set_scroll(
     int y
 )
 {
+    layer_cam_x = x;
+    layer_cam_y = y;
+    if (layer_count > 0)
+        layers_apply();
+
     if (band_count > 0)
     {
         for (int b = 0; b < band_count; b++)

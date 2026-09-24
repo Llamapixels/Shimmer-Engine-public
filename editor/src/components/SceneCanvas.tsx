@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
-import type { DoorJSON, NoteJSON, NpcJSON, ProjectJSON, SceneJSON } from "../../shared/projectTypes";
+import type { BgLayerJSON, DoorJSON, NoteJSON, NpcJSON, ProjectJSON, SceneJSON } from "../../shared/projectTypes";
 import { sceneName, useProjectStore, type Brush, type BrushShape, type PaintLayer, type TileStamp, type Tool } from "../state/projectStore";
 import { loadSpriteImage, type SpriteImage } from "../sprites/image";
 import { playerSpriteName, type Facing } from "../sprites/model";
@@ -234,6 +234,12 @@ export default function SceneCanvas() {
   // compiler's `scene_file.parent / scene["background"]`).
   const bgRel = data?.background ? `scenes/${data.background}` : null;
   const { img: bgImage, error: bgError } = useImage(rootPath, bgRel);
+  // Background layers (at most 2), shown as they'd look with the camera
+  // at the top-left: behind ones under the map, front ones over it.
+  const layer0 = data?.layers?.[0];
+  const layer1 = data?.layers?.[1];
+  const { img: layerImg0 } = useImage(rootPath, layer0?.image ? `scenes/${layer0.image}` : null);
+  const { img: layerImg1 } = useImage(rootPath, layer1?.image ? `scenes/${layer1.image}` : null);
   const tileKeys = useMemo(() => (bgImage ? tileKeysOf(bgImage) : null), [bgImage]);
 
   const playerSprite = projectJson ? playerSpriteName(projectJson) : "player";
@@ -317,6 +323,20 @@ export default function SceneCanvas() {
 
     ctx.fillStyle = v("--canvas-bg", "#1c1c1c");
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const layerPairs: [BgLayerJSON | undefined, HTMLImageElement | null][] = [
+      [layer1, layerImg1],
+      [layer0, layerImg0],
+    ];
+    const drawLayer = (img: HTMLImageElement) => {
+      // Repeats every 256 or 512 px, like the hardware background.
+      const rw = img.width <= 256 ? 256 : 512;
+      const rh = img.height <= 256 ? 256 : 512;
+      const areaW = bgImage ? bgImage.width : 0;
+      const areaH = bgImage ? bgImage.height : 0;
+      for (let y = 0; y < areaH; y += rh)
+        for (let x = 0; x < areaW; x += rw) ctx.drawImage(img, x * zoom, y * zoom, img.width * zoom, img.height * zoom);
+    };
+    for (const [layer, img] of layerPairs) if (layer && !layer.front && img) drawLayer(img);
     if (bgImage) {
       ctx.drawImage(bgImage, 0, 0, bgImage.width * zoom, bgImage.height * zoom);
       for (const [key, [sx, sy]] of Object.entries(view.tile_overrides ?? {})) {
@@ -327,6 +347,9 @@ export default function SceneCanvas() {
         ctx.drawImage(bgImage, sx * TILE, sy * TILE, TILE, TILE, x * S, y * S, S, S);
       }
     }
+    ctx.globalAlpha = 0.5;
+    for (const [layer, img] of layerPairs) if (layer && layer.front && img) drawLayer(img);
+    ctx.globalAlpha = 1;
 
     ctx.globalAlpha = opacity / 100;
     if (showCollision && view.collision) {
@@ -575,6 +598,10 @@ export default function SceneCanvas() {
   }, [
     view,
     bgImage,
+    layer0,
+    layer1,
+    layerImg0,
+    layerImg1,
     zoom,
     S,
     showCollision,
