@@ -19,6 +19,7 @@ import {
 import { base64ToBytes, newSongFromTemplate, useMusicStore } from "../../music/musicStore";
 import { player } from "../../music/player";
 import { CHANNELS, type Song } from "../../music/song";
+import Icon from "../common/Icon";
 
 const ROWS_PER_BEAT = [
   { value: 2, label: "2 rows per beat (8th notes)" },
@@ -240,7 +241,7 @@ export default function MidiImportDialog({ onClose }: Props) {
                   {result.song.sequence.length} positions, {result.song.patterns.length / 4} patterns.
                   {result.warnings.map((w, i) => (
                     <div key={i} className="midi-warning">
-                      ⚠ {w}
+                      <Icon name="warning" /> {w}
                     </div>
                   ))}
                 </div>

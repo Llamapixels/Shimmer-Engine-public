@@ -96,7 +96,7 @@
 
 .asset-thumb {
   height: 120px;
-  background: repeating-conic-gradient(#1b1c22 0% 25%, #22232b 0% 50%) 50% / 16px 16px;
+  background: repeating-conic-gradient(#2a2a2a 0% 25%, #323232 0% 50%) 50% / 16px 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -144,7 +144,7 @@
 }
 
 .side-preview {
-  background: repeating-conic-gradient(#1b1c22 0% 25%, #22232b 0% 50%) 50% / 16px 16px;
+  background: repeating-conic-gradient(#2a2a2a 0% 25%, #323232 0% 50%) 50% / 16px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   display: flex;
@@ -215,7 +215,7 @@
 }
 
 .inline-form input {
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -318,7 +318,7 @@
 .name-row input,
 .settings-card select,
 .settings-field input {
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -388,7 +388,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   touch-action: none;
-  background-color: #1b1c22;
+  background-color: #2a2a2a;
 }
 
 .sprite-box-overlay {
@@ -454,7 +454,7 @@
 }
 
 .sprite-state-preview {
-  background: repeating-conic-gradient(#1b1c22 0% 25%, #22232b 0% 50%) 50% / 12px 12px;
+  background: repeating-conic-gradient(#2a2a2a 0% 25%, #323232 0% 50%) 50% / 12px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   display: flex;

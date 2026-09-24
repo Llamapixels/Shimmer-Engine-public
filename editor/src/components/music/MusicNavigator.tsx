@@ -6,6 +6,7 @@ import { CHANNELS, WAVE_COUNT, type InstrumentType } from "../../music/song";
 import { useProjectStore } from "../../state/projectStore";
 import PopoverMenu from "../common/PopoverMenu";
 import { INSTRUMENT_COLORS } from "./PianoRoll";
+import Icon from "../common/Icon";
 
 interface Props {
   onImportMidi: () => void;
@@ -51,11 +52,11 @@ function SongList({ onImportMidi }: Props) {
       <header className="music-nav-head">
         <span>Songs</span>
         <button className="icon-btn" title="New song, import a MIDI file, or import a .uge" onClick={(e) => setAddMenu(e.currentTarget)}>
-          ＋
+          +
         </button>
       </header>
       <div className="music-nav-list">
-        {songs.length === 0 && <div className="music-nav-empty">No songs yet. Use ＋ to make one or import a MIDI file.</div>}
+        {songs.length === 0 && <div className="music-nav-empty">No songs yet. Use + to make one or import a MIDI file.</div>}
         {songs.map((t) =>
           renaming === t.name ? (
             <input
@@ -203,7 +204,7 @@ function ChannelList() {
               toggleMute(c.index);
             }}
           >
-            {muted[c.index] ? "🔇" : "🔊"}
+            <Icon name={muted[c.index] ? "mute" : "sound"} />
           </button>
         </div>
       ))}

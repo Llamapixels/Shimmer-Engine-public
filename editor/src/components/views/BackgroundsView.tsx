@@ -5,6 +5,7 @@ import { sceneName, useProjectStore } from "../../state/projectStore";
 import { backgroundRefFor } from "../common/AssetSelect";
 import { formatBytes, useAssetUrl, useImageStats } from "./assetImages";
 import "./views.css";
+import Icon from "../common/Icon";
 
 const MAX_TILE_COLORS = 16;
 const MAX_UNIQUE_TILES = 1024;
@@ -133,7 +134,7 @@ function BgDetail({ asset, usedBy }: { asset: AssetInfo; usedBy: string[] }) {
         {!stats && <span className="asset-detail">Checking…</span>}
         {checks.map((c, i) => (
           <span key={i} className={c.ok ? "check-ok" : "check-bad"}>
-            {c.ok ? "✓" : "⚠"} {c.text}
+            {c.ok ? "✓" : <Icon name="warning" />} {c.text}
           </span>
         ))}
       </div>

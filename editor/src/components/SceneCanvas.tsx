@@ -20,6 +20,7 @@ import {
   type Cells,
 } from "../world/paint";
 import "./SceneCanvas.css";
+import Icon, { type IconName } from "./common/Icon";
 
 export { resizeCollision };
 
@@ -35,16 +36,16 @@ const ZOOM_LEVELS = [1, 2, 3, 4, 6, 8];
 const SCROLL_PAD = 24;
 
 /** GB Studio's world tools (minus its multi-scene ones), same keys. */
-const TOOLS: { id: Tool; label: string; key: string; icon: string; group: number }[] = [
-  { id: "select", label: "Select / move", key: "V", icon: "↖", group: 0 },
-  { id: "npc", label: "Add actor", key: "A", icon: "☺", group: 0 },
-  { id: "door", label: "Add trigger (drag a box)", key: "T", icon: "▭", group: 0 },
-  { id: "note", label: "Add note", key: "N", icon: "✎", group: 0 },
-  { id: "collision", label: "Paint collisions", key: "C", icon: "▦", group: 1 },
-  { id: "palette", label: "Paint colors (BG palettes)", key: "Z", icon: "🎨", group: 1 },
-  { id: "tiles", label: "Paint tiles", key: "X", icon: "▩", group: 1 },
-  { id: "eraser", label: "Eraser", key: "E", icon: "⌫", group: 1 },
-  { id: "spawn", label: "Set player start", key: "P", icon: "⚑", group: 2 },
+const TOOLS: { id: Tool; label: string; key: string; icon: IconName; group: number }[] = [
+  { id: "select", label: "Select / move", key: "V", icon: "select", group: 0 },
+  { id: "npc", label: "Add actor", key: "A", icon: "actor", group: 0 },
+  { id: "door", label: "Add trigger (drag a box)", key: "T", icon: "trigger", group: 0 },
+  { id: "note", label: "Add note", key: "N", icon: "note", group: 0 },
+  { id: "collision", label: "Paint collisions", key: "C", icon: "collision", group: 1 },
+  { id: "palette", label: "Paint colors (BG palettes)", key: "Z", icon: "colors", group: 1 },
+  { id: "tiles", label: "Paint tiles", key: "X", icon: "tiles", group: 1 },
+  { id: "eraser", label: "Eraser", key: "E", icon: "eraser", group: 1 },
+  { id: "spawn", label: "Set player start", key: "P", icon: "start", group: 2 },
 ];
 
 const BRUSH_SHAPES: { id: BrushShape; label: string; title: string; key?: string }[] = [
@@ -311,14 +312,14 @@ export default function SceneCanvas() {
     const css = getComputedStyle(canvas);
     const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
 
-    ctx.fillStyle = v("--canvas-bg", "#101115");
+    ctx.fillStyle = v("--canvas-bg", "#1c1c1c");
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (bgImage) {
       ctx.drawImage(bgImage, 0, 0, bgImage.width * zoom, bgImage.height * zoom);
       for (const [key, [sx, sy]] of Object.entries(view.tile_overrides ?? {})) {
         const [x, y] = key.split(",").map(Number);
         ctx.clearRect(x * S, y * S, S, S);
-        ctx.fillStyle = v("--canvas-bg", "#101115");
+        ctx.fillStyle = v("--canvas-bg", "#1c1c1c");
         ctx.fillRect(x * S, y * S, S, S);
         ctx.drawImage(bgImage, sx * TILE, sy * TILE, TILE, TILE, x * S, y * S, S, S);
       }
@@ -723,14 +724,10 @@ export default function SceneCanvas() {
       <div className="scene-canvas-empty">
         {noScenesYet ? (
           <div className="scene-canvas-firstrun">
-            <span className="scene-canvas-firstrun-arrow" aria-hidden>
-              ↖
-            </span>
             <div>
-              <p className="scene-canvas-firstrun-title">Let's build something</p>
+              <p className="scene-canvas-firstrun-title">No scenes yet</p>
               <p>
-                Click the <span className="scene-canvas-firstrun-plus">+</span> next to "Scenes" in the sidebar on the left to add your
-                first scene.
+                Add one with <span className="scene-canvas-firstrun-plus">+</span> next to Scenes.
               </p>
             </div>
           </div>
@@ -1043,21 +1040,29 @@ export default function SceneCanvas() {
                 onClick={() => setTool(t.id)}
                 data-testid={`tool-${t.id}`}
               >
-                <span className="tool-icon">{t.icon}</span>
+                <Icon name={t.icon} size={14} />
               </button>
             </span>
           ))}
         </div>
         <div className="scene-canvas-zoom">
-          {ZOOM_LEVELS.map((z) => (
-            <button
-              key={z}
-              className={`scene-canvas-zoom-btn${z === zoom ? " scene-canvas-zoom-btn-active" : ""}`}
-              onClick={() => setZoom(z)}
-            >
-              {z}×
-            </button>
-          ))}
+          <button
+            className="scene-canvas-zoom-btn"
+            title="Zoom out (Ctrl+wheel)"
+            disabled={zoom === ZOOM_LEVELS[0]}
+            onClick={() => setZoom(ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(zoom) - 1)])}
+          >
+            −
+          </button>
+          <span className="scene-canvas-zoom-label">{zoom * 100}%</span>
+          <button
+            className="scene-canvas-zoom-btn"
+            title="Zoom in (Ctrl+wheel)"
+            disabled={zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+            onClick={() => setZoom(ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(zoom) + 1)])}
+          >
+            +
+          </button>
         </div>
         <label className="scene-canvas-toggle">
           <input type="checkbox" checked={showCollision} onChange={(e) => setShowCollision(e.target.checked)} />
@@ -1080,7 +1085,6 @@ export default function SceneCanvas() {
           Actors
         </label>
         <label className="scene-canvas-toggle" title="Layer opacity">
-          Opacity
           <input
             type="range"
             min={10}

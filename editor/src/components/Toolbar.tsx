@@ -3,7 +3,9 @@ import { useRef, useState } from "react";
 import { useBuildStore } from "../state/buildStore";
 import { useProjectStore, type Section } from "../state/projectStore";
 import PopoverMenu from "./common/PopoverMenu";
+import Logo from "./Logo";
 import "./Toolbar.css";
+import Icon from "./common/Icon";
 
 /** The sections GB Studio splits its world into - World / Sprites /
  * Backgrounds / Music / Settings - now picked from a single dropdown
@@ -51,9 +53,7 @@ export default function Toolbar() {
 
   return (
     <div className="toolbar">
-      <div className="toolbar-mark" aria-hidden>
-        AS
-      </div>
+      <Logo size={30} className="toolbar-mark" />
       <div className="toolbar-project-name" title={projectName}>
         {projectName}
       </div>
@@ -89,10 +89,10 @@ export default function Toolbar() {
 
       <div className="toolbar-right">
         <button className="toolbar-icon-btn" disabled={!canUndo} onClick={undo} title="Undo (Ctrl+Z)">
-          ↶
+          <Icon name="undo" size={14} />
         </button>
         <button className="toolbar-icon-btn" disabled={!canRedo} onClick={redo} title="Redo (Ctrl+Y)">
-          ↷
+          <Icon name="redo" size={14} />
         </button>
         <button
           className="toolbar-build-btn"

@@ -102,7 +102,7 @@
 
 .spr-nav-search {
   margin: 0 8px 6px;
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);

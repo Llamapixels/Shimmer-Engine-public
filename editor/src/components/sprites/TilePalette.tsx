@@ -44,7 +44,7 @@ export default function TilePalette() {
     const cell = Math.max(4 * Z, 4);
     for (let y = 0; y < c.height; y += cell)
       for (let x = 0; x < c.width; x += cell) {
-        ctx.fillStyle = ((x / cell + y / cell) & 1) === 0 ? "#2b2d36" : "#24262e";
+        ctx.fillStyle = ((x / cell + y / cell) & 1) === 0 ? "#3a3a3a" : "#333333";
         ctx.fillRect(x, y, cell, cell);
       }
     ctx.drawImage(img.canvas, 0, 0, c.width, c.height);

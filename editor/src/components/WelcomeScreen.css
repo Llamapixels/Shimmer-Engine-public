@@ -4,9 +4,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(ellipse at top, rgba(121, 31, 255, 0.12), transparent 60%),
-    var(--bg-0);
+  background: var(--bg-0);
 }
 
 .welcome-card {
@@ -19,19 +17,7 @@
 }
 
 .welcome-mark {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--accent), var(--accent-active));
-  color: var(--accent-text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: 0.02em;
-  margin-bottom: 8px;
-  box-shadow: 0 8px 24px rgba(121, 31, 255, 0.35);
+  margin-bottom: 14px;
 }
 
 .welcome-card h1 {
@@ -51,7 +37,7 @@
   color: var(--accent-text);
   border: none;
   border-radius: var(--radius-md);
-  padding: 10px 22px;
+  padding: 8px 20px;
   font-weight: 600;
   transition: background 0.12s ease;
 }
@@ -87,7 +73,7 @@
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: 10px 22px;
+  padding: 8px 20px;
   font-weight: 600;
 }
 
@@ -112,14 +98,13 @@
 }
 
 .welcome-new input {
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   padding: 9px 11px;
   font-size: 14px;
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .welcome-hint {

@@ -27,7 +27,7 @@
 .field-row input,
 .field-row select,
 .field-row textarea {
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -40,7 +40,6 @@
 .field-row select:focus,
 .field-row textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .field-row textarea {

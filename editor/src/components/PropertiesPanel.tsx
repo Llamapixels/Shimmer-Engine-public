@@ -11,6 +11,7 @@ import CommitInput from "./common/CommitInput";
 import NumberInput from "./common/NumberInput";
 import FieldRow from "./inspector/FieldRow";
 import "./PropertiesPanel.css";
+import Icon from "./common/Icon";
 
 const DIRECTIONS: Direction[] = ["down", "up", "left", "right"];
 const MOVEMENTS: NpcMovement[] = ["static", "wander"];
@@ -128,7 +129,7 @@ function PickButton({ label, onPick }: { label: string; onPick: (x: number, y: n
   const setTilePick = useProjectStore((s) => s.setTilePick);
   return (
     <button className="btn btn-small" title="Click a tile on the canvas" onClick={() => setTilePick({ label, onPick })}>
-      ⌖ Pick
+      <Icon name="pick" /> Pick
     </button>
   );
 }
@@ -314,7 +315,7 @@ function TimersEditor({ scene, scenes }: { scene: SceneRecord; scenes: SceneReco
           setOpen(timers.length);
         }}
       >
-        ＋ Add timer {timers.length >= MAX_TIMERS ? "(max 8 per scene)" : ""}
+        + Add timer {timers.length >= MAX_TIMERS ? "(max 8 per scene)" : ""}
       </button>
     </div>
   );
@@ -790,7 +791,7 @@ function PaletteProps({ id }: { id: string }) {
               </div>
             ))}
             <button className="btn btn-small" disabled={palette.colors.length >= COLORS_PER_BANK} onClick={addColor}>
-              ＋ Add color
+              + Add color
             </button>
           </div>
         </FieldRow>
@@ -798,7 +799,7 @@ function PaletteProps({ id }: { id: string }) {
           className={`btn${painting ? " btn-primary" : ""}`}
           onClick={() => setPaletteBrush(painting ? null : id)}
         >
-          {painting ? "Painting on canvas (click again to stop)" : "🖌 Paint this palette"}
+          {painting ? "Painting on canvas (click again to stop)" : "Paint this palette"}
         </button>
         <p className="view-note">
           Paint this over a scene's background tiles (Palette tool on the World canvas). Every tile sharing a palette
@@ -871,7 +872,7 @@ function PrefabProps({ id, scenes }: { id: string; scenes: SceneRecord[] }) {
         )}
 
         <button className={`btn${placing ? " btn-primary" : ""}`} onClick={() => setPlacingPrefab(placing ? null : id)}>
-          {placing ? "Click a tile on the canvas (or click again to cancel)" : `📌 Place ${prefab.kind === "npc" ? "NPC" : "door"}`}
+          {placing ? "Click a tile on the canvas (or click again to cancel)" : `Place ${prefab.kind === "npc" ? "NPC" : "door"}`}
         </button>
         <p className="view-note">
           Placing copies these defaults into a brand-new {prefab.kind === "npc" ? "NPC" : "door"} on the active scene -
