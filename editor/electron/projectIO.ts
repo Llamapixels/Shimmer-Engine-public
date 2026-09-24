@@ -451,6 +451,7 @@ export async function createProject(payload: CreateProjectPayload): Promise<Open
   await fs.mkdir(path.join(rootPath, "scenes"), { recursive: true });
   await fs.mkdir(path.join(rootPath, "assets", "backgrounds"), { recursive: true });
   await fs.mkdir(path.join(rootPath, "assets", "sprites"), { recursive: true });
+  await fs.mkdir(path.join(rootPath, MUSIC_DIR), { recursive: true });
 
   await fs.writeFile(
     path.join(rootPath, "assets", "backgrounds", "start.png"),
