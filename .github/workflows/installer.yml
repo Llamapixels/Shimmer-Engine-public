@@ -2,8 +2,8 @@
 # ROM build needs (the frozen build tool, the engine and a trimmed
 # devkitARM), so users just install and press Build ROM.
 #
-# Run it from the Actions tab ("Run workflow"), or push a tag like
-# v0.1.0-alpha.1. The installer is attached to the run as an artifact.
+# Runs on every push to the development branch, on tags like v0.1.0-alpha.1,
+# or from the Actions tab. The installer is attached to the run as an artifact.
 
 name: Windows installer
 
@@ -11,6 +11,7 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+    branches: ["dev"]
 
 jobs:
   windows:
