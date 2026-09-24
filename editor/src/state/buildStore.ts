@@ -57,16 +57,25 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
     set({ open: true, status: "running", log: [], result: null, rootPath, unsubscribe });
 
-    const res = await window.api.buildRom({ rootPath });
+    let res: Awaited<ReturnType<typeof window.api.buildRom>>;
+    try {
+      res = await window.api.buildRom({ rootPath });
+    } catch (err) {
+      res = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
 
     get().unsubscribe?.();
     set({ unsubscribe: null });
 
     if (!res.ok) {
-      // Transport-level failure (see IpcResult's doc comment) - the
-      // request itself couldn't be attempted, e.g. the project wasn't
-      // open or a build was somehow already running.
-      set({ status: "error", result: { ok: false, error: res.error } });
+      // The build couldn't even start (e.g. the project wasn't open or
+      // the engine folder wasn't found) - nothing reached the log, so put
+      // the reason there.
+      set((s) => ({
+        status: "error",
+        result: { ok: false, error: res.ok ? "" : res.error },
+        log: [...s.log, { stream: "status", line: res.ok ? "" : res.error }],
+      }));
       return;
     }
 

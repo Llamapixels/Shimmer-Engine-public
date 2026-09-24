@@ -89,7 +89,7 @@ export default function BuildRomPanel() {
           {(status === "error" || status === "cancelled") && (
             <div className="build-panel-error-hint">
               {status === "error"
-                ? "See the log above for details."
+                ? (result && !result.ok && result.error.split("\n")[0]) || "See the log above for details."
                 : "The build was stopped before it finished."}
             </div>
           )}
