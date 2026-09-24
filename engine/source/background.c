@@ -1,6 +1,7 @@
 #include <gba.h>
 
 #include "background.h"
+#include "scene.h"   /* ParallaxLayer, PARALLAX_FIXED */
 
 /*
  * VRAM layout for BG0:
@@ -47,6 +48,22 @@ static int stream_initialized = 0;
 #define TILE_OVERRIDE_MAX 64
 static struct { uint16_t x, y, entry; } tile_overrides[TILE_OVERRIDE_MAX];
 static int tile_override_count = 0;
+
+/*
+ * Parallax (GB Studio's scene setting): the screen is split into up to 3
+ * horizontal bands, each scrolled at its own fraction of the camera's x.
+ * One BG layer does it all - a VCOUNT interrupt changes BG0HOFS on the
+ * scanline where each band starts. Streamed (big) maps keep every band's
+ * visible rows filled around that band's own scroll position.
+ */
+#define BAND_MAX     3
+#define SCREEN_ROWS  20
+static int band_count = 0;               /* 0 = no parallax */
+static uint8_t band_top[BAND_MAX];       /* first screen tile row */
+static uint8_t band_speed[BAND_MAX];
+static volatile int band_x[BAND_MAX];    /* current scroll of each band */
+static int band_last_tx[BAND_MAX];       /* streaming: last tile x per band */
+static volatile int irq_band = 0;
 
 static const uint16_t *loaded_map = 0;
 static uint32_t loaded_width = 0;
@@ -213,6 +230,128 @@ static void stream_write_row(int world_y, int cam_tile_x)
     }
 }
 
+static int band_of_screen_row(int row)
+{
+    int b = 0;
+    while (b + 1 < band_count && row >= band_top[b + 1])
+        b++;
+    return b;
+}
+
+static int band_scroll(int b, int camera_x)
+{
+    if (band_speed[b] == PARALLAX_FIXED)
+        return 0;
+    return camera_x >> band_speed[b];
+}
+
+/* Parallax streaming: redraw the rows on screen (plus one either side),
+ * each around its own band's scroll position. */
+static void stream_write_visible_rows(int cam_ty)
+{
+    for (int r = -1; r <= SCREEN_ROWS; r++)
+        stream_write_row(cam_ty + r, band_x[band_of_screen_row(r)] >> 3);
+}
+
+/* One newly exposed column of band b: only its rows on screen. */
+static void stream_write_band_col(int world_x, int b, int cam_ty)
+{
+    int phys_col = ((world_x % HW_SIZE) + HW_SIZE) % HW_SIZE;
+    for (int r = -1; r <= SCREEN_ROWS; r++)
+    {
+        if (band_of_screen_row(r) != b)
+            continue;
+        int world_y = cam_ty + r;
+        stream_put(phys_col, ((world_y % HW_SIZE) + HW_SIZE) % HW_SIZE, stream_tile_at(world_x, world_y));
+    }
+}
+
+static void stream_update_parallax(int camera_y_px)
+{
+    int cam_ty = camera_y_px >> 3;
+
+    if (!stream_initialized || cam_ty != stream_last_tile_y)
+    {
+        if (!stream_initialized)
+            for (int r = -HW_SIZE / 2; r < HW_SIZE / 2; r++)
+                stream_write_row(cam_ty + r, band_x[r < 0 ? 0 : band_of_screen_row(r)] >> 3);
+        else
+            stream_write_visible_rows(cam_ty);
+        for (int b = 0; b < band_count; b++)
+            band_last_tx[b] = band_x[b] >> 3;
+        stream_last_tile_y = cam_ty;
+        stream_initialized = 1;
+        return;
+    }
+
+    for (int b = 0; b < band_count; b++)
+    {
+        int tx = band_x[b] >> 3;
+        while (tx > band_last_tx[b])
+        {
+            band_last_tx[b]++;
+            stream_write_band_col(band_last_tx[b] + HW_SIZE / 2 - 1, b, cam_ty);
+        }
+        while (tx < band_last_tx[b])
+        {
+            band_last_tx[b]--;
+            stream_write_band_col(band_last_tx[b] - HW_SIZE / 2, b, cam_ty);
+        }
+    }
+}
+
+/* VCOUNT interrupt, one scanline before a band starts: wait for that
+ * line's HBlank, then switch the scroll for the rest of the screen. */
+static void parallax_isr(void)
+{
+    int b = irq_band;
+    if (b <= 0 || b >= band_count)
+        return;
+    while (!(REG_DISPSTAT & LCDC_HBL_FLAG))
+        ;
+    REG_BG0HOFS = (uint16_t)band_x[b];
+    irq_band = ++b;
+    if (b < band_count)
+        REG_DISPSTAT = (REG_DISPSTAT & 0x00FF) | (uint16_t)((band_top[b] * 8 - 1) << 8);
+}
+
+void background_set_parallax(const ParallaxLayer *layers, int count)
+{
+    if (count > BAND_MAX)
+        count = BAND_MAX;
+    int top = 0;
+    band_count = 0;
+    for (int i = 0; i < count; i++)
+    {
+        if (top >= SCREEN_ROWS)
+            break;
+        band_top[i] = (uint8_t)top;
+        band_speed[i] = layers[i].speed;
+        band_x[i] = 0;
+        band_count++;
+        top += layers[i].rows ? layers[i].rows : 1;
+    }
+    irq_band = 0;
+    if (band_count > 1)
+    {
+        irqSet(IRQ_VCOUNT, parallax_isr);
+        irqEnable(IRQ_VCOUNT);
+    }
+    else
+    {
+        irqDisable(IRQ_VCOUNT);
+    }
+}
+
+void background_vblank(void)
+{
+    if (band_count < 2)
+        return;
+    REG_BG0HOFS = (uint16_t)band_x[0];
+    irq_band = 1;
+    REG_DISPSTAT = (REG_DISPSTAT & 0x00FF) | (uint16_t)((band_top[1] * 8 - 1) << 8);
+}
+
 void background_stream_begin(
     const uint16_t *map,
     uint32_t width,
@@ -283,6 +422,21 @@ void background_set_scroll(
     int y
 )
 {
+    if (band_count > 0)
+    {
+        for (int b = 0; b < band_count; b++)
+            band_x[b] = band_scroll(b, x);
+        if (stream_active)
+            stream_update_parallax(y);
+        /* Bands below the first are set by parallax_isr() - but if this
+         * runs late in the frame, after the last band has started, keep
+         * that band's scroll rather than jumping back to the first's. */
+        int b = irq_band > 0 ? irq_band - 1 : 0;
+        REG_BG0HOFS = (uint16_t)band_x[b];
+        REG_BG0VOFS = (uint16_t)y;
+        return;
+    }
+
     if (stream_active)
         stream_update(x, y);
 

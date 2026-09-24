@@ -322,6 +322,32 @@ export async function importAssetFiles(rootPath: string, kind: AssetKind, source
   return listAssets(rootPath);
 }
 
+/** Copies engine/data/ui's font, frame and cursor into the project under
+ * the names that replace the built-in ones. Never overwrites. */
+export async function exportDefaultUi(rootPath: string): Promise<{ written: string[]; skipped: string[]; assets: AssetListing }> {
+  const engineRoot = await findEngineRoot(rootPath);
+  if (!engineRoot) throw new Error("Couldn't find the Shimmer Engine toolchain folder, which has the built-in font and frame.");
+  const src = path.join(engineRoot, "engine", "data", "ui");
+  const files: [string, string][] = [
+    ["font.png", "assets/fonts/default.png"],
+    ["frame.png", "assets/frames/default.png"],
+    ["cursor.png", "assets/ui/cursor.png"],
+  ];
+  const written: string[] = [];
+  const skipped: string[] = [];
+  for (const [from, rel] of files) {
+    const dest = path.join(rootPath, rel);
+    if (await exists(dest)) {
+      skipped.push(rel);
+      continue;
+    }
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.copyFile(path.join(src, from), dest);
+    written.push(rel);
+  }
+  return { written, skipped, assets: await listAssets(rootPath) };
+}
+
 const SPRITES_DIR = "assets/sprites";
 
 function spritePath(rootPath: string, name: string): string {

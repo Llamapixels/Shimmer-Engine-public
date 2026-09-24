@@ -115,6 +115,10 @@ static int           scene_sprite_marked = 0;
  * cosmetic overlap is possible. Re-rolled by update_wandering_npc()
  * whenever npc_wander_timer[i] counts down to 0.
  */
+/* Was the player touching NPC i last frame? Hit scripts (collision
+ * groups) fire on the first frame of a touch, not every frame of it. */
+static uint8_t npc_touching[NPC_MAX];
+
 static uint16_t npc_wander_timer[NPC_MAX];
 static uint8_t  npc_wander_dir[NPC_MAX];     /* Direction */
 static uint8_t  npc_wander_moving[NPC_MAX];  /* 0 = idling, 1 = walking */
@@ -143,9 +147,17 @@ static int camera_lock_actor_index = -1;
 static int timer_frames_left[MAX_TIMERS];
 static int timer_running[MAX_TIMERS];   /* 0 = not armed */
 
-static void setup_player_palette(void)
+/* The player's sprite in `scene`: its own "player_sprite", or the
+ * project's default. */
+static const SpriteDef *player_sprite_for(const SceneDef *scene)
 {
-    sprite_load_palette(PLAYER_PALETTE, sprite_defs[player_sprite_index].palette);
+    int i = scene && scene->player_sprite != 0xFF ? scene->player_sprite : player_sprite_index;
+    return &sprite_defs[i];
+}
+
+static void setup_player_palette(const SceneDef *scene)
+{
+    sprite_load_palette(PLAYER_PALETTE, player_sprite_for(scene)->palette);
 }
 
 /*
@@ -166,9 +178,16 @@ static void scene_entities_load(const SceneDef *scene)
     }
     npc_count_active = 0;
 
-    /* Give the torn-down NPCs' OAM entries/VRAM tiles back. */
+    /* Give the torn-down NPCs' OAM entries/VRAM tiles back - and the
+     * player's, which is set up again first since each scene can give
+     * the player a different sprite. */
     if (scene_sprite_marked)
         sprite_alloc_reset(scene_sprite_mark);
+    if (g_player)
+    {
+        setup_player_palette(scene);
+        entity_set_sprite(g_player, player_sprite_for(scene), PLAYER_PALETTE);
+    }
 
     if (!scene->npcs || scene->npc_count == 0)
         return;
@@ -192,12 +211,16 @@ static void scene_entities_load(const SceneDef *scene)
 
         e->solid = 1;
         e->direction = def->direction;
+        e->pinned = def->pinned;
+        e->move_speed = def->move_speed ? def->move_speed : 1;
+        e->anim_speed = def->anim_speed;
         entity_set_sprite(e, spr, def->palette_bank);
 
         npc_entities[npc_count_active] = e;
         npc_defs[npc_count_active] = def;
         npc_wander_timer[npc_count_active] = 0;
         npc_wander_moving[npc_count_active] = 0;
+        npc_touching[npc_count_active] = 0;
         npc_count_active++;
     }
 }
@@ -229,8 +252,8 @@ static void update_wandering_npc(int i)
     if (!npc_wander_moving[i])
         return;
 
-    int nx = npc->x + WANDER_DX[npc_wander_dir[i]];
-    int ny = npc->y + WANDER_DY[npc_wander_dir[i]];
+    int nx = npc->x + WANDER_DX[npc_wander_dir[i]] * npc->move_speed;
+    int ny = npc->y + WANDER_DY[npc_wander_dir[i]] * npc->move_speed;
     int moved = 0;
 
     if (entity_can_move(npc, nx, ny))
@@ -268,7 +291,7 @@ static int player_can_move(Entity *player, int x, int y)
     for (int i = 0; i < npc_count_active; i++)
     {
         Entity *npc = npc_entities[i];
-        if (!npc || !npc->solid)
+        if (!npc || !npc->solid || npc->pinned || !npc->collide)
             continue;
 
         int nx = npc->x + npc->col_ox;
@@ -309,7 +332,7 @@ static const ScriptEvent *check_npc_interact(Entity *player)
         Entity *npc = npc_entities[i];
         /* Hidden (actor_set_visible(i, 0)) NPCs are fully "not
          * there" - not just invisible, not talkable either. */
-        if (!npc || !npc->solid)
+        if (!npc || !npc->solid || npc->pinned)
             continue;
 
         if (cx >= npc->x && cx < npc->x + npc->width &&
@@ -320,6 +343,54 @@ static const ScriptEvent *check_npc_interact(Entity *player)
     }
 
     return 0;
+}
+
+/*
+ * Collision groups: the first frame the player touches (overlaps, or
+ * stands right against) an NPC in group 1-3, run that NPC's on_hit, or
+ * failing that the scene's "On Player Hit" script for the group.
+ */
+static const ScriptEvent *check_npc_hits(Entity *player)
+{
+    const SceneDef *scene = scene_current();
+    const ScriptEvent *found = 0;
+    int px = player->x + player->col_ox - 1;
+    int py = player->y + player->col_oy - 1;
+    int pw = player->col_w + 2;
+    int ph = player->col_h + 2;
+
+    for (int i = 0; i < npc_count_active; i++)
+    {
+        Entity *npc = npc_entities[i];
+        const NpcDef *def = npc_defs[i];
+        int touching = 0;
+        if (npc && npc->solid && !npc->pinned && def->collision_group)
+        {
+            int nx = npc->x + npc->col_ox;
+            int ny = npc->y + npc->col_oy;
+            touching = px < nx + npc->col_w && px + pw > nx &&
+                       py < ny + npc->col_h && py + ph > ny;
+        }
+        if (touching && !npc_touching[i] && !found)
+        {
+            found = def->on_hit;
+            if (!found && scene)
+                found = scene->player_hit[def->collision_group - 1];
+        }
+        npc_touching[i] = (uint8_t)touching;
+    }
+    return found;
+}
+
+/* A scene's scripts that start as it's entered: its NPCs' "On Update"
+ * loops (background threads) and its on_init (the main script, which
+ * the compiler has already prefixed with the NPCs' own "On Init"s). */
+static void start_scene_scripts(const SceneDef *scene)
+{
+    for (int i = 0; i < npc_count_active; i++)
+        if (npc_defs[i]->on_update)
+            script_thread_start(npc_defs[i]->on_update);
+    script_start(scene->on_init);
 }
 
 /*
@@ -898,7 +969,6 @@ int main(void)
     audio_init();
     music_init();
 
-    setup_player_palette();
 
     /*
      * Dev/testing reset: hold SELECT + L + R at boot to skip loading
@@ -953,11 +1023,10 @@ int main(void)
     else
         player->direction = scene->player_start_direction;
 
-    entity_set_sprite(player, &sprite_defs[player_sprite_index], PLAYER_PALETTE);
-
-    /* The player lives for the whole game; everything allocated after
-     * this point belongs to the current scene and is released on every
-     * scene change (scene_entities_load() rewinds to this mark). */
+    /* Every sprite - the player's too, since each scene can pick the
+     * player's sprite - belongs to the current scene and is released on
+     * every scene change (scene_entities_load() rewinds to this mark and
+     * sets the player's sprite up again first). */
     scene_sprite_mark = sprite_alloc_mark();
     scene_sprite_marked = 1;
 
@@ -967,7 +1036,7 @@ int main(void)
      * every later scene entry (see the STATE_FADE_IN case below).
      * No fade plays at boot, so this just starts running right away;
      * the main loop's first STATE_PLAY iteration picks it up. */
-    script_start(scene->on_init);
+    start_scene_scripts(scene);
 
     camera_follow(
         player->x + player->width / 2,
@@ -985,6 +1054,7 @@ int main(void)
     while (1)
     {
         VBlankIntrWait();
+        background_vblank();
 
         music_update();
         audio_update();
@@ -1111,7 +1181,7 @@ int main(void)
                     /* Hidden actors (actor_set_visible(i, 0)) stand
                      * still, not shuffling around off-screen while
                      * they're "not there". */
-                    if (npc_defs[i]->movement && npc_entities[i]->solid)
+                    if (npc_defs[i]->movement && npc_entities[i]->solid && !npc_entities[i]->pinned)
                         update_wandering_npc(i);
                 }
             }
@@ -1141,10 +1211,30 @@ int main(void)
                 player->width, player->height
             );
 
-            if (door && door != door_last_entered)
-                script_start(door->on_enter);
-
+            const DoorDef *left = door_last_entered;
             door_last_entered = door;
+            if (door != left)
+            {
+                if (left && left->on_leave)
+                {
+                    script_start(left->on_leave);
+                    /* Stepped straight into another zone: enter it
+                     * once this script is done. */
+                    if (door)
+                        door_last_entered = 0;
+                    break;
+                }
+                if (door)
+                {
+                    script_start(door->on_enter);
+                    break;
+                }
+            }
+
+            /* Touching an actor in a collision group. */
+            const ScriptEvent *hit = check_npc_hits(player);
+            if (hit)
+                script_start(hit);
 
             break;
         }
@@ -1222,7 +1312,7 @@ int main(void)
                  * one, right as the player regains control - see
                  * "on_init" in scene JSON / scene.h. script_start(0)
                  * is a safe no-op when it doesn't. */
-                script_start(scene_current()->on_init);
+                start_scene_scripts(scene_current());
                 game_state = STATE_PLAY;
             }
             break;

@@ -175,6 +175,8 @@ export interface DoorJSON {
   target_y?: number;
   /** Custom on_enter script - mutually exclusive with target_scene. */
   events?: EventScript;
+  /** Runs when the player steps back out (GB Studio's trigger "On Leave"). */
+  on_leave?: EventScript;
 }
 
 export type NpcMovement = "static" | "wander";
@@ -189,7 +191,33 @@ export interface NpcJSON {
   /** Shorthand: compiles to a single "text" on_interact event. */
   dialogue?: string;
   on_interact?: EventScript;
+  /** x/y are a screen position: drawn fixed on screen (HUD-style), no
+   * collisions, can't be talked to. */
+  pinned?: boolean;
+  /** Pixels per frame for wandering and scripted moves, 1-8 (default 1). */
+  move_speed?: number;
+  /** Frames per animation frame, 0 = the sprite's own speed. */
+  anim_speed?: number;
+  /** 0 = none. 1-3: touching the player runs on_hit, or else the
+   * scene's on_player_hit for this group. */
+  collision_group?: number;
+  /** Run as this actor when the scene starts, before the scene's on_init. */
+  on_init?: EventScript;
+  /** Loops in the background (at most once per frame) while the scene is up. */
+  on_update?: EventScript;
+  on_hit?: EventScript;
 }
+
+/** One parallax band; the last one runs to the bottom of the screen and
+ * ignores `rows`. speed: 0 = normal, 1-8 = 1/2 .. 1/256, "fixed". */
+export interface ParallaxLayerJSON {
+  rows?: number;
+  speed: number | "fixed";
+}
+
+/** Only top-down exists in the engine so far; the others are listed in the
+ * editor for later. */
+export type SceneType = "topdown" | "platformer" | "adventure" | "shmup" | "pointnclick";
 
 export interface TimerJSON {
   name?: string;
@@ -214,7 +242,14 @@ export interface SceneJSON {
    * Defaults to "down". */
   player_start_direction?: Direction;
   music?: string;
+  type?: SceneType;
+  /** The player's sprite in this scene; default: the project's. */
+  player_sprite?: string;
+  /** Horizontal bands scrolling at different speeds, top to bottom (1-3). */
+  parallax?: ParallaxLayerJSON[];
   on_init?: EventScript;
+  /** GB Studio's "On Player Hit", per actor collision group. */
+  on_player_hit?: { "1"?: EventScript; "2"?: EventScript; "3"?: EventScript };
   doors?: DoorJSON[];
   npcs?: NpcJSON[];
   timers?: TimerJSON[];

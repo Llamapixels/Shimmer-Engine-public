@@ -111,6 +111,10 @@ typedef struct
     uint8_t anim_speed;
     uint8_t collide;
 
+    /* Pinned (GB Studio's actor "pin" toggle): x/y are screen pixels,
+     * so the actor stays put on screen whatever the camera does. */
+    uint8_t pinned;
+
     ASprite sprite;
 } Entity;
 

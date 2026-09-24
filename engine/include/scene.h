@@ -23,6 +23,9 @@ typedef struct
     uint8_t width;                /* tiles wide */
     uint8_t height;                /* tiles tall */
     const ScriptEvent *on_enter;    /* never 0 - see compiler/build_project.py */
+    const ScriptEvent *on_leave;    /* 0 = none: runs when the player steps
+                                      * back out (GB Studio's trigger
+                                      * "On Leave") */
 } DoorDef;
 
 /*
@@ -57,7 +60,32 @@ typedef struct
                               * collision aware only, doesn't yet avoid
                               * the player or other NPCs. */
     const ScriptEvent *on_interact;   /* 0 = not interactable */
+
+    /* GB Studio actor settings (scene JSON "pinned", "move_speed",
+     * "anim_speed", "collision_group", "on_hit", "on_update"). */
+    uint8_t pinned;          /* 1 = x/y are screen pixels: drawn fixed on
+                              * screen (HUD-style), never collides,
+                              * can't be talked to */
+    uint8_t move_speed;      /* px per frame, wandering and scripted moves */
+    uint8_t anim_speed;      /* VBlanks per animation frame, 0 = sprite's */
+    uint8_t collision_group; /* 0 = none, 1-3: touching the player runs
+                              * on_hit (else the scene's player_hit[g-1]) */
+    const ScriptEvent *on_hit;
+    const ScriptEvent *on_update;   /* looping background thread, 0 = none */
 } NpcDef;
+
+/*
+ * One parallax band (GB Studio's "Parallax" scene setting): `rows` screen
+ * tile rows (the last band runs to the bottom of the screen) scrolling
+ * horizontally at camera_x >> speed. speed 0 = normal, 1-8 = 1/2..1/256,
+ * PARALLAX_FIXED = doesn't scroll.
+ */
+#define PARALLAX_FIXED 128
+typedef struct
+{
+    uint8_t rows;
+    uint8_t speed;
+} ParallaxLayer;
 
 /*
  * A background timer definition - see engine/include/timer.h and
@@ -129,6 +157,13 @@ typedef struct
     const TimerDef *timers;     /* array of background timer definitions -
                                   * see TimerDef above */
     uint8_t timer_count;
+
+    uint8_t player_sprite;      /* index into sprite_defs[] for the player
+                                  * here, 0xFF = the project's default */
+    const ScriptEvent *player_hit[3];   /* GB Studio's scene "On Player
+                                          * Hit" per collision group */
+    ParallaxLayer parallax[3];
+    uint8_t parallax_count;     /* 0 = no parallax */
 } SceneDef;
 
 /* Load background, palettes, collision and camera bounds. */

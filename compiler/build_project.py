@@ -77,6 +77,22 @@ Scene JSON NPC format:
                                            NPC just shows this text. Compiles
                                            to an "on_interact" script with a
                                            single "text" event.
+            "pinned": true,            <- optional: x/y are a screen tile
+                                           position; drawn fixed on screen
+                                           (HUD), no collisions, no talking
+            "move_speed": 2,           <- optional px/frame, 1-8 (wandering
+                                           and scripted moves; default 1)
+            "anim_speed": 8,           <- optional frames per animation
+                                           frame (0 = the sprite's own)
+            "collision_group": 1,      <- optional 1-3: touching the player
+                                           runs "on_hit", or else the
+                                           scene's "on_player_hit" for it
+            "on_init": [ ... ],        <- optional, runs as this NPC when
+                                           the scene starts, before the
+                                           scene's own on_init
+            "on_update": [ ... ],      <- optional, loops in a background
+                                           thread (at most once a frame)
+            "on_hit": [ ... ],         <- optional, see collision_group
             "on_interact": [ ... ]     <- optional, full event script (see
                                            below) run when the player talks
                                            to this NPC. Overrides "dialogue"
@@ -87,6 +103,20 @@ Scene JSON NPC format:
                                            "actor": "self".
         }
     ]
+
+More scene settings (GB Studio's scene inspector):
+    "player_sprite": "hero",       <- the player's sprite in this scene
+                                       (default: project.json playerSprite)
+    "parallax": [                  <- 1-3 horizontal screen bands, top to
+        {"rows": 4, "speed": "fixed"},   bottom, each scrolling at camera x
+        {"rows": 4, "speed": 2},          >> speed (0 = normal, 1-8, or
+        {"speed": 0}                      "fixed"); the last band runs to
+    ],                                    the bottom of the screen
+    "on_player_hit": {"1": [...], "2": [...], "3": [...]}
+                                   <- runs when the player touches an NPC
+                                       of that collision group
+    "type": "topdown"              <- editor only for now (the one mode)
+A door may also have "on_leave": [...], run when the player steps back out.
 
 A scene can also run an event script automatically, once, every time it
 loads (boot into it or transition into it) - not tied to any NPC or door:
@@ -2065,6 +2095,70 @@ def compile_script(events, ctx, where):
     return out
 
 
+def compile_script_parts(parts, ctx, where):
+    """Like compile_script(), for several event lists run one after the
+    other as one script, each with its own "self" actor and label scope:
+    a scene's on_init prefixed with its NPCs' own "on_init"s. `parts` is
+    [(events, self_index or None, where)]."""
+    out = CompiledScript()
+    outer_aux, outer_labels, outer_self = ctx.get("_aux"), ctx.get("_labels"), ctx.get("self_actor_index")
+    ctx["_aux"] = out.aux
+    try:
+        for events, self_index, part_where in parts:
+            ctx["_labels"] = {"defined": {}, "gotos": []}
+            ctx["self_actor_index"] = self_index
+            compile_events(events, out, ctx, part_where)
+            labels = ctx["_labels"]
+            for goto_index, name, goto_where in labels["gotos"]:
+                if name not in labels["defined"]:
+                    known = ", ".join(sorted(labels["defined"])) or "(none in this script)"
+                    raise BuildError(f"{goto_where}: no label '{name}' in this script. Known labels: {known}.")
+                out[goto_index]["a"] = labels["defined"][name]
+        out.append(_instr("SCRIPT_END"))
+    finally:
+        ctx["_aux"], ctx["_labels"], ctx["self_actor_index"] = outer_aux, outer_labels, outer_self
+    return out
+
+
+def _script_list(value, where):
+    if not isinstance(value, list):
+        raise BuildError(f"{where} must be a list of events.")
+    return value
+
+
+PARALLAX_SPEEDS = {"fixed": 128}
+
+
+def parse_parallax(value, where):
+    """Scene "parallax": up to 3 bands [{"rows": 4, "speed": 1}, ...], top
+    to bottom; the last one runs to the bottom of the screen. speed: 0 =
+    normal, 1-8 = 1/2 .. 1/256 of the camera's speed, "fixed" = still."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > 3:
+        raise BuildError(f"{where}: \"parallax\" must be a list of 1-3 layers.")
+    layers = []
+    total = 0
+    for i, layer in enumerate(value):
+        if not isinstance(layer, dict):
+            raise BuildError(f"{where}: parallax layer {i + 1} must be an object.")
+        speed = layer.get("speed", 0)
+        speed = PARALLAX_SPEEDS.get(speed, speed)
+        if not isinstance(speed, int) or isinstance(speed, bool) or not (0 <= speed <= 8 or speed == 128):
+            raise BuildError(f"{where}: parallax layer {i + 1} speed must be 0-8 or \"fixed\".")
+        rows = layer.get("rows", 1)
+        if i < len(value) - 1:
+            if not isinstance(rows, int) or isinstance(rows, bool) or rows < 1:
+                raise BuildError(f"{where}: parallax layer {i + 1} needs \"rows\" (1 or more).")
+            total += rows
+            if total >= 20:
+                raise BuildError(f"{where}: parallax layers above the last must add up to less than 20 rows (the screen's height).")
+        else:
+            rows = 0
+        layers.append((rows, speed))
+    return layers
+
+
 def _aux_ident(ctx, kind):
     n = ctx.get("_aux_counter", 0)
     ctx["_aux_counter"] = n + 1
@@ -2463,9 +2557,8 @@ def build(project_dir, out_dir):
     player_sprite = project.get("playerSprite") or "player"
     sprite_names = [player_sprite]
     for _, scene in scene_data_list:
-        for npc in scene.get("npcs", []):
-            sname = npc.get("sprite") or player_sprite
-            if sname not in sprite_names:
+        for sname in [scene.get("player_sprite")] + [npc.get("sprite") or player_sprite for npc in scene.get("npcs", [])]:
+            if sname and sname not in sprite_names:
                 sprite_names.append(sname)
     if len(sprite_names) > 255:
         raise BuildError(f"{len(sprite_names)} different sprites are used; the most is 255.")
@@ -2588,8 +2681,9 @@ def build(project_dir, out_dir):
 
         # Named actors, for this scene's "actor_*" events (see
         # resolve_actor()) - scene-scoped, rebuilt fresh per scene.
+        scene_player_sprite = scene.get("player_sprite") or player_sprite
         npc_name_to_index = {}
-        npc_sprite_of = {PLAYER_ACTOR_INDEX: player_sprite}
+        npc_sprite_of = {PLAYER_ACTOR_INDEX: scene_player_sprite}
         for j, npc in enumerate(npcs):
             npc_sprite_of[j] = npc.get("sprite") or player_sprite
             nm = npc.get("name")
@@ -2611,7 +2705,7 @@ def build(project_dir, out_dir):
         ctx["npc_sprite_of"] = npc_sprite_of
         scene_banks = assign_palette_banks(
             [npc.get("sprite") or player_sprite for npc in npcs],
-            player_sprite, compiled_sprites, name)
+            scene_player_sprite, compiled_sprites, name)
         # For "actor_invoke": each NPC's on_interact events (or its
         # "dialogue" shorthand), inlined wherever it's invoked.
         ctx["npc_events"] = {
@@ -2656,14 +2750,36 @@ def build(project_dir, out_dir):
         c_parts.append("")
 
         # Scene on_init: auto-runs once, every time this scene loads.
+        # NPCs' own "on_init"s run first (as themselves), then the scene's.
+        init_parts = [(_script_list(npc["on_init"], f"{name}: NPC {j} \"on_init\""), j, f"{name}: NPC {j} on_init")
+                      for j, npc in enumerate(npcs) if npc.get("on_init")]
         on_init_events = scene.get("on_init")
         if on_init_events is not None:
+            init_parts.append((on_init_events, None, f"{name}: on_init"))
+        if init_parts:
             on_init_ident = f"{ident}_on_init_script"
-            instructions = compile_script(on_init_events, ctx, f"{name}: on_init")
+            instructions = compile_script_parts(init_parts, ctx, f"{name}: on_init")
             emit_script(c_parts, on_init_ident, instructions)
             on_init_ref = on_init_ident
         else:
             on_init_ref = "0"
+
+        # "On Player Hit" per collision group.
+        player_hit = scene.get("on_player_hit") or {}
+        if not isinstance(player_hit, dict):
+            raise BuildError(f"{name}: \"on_player_hit\" must be an object: {{\"1\": [...], \"2\": [...], \"3\": [...]}}.")
+        player_hit_refs = []
+        for g in ("1", "2", "3"):
+            events = player_hit.get(g)
+            if events:
+                hit_ident = f"{ident}_player_hit{g}_script"
+                emit_script(c_parts, hit_ident, compile_script(
+                    _script_list(events, f"{name}: on_player_hit {g}"), ctx, f"{name}: on_player_hit {g}"))
+                player_hit_refs.append(hit_ident)
+            else:
+                player_hit_refs.append("0")
+
+        parallax = parse_parallax(scene.get("parallax"), name)
 
         # Doors / trigger zones.
         door_count = len(doors)
@@ -2687,10 +2803,16 @@ def build(project_dir, out_dir):
                 instructions = compile_script(events, ctx, where)
                 emit_script(c_parts, script_ident, instructions)
 
+                leave_ref = "0"
+                if door.get("on_leave"):
+                    leave_ref = f"{ident}_door{di}_leave_script"
+                    emit_script(c_parts, leave_ref, compile_script(
+                        _script_list(door["on_leave"], f"{where} \"on_leave\""), ctx, f"{where} on_leave"))
+
                 door_values.append(
                     f"    {{ {door['x']}, {door['y']}, "
                     f"{door.get('width', 1)}, {door.get('height', 1)}, "
-                    f"{script_ident} }},")
+                    f"{script_ident}, {leave_ref} }},")
 
             c_parts.append(
                 f"static const DoorDef {ident}_doors[{door_count}] =")
@@ -2740,9 +2862,36 @@ def build(project_dir, out_dir):
                 else:
                     script_ref = "0"
 
+                pinned = 1 if npc.get("pinned") else 0
+                move_speed = resolve_small_int(npc.get("move_speed", 1), "move_speed", where, 1, 8)
+                anim_speed = resolve_small_int(npc.get("anim_speed", 0), "anim_speed", where, 0, 255)
+                group = resolve_small_int(npc.get("collision_group", 0), "collision_group", where, 0, 3)
+
+                hit_ref = "0"
+                if npc.get("on_hit"):
+                    hit_ref = f"{ident}_npc{j}_hit_script"
+                    ctx["self_actor_index"] = j
+                    instructions = compile_script(_script_list(npc["on_hit"], f"{where} \"on_hit\""), ctx, f"{where} on_hit")
+                    ctx["self_actor_index"] = None
+                    emit_script(c_parts, hit_ref, instructions)
+
+                # "On Update": loops for as long as the scene is up, one
+                # pass per frame at most.
+                update_ref = "0"
+                if npc.get("on_update"):
+                    update_ref = f"{ident}_npc{j}_update_script"
+                    loop = ([{"type": "label", "label": "__on_update"}]
+                            + _script_list(npc["on_update"], f"{where} \"on_update\"")
+                            + [{"type": "wait", "frames": 1}, {"type": "goto", "label": "__on_update"}])
+                    ctx["self_actor_index"] = j
+                    instructions = compile_script(loop, ctx, f"{where} on_update")
+                    ctx["self_actor_index"] = None
+                    emit_script(c_parts, update_ref, instructions)
+
                 npc_values.append(
                     f"    {{ {nx}, {ny}, {dir_val}, {sprite_idx}, "
-                    f"{scene_banks[sname]}, {movement_val}, {script_ref} }},")
+                    f"{scene_banks[sname]}, {movement_val}, {script_ref}, "
+                    f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")
@@ -2817,6 +2966,10 @@ def build(project_dir, out_dir):
             c_parts.append(f"    .timers        = 0,")
             c_parts.append(f"    .timer_count   = 0,")
         c_parts.append(f"    .on_init       = {on_init_ref},")
+        c_parts.append(f"    .player_sprite = {sprite_names.index(scene_player_sprite) if scene.get('player_sprite') else '0xFF'},")
+        c_parts.append(f"    .player_hit    = {{ {', '.join(player_hit_refs)} }},")
+        c_parts.append("    .parallax      = { " + ", ".join(f"{{ {r}, {sp} }}" for r, sp in (parallax or [(0, 0)])) + " },")
+        c_parts.append(f"    .parallax_count = {len(parallax)},")
         c_parts.append("};")
         c_parts.append("")
 

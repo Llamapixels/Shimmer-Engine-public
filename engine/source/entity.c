@@ -45,6 +45,7 @@ Entity *entity_create(EntityType type, int x, int y, int width, int height)
         e->move_speed = 1;
         e->anim_speed = 0;
         e->collide = 1;
+        e->pinned = 0;
         sprite_init(&e->sprite, x, y, 0, 0, 0, 0, 0);
         return e;
     }
@@ -195,7 +196,10 @@ void entity_update_camera(Entity *entity, int camera_x, int camera_y)
         return;
     sprite_set_position(&entity->sprite, entity->x, entity->y);
     step_animation(entity);
-    sprite_update_camera(&entity->sprite, camera_x, camera_y);
+    if (entity->pinned)
+        sprite_update_camera(&entity->sprite, 0, 0);
+    else
+        sprite_update_camera(&entity->sprite, camera_x, camera_y);
 }
 
 Entity *entity_get(int index)

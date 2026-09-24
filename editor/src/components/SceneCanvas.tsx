@@ -238,8 +238,11 @@ export default function SceneCanvas() {
 
   const playerSprite = projectJson ? playerSpriteName(projectJson) : "player";
   const spriteNames = useMemo(
-    () => Array.from(new Set([playerSprite, ...(data?.npcs ?? []).map((n) => n.sprite || playerSprite)])).sort(),
-    [data?.npcs, playerSprite],
+    () =>
+      Array.from(
+        new Set([playerSprite, data?.player_sprite || playerSprite, ...(data?.npcs ?? []).map((n) => n.sprite || playerSprite)]),
+      ).sort(),
+    [data?.npcs, data?.player_sprite, playerSprite],
   );
   const sheets = useSpriteImages(rootPath, spriteNames, assets);
 
@@ -436,6 +439,27 @@ export default function SceneCanvas() {
         }
       });
 
+      // Parallax bands: where each one ends, from the top of the screen.
+      if (view.parallax && view.parallax.length > 1) {
+        let row = 0;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.fillStyle = accent;
+        ctx.font = font;
+        ctx.textBaseline = "bottom";
+        view.parallax.slice(0, -1).forEach((layer, i) => {
+          row += layer.rows ?? 1;
+          const y = row * S + 0.5;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(pxW, y);
+          ctx.stroke();
+          if (zoom >= 2) ctx.fillText(`Parallax ${i + 1}`, 3, y - 2);
+        });
+        ctx.setLineDash([]);
+      }
+
       // NPCs.
       (view.npcs ?? []).forEach((npc, i) =>
         drawNpc(
@@ -456,8 +480,9 @@ export default function SceneCanvas() {
         const x = view.player_start.x * S;
         const y = view.player_start.y * S;
         const sz = ACTOR_TILES * S;
-        const img = sheets[playerSprite];
-        const sheet = img && projectJson ? sheetFor(projectJson, playerSprite, img) : null;
+        const startSprite = view.player_sprite || playerSprite;
+        const img = sheets[startSprite];
+        const sheet = img && projectJson ? sheetFor(projectJson, startSprite, img) : null;
         const drew =
           !!img &&
           !!sheet &&
@@ -1357,7 +1382,17 @@ function drawNpc(
   }
   ctx.strokeStyle = selected ? "#ffffff" : v("--marker-npc", "rgba(64,200,220,.6)");
   ctx.lineWidth = selected ? 2 : 1;
+  // Pinned actors sit at a screen position: dashed, with a pin mark.
+  if (npc.pinned) ctx.setLineDash([3, 2]);
   ctx.strokeRect(x + 0.5, y + 0.5, sz - 1, sz - 1);
+  ctx.setLineDash([]);
+  if (npc.pinned) {
+    const r = Math.max(3, S / 4);
+    ctx.fillStyle = v("--accent", "#791fff");
+    ctx.beginPath();
+    ctx.arc(x + sz - r, y + r, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
   if (S >= 16) {
     ctx.fillStyle = "#fff";
     ctx.font = `${Math.max(9, S / 2)}px sans-serif`;

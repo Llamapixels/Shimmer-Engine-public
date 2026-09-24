@@ -240,6 +240,14 @@ export interface ShimmerEngineApi {
   newProjectDialog(): Promise<IpcResult<NewProjectDialogResult | null>>;
   createProject(payload: CreateProjectPayload): Promise<IpcResult<OpenProjectResult>>;
   revealInFolder(payload: RevealPayload): Promise<IpcResult<void>>;
+  /** Opens the project folder in the system's file manager. */
+  openProjectFolder(payload: { rootPath: string }): Promise<IpcResult<void>>;
+  /** Copies the built-in dialogue font, frame and menu cursor into the
+   * project (assets/fonts/default.png, assets/frames/default.png,
+   * assets/ui/cursor.png) so they can be edited; project files named
+   * "default" replace the built-in ones. Resolves to the files written
+   * (existing ones are left alone) and the fresh listing. */
+  exportDefaultUi(payload: { rootPath: string }): Promise<IpcResult<{ written: string[]; skipped: string[]; assets: AssetListing }>>;
   saveSong(payload: SaveSongPayload): Promise<IpcResult<void>>;
   /** Resolves to the name the song was actually saved under. */
   createSong(payload: CreateSongPayload): Promise<IpcResult<string>>;
@@ -282,6 +290,8 @@ export const IPC_CHANNELS = {
   newProjectDialog: "project:new-dialog",
   createProject: "project:create",
   revealInFolder: "asset:reveal",
+  openProjectFolder: "project:open-folder",
+  exportDefaultUi: "asset:export-default-ui",
   saveSong: "song:save",
   createSong: "song:create",
   deleteSong: "song:delete",
