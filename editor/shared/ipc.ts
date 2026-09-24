@@ -194,7 +194,8 @@ export type BuildRomResult =
  * running, that it finished, etc.), as opposed to "stdout"/"stderr" which
  * are the child process's own output verbatim. */
 export interface BuildLogEvent {
-  stream: "stdout" | "stderr" | "status";
+  /** "art" is added by the renderer itself (the success banner). */
+  stream: "stdout" | "stderr" | "status" | "art";
   line: string;
 }
 

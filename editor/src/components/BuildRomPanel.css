@@ -145,3 +145,14 @@
 .build-panel-footer > .btn:last-child {
   margin-left: auto;
 }
+
+/* Success banner: never wraps, scrolls sideways if the panel is narrow. */
+.build-panel-art {
+  margin: 10px 0 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: pre;
+  overflow-x: auto;
+  color: var(--accent-hover);
+}
