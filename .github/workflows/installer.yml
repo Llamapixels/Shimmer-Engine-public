@@ -1,0 +1,92 @@
+# Builds "Shimmer Engine Setup" for Windows: the editor plus everything a
+# ROM build needs (the frozen build tool, the engine and a trimmed
+# devkitARM), so users just install and press Build ROM.
+#
+# Run it from the Actions tab ("Run workflow"), or push a tag like
+# v0.1.0-alpha.1. The installer is attached to the run as an artifact.
+
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Freeze the build tool (compiler/build_rom.py)
+        run: |
+          pip install pillow pyinstaller
+          pyinstaller --onefile --name shimmer-build --paths compiler --distpath pyi-dist compiler/build_rom.py
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          update: true
+          install: wget
+
+      # devkitPro's own package manager, as documented at
+      # https://devkitpro.org/wiki/devkitPro_pacman (existing MSYS2 install).
+      - name: Install devkitARM, gba-tools and libgba
+        shell: msys2 {0}
+        run: |
+          wget -q https://pkg.devkitpro.org/devkitpro-keyring.pkg.tar.zst
+          pacman -U --noconfirm devkitpro-keyring.pkg.tar.zst
+          pacman-key --populate devkitpro
+          cat >> /etc/pacman.conf <<'EOF'
+
+          [dkp-libs]
+          Server = https://pkg.devkitpro.org/packages
+
+          [dkp-windows]
+          Server = https://pkg.devkitpro.org/packages/windows/$arch/
+          EOF
+          pacman -Sy --noconfirm
+          pacman -S --noconfirm --needed devkitARM gba-tools libgba
+          echo "DKP=$(cygpath -m /opt/devkitpro)" >> "$GITHUB_ENV"
+
+      - name: Stage the toolchain
+        run: python editor/scripts/stage_toolchain.py --builder pyi-dist/shimmer-build.exe --devkitpro "$env:DKP"
+
+      # Build the demo with nothing but the staged bundle, from a plain
+      # Windows shell - what an installed copy will do.
+      - name: Smoke test - build the demo ROM with the bundle
+        run: |
+          & ./editor/toolchain-bundle/shimmer-build.exe examples/demo `
+            --engine editor/toolchain-bundle/engine `
+            --devkitpro editor/toolchain-bundle/devkitpro `
+            --out smoke/demo.gba
+          if (!(Test-Path smoke/demo.gba)) { throw "no ROM was built" }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: editor/package-lock.json
+
+      - name: Build the installer
+        working-directory: editor
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm ci
+          npm run dist -- --win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shimmer-Engine-Setup
+          path: editor/release/*.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-rom
+          path: smoke/demo.gba

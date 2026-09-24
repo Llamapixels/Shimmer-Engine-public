@@ -95,6 +95,18 @@ export default function Toolbar() {
           <Icon name="redo" size={14} />
         </button>
         <button
+          className="toolbar-open-btn toolbar-play-btn"
+          disabled={!rootPath || building}
+          onClick={() => {
+            if (!rootPath || building) return;
+            void startBuild(rootPath, true);
+          }}
+          title="Build the ROM and open it in your GBA emulator"
+          data-testid="play-btn"
+        >
+          <Icon name="play" /> Play
+        </button>
+        <button
           className="toolbar-build-btn"
           disabled={!rootPath || building}
           onClick={() => {

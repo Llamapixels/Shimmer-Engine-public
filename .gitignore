@@ -25,3 +25,8 @@ gb-studio-source/
 # Python bytecode
 __pycache__/
 engine/data/uge_songs.*
+
+# Packaging outputs (editor/scripts/stage_toolchain.py, electron-builder)
+editor/toolchain-bundle/
+editor/release/
+**/build/rom/

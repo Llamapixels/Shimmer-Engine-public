@@ -2291,6 +2291,13 @@ def c_string_literal(text):
 # Project
 # ---------------------------------------------------------------------------
 
+def write_if_changed(path, text):
+    """Write a generated file only when its text changed, so an unchanged
+    file keeps its timestamp and isn't recompiled."""
+    if not path.exists() or path.read_text(encoding="utf-8") != text:
+        path.write_text(text, encoding="utf-8")
+
+
 def build(project_dir, out_dir):
     project_file = project_dir / "project.json"
     if not project_file.exists():
@@ -2809,8 +2816,8 @@ def build(project_dir, out_dir):
         raise BuildError(str(e)) from None
     if uge_names:
         print(f"Wrote {out_dir / 'uge_songs.c'} ({len(uge_names)} .uge song(s))")
-    (out_dir / "scenes_data.c").write_text("\n".join(c_parts), encoding="utf-8")
-    (out_dir / "scenes_data.h").write_text("\n".join(header), encoding="utf-8")
+    write_if_changed(out_dir / "scenes_data.c", "\n".join(c_parts))
+    write_if_changed(out_dir / "scenes_data.h", "\n".join(header))
     print(f"Wrote {out_dir / 'scenes_data.c'}")
 
 

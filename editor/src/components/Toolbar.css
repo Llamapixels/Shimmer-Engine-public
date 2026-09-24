@@ -110,3 +110,14 @@
 .toolbar-open-btn:hover {
   background: var(--bg-4);
 }
+
+.toolbar-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-play-btn:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}

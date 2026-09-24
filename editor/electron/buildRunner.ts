@@ -61,105 +61,23 @@ export function shQuote(s: string): string {
 }
 
 /**
- * Where the toolchain gets mirrored to before building - see
- * buildScriptContent()'s doc comment for why this exists. `$HOME` is
- * resolved by the shell that runs the command (bash's own `$HOME`), not
- * by Node, since this process's HOME isn't necessarily the WSL user's.
+ * The bash script a dev build runs (inside WSL on Windows): the toolchain's
+ * compiler/build_rom.py, which runs the project compiler, compiles the
+ * engine with devkitARM and writes the ROM - no make involved, so paths
+ * with spaces are fine. The interpreter is picked inside the shell that
+ * runs the build (a local .venv, else python3, else python), since on
+ * Windows that's inside WSL, which this process can't inspect.
+ *
+ * It's written to a file and run as `bash <file>` rather than passed as one
+ * long `-c` argument: wsl.exe has been seen to mangle long single-argument
+ * commands during a cold start.
  */
-const MIRROR_DIR = "$HOME/.shimmer-engine-build";
-
-/**
- * Builds the bash command string that performs the build - the same two
- * steps build.sh performs (run the compiler, then `make -C engine`), plus
- * the same "prefer a local .venv, else python3, else python" interpreter
- * choice build.sh makes. That choice is left to the shell itself (rather
- * than checked from Node here) because it has to be evaluated *inside*
- * the environment that will actually run the build - for the Windows
- * case that's inside WSL, which this process can't inspect directly.
- *
- * Before either step, the whole toolchain is rsync'd into a space-free
- * location under $HOME (MIRROR_DIR). This isn't optional politeness -
- * it's a real, confirmed-on-hardware requirement: the devkitPro Makefile
- * this project uses (engine/Makefile) builds several of its own internal
- * lists (VPATH, the recursive `$(MAKE) -C $(BUILD) -f $(CURDIR)/Makefile`
- * invocation, etc.) straight from $(CURDIR), and GNU Make's own variable
- * lists are whitespace-separated - so a space anywhere in the project's
- * path breaks `make` itself (not just shell quoting, which is a separate,
- * already-handled concern - see shQuote()), with confusing "No rule to
- * make target" errors that don't look path-related at all. The user's
- * own path (`.../Desktop/gba studio/...`) has exactly this problem, and
- * their existing build.sh has a comment about it. Since a space-free
- * *install* path can't be guaranteed for every future user (that's a
- * Windows default "Desktop"/"Documents" convention, not something anyone
- * chooses), the build always mirrors into a known-safe location instead
- * of asking the user to avoid spaces.
- *
- * The compiler's generated output lands inside the mirror's own engine/
- * tree (not the original toolchain root) since `make` runs against the
- * mirror - so after a successful build, engine.gba is copied back out to
- * the project's own `ROM/` folder (named after the project, not the
- * generic "engine.gba" `make` produces), which is what the rest of this
- * app (and its "Reveal in Folder" button) expects. See romFileName()
- * below for how that name is picked.
- *
- * `--delete` keeps the mirror from accumulating stale files removed from
- * the real project (a renamed/deleted scene, say), at the cost of make
- * losing its incremental build cache every time (engine/build/ gets wiped
- * and rebuilt from scratch each build, since it doesn't exist in the
- * source toolchain to be synced back in). This engine is small enough
- * that a full rebuild is still fast; if that ever changes, the fix is to
- * `--exclude 'engine/build/'` from `--delete` (not just from the sync)
- * so the mirror keeps its own object files between builds.
- *
- * `toolchainRootPosix` and `projectRelPosix` must already be in
- * forward-slash form appropriate for the shell that will run this
- * command (a `/mnt/c/...` WSL path on Windows, the native path on
- * macOS/Linux).
- *
- * This used to be assembled as one giant `cmd1 && cmd2 && cmd3 && ...`
- * string and handed to `wsl.exe bash -lc "<that string>"` directly as a
- * single argv entry. In practice, on a real Windows+WSL2 machine, that
- * produced a build that reported success (exit code 0, and an
- * already-existing engine.gba from a previous build still sitting there
- * passed the `romPath` existence check) while never actually running -
- * the log showed the `if/elif/else` interpreter-picking block silently
- * failing to set `$PY` (`using interpreter:` with nothing after the
- * colon), then `"$PY" compiler/build_project.py ...` executing as an
- * empty command (`bash: line 1: : command not found`), which happened on
- * a cold WSL start (`wsl: Processing /etc/fstab with mount -a failed.`
- * printed first) - consistent with wsl.exe mis-delivering a very long,
- * heavily-quoted single `-c` argument during VM boot, a known class of
- * wsl.exe flakiness with long command lines. Since `&&`-chaining a chain
- * this long into one argv string is what's fragile here (not the logic
- * itself), the fix is to write this out as a real multi-line script FILE
- * on disk instead (buildRom() below writes this function's output to
- * BUILD_SCRIPT_NAME at the toolchain root) and have wsl.exe/bash run a
- * short `bash '<script path>'` invocation - a much smaller, simpler argv
- * that isn't exposed to that failure mode, and the on-disk script is also
- * easier for a person to inspect directly if something still goes wrong.
- */
-export function buildScriptContent(
-  toolchainRootPosix: string,
-  projectRelPosix: string,
-  romFileName: string,
-): string {
-  const root = shQuote(toolchainRootPosix);
-  const project = shQuote(projectRelPosix);
-  const rom = shQuote(romFileName);
-  const elf = shQuote(romFileName.replace(/\.gba$/i, "") + ".elf");
-  const mirror = MIRROR_DIR; // deliberately unquoted here so $HOME expands; quoted at each use site below
+export function buildScriptContent(toolchainRootPosix: string, projectPosix: string, romPosix: string): string {
   return [
     `#!/usr/bin/env bash`,
     `# Auto-generated by Shimmer Engine's "Build ROM" - safe to delete.`,
     `set -e`,
-    ``,
-    `mkdir -p "${mirror}"`,
-    `rsync -a --delete \\`,
-    `  --exclude 'editor/node_modules/' --exclude 'editor/dist/' --exclude 'editor/dist-electron/' \\`,
-    `  --exclude '_backup_*/' --exclude '${BUILD_SCRIPT_NAME}' \\`,
-    `  ${root}/ "${mirror}/"`,
-    `cd "${mirror}"`,
-    ``,
+    `cd ${shQuote(toolchainRootPosix)}`,
     `if [ -x .venv/bin/python ]; then`,
     `  PY=.venv/bin/python`,
     `elif command -v python3 >/dev/null 2>&1; then`,
@@ -168,13 +86,7 @@ export function buildScriptContent(
     `  PY=python`,
     `fi`,
     `echo "[shimmer-engine] using interpreter: $PY"`,
-    ``,
-    `"$PY" compiler/build_project.py ${project}`,
-    `make -C engine`,
-    ``,
-    `mkdir -p ${root}/${project}/ROM`,
-    `cp "${mirror}/engine/engine.gba" ${root}/${project}/ROM/${rom}`,
-    `cp -f "${mirror}/engine/engine.elf" ${root}/${project}/ROM/${elf} 2>/dev/null || true`,
+    `"$PY" compiler/build_rom.py ${shQuote(projectPosix)} --out ${shQuote(romPosix)}`,
     ``,
   ].join("\n");
 }
@@ -275,72 +187,58 @@ export async function buildRom(
     return { ok: false, error: "A build is already running." };
   }
 
-  const projectRelNative = path.relative(toolchainRoot, rootPath);
-  if (!projectRelNative || projectRelNative.startsWith("..") || path.isAbsolute(projectRelNative)) {
-    return {
-      ok: false,
-      error: `This project (${rootPath}) doesn't live inside the toolchain folder (${toolchainRoot}), so its build_project.py path can't be computed.`,
-    };
-  }
-  const projectRelPosix = projectRelNative.split(path.sep).join("/");
-
   const isWindows = process.platform === "win32";
-  let toolchainRootPosix: string;
-  try {
-    toolchainRootPosix = isWindows ? windowsPathToWsl(toolchainRoot) : toolchainRoot;
-  } catch (err) {
-    return {
-      ok: false,
-      error: `Couldn't translate the toolchain folder path for WSL: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-
   const romFile = await romFileName(rootPath);
+  const romPath = path.join(rootPath, "ROM", romFile);
+  const bundledBuilder = path.join(toolchainRoot, isWindows ? "shimmer-build.exe" : "shimmer-build");
+  const bundled = existsSync(bundledBuilder);
 
-  // Write the build as a real script file rather than one giant `&&`-joined
-  // string handed to wsl.exe as a single argv entry - see buildScriptContent's
-  // doc comment for why (a real, observed wsl.exe failure mode on long
-  // single-argument -c commands). The script lives at the toolchain root
-  // itself so its WSL-side path is just windowsPathToWsl() of a path we
-  // already have.
-  const scriptContent = buildScriptContent(toolchainRootPosix, projectRelPosix, romFile);
-  const scriptNativePath = path.join(toolchainRoot, BUILD_SCRIPT_NAME);
-  try {
-    await writeFile(scriptNativePath, scriptContent, "utf-8");
-  } catch (err) {
-    return {
-      ok: false,
-      error: `Couldn't write the build script to ${scriptNativePath}: ${err instanceof Error ? err.message : String(err)}`,
-    };
+  let commandProgram: string;
+  let commandArgs: string[];
+  let scriptNativePath: string | null = null;
+
+  if (bundled) {
+    // The installed app: its own build tool, engine and devkitARM.
+    commandProgram = bundledBuilder;
+    commandArgs = [
+      rootPath,
+      "--engine",
+      path.join(toolchainRoot, "engine"),
+      "--devkitpro",
+      path.join(toolchainRoot, "devkitpro"),
+      "--out",
+      romPath,
+    ];
+  } else {
+    // A checkout: build_rom.py through bash (WSL on Windows), with
+    // devkitARM from the user's own setup.
+    let toPosix = (p: string) => p;
+    if (isWindows) toPosix = windowsPathToWsl;
+    let script: string;
+    try {
+      script = buildScriptContent(toPosix(toolchainRoot), toPosix(rootPath), toPosix(romPath));
+    } catch (err) {
+      return { ok: false, error: `Couldn't translate a path for WSL: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    scriptNativePath = path.join(toolchainRoot, BUILD_SCRIPT_NAME);
+    try {
+      await writeFile(scriptNativePath, script, "utf-8");
+    } catch (err) {
+      return {
+        ok: false,
+        error: `Couldn't write the build script to ${scriptNativePath}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    const scriptPosix = toPosix(scriptNativePath);
+    commandProgram = isWindows ? "wsl.exe" : "bash";
+    commandArgs = isWindows ? ["bash", "-l", scriptPosix] : ["-l", scriptPosix];
   }
 
-  let scriptPathPosix: string;
-  try {
-    scriptPathPosix = isWindows ? windowsPathToWsl(scriptNativePath) : scriptNativePath;
-  } catch (err) {
-    return {
-      ok: false,
-      error: `Couldn't translate the build script path for WSL: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-
-  const commandProgram = isWindows ? "wsl.exe" : "bash";
-  // Short argv on purpose (just "bash <script path>", no -c) - the whole
-  // point of writing the script to disk is to keep what crosses the
-  // wsl.exe process boundary small and simple.
-  const commandArgs = isWindows ? ["bash", "-l", scriptPathPosix] : ["-l", scriptPathPosix];
-
-  sendLog({
-    stream: "status",
-    line: isWindows
-      ? `Running via WSL: bash '${scriptPathPosix}' (script: ${scriptNativePath})`
-      : `Running: bash '${scriptPathPosix}'`,
-  });
+  sendLog({ stream: "status", line: bundled ? "Building…" : `Running: ${commandProgram} ${commandArgs.join(" ")}` });
 
   // Snapshot the ROM's current mtime (if it exists) so a build that
   // reports success can be checked against actually having rewritten it -
   // see the comment at the success check below for why this matters.
-  const romPath = path.join(rootPath, "ROM", romFile);
   let preBuildMtimeMs: number | null = null;
   try {
     preBuildMtimeMs = statSync(romPath).mtimeMs;
@@ -349,6 +247,7 @@ export async function buildRom(
   }
 
   const cleanupScript = () => {
+    if (!scriptNativePath) return;
     unlink(scriptNativePath).catch(() => {
       // Best effort - leaving the script behind doesn't break the next
       // build (it's overwritten each time) and can help debugging.
