@@ -965,11 +965,23 @@ def blank_collision(w, h):
     return ["." * w for _ in range(h)]
 
 
+def fit_collision(rows, w, h, scene_name):
+    """The collision grid cropped or padded (walkable) to the background's
+    size - it keeps its old size when a scene's background is swapped for
+    one of another size."""
+    if not isinstance(rows, list) or not all(isinstance(r, str) for r in rows):
+        raise BuildError(f"{scene_name}: \"collision\" must be a list of row strings.")
+    if len(rows) == h and all(len(r) == w for r in rows):
+        return rows
+    old_w = max((len(r) for r in rows), default=0)
+    print(f"  {scene_name}: collision was {old_w}x{len(rows)} tiles but the background is "
+          f"{w}x{h}; built with the extra cut off / the gap walkable. Open the scene in the "
+          "editor to repaint it.")
+    return [(rows[y] if y < len(rows) else "")[:w].ljust(w, ".") for y in range(h)]
+
+
 def parse_collision(rows, w, h, scene_name):
-    if len(rows) != h or any(len(r) != w for r in rows):
-        raise BuildError(
-            f"{scene_name}: collision must be {h} rows of {w} characters "
-            f"(got {len(rows)} rows).")
+    rows = fit_collision(rows, w, h, scene_name)
 
     grid = []
     for y, row in enumerate(rows):
