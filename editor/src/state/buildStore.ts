@@ -25,7 +25,8 @@ interface BuildState {
 
   openPanel: () => void;
   closePanel: () => void;
-  startBuild: (rootPath: string) => Promise<void>;
+  /** Build; with `play`, open the ROM in the user's emulator afterwards. */
+  startBuild: (rootPath: string, play?: boolean) => Promise<void>;
   requestCancel: () => Promise<void>;
 }
 
@@ -48,7 +49,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     set({ open: false });
   },
 
-  startBuild: async (rootPath: string) => {
+  startBuild: async (rootPath: string, play = false) => {
     if (get().status === "running") return;
 
     get().unsubscribe?.();
@@ -82,6 +83,11 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
     if (res.value.ok) {
       set((s) => ({ status: "success", result: res.value, log: [...s.log, { stream: "art", line: BUILD_SUCCESS_ART }] }));
+      if (play) {
+        const opened = await window.api.openRom({ rootPath, romPath: res.value.romPath });
+        if (opened.ok) set({ open: false });
+        else set((s) => ({ log: [...s.log, { stream: "stderr", line: opened.error }] }));
+      }
     } else {
       set({
         status: res.value.error === "Build cancelled." ? "cancelled" : "error",

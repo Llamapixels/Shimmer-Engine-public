@@ -1,8 +1,8 @@
 {
   "name": "shimmer-engine",
   "productName": "Shimmer Engine",
-  "version": "0.1.0",
-  "description": "A GB Studio-style visual editor for Shimmer Engine GBA games.",
+  "version": "0.1.0-alpha.1",
+  "description": "A game maker for the Game Boy Advance.",
   "private": true,
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -13,7 +13,8 @@
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:renderer && npm run build:electron",
     "start": "electron dist-electron/electron/main.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p electron/tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p electron/tsconfig.json",
+    "dist": "npm run build && electron-builder --publish never"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -27,8 +28,70 @@
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^8.2.2",
     "electron": "^31.3.0",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
     "wait-on": "^7.2.0"
+  },
+  "author": "HoloCatt",
+  "build": {
+    "appId": "com.holocatt.shimmerengine",
+    "productName": "Shimmer Engine",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "resources/icon.png",
+      "resources/icon.ico",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "toolchain-bundle",
+        "to": "toolchain"
+      },
+      {
+        "from": "../examples/demo",
+        "to": "examples/demo",
+        "filter": [
+          "**/*",
+          "!ROM/**",
+          "!build/**"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Shimmer Engine",
+      "artifactName": "Shimmer-Engine-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "resources/icon-512.png",
+      "category": "Development"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/llamapixels/shimmer-engine"
   }
 }

@@ -193,6 +193,11 @@ export type BuildRomResult =
  * "status" is for messages this app itself prints (which command it's
  * running, that it finished, etc.), as opposed to "stdout"/"stderr" which
  * are the child process's own output verbatim. */
+export interface OpenRomPayload {
+  rootPath: string;
+  romPath: string;
+}
+
 export interface BuildLogEvent {
   /** "art" is added by the renderer itself (the success banner). */
   stream: "stdout" | "stderr" | "status" | "art";
@@ -208,6 +213,8 @@ export interface CancelBuildResult {
  * mirrors one electron/main.ts handler by name (see IPC_CHANNELS). */
 export interface ShimmerEngineApi {
   openProjectDialog(): Promise<IpcResult<OpenProjectResult | null>>;
+  /** Copy the demo project into Documents (once) and open it. */
+  openExample(): Promise<IpcResult<OpenProjectResult>>;
   openProjectAtPath(rootPath: string): Promise<IpcResult<OpenProjectResult>>;
   saveProject(payload: SaveProjectPayload): Promise<IpcResult<void>>;
   saveScene(payload: SaveScenePayload): Promise<IpcResult<void>>;
@@ -246,12 +253,15 @@ export interface ShimmerEngineApi {
    * function. There's only ever one build running at a time (see
    * buildRom), so this isn't scoped to a particular request. */
   onBuildLog(cb: (event: BuildLogEvent) => void): () => void;
+  /** Open a built ROM with the system's program for .gba files. */
+  openRom(payload: OpenRomPayload): Promise<IpcResult<void>>;
   /** Help > About was picked in the app menu. Returns an unsubscribe. */
   onShowAbout(cb: () => void): () => void;
 }
 
 export const IPC_CHANNELS = {
   openProjectDialog: "project:open-dialog",
+  openExample: "project:open-example",
   openProjectAtPath: "project:open-path",
   saveProject: "project:save",
   saveScene: "scene:save",
@@ -278,6 +288,7 @@ export const IPC_CHANNELS = {
    * ipcRenderer.invoke channel like the others above - see
    * ShimmerEngineApi.onBuildLog. */
   buildLog: "build:log",
+  openRom: "build:open-rom",
   /** Main -> renderer: show the About dialog. */
   showAbout: "menu:about",
 } as const;

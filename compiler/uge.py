@@ -433,6 +433,7 @@ def build_uge_songs(music_dir, out_dir):
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "uge_songs.h").write_text("\n".join(header), encoding="utf-8")
-    (out_dir / "uge_songs.c").write_text("\n".join(source), encoding="utf-8")
+    for path, text in ((out_dir / "uge_songs.h", "\n".join(header)), (out_dir / "uge_songs.c", "\n".join(source))):
+        if not path.exists() or path.read_text(encoding="utf-8") != text:
+            path.write_text(text, encoding="utf-8")
     return [p.stem for p in files]

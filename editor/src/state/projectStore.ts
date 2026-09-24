@@ -176,6 +176,7 @@ interface ProjectState {
 
   openProjectDialog: () => Promise<void>;
   openProjectAtPath: (rootPath: string) => Promise<void>;
+  openExample: () => Promise<void>;
   newProject: (name: string) => Promise<void>;
   closeProject: () => void;
   setActiveScene: (sceneId: string) => void;
@@ -390,6 +391,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
       if (!result.value) {
         set({ loading: false });
+        return;
+      }
+      afterOpen(result.value.data);
+    },
+
+    openExample: async () => {
+      set({ loading: true, error: null });
+      const result = await window.api.openExample();
+      if (!result.ok) {
+        set({ loading: false, error: result.error });
         return;
       }
       afterOpen(result.value.data);

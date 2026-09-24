@@ -11,6 +11,7 @@ import type { ShimmerEngineApi, BuildLogEvent } from "../shared/ipc.js";
 // compile error here.
 const api: ShimmerEngineApi = {
   openProjectDialog: () => ipcRenderer.invoke(IPC_CHANNELS.openProjectDialog),
+  openExample: () => ipcRenderer.invoke(IPC_CHANNELS.openExample),
   openProjectAtPath: (rootPath) => ipcRenderer.invoke(IPC_CHANNELS.openProjectAtPath, rootPath),
   saveProject: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveProject, payload),
   saveScene: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveScene, payload),
@@ -33,6 +34,7 @@ const api: ShimmerEngineApi = {
   pickMidiFile: () => ipcRenderer.invoke(IPC_CHANNELS.pickMidiFile),
   buildRom: (payload) => ipcRenderer.invoke(IPC_CHANNELS.buildRom, payload),
   cancelBuild: () => ipcRenderer.invoke(IPC_CHANNELS.cancelBuild),
+  openRom: (payload) => ipcRenderer.invoke(IPC_CHANNELS.openRom, payload),
   onBuildLog: (cb) => {
     const listener = (_event: unknown, data: BuildLogEvent) => cb(data);
     ipcRenderer.on(IPC_CHANNELS.buildLog, listener);

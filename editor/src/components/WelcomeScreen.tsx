@@ -16,6 +16,7 @@ function folderName(p: string): string {
 export default function WelcomeScreen({ loading }: Props) {
   const openProjectDialog = useProjectStore((s) => s.openProjectDialog);
   const openProjectAtPath = useProjectStore((s) => s.openProjectAtPath);
+  const openExample = useProjectStore((s) => s.openExample);
   const newProject = useProjectStore((s) => s.newProject);
   const recent = useProjectStore((s) => s.recentProjects);
   const error = useProjectStore((s) => s.error);
@@ -44,8 +45,7 @@ export default function WelcomeScreen({ loading }: Props) {
               />
             </label>
             <p className="welcome-hint">
-              Next you'll pick a folder to create it in. To build it with <code>./build.sh</code>, put it inside your Advance
-              Studio folder — e.g. in <code>examples/</code>.
+              Next you'll pick a folder to create it in.
             </p>
             <div className="welcome-actions">
               <button className="welcome-open-btn" disabled={!name.trim() || loading} onClick={() => newProject(name)}>
@@ -63,6 +63,9 @@ export default function WelcomeScreen({ loading }: Props) {
             </button>
             <button className="welcome-secondary-btn" onClick={() => openProjectDialog()} disabled={loading}>
               {loading ? "Opening…" : "Open Project…"}
+            </button>
+            <button className="welcome-secondary-btn" onClick={() => openExample()} disabled={loading} title="A small sample game to look around in">
+              Open Example
             </button>
           </div>
         )}

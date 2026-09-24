@@ -174,11 +174,18 @@ async function exists(p: string): Promise<boolean> {
   }
 }
 
-/** The Shimmer Engine toolchain folder (the one containing engine/Makefile) that a
- * project lives inside, found by walking up from the project folder -
- * e.g. examples/demo -> ../../. That's where the player sprite
- * (engine/data/player.png) lives, since the compiler reads it from there
- * rather than per-project. */
+/** The toolchain folder the app itself uses (see setDefaultEngineRoot). */
+let defaultEngineRoot: string | null = null;
+
+/** Called once at startup: the installed app's bundled toolchain, or the
+ * repository checkout the dev build runs from. */
+export function setDefaultEngineRoot(root: string | null): void {
+  defaultEngineRoot = root;
+}
+
+/** The toolchain folder (containing engine/) to build a project with: a
+ * checkout the project lives inside (walking up from it, e.g.
+ * examples/demo -> ../../), else the app's own. */
 export async function findEngineRoot(rootPath: string): Promise<string | null> {
   let dir = path.resolve(rootPath);
   for (let i = 0; i < 8; i++) {
@@ -187,6 +194,7 @@ export async function findEngineRoot(rootPath: string): Promise<string | null> {
     if (parent === dir) break;
     dir = parent;
   }
+  if (defaultEngineRoot && (await exists(path.join(defaultEngineRoot, "engine", "source")))) return defaultEngineRoot;
   return null;
 }
 

@@ -1,11 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { cp, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { IPC_CHANNELS } from "../shared/ipc.js";
 import type {
   BuildRomPayload,
+  OpenRomPayload,
   CreateBackgroundPayload,
   CreateProjectPayload,
   CreateScenePayload,
@@ -130,6 +131,19 @@ function handle<Args extends unknown[], T>(
 }
 
 function registerIpcHandlers(): void {
+  // "Open example": copy the demo project somewhere writable (Documents)
+  // the first time, then open that copy.
+  handle(IPC_CHANNELS.openExample, async () => {
+    const src = app.isPackaged
+      ? path.join(process.resourcesPath, "examples", "demo")
+      : path.resolve(__dirname, "..", "..", "..", "examples", "demo");
+    const dest = path.join(app.getPath("documents"), "Shimmer Engine", "Demo");
+    if (!existsSync(path.join(dest, "project.json"))) {
+      await cp(src, dest, { recursive: true, filter: (f) => !/(^|[\\/])(ROM|build)([\\/]|$)/.test(path.relative(src, f)) });
+    }
+    return trackRoot(await projectIO.openProjectAtPath(dest));
+  });
+
   handle(IPC_CHANNELS.openProjectDialog, async () => {
     if (!mainWindow) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -289,6 +303,21 @@ function registerIpcHandlers(): void {
     });
   });
 
+  handle(IPC_CHANNELS.openRom, async (payload: OpenRomPayload) => {
+    checkRoot(payload.rootPath);
+    const rom = path.resolve(payload.romPath);
+    if (!rom.startsWith(path.resolve(payload.rootPath) + path.sep) || !rom.toLowerCase().endsWith(".gba")) {
+      throw new Error("That isn't this project's ROM.");
+    }
+    // Opens the ROM with whatever program .gba files are set to open with.
+    const err = await shell.openPath(rom);
+    if (err) {
+      throw new Error(
+        `Couldn't open the ROM (${err}). Install a GBA emulator such as mGBA and set it as the program for .gba files.`,
+      );
+    }
+  });
+
   handle(IPC_CHANNELS.cancelBuild, async () => {
     return { cancelled: buildRunner.cancelBuild() };
   });
@@ -322,6 +351,11 @@ function buildMenu(): Menu {
 }
 
 app.whenReady().then(() => {
+  // The installed app carries its engine and toolchain in resources/toolchain;
+  // a dev build uses the repository it runs from.
+  projectIO.setDefaultEngineRoot(
+    app.isPackaged ? path.join(process.resourcesPath, "toolchain") : path.resolve(__dirname, "..", "..", ".."),
+  );
   Menu.setApplicationMenu(buildMenu());
   registerIpcHandlers();
   createWindow();
