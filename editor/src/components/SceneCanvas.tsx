@@ -1078,6 +1078,13 @@ export default function SceneCanvas() {
 
   const fixCollisionSize = () => updateScene(sceneId, (s) => ({ ...s, collision: resizeCollision(s.collision ?? [], bgTilesW, bgTilesH) }));
 
+  // A background swapped for one of another size: fit the collision grid
+  // to it (cut off / walkable padding) straight away.
+  useEffect(() => {
+    if (collisionMismatch && bgImage) fixCollisionSize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collisionMismatch, bgImage, sceneId]);
+
   const cursor = tilePick ? "crosshair" : tool === "select" ? (drag ? "grabbing" : "default") : tool === "eraser" ? "cell" : "crosshair";
 
   return (
@@ -1155,8 +1162,7 @@ export default function SceneCanvas() {
 
       {collisionMismatch && (
         <div className="scene-canvas-banner scene-canvas-banner-warn">
-          Collision grid is {collisionRows![0]?.length ?? 0}×{collisionRows!.length} but the background is {bgTilesW}×{bgTilesH} tiles — the
-          compiler will reject this.
+          Collision grid is {collisionRows![0]?.length ?? 0}×{collisionRows!.length} but the background is {bgTilesW}×{bgTilesH} tiles.
           <button className="btn btn-small" onClick={fixCollisionSize}>
             Resize collision to fit
           </button>
