@@ -49,6 +49,8 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (!useProjectStore.getState().project) return;
       if (isTyping(e.target)) return;
+      // The music editor has its own undo history and shortcuts.
+      if (useProjectStore.getState().section === "music") return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       if (mod && k === "z" && !e.shiftKey) {

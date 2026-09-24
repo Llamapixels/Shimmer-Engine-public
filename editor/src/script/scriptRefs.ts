@@ -14,7 +14,7 @@ import { mapEvents, walkEvents } from "./scriptTree";
 
 /** flag/item/variable/scene are project-wide; actor/timer names are
  * scoped to one scene (only rename them within that scene). */
-export type RefKind = "flag" | "item" | "variable" | "scene" | "actor" | "timer";
+export type RefKind = "flag" | "item" | "variable" | "scene" | "actor" | "timer" | "music";
 
 const VAR_IN_TEXT = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 
@@ -140,6 +140,7 @@ export function countRefs(scenes: SceneJSON[], kind: RefKind, name: string): num
       });
     }
     if (kind === "scene") for (const d of scene.doors ?? []) if (d.target_scene === name) n += 1;
+    if (kind === "music" && scene.music === name) n += 1;
   }
   return n;
 }
@@ -197,6 +198,9 @@ function renameInEvent(ev: ScriptEventJSON, kind: RefKind, from: string, to: str
 /** Returns the scene with every reference renamed (same object if
  * nothing referenced it). */
 export function renameRefsInScene(scene: SceneJSON, kind: RefKind, from: string, to: string | number): SceneJSON {
+  if (kind === "music" && scene.music === from && typeof to === "string") {
+    scene = { ...scene, music: to };
+  }
   return mapSceneEvents(scene, (ev) => renameInEvent(ev, kind, from, to), kind === "scene" && typeof to === "string" ? { from, to } : null);
 }
 
