@@ -360,8 +360,8 @@ static void layers_apply(void)
     for (int i = 0; i < layer_count; i++)
     {
         const BgLayer *l = &layer_def[i];
-        int x = (int)(((int32_t)layer_cam_x * l->speed_x + layer_drift_x[i]) >> 8);
-        int y = (int)(((int32_t)layer_cam_y * l->speed_y + layer_drift_y[i]) >> 8);
+        int x = l->anchor_x + (int)(((int32_t)(layer_cam_x - l->anchor_x) * l->speed_x + layer_drift_x[i]) >> 8);
+        int y = l->anchor_y + (int)(((int32_t)(layer_cam_y - l->anchor_y) * l->speed_y + layer_drift_y[i]) >> 8);
         if (i == 0)
         {
             REG_BG2HOFS = (uint16_t)x;
@@ -406,7 +406,8 @@ void background_set_layers(const BgLayer *layers, int count)
                 dst[j] = l->map[j];
         }
 
-        uint16_t cnt = (uint16_t)((l->front ? 0 : 3) |       /* priority */
+        /* Priority: sprites are 1 and win ties, the map is 2. */
+        uint16_t cnt = (uint16_t)((l->front == 2 ? 0 : l->front == 1 ? 1 : 3) |
                                   (0 << 2) |                  /* char block 0, BG0's tiles */
                                   (LAYER_SB[i] << 8) |
                                   (l->size << 14));

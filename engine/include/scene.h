@@ -95,9 +95,14 @@ typedef struct
 {
     const uint16_t *map;
     uint8_t size;
-    uint8_t front;      /* 1 = over the map and actors, 0 = behind the map */
+    uint8_t front;      /* 0 = behind the map, 1 = over the map (under
+                         * actors), 2 = over the map and actors */
     int16_t speed_x, speed_y;
     int16_t auto_x, auto_y;
+    int16_t anchor_x, anchor_y;   /* camera position (px) where the layer
+                                   * lines up with the map, as the editor
+                                   * shows it: the camera at the scene's
+                                   * start. Parallax moves it from there. */
 } BgLayer;
 typedef struct
 {

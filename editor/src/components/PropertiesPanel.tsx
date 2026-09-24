@@ -444,31 +444,32 @@ function LayersEditor({ scene }: { scene: SceneRecord }) {
   return (
     <FieldRow
       label={`Background layers (${layers.length}/2)`}
-      hint="Full images scrolling behind (or over) the map at their own speed - the GBA's own parallax. Up to 512×256 or 256×512 px; they repeat. The map's transparent pixels show the layers behind it. Layer 1 is drawn over layer 2."
+      hint="Full images scrolling behind (or over) the map at their own speed - the GBA's own parallax. Up to 512×256 or 256×512 px; they repeat. They line up with the map as shown here when the camera is at the player's start, and parallax moves them from there. The map's transparent pixels show the layers behind it. Layer 1 is drawn over layer 2."
     >
       {layers.map((layer, i) => (
         <div key={i} className="layer-card">
           <div className="layer-card-head">
             <span className="parallax-index">{i + 1}</span>
             <div className="seg">
-              <button
-                className={!layer.front ? "seg-on" : ""}
-                onClick={(e) => {
-                  e.preventDefault();
-                  patch(i, { front: undefined });
-                }}
-              >
-                Behind map
-              </button>
-              <button
-                className={layer.front ? "seg-on" : ""}
-                onClick={(e) => {
-                  e.preventDefault();
-                  patch(i, { front: true });
-                }}
-              >
-                In front
-              </button>
+              {(
+                [
+                  [undefined, "Behind map", "Behind the map: shows through its transparent pixels"],
+                  [true, "Over map", "Over the map, under the player and actors"],
+                  ["actors", "Over all", "Over the map, the player and actors (fog, foreground leaves)"],
+                ] as const
+              ).map(([value, label, title]) => (
+                <button
+                  key={label}
+                  title={title}
+                  className={(layer.front ?? undefined) === value || (!layer.front && value === undefined) ? "seg-on" : ""}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    patch(i, { front: value });
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
             <button
               className="link-btn link-btn-danger"
