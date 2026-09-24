@@ -264,8 +264,32 @@
   align-items: center;
 }
 
-.script-field-box {
+.script-field-box,
+.script-field-offset {
   grid-template-columns: auto 1fr auto 1fr;
+}
+
+.script-field-expression {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.script-field-color {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.script-field-color input[type="color"] {
+  flex: none;
+  width: 44px;
+  height: 24px;
+  padding: 0 2px;
+}
+
+.script-field-color-hex {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .pos-label {
@@ -355,6 +379,22 @@
 
 .menu-option-head .event-branch-label {
   flex: none;
+}
+
+.switch-case-value {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.switch-case-value input {
+  width: 100%;
+}
+
+.switch-case-dup input {
+  border-color: var(--danger) !important;
 }
 
 .event-unknown-json {

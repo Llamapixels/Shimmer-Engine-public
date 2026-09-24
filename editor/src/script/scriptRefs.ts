@@ -35,6 +35,78 @@ function textFields(ev: ScriptEventJSON): string[] {
   return [];
 }
 
+/** A name inside an expression string (see compiler/expr.py): a
+ * variable ($name$ or a bare name), or a function's name argument -
+ * flag(x), item(x), actor_x/actor_y/actor_dir(x), peek(slot, variable).
+ * start/end cover just the name, not its $...$ or quotes. */
+interface ExprRef {
+  kind: RefKind;
+  name: string;
+  start: number;
+  end: number;
+}
+
+/** Per-argument kinds of the functions whose arguments are names (null
+ * = a button name, never renamed; undefined = an ordinary expression). */
+const NAME_ARG_FUNCS: Record<string, (RefKind | null | undefined)[]> = {
+  actor_x: ["actor"],
+  actor_y: ["actor"],
+  actor_dir: ["actor"],
+  held: [null],
+  pressed: [null],
+  flag: ["flag"],
+  item: ["item"],
+  peek: [undefined, "variable"],
+};
+const EXPR_FUNCS = new Set([...Object.keys(NAME_ARG_FUNCS), "min", "max", "abs", "rnd", "isqrt", "saved", "scene", "time"]);
+const EXPR_TOKEN = /\$([^$]+)\$|\d\w*|([A-Za-z_][A-Za-z0-9_]*)|"([^"]*)"|'([^']*)'|(\S)/g;
+
+export function expressionRefs(expr: string): ExprRef[] {
+  const tokens = [...expr.matchAll(EXPR_TOKEN)];
+  const refs: ExprRef[] = [];
+  // Open name-argument calls: which argument we're in, at which depth.
+  const calls: { kinds: (RefKind | null | undefined)[]; arg: number; depth: number }[] = [];
+  let depth = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const at = t.index ?? 0;
+    const [, dollar, ident, dq, sq, punct] = t;
+    const call = calls[calls.length - 1];
+    const argKind = call && call.depth === depth ? call.kinds[call.arg] : undefined;
+    if (punct === "(") depth += 1;
+    else if (punct === ")") {
+      if (call && call.depth === depth) calls.pop();
+      depth -= 1;
+    } else if (punct === ",") {
+      if (call && call.depth === depth) call.arg += 1;
+    } else if (argKind !== undefined) {
+      // A name argument: a bare, $-wrapped or quoted name.
+      const name = ident ?? dollar ?? dq ?? sq;
+      const offset = ident !== undefined ? 0 : 1;
+      if (argKind && name !== undefined) refs.push({ kind: argKind, name, start: at + offset, end: at + offset + name.length });
+    } else if (dollar !== undefined) {
+      refs.push({ kind: "variable", name: dollar, start: at + 1, end: at + 1 + dollar.length });
+    } else if (ident !== undefined) {
+      const low = ident.toLowerCase();
+      const next = tokens[i + 1]?.[5];
+      if (next === "(" && EXPR_FUNCS.has(low)) {
+        if (NAME_ARG_FUNCS[low]) calls.push({ kinds: NAME_ARG_FUNCS[low], arg: 0, depth: depth + 1 });
+      } else if (low !== "true" && low !== "false") {
+        refs.push({ kind: "variable", name: ident, start: at, end: at + ident.length });
+      }
+    }
+  }
+  return refs;
+}
+
+function renameInExpression(expr: string, kind: RefKind, from: string, to: string): string {
+  let out = expr;
+  for (const r of expressionRefs(expr).reverse()) {
+    if (r.kind === kind && r.name === from) out = out.slice(0, r.start) + to + out.slice(r.end);
+  }
+  return out;
+}
+
 function eventRefs(ev: ScriptEventJSON, kind: RefKind): string[] {
   const def = getEventDef(ev.type);
   const out: string[] = [];
@@ -43,6 +115,10 @@ function eventRefs(ev: ScriptEventJSON, kind: RefKind): string[] {
     for (const f of def.fields) {
       const v = rec[f.key];
       if (f.kind === kind && typeof v === "string") out.push(v);
+      if (f.kind === "optionalVariable" && kind === "variable" && typeof v === "string" && v) out.push(v);
+      if (f.kind === "expression" && typeof v === "string") {
+        for (const r of expressionRefs(v)) if (r.kind === kind) out.push(r.name);
+      }
       if (kind === "variable" && f.kind === "varOrLiteral" && v && typeof v === "object" && "var" in v) {
         out.push((v as { var: string }).var);
       }
@@ -75,9 +151,16 @@ function renameInEvent(ev: ScriptEventJSON, kind: RefKind, from: string, to: str
   let changed = false;
   for (const f of def.fields) {
     const v = rec[f.key];
-    if (f.kind === kind && v === from) {
+    if ((f.kind === kind || (f.kind === "optionalVariable" && kind === "variable")) && v === from) {
       rec[f.key] = to;
       changed = true;
+    }
+    if (f.kind === "expression" && typeof v === "string" && typeof to === "string") {
+      const renamed = renameInExpression(v, kind, from, to);
+      if (renamed !== v) {
+        rec[f.key] = renamed;
+        changed = true;
+      }
     }
     if (kind === "variable" && f.kind === "varOrLiteral" && v && typeof v === "object" && (v as { var?: string }).var === from) {
       rec[f.key] = { var: to };
