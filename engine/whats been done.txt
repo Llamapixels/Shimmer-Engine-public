@@ -1,0 +1,649 @@
+1. Project
+
+Working name: Advance Studio
+
+Goal: Build a GB Studio-like game creation environment for the Game Boy Advance.
+
+The eventual workflow should look like:
+
+                ADVANCE STUDIO
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+       PC Editor            Project Data
+          │                     │
+          └──────────┬──────────┘
+                     ↓
+                 Compiler
+                     ↓
+                 GBA ROM
+                     ↓
+              ┌──────┴──────┐
+              ↓             ↓
+             mGBA        Real GBA
+
+The goal is not simply to make a GBA game. The goal is to create a reusable engine/runtime plus a PC editor that can generate complete .gba games.
+
+2. Host Environment
+Operating system
+
+Windows 11
+
+Development environment
+
+WSL/Linux is being used for the GBA compiler/toolchain.
+
+Important preference:
+
+The source files remain on the Windows filesystem.
+
+Current Windows project location:
+
+C:\Users\User\Desktop\gba studio
+
+WSL sees it as:
+
+/mnt/c/Users/User/Desktop/gba studio
+
+Because the directory contains a space, the devkitPro recursive Makefile had path problems.
+
+A WSL bind mount was created:
+
+~/advance-build
+
+which points to:
+
+/mnt/c/Users/User/Desktop/gba studio
+
+This allows the build system to see a space-free path while the actual files remain on Windows.
+
+3. Current Project Directory
+
+Current structure:
+
+gba studio/
+├── compiler/
+├── editor/
+├── engine/
+│   ├── data/
+│   ├── include/
+│   └── source/
+├── examples/
+└── tools/
+
+Eventually this is expected to become something closer to:
+
+AdvanceStudio/
+├── engine/
+│   ├── source/
+│   │   ├── main.c
+│   │   ├── core/
+│   │   ├── graphics/
+│   │   ├── input/
+│   │   ├── scene/
+│   │   └── collision/
+│   ├── include/
+│   └── data/
+│
+├── compiler/
+│
+├── editor/
+│
+├── tools/
+│
+└── examples/
+4. Tools Installed
+WSL
+
+Used for compiling the GBA runtime.
+
+devkitPro
+
+Installed successfully.
+
+Command used:
+
+sudo dkp-pacman -S gba-dev
+
+Installed GBA development packages including:
+
+devkitARM
+libgba
+libtonc
+grit
+mmutil
+gba-tools
+gba-cmake
+libfat-gba
+maxmod-gba
+
+Important installed versions include:
+
+devkitARM-r68
+devkitarm-gcc 16.1.0
+libgba 0.5.4
+grit 0.10.0
+5. Compiler
+
+The correct devkitPro compiler is:
+
+/opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc
+
+Verified with:
+
+which arm-none-eabi-gcc
+
+Result:
+
+/opt/devkitpro/devkitARM/bin/arm-none-eabi-gcc
+
+Version:
+
+arm-none-eabi-gcc (devkitARM) 16.1.0
+
+The normal Ubuntu ARM compiler was initially being selected:
+
+/usr/bin/arm-none-eabi-gcc
+
+This was fixed by adding devkitARM to PATH:
+
+export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
+
+and adding that to .bashrc.
+
+6. Important Environment Variables
+
+Currently:
+
+DEVKITPRO=/opt/devkitpro
+DEVKITARM=/opt/devkitpro/devkitARM
+
+The PATH contains:
+
+$DEVKITARM/bin
+$DEVKITPRO/tools/bin
+7. GBA Examples
+
+devkitPro examples are installed at:
+
+/opt/devkitpro/examples/gba
+
+Available categories include:
+
+Makefile
+README.md
+audio/
+graphics/
+img/
+mbv2/
+template/
+utility/
+xboo/
+
+The standard template contains:
+
+/opt/devkitpro/examples/gba/template/Makefile
+/opt/devkitpro/examples/gba/template/source/template.c
+
+The template template.c uses:
+
+#include <gba_console.h>
+#include <gba_video.h>
+#include <gba_interrupt.h>
+#include <gba_systemcalls.h>
+#include <gba_input.h>
+
+and initializes VBlank with:
+
+irqInit();
+irqEnable(IRQ_VBLANK);
+8. First Build Problem
+
+The official devkitPro Makefile uses a recursive build:
+
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+Because the project is inside:
+
+/mnt/c/Users/User/Desktop/gba studio/
+
+the space caused the recursive make invocation to interpret:
+
+gba studio
+
+as separate arguments.
+
+This caused errors such as:
+
+make[1]: /mnt/c/Users/User/Desktop/gba: No such file or directory
+
+A symlink was attempted:
+
+ln -s "/mnt/c/Users/User/Desktop/gba studio" ~/gba_studio
+
+but this didn't solve the problem because Make ultimately resolved the underlying Windows path.
+
+A WSL bind mount was then created:
+
+mkdir -p ~/advance-build
+
+sudo mount --bind \
+"/mnt/c/Users/User/Desktop/gba studio" \
+~/advance-build
+
+Now the project can be accessed through:
+
+~/advance-build
+
+without a space in the path.
+
+9. Current Build Status
+
+We eventually restored the official devkitPro Makefile and built successfully.
+
+The resulting .gba ROM loaded in mGBA.
+
+The ROM displayed a blue screen.
+
+This is important because it proves the complete basic pipeline works:
+
+C source
+   ↓
+devkitARM GCC
+   ↓
+ARM object
+   ↓
+GBA linker
+   ↓
+GBA ROM
+   ↓
+mGBA
+   ↓
+Game code executes
+10. First Test Program
+
+The initial test program was a direct Mode 3 framebuffer test.
+
+Core code:
+
+#include <gba.h>
+
+int main(void)
+{
+    irqInit();
+    irqEnable(IRQ_VBLANK);
+
+    SetMode(MODE_3 | BG2_ON);
+
+    volatile unsigned short *videoBuffer =
+        (volatile unsigned short *)0x06000000;
+
+    for (int y = 0; y < 160; y++)
+    {
+        for (int x = 0; x < 240; x++)
+        {
+            videoBuffer[y * 240 + x] =
+                RGB5(8, 16, 24);
+        }
+    }
+
+    while (1)
+    {
+        VBlankIntrWait();
+    }
+
+    return 0;
+}
+
+mGBA displayed the resulting blue screen.
+
+11. Why Mode 3 Was Only a Test
+
+We do not want to build Advance Studio around framebuffer rendering.
+
+The GBA has dedicated graphics hardware that should be used.
+
+The actual engine should primarily use:
+
+Backgrounds
+Tilemaps
+Tiles
+Palettes
+Scrolling
+Sprites
+OBJ hardware
+OAM
+Sprite tiles
+Sprite palettes
+Animation
+GBA hardware
+VRAM
+OAM
+Palette RAM
+DMA
+VBlank
+Hardware blending
+Affine backgrounds
+
+This will make the resulting games actually behave like proper GBA software.
+
+12. Immediate Next Milestone
+
+The next goal is:
+
+Hardware Sprite + D-Pad
+
+Create a ROM that looks roughly like:
+
+┌──────────────────────────────┐
+│                              │
+│                              │
+│          PLAYER              │
+│            ███               │
+│            ███               │
+│                              │
+│                              │
+│                              │
+└──────────────────────────────┘
+
+       ← ↑ ↓ →
+
+The player should be a real GBA hardware OBJ sprite, not manually drawn into a framebuffer.
+
+The D-pad should move the sprite.
+
+13. Next Graphics Milestone
+
+After the sprite works:
+
+Tilemap background
+
+Architecture:
+
+tileset.png
+     ↓
+    grit
+     ↓
+GBA tile graphics
+     ↓
+Tilemap
+     ↓
+GBA BG hardware
+
+The test scene should eventually be:
+
+┌──────────────────────────────────┐
+│▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒│
+│▒                                ▒│
+│▒        TILEMAP WORLD           ▒│
+│▒                                ▒│
+│▒              PLAYER            ▒│
+│▒                ███             ▒│
+│▒                ███             ▒│
+│▒                                ▒│
+│▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒│
+└──────────────────────────────────┘
+14. Engine Development Roadmap
+
+The planned engine systems are:
+
+ENGINE
+│
+├── Core
+│   ├── game loop
+│   ├── VBlank
+│   ├── memory
+│   └── timing
+│
+├── Graphics
+│   ├── backgrounds
+│   ├── tilemaps
+│   ├── tilesets
+│   ├── sprites
+│   ├── OAM
+│   ├── palettes
+│   ├── animation
+│   └── text
+│
+├── Input
+│   ├── D-pad
+│   ├── A
+│   ├── B
+│   ├── L
+│   ├── R
+│   ├── Start
+│   └── Select
+│
+├── Scene
+│   ├── scenes
+│   ├── entities
+│   ├── objects
+│   └── transitions
+│
+├── Collision
+│   ├── tile collision
+│   ├── entity collision
+│   └── triggers
+│
+├── Audio
+│   ├── music
+│   ├── sound effects
+│   └── instruments
+│
+├── UI
+│   ├── text
+│   ├── windows
+│   ├── menus
+│   └── dialogue
+│
+└── Scripting
+    ├── events
+    ├── variables
+    ├── conditions
+    ├── switches
+    └── actions
+15. Editor Roadmap
+
+The PC editor will eventually provide:
+
+Project management
+New Project
+Open Project
+Save
+Build ROM
+Run in mGBA
+Asset editor
+Sprites
+Tilesets
+Tilemaps
+Palettes
+Fonts
+Music
+Sound effects
+Scene editor
+
+Similar conceptually to GB Studio:
+
+Scene
+ ├── background
+ ├── player
+ ├── entities
+ ├── collisions
+ ├── triggers
+ └── events
+Visual scripting
+
+Eventually something like:
+
+PLAYER WALKS INTO TILE
+          ↓
+       TRIGGER
+          ↓
+      SHOW TEXT
+          ↓
+     "Hello!"
+          ↓
+     WAIT FOR A
+          ↓
+       MOVE NPC
+16. Project Format
+
+The eventual user-facing project could look like:
+
+MyGame/
+├── project.json
+│
+├── assets/
+│   ├── player.png
+│   ├── tileset.png
+│   ├── town.png
+│   ├── font.png
+│   └── portraits/
+│
+├── scenes/
+│   ├── town.json
+│   ├── house.json
+│   └── route01.json
+│
+├── scripts/
+│   ├── player.json
+│   └── npc.json
+│
+└── audio/
+    ├── music/
+    └── sfx/
+
+The compiler converts these into GBA-compatible data.
+
+17. Compiler
+
+Eventually:
+
+PNG
+JSON
+WAV
+etc.
+ │
+ ↓
+Advance Studio Compiler
+ │
+ ├── PNG → GBA tiles
+ ├── PNG → palettes
+ ├── JSON → scene data
+ ├── JSON → entities
+ ├── scripts → bytecode/native data
+ └── audio → GBA audio format
+ │
+ ↓
+Engine + Game Data
+ │
+ ↓
+devkitARM
+ │
+ ↓
+game.gba
+
+Tools such as grit can be used for graphics conversion.
+
+18. Important Design Philosophy
+
+The project should be developed in this order:
+
+1. GBA runtime
+       ↓
+2. Graphics systems
+       ↓
+3. Input
+       ↓
+4. Scene/entity system
+       ↓
+5. Collision
+       ↓
+6. Audio
+       ↓
+7. Data format
+       ↓
+8. Compiler
+       ↓
+9. Editor
+       ↓
+10. Visual scripting
+
+Do not build the fancy editor first.
+
+The editor should ultimately be a front end for a runtime that already works.
+
+19. Possible Future Features
+
+Once the basic system works:
+
+RPG mode
+Top-down mode
+Platformer mode
+Shooter mode
+Sprite animation editor
+Tilemap editor
+Palette editor
+Dialogue editor
+Quest/event system
+Camera system
+Screen transitions
+Save system
+NPC system
+Inventory
+Shops
+Battles
+Menus
+Particle effects
+Screen shake
+Parallax
+Affine backgrounds
+Hardware blending
+DMA optimization
+Compression
+ROM size optimization
+
+Potentially support multiple game templates while using the same underlying runtime.
+
+20. Immediate Task for Any AI Helping This Project
+
+Current exact task:
+
+Build the first proper GBA hardware-rendered demo.
+
+Requirements:
+
+1. Use libgba/devkitARM.
+2. Do NOT use Mode 3 framebuffer rendering.
+3. Use a GBA hardware sprite/OBJ.
+4. Display the sprite.
+5. Read GBA buttons.
+6. Move the sprite with the D-pad.
+7. Synchronize updates with VBlank.
+8. Build into a valid .gba.
+9. Test with mGBA.
+
+After that:
+
+Hardware sprite
+      ↓
+Tilemap
+      ↓
+Collision
+      ↓
+Scene
+      ↓
+Entity system
+      ↓
+Engine API
+      ↓
+Compiler
+      ↓
+Editor
+Current status in one sentence
+
+The devkitPro GBA toolchain is installed and working, the Windows-source/WSL build-path issue has been solved with a bind mount, and we have successfully produced a valid .gba that boots in mGBA and displays a blue screen.
+
+That's the point another AI should start from.

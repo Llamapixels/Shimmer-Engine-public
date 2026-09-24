@@ -1,0 +1,306 @@
+.scene-canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-0);
+}
+
+.scene-canvas-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* First-run help: shown instead of the plain "no scene selected" message
+ * when the project has no scenes at all yet, pointing the person at the
+ * "+" button on the sidebar's Scenes section. */
+.scene-canvas-firstrun {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 300px;
+  padding: 16px 18px;
+  background: var(--bg-2);
+  border: 1px solid var(--accent-soft-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.scene-canvas-firstrun-arrow {
+  flex: none;
+  font-size: 24px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.scene-canvas-firstrun-title {
+  margin: 0 0 4px;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.scene-canvas-firstrun p {
+  margin: 0;
+}
+
+.scene-canvas-firstrun-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: -2px;
+}
+
+.scene-canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 12px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.scene-canvas-zoom {
+  display: flex;
+  gap: 2px;
+}
+
+.scene-canvas-zoom-btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+}
+
+.scene-canvas-zoom-btn:hover {
+  color: var(--text-primary);
+}
+
+.scene-canvas-zoom-btn-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.scene-canvas-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.scene-canvas-legend {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+}
+
+.scene-canvas-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.scene-canvas-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.scene-canvas-swatch-marker-spawn {
+  background: var(--marker-spawn);
+}
+.scene-canvas-swatch-marker-door {
+  background: var(--marker-door);
+}
+.scene-canvas-swatch-marker-npc {
+  background: var(--marker-npc);
+}
+.scene-canvas-swatch-collision-solid {
+  background: var(--collision-solid);
+}
+.scene-canvas-swatch-collision-water {
+  background: var(--collision-water);
+}
+.scene-canvas-swatch-collision-damage {
+  background: var(--collision-damage);
+}
+
+.scene-canvas-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  position: relative;
+}
+
+.scene-canvas-error {
+  color: var(--warning);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.scene-canvas-hint {
+  color: var(--text-muted);
+}
+
+.scene-canvas {
+  display: block;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.scene-canvas-toolbar {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.scene-canvas-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Floats over the canvas instead of taking layout space, so switching
+ * tools or starting a tile pick never shifts the map under the cursor. */
+.scene-canvas-float {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.scene-canvas-float-pick {
+  padding: 5px 6px 5px 12px;
+  gap: 10px;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.scene-canvas-float-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 6px;
+}
+
+.tool-group {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.tool-btn {
+  width: 28px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-btn:hover {
+  background: var(--bg-4);
+  color: var(--text-primary);
+}
+
+.tool-btn-active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.tool-btn-active:hover {
+  background: var(--accent-hover);
+  color: var(--accent-text);
+}
+
+.brush-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  padding: 3px 8px;
+}
+
+.brush-btn:hover {
+  background: var(--bg-4);
+}
+
+.brush-btn-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
+}
+
+.scene-canvas-swatch-erase {
+  background: transparent;
+  border: 1px dashed var(--text-muted);
+}
+
+.scene-canvas-coords {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.scene-canvas-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-soft-border);
+  font-size: 12px;
+  flex: none;
+}
+
+.scene-canvas-banner-warn {
+  background: rgba(242, 184, 75, 0.12);
+  border-bottom-color: rgba(242, 184, 75, 0.4);
+  color: var(--warning);
+}

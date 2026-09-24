@@ -1,0 +1,379 @@
+.navigator {
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.navigator-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+/* Scenes is the section most people spend time in, so it's allowed to
+ * grow and scroll internally while the rest stay their natural size. */
+.navigator-section:first-child {
+  flex: 1 1 auto;
+  min-height: 90px;
+}
+
+.navigator-section-collapsed {
+  flex: none;
+}
+
+.navigator-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px 9px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex: none;
+  user-select: none;
+}
+
+.navigator-header:hover {
+  color: var(--text-secondary);
+}
+
+.navigator-chevron {
+  width: 10px;
+  flex: none;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.navigator-header-title {
+  flex: 1;
+}
+
+.navigator-section-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.navigator-add-btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navigator-add-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.navigator-add-group {
+  display: flex;
+  gap: 4px;
+}
+
+.navigator-palette-swatches {
+  display: flex;
+  flex-shrink: 0;
+  width: 24px;
+  height: 12px;
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+}
+
+.navigator-palette-swatch {
+  flex: 1;
+}
+
+.navigator-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 6px 8px;
+}
+
+.navigator-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 8px;
+}
+
+.navigator-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-bottom: 1px;
+}
+
+.navigator-item:hover {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.navigator-item-icon {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  flex: none;
+}
+
+.navigator-item-active .navigator-item-icon {
+  background: var(--accent);
+}
+
+.navigator-item-active {
+  color: var(--text-primary);
+}
+
+.navigator-item-selected {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
+}
+
+.navigator-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.navigator-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  font-size: 13px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.navigator-item:hover .navigator-item-delete {
+  display: flex;
+}
+
+.navigator-item-delete:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.navigator-badge {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-hover);
+  border: 1px solid var(--accent-soft-border);
+  border-radius: 999px;
+  padding: 0 6px;
+  flex: none;
+}
+
+.navigator-children {
+  margin: 0 0 4px 14px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-strong);
+}
+
+.navigator-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.navigator-child:hover {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.navigator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.navigator-dot-npc {
+  background: var(--marker-npc);
+}
+
+.navigator-dot-door {
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.navigator-tag {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  background: var(--bg-4);
+  border-radius: 999px;
+  padding: 0 6px;
+  flex: none;
+}
+
+/* ---- Variables / Constants / Scripts inline rows ---------------------- */
+
+.navigator-named-list {
+  padding: 2px 8px 10px;
+  gap: 3px;
+  display: flex;
+  flex-direction: column;
+}
+
+.navigator-named-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.navigator-named-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.navigator-named-input:focus {
+  border-color: var(--accent-soft-border);
+}
+
+.navigator-named-input::placeholder {
+  color: var(--text-muted);
+}
+
+.navigator-constant-value {
+  width: 56px;
+  flex: none;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-size: 12px;
+  text-align: right;
+}
+
+.navigator-named-delete {
+  display: flex;
+}
+
+.navigator-add-btn-inline {
+  flex: none;
+}
+
+.navigator-hint {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  padding: 4px 2px 0;
+}
+
+/* ---- Per-section search (Scenes / Variables / Constants / Scripts /
+ * Palettes / Prefabs), toggled by the small magnifier button in each
+ * section's header - mirrors GB Studio's per-section search boxes. */
+
+.navigator-search-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.navigator-search-toggle:hover {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.navigator-search-toggle-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.navigator-search-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 6px;
+  flex: none;
+}
+
+.navigator-search-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.navigator-search-input:focus {
+  border-color: var(--accent-soft-border);
+}
+
+.navigator-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.navigator-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.navigator-search-clear:hover {
+  background: var(--danger);
+  color: #fff;
+}

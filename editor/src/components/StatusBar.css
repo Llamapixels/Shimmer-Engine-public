@@ -1,0 +1,32 @@
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.status-bar-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.status-bar-count {
+  flex: none;
+}
+
+.status-bar-hover {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar-error {
+  color: var(--danger);
+  flex: none;
+}

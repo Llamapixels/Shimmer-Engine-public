@@ -1,0 +1,23 @@
+# Python / Node environments
+.venv/
+editor/node_modules/
+
+# Build outputs
+editor/dist/
+editor/dist-electron/
+engine/build/
+*.elf
+*.gba
+*.sav
+*.map
+*/ROM/
+**/ROM/
+
+# Manual backups (git history replaces these)
+_backup_*/
+
+# GB Studio's own source, kept locally for reference (github.com/chrismaltby/gb-studio)
+gb-studio-source/
+
+# Editor build script the "Build ROM" button writes
+.shimmer-build.sh

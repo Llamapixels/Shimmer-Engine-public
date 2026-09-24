@@ -1,0 +1,505 @@
+/*
+ * Sprites editor: left sidebar (SPRITES/ANIMATIONS) + center canvas
+ * (toolbar above it) + right properties panel + a two-section bottom
+ * strip (TILES / FRAMES), matching real GB Studio's own sprite editor
+ * layout - see the task description this was built from for the exact
+ * region breakdown. Reuses theme.css's tokens throughout.
+ */
+
+.sprites-editor {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: 1fr;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-0);
+  color: var(--text-primary);
+}
+
+.sprites-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  padding: 32px;
+}
+
+/* --- Left sidebar ------------------------------------------------- */
+
+.sprites-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-1);
+  overflow: hidden;
+}
+
+.sprites-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sprites-section:last-child {
+  flex: 1;
+}
+
+.sprites-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.sprites-section-chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.sprites-section-title {
+  flex: 1;
+}
+
+.sprites-section-search {
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+.sprites-section-add {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.sprites-section-add:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+.sprites-section-add:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.sprites-search-input {
+  margin: 6px 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.sprites-section-body {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 2px 0 8px;
+}
+
+.sprites-file-list {
+  flex: 1;
+}
+
+.sprites-file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  border-left: 2px solid transparent;
+}
+
+.sprites-file-row:hover {
+  background: var(--bg-2);
+}
+
+.sprites-file-row-selected {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.sprites-file-icon {
+  opacity: 0.7;
+  font-size: 11px;
+  width: 14px;
+  text-align: center;
+}
+
+.sprites-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sprites-file-empty {
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.sprites-import-btn {
+  margin: 6px 8px 8px;
+}
+
+/* --- Overall workspace: center + right + bottom -------------------- */
+
+.sprites-workspace {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  grid-template-rows: 1fr 200px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.sprites-center {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+}
+
+.sprites-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.sprites-toolbar-spacer {
+  flex: 1;
+}
+
+.icon-btn-on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sprites-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sprites-zoom-value {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 34px;
+  text-align: center;
+}
+
+.sprites-canvas-area {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: var(--canvas-bg);
+}
+
+.sprites-canvas-checker {
+  position: relative;
+  background-image: linear-gradient(45deg, #2a2c34 25%, transparent 25%), linear-gradient(-45deg, #2a2c34 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2c34 75%), linear-gradient(-45deg, transparent 75%, #2a2c34 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-color: #1a1b21;
+}
+
+.sprites-canvas-frame {
+  position: relative;
+  image-rendering: pixelated;
+}
+
+.sprites-canvas-invert {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.sprites-canvas-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  pointer-events: none;
+}
+
+.sprites-canvas-origin {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--marker-spawn);
+  pointer-events: none;
+}
+
+/* --- Right properties panel ---------------------------------------- */
+
+.sprites-right-panel {
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.sprites-canvas-size {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin: 6px 0 4px;
+}
+
+.sprites-anim-name-field,
+.sprites-anim-speed-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.sprites-anim-name-field input,
+.sprites-anim-speed-field input {
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  color: var(--text-primary);
+}
+
+/* --- Bottom strip: TILES / FRAMES ----------------------------------- */
+
+.sprites-bottom {
+  grid-column: 1 / -1;
+  display: flex;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-1);
+}
+
+.sprites-bottom-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+}
+
+.sprites-bottom-section:last-child {
+  border-right: none;
+}
+
+.sprites-bottom-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.sprites-bottom-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sprites-tiles-strip {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background-image: linear-gradient(45deg, #2a2c34 25%, transparent 25%), linear-gradient(-45deg, #2a2c34 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2c34 75%), linear-gradient(-45deg, transparent 75%, #2a2c34 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-color: #1a1b21;
+}
+
+.sprites-tiles-img {
+  image-rendering: pixelated;
+}
+
+.sprites-frame-strip {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+}
+
+.sprites-frame-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  cursor: grab;
+  overflow: hidden;
+}
+
+.sprites-frame-thumb-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft-border);
+}
+
+.sprites-frame-thumb-img {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.sprites-frame-thumb-select {
+  position: absolute;
+  left: 2px;
+  bottom: 2px;
+  font-size: 9px;
+  width: 22px;
+  padding: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text-primary);
+  border-radius: 2px;
+}
+
+.sprites-frame-flip-btn,
+.sprites-frame-delete-btn {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sprites-frame-flip-btn {
+  left: 2px;
+}
+
+.sprites-frame-flip-btn-on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.sprites-frame-delete-btn {
+  right: 2px;
+}
+
+.sprites-frame-thumb:hover .sprites-frame-flip-btn,
+.sprites-frame-thumb:hover .sprites-frame-delete-btn {
+  opacity: 1;
+}
+
+.sprites-frame-add-btn {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.sprites-frame-add-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* --- Animation Type / flipLeft / composed-frame toggle -------------- */
+
+.sprites-anim-type-field,
+.sprites-anim-name-field,
+.sprites-anim-speed-field,
+.sprites-tile-palette-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.sprites-anim-type-field select,
+.sprites-tile-palette-field select {
+  background: var(--bg-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+}
+
+.sprites-fliplLeft-field,
+.sprites-anim-composed-field,
+.sprites-tile-priority-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+/* --- "Sprite Tiles" right panel (selected placed tile) --------------- */
+
+.sprites-tile-back-btn {
+  margin-bottom: 8px;
+}
+
+.sprites-tile-flip-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+/* The composed ("metasprite") canvas, TILES palette and FRAMES timeline
+   are styled in sprites/Metasprite.css. */
