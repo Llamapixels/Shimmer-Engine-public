@@ -184,6 +184,13 @@ export interface TimerJSON {
   script?: EventScript;
 }
 
+export interface NoteJSON {
+  /** Tile position. */
+  x: number;
+  y: number;
+  text: string;
+}
+
 export interface SceneJSON {
   name?: string;
   background: string;
@@ -198,7 +205,13 @@ export interface SceneJSON {
   doors?: DoorJSON[];
   npcs?: NpcJSON[];
   timers?: TimerJSON[];
-  /** Row strings of "." (walkable) "#" (solid) "~" (water) "!" (damage).
+  /** Editor-only sticky notes (GB Studio's notes); the build ignores them. */
+  notes?: NoteJSON[];
+  /** Tiles tool: {"x,y": [sx, sy]} shows the background's own tile
+   * (sx, sy) in cell (x, y). Applied at build time; the PNG is untouched. */
+  tile_overrides?: Record<string, [number, number]>;
+  /** Row strings of "." (walkable) "#" (solid) "~" (water) "!" (damage),
+   * and one-way tiles "^" "v" "<" ">" (that edge is solid).
    * Omitted for a brand-new scene - the compiler fills in an all-walkable
    * grid and writes it back the first time it builds. */
   collision?: string[];

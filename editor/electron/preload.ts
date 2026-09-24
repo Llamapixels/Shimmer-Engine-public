@@ -38,6 +38,11 @@ const api: ShimmerEngineApi = {
     ipcRenderer.on(IPC_CHANNELS.buildLog, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.buildLog, listener);
   },
+  onShowAbout: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on(IPC_CHANNELS.showAbout, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.showAbout, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);

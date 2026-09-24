@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -294,7 +294,33 @@ function registerIpcHandlers(): void {
 
 app.setName("Shimmer Engine");
 
+const REDDIT_URL = "https://www.reddit.com/r/ShimmerEngine/";
+
+/** The app menu: Electron's standard File/Edit/View/Window menus, then
+ * Help (just About - no documentation links) and Community. */
+function buildMenu(): Menu {
+  const isMac = process.platform === "darwin";
+  const showAbout = () => mainWindow?.webContents.send(IPC_CHANNELS.showAbout);
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac ? [{ role: "appMenu" as const }] : []),
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [{ label: "About Shimmer Engine", click: showAbout }],
+    },
+    {
+      label: "Community",
+      submenu: [{ label: "Shimmer Engine on Reddit", click: () => void shell.openExternal(REDDIT_URL) }],
+    },
+  ];
+  return Menu.buildFromTemplate(template);
+}
+
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(buildMenu());
   registerIpcHandlers();
   createWindow();
 

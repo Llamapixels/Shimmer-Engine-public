@@ -41,6 +41,16 @@ Studio's own visual scripting: a small set of composable event types,
 authored per-object, rather than checkboxes like "locked door" or "one-time
 item" baked into the engine.
 
+Scene JSON collision, "collision": one string per tile row, one character
+per tile: "." walkable, "#" solid, "~" water (blocks walking), "!" damage,
+and one-way tiles "^" "v" "<" ">" whose top/bottom/left/right edge is solid
+(they can't be entered across that edge, only from the other sides).
+
+Scene JSON "tile_overrides" (the editor's Tiles tool): {"x,y": [sx, sy]}
+draws the background's own 8x8 tile (sx, sy) into cell (x, y) at build
+time; the PNG itself is left alone. "notes" (editor sticky notes) are
+ignored by the build.
+
 Scene JSON NPC format:
     "npcs": [
         {
@@ -388,8 +398,13 @@ COLLISION_CHARS = {
     "#": 1,   # solid
     "~": 2,   # water
     "!": 3,   # damage
+    "^": 4,   # one-way: top edge solid (can't enter from above)
+    "v": 5,   # one-way: bottom edge solid
+    "<": 6,   # one-way: left edge solid
+    ">": 7,   # one-way: right edge solid
 }
-COLLISION_NAMES = {0: "walkable", 1: "solid", 2: "water", 3: "damage"}
+COLLISION_NAMES = {0: "walkable", 1: "solid", 2: "water", 3: "damage",
+                   4: "top", 5: "bottom", 6: "left", 7: "right"}
 
 # Direction name -> engine constant
 DIRECTION_MAP = {
@@ -496,6 +511,10 @@ PREVIEW_COLORS = {
     1: (255, 0, 0, 110),
     2: (0, 80, 255, 110),
     3: (255, 160, 0, 110),
+    4: (255, 220, 0, 110),
+    5: (255, 220, 0, 110),
+    6: (255, 220, 0, 110),
+    7: (255, 220, 0, 110),
 }
 
 
@@ -520,9 +539,11 @@ def gba_color(rgb):
 # Background conversion
 # ---------------------------------------------------------------------------
 
-def load_background(path):
+def load_background(path, tile_overrides=None, scene_name=""):
     image = Image.open(path).convert("RGBA")
     w, h = image.size
+    if tile_overrides:
+        image = apply_tile_overrides(image, tile_overrides, scene_name or path.name)
 
     if w % TILE or h % TILE:
         raise BuildError(
@@ -536,6 +557,27 @@ def load_background(path):
             "a bigger map.")
 
     return image
+
+
+def apply_tile_overrides(image, overrides, where):
+    """The scene's "tile_overrides" (painted with the editor's Tiles tool):
+    {"x,y": [src_x, src_y]} puts the background's own 8x8 tile at
+    (src_x, src_y) into cell (x, y). Sources come from the unedited image."""
+    if not isinstance(overrides, dict):
+        raise BuildError(f"{where}: \"tile_overrides\" must be an object.")
+    src = image
+    out = image.copy()
+    tw, th = image.width // TILE, image.height // TILE
+    for key, value in overrides.items():
+        try:
+            x, y = (int(v) for v in key.split(","))
+            sx, sy = int(value[0]), int(value[1])
+        except (ValueError, TypeError, IndexError):
+            raise BuildError(f"{where}: bad tile_overrides entry '{key}'.") from None
+        if not (0 <= x < tw and 0 <= y < th and 0 <= sx < tw and 0 <= sy < th):
+            continue   # outside the image (e.g. after the background changed)
+        out.paste(src.crop((sx * TILE, sy * TILE, sx * TILE + TILE, sy * TILE + TILE)), (x * TILE, y * TILE))
+    return out
 
 
 def most_common_color(pixels):
@@ -664,8 +706,8 @@ def assign_banks(unique_tiles, backdrop, name, tile_positions, palette_map=None)
     return bank_lists, tile_bank
 
 
-def convert_background(path, name, palette_map=None):
-    image = load_background(path)
+def convert_background(path, name, palette_map=None, tile_overrides=None):
+    image = load_background(path, tile_overrides, name)
     w_tiles = image.width // TILE
     h_tiles = image.height // TILE
 
@@ -2426,7 +2468,7 @@ def build(project_dir, out_dir):
         if not bg_path.exists():
             raise BuildError(f"{name}: background not found: {bg_path}")
 
-        bg = convert_background(bg_path, name, scene.get("palette_map"))
+        bg = convert_background(bg_path, name, scene.get("palette_map"), scene.get("tile_overrides"))
         w, h = bg["width"], bg["height"]
 
         # New scene with no collision yet: write an all-walkable grid.

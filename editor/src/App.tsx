@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useProjectStore } from "./state/projectStore";
+import AboutDialog from "./components/AboutDialog";
 import BuildRomPanel from "./components/BuildRomPanel";
 import Toolbar from "./components/Toolbar";
 import Navigator from "./components/Navigator";
@@ -65,7 +66,7 @@ export default function App() {
         (e.target === document.body || (e.target as HTMLElement).tagName === "CANVAS")
       ) {
         const sel = useProjectStore.getState().selection;
-        if (sel.kind === "door" || sel.kind === "npc") {
+        if (sel.kind === "door" || sel.kind === "npc" || sel.kind === "note") {
           e.preventDefault();
           useProjectStore.getState().deleteSelected();
         }
@@ -99,7 +100,12 @@ export default function App() {
     };
   }, []);
   if (!project) {
-    return <WelcomeScreen loading={loading} />;
+    return (
+      <>
+        <WelcomeScreen loading={loading} />
+        <AboutDialog />
+      </>
+    );
   }
 
   return (
@@ -131,6 +137,7 @@ export default function App() {
       )}
       <StatusBar />
       <BuildRomPanel />
+      <AboutDialog />
     </div>
   );
 }

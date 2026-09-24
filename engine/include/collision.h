@@ -13,6 +13,14 @@
 #define COLLISION_WATER    2
 #define COLLISION_DAMAGE   3
 
+/* One-way tiles (GB Studio's top/bottom/left/right collisions): the
+ * named edge is solid, so the tile can't be entered across that edge
+ * but can be walked out of, or entered from the other sides. */
+#define COLLISION_TOP      4
+#define COLLISION_BOTTOM   5
+#define COLLISION_LEFT     6
+#define COLLISION_RIGHT    7
+
 void collision_init(void);
 
 void collision_set_map(
@@ -41,6 +49,17 @@ int collision_test_rect(
 );
 
 int collision_can_move(
+    int x,
+    int y,
+    int width,
+    int height
+);
+
+/* Like collision_can_move(), for a box moving from (from_x, from_y) to
+ * (x, y) - also honours one-way tiles. */
+int collision_can_move_from(
+    int from_x,
+    int from_y,
     int x,
     int y,
     int width,

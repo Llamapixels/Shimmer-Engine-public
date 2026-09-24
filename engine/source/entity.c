@@ -176,7 +176,8 @@ int entity_can_move(Entity *entity, int x, int y)
         return 0;
     if (!entity->solid || !entity->collide)
         return 1;
-    return collision_can_move(x + entity->col_ox, y + entity->col_oy, entity->col_w, entity->col_h);
+    return collision_can_move_from(entity->x + entity->col_ox, entity->y + entity->col_oy,
+                                   x + entity->col_ox, y + entity->col_oy, entity->col_w, entity->col_h);
 }
 
 void entity_update(Entity *entity)

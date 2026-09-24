@@ -112,3 +112,42 @@ int collision_can_move(
 {
     return !collision_test_rect(x, y, width, height);
 }
+
+int collision_can_move_from(
+    int from_x,
+    int from_y,
+    int x,
+    int y,
+    int width,
+    int height
+)
+{
+    if (collision_test_rect(x, y, width, height))
+        return 0;
+    if (x < 0 || y < 0)
+        return 0;
+
+    int dx = x - from_x;
+    int dy = y - from_y;
+    int tx0 = x / TILE_SIZE;
+    int ty0 = y / TILE_SIZE;
+    int tx1 = (x + width - 1) / TILE_SIZE;
+    int ty1 = (y + height - 1) / TILE_SIZE;
+
+    for (int ty = ty0; ty <= ty1; ty++)
+    {
+        for (int tx = tx0; tx <= tx1; tx++)
+        {
+            uint8_t c = collision_get_tile(tx, ty);
+            int left = tx * TILE_SIZE;
+            int top = ty * TILE_SIZE;
+            /* Blocked when the box crosses the solid edge on this move. */
+            if ((c == COLLISION_TOP && dy > 0 && from_y + height <= top) ||
+                (c == COLLISION_BOTTOM && dy < 0 && from_y >= top + TILE_SIZE) ||
+                (c == COLLISION_LEFT && dx > 0 && from_x + width <= left) ||
+                (c == COLLISION_RIGHT && dx < 0 && from_x >= left + TILE_SIZE))
+                return 0;
+        }
+    }
+    return 1;
+}
