@@ -128,7 +128,7 @@ export interface CreateContext {
   firstTimer: string | number | null;
   /** id of the first project.customScripts[] entry, if any. */
   firstCustomScript: string | null;
-  /** name of the first engine/music/*.mod-style asset, if any. */
+  /** name of the first song in assets/music, if any. */
   firstMusicTrack: string | null;
 }
 

@@ -1072,10 +1072,6 @@ int main(void)
         camera_get_y()
     );
 
-    /* Default track so there's always music even if the start scene
-     * doesn't specify its own (see engine/music/README.md for adding
-     * more tracks) - play_scene_music() below can override it. */
-    music_play(MOD_TEMPLATE, 1);
     play_scene_music(scene);
 
     while (1)

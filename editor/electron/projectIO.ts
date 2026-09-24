@@ -37,6 +37,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".bmp": "image/bmp",
+  ".uge": "application/octet-stream",
 };
 
 /** JSON.stringify with the same 2-space indent + trailing newline
@@ -175,8 +176,8 @@ async function exists(p: string): Promise<boolean> {
 /** The Shimmer Engine toolchain folder (the one containing engine/Makefile) that a
  * project lives inside, found by walking up from the project folder -
  * e.g. examples/demo -> ../../. That's where the player sprite
- * (engine/data/player.png) and music (engine/music/*.mod) live, since
- * the compiler/Makefile read them from there rather than per-project. */
+ * (engine/data/player.png) lives, since the compiler reads it from there
+ * rather than per-project. */
 export async function findEngineRoot(rootPath: string): Promise<string | null> {
   let dir = path.resolve(rootPath);
   for (let i = 0; i < 8; i++) {
@@ -197,8 +198,9 @@ async function baseDir(rootPath: string, base: AssetBase): Promise<string> {
 
 const IMAGE_EXTS = [".png"];
 /* .uge = hUGETracker / GB Studio songs (compiled by compiler/uge.py, played
- * by engine/source/huge.c); the rest are Maxmod modules. */
-const MUSIC_EXTS = [".uge", ".mod", ".xm", ".s3m", ".it"];
+ * by engine/source/huge.c). */
+const MUSIC_EXTS = [".uge"];
+const MUSIC_DIR = "assets/music";
 
 /** Folder each asset kind lives in, relative to its base. */
 function assetFolder(kind: AssetKind): { base: AssetBase; rel: string; exts: string[] } {
@@ -208,7 +210,7 @@ function assetFolder(kind: AssetKind): { base: AssetBase; rel: string; exts: str
     case "sprites":
       return { base: "project", rel: "assets/sprites", exts: IMAGE_EXTS };
     case "music":
-      return { base: "engine", rel: "engine/music", exts: MUSIC_EXTS };
+      return { base: "project", rel: MUSIC_DIR, exts: MUSIC_EXTS };
   }
 }
 
@@ -242,7 +244,7 @@ export async function listAssets(rootPath: string): Promise<AssetListing> {
   const engineRoot = await findEngineRoot(rootPath);
   const backgrounds = await listFolder(rootPath, "project", "assets/backgrounds", IMAGE_EXTS);
   const sprites = await listFolder(rootPath, "project", "assets/sprites", IMAGE_EXTS);
-  const music = engineRoot ? await listFolder(engineRoot, "engine", "engine/music", MUSIC_EXTS) : [];
+  const music = await listFolder(rootPath, "project", MUSIC_DIR, MUSIC_EXTS);
 
   let playerSprite: AssetInfo | null = null;
   if (engineRoot) {
@@ -304,9 +306,7 @@ export async function importAssetFiles(rootPath: string, kind: AssetKind, source
       throw new Error(`"${path.basename(src)}" isn't a ${folder.exts.join("/")} file.`);
     }
     const stem = safeStem(path.basename(src, path.extname(src)), kind === "music" ? "track" : "image");
-    // Music is referenced by name without extension, so "town.uge" must
-    // not share a name with an existing "town.mod" (or vice versa).
-    const fileName = await uniqueFileName(destDir, stem, ext, kind === "music" ? MUSIC_EXTS : [ext]);
+    const fileName = await uniqueFileName(destDir, stem, ext);
     await fs.copyFile(src, path.join(destDir, fileName));
   }
   return listAssets(rootPath);
@@ -352,7 +352,51 @@ export async function replacePlayerSprite(rootPath: string, sourcePath: string):
 
 export function importFilters(kind: AssetKind): { name: string; extensions: string[] }[] {
   const folder = assetFolder(kind);
-  return [{ name: kind === "music" ? "Tracker music" : "PNG images", extensions: folder.exts.map((e) => e.slice(1)) }];
+  return [{ name: kind === "music" ? "hUGETracker / GB Studio songs" : "PNG images", extensions: folder.exts.map((e) => e.slice(1)) }];
+}
+
+// ---------------------------------------------------------------------------
+// Songs (assets/music/*.uge), written by the music editor
+// ---------------------------------------------------------------------------
+
+function songPath(rootPath: string, name: string): string {
+  if (!/^[a-z0-9_]+$/.test(name)) throw new Error(`"${name}" isn't a valid song name (use a-z, 0-9 and _).`);
+  return path.join(rootPath, MUSIC_DIR, `${name}.uge`);
+}
+
+/** Overwrites assets/music/<name>.uge with the song's bytes. */
+export async function saveSong(rootPath: string, name: string, dataBase64: string): Promise<void> {
+  const file = songPath(rootPath, name);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp`;
+  await fs.writeFile(tmp, Buffer.from(dataBase64, "base64"));
+  await fs.rename(tmp, file);
+}
+
+/** Writes a new song under a name that doesn't clash with an existing one
+ * (desiredName is cleaned up first). Returns the name it got. */
+export async function createSong(rootPath: string, desiredName: string, dataBase64: string): Promise<string> {
+  const dir = path.join(rootPath, MUSIC_DIR);
+  await fs.mkdir(dir, { recursive: true });
+  const fileName = await uniqueFileName(dir, safeStem(desiredName, "song"), ".uge");
+  const name = fileName.slice(0, -4);
+  await saveSong(rootPath, name, dataBase64);
+  return name;
+}
+
+export async function deleteSong(rootPath: string, name: string): Promise<void> {
+  await fs.rm(songPath(rootPath, name));
+}
+
+/** Renames assets/music/<from>.uge. Returns the new name (cleaned up, and
+ * refused if another song already has it). */
+export async function renameSong(rootPath: string, from: string, to: string): Promise<string> {
+  const name = safeStem(to, "");
+  if (!name) throw new Error("Song names need at least one letter or digit.");
+  if (name === from) return name;
+  if (await exists(songPath(rootPath, name))) throw new Error(`There's already a song called "${name}".`);
+  await fs.rename(songPath(rootPath, from), songPath(rootPath, name));
+  return name;
 }
 
 export async function createBackground(payload: CreateBackgroundPayload): Promise<AssetInfo> {

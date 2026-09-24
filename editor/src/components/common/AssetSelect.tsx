@@ -77,7 +77,7 @@ export function MusicSelect({ value, onChange }: NameProps) {
         onChange={(e) => onChange(e.target.value || undefined)}
       >
         <option value="">(none — keep current music)</option>
-        {!known && <option value={cur}>{cur} (not in engine/music)</option>}
+        {!known && <option value={cur}>{cur} (not in assets/music)</option>}
         {names.map((n) => (
           <option key={n} value={n}>
             {n}

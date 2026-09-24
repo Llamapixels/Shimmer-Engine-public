@@ -22,25 +22,18 @@ export default function MusicView() {
       <div className="view-main">
         <div className="view-head">
           <div className="view-title">
-            Music <span className="view-sub">engine/music · {tracks.length}</span>
+            Music <span className="view-sub">assets/music · {tracks.length}</span>
           </div>
-          <button className="btn btn-primary" onClick={doImport} disabled={!assets?.engineRoot}>
-            Import track…
+          <button className="btn btn-primary" onClick={doImport}>
+            Import song…
           </button>
         </div>
         <div className="view-scroll">
           <p className="view-note">
-            GB Studio / hUGETracker songs (<code>.uge</code>) and tracker modules (<code>.mod</code>, <code>.xm</code>, <code>.s3m</code>, <code>.it</code>) in the engine's{" "}
-            <code>music</code> folder (.uge plays on the Game Boy sound channels, modules through maxmod). A scene plays a track when it loads if its Music property is
-            set; leave it unset to keep whatever is already playing. Tracks are shared by every project in this Shimmer Engine
-            folder. (No in-editor playback yet — play them in OpenMPT or similar.)
+            GB Studio / hUGETracker songs (<code>.uge</code>) in this project's <code>assets/music</code> folder, played on the
+            Game Boy sound channels. A scene plays a song when it loads if its Music property is set; leave it unset to keep
+            whatever is already playing.
           </p>
-          {!assets?.engineRoot && (
-            <p className="field-error">
-              Couldn't find the engine folder above this project, so music can't be listed. Projects need to live inside the
-              Shimmer Engine folder (e.g. next to examples/demo) to build.
-            </p>
-          )}
           {error && <p className="field-error">{error}</p>}
           {tracks.length === 0 ? (
             <div className="view-empty">No tracks yet.</div>

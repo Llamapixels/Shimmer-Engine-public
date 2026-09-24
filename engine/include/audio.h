@@ -2,10 +2,8 @@
 #define ADVANCE_AUDIO_H
 
 /*
- * Minimal sound: the GBA's built-in square-wave channel (PSG
- * channel 1), for short UI blips. No music/sample playback yet -
- * that needs a bigger system (Maxmod + tracker files), left for
- * later.
+ * Sound effects on the GBA's Game Boy-style PSG channels (UI blips,
+ * tones, beeps and noise). Music is music.h's job.
  */
 
 /* Turns on the sound hardware. Call once at startup. */

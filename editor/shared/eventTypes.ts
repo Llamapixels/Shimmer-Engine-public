@@ -366,9 +366,9 @@ export interface FadeInEvent extends EventBase {
   wait?: boolean;
 }
 
-/** Starts (or restarts) a music track by name (an engine/music/*.mod-
- * style asset, same names the MusicSelect picker/scene "music" property
- * use) - the script-authorable counterpart to a scene's own "music"
+/** Starts (or restarts) a song by name (a .uge file in the project's
+ * assets/music folder, same names the MusicSelect picker/scene "music"
+ * property use) - the script-authorable counterpart to a scene's own "music"
  * property, for changing music from an On Init/door/NPC/timer script
  * instead of only on scene load. "loop" (default true) repeats it
  * forever; false plays it once and stops. Playing the SAME track that's

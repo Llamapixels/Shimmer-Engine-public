@@ -223,7 +223,7 @@ typedef struct
                                   * is. */
 
     int16_t music_track;        /* -1 = leave whatever's already playing
-                                  * alone, else a MOD_* / UGE_* id to
+                                  * alone, else a UGE_* id to
                                   * switch to on entering this scene -
                                   * see "music" in scene JSON */
 

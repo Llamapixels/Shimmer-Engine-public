@@ -314,7 +314,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           onChange={(e) => patch({ [field.key]: e.target.value })}
         >
           {!cur && <option value="">Choose a track…</option>}
-          {cur && !known && <option value={cur}>{cur} (not in engine/music)</option>}
+          {cur && !known && <option value={cur}>{cur} (not in assets/music)</option>}
           {names.map((n) => (
             <option key={n} value={n}>
               {n}

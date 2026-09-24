@@ -25,7 +25,6 @@ BUILD		:= build
 SOURCES		:= source data
 INCLUDES	:= include data
 DATA		:=
-MUSIC		:= music
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -46,7 +45,7 @@ LDFLAGS	=	-g $(ARCH) -Wl,-Map,$(notdir $*.map)
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:= -lmm -lgba
+LIBS	:= -lgba
 
 
 #---------------------------------------------------------------------------------
@@ -76,13 +75,6 @@ CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
-
-ifneq ($(strip $(MUSIC)),)
-# Only module formats go to mmutil - .uge songs in the same folder
-# are turned into C (data/uge_songs.c) by compiler/build_project.py.
-	export AUDIOFILES	:=	$(foreach dir,$(notdir $(wildcard $(addprefix $(MUSIC)/*.,mod xm s3m it))),$(CURDIR)/$(MUSIC)/$(dir))
-	BINFILES += soundbank.bin
-endif
 
 #---------------------------------------------------------------------------------
 # use CXX for linking C++ projects, CC for standard C
@@ -142,13 +134,6 @@ $(OFILES_SOURCES) : $(HFILES)
 # The bin2o rule should be copied and modified
 # for each extension used in the data directories
 #---------------------------------------------------------------------------------
-
-#---------------------------------------------------------------------------------
-# rule to build soundbank from music files
-#---------------------------------------------------------------------------------
-soundbank.bin soundbank.h : $(AUDIOFILES)
-#---------------------------------------------------------------------------------
-	@mmutil $^ -osoundbank.bin -hsoundbank.h
 
 #---------------------------------------------------------------------------------
 # This rule links in binary data with the .bin extension
