@@ -144,6 +144,11 @@ $(OFILES_SOURCES) : $(HFILES)
 	@$(bin2o)
 
 
+# A header that has since been deleted (still listed in a .d file from an
+# older build) mustn't stop the build - the source that included it gets
+# recompiled instead.
+%.h: ;
+
 -include $(DEPSDIR)/*.d
 #---------------------------------------------------------------------------------------
 endif
