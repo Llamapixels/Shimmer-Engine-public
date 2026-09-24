@@ -14,6 +14,7 @@ import type {
 import type { SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import NamedListSelect from "../components/common/NamedListSelect";
 import NumberInput from "../components/common/NumberInput";
+import { playerSpriteName } from "../sprites/model";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import type { FieldDef } from "./eventCatalog";
 
@@ -91,7 +92,8 @@ export function FieldControl({ field, ev, env, patch }: Props) {
   const setTilePick = useProjectStore((s) => s.setTilePick);
   const customScripts = useProjectStore((s) => s.project?.project.customScripts ?? []);
   const constants = useProjectStore((s) => s.project?.project.constants ?? []);
-  const spriteSheets = useProjectStore((s) => s.project?.project.spriteSheets ?? []);
+  const project = useProjectStore((s) => s.project?.project);
+  const spriteSheets = project?.spriteSheets ?? [];
   const musicTracks = useProjectStore((s) => s.assets?.music ?? []);
   const variables = useProjectStore((s) => s.project?.project.variables) ?? [];
 
@@ -442,37 +444,38 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       // sprite's states) is a compile-time-only check either way.
       const actorRef = rec.actor;
       const npcs = env.scene.npcs ?? [];
+      const playerSprite = project ? playerSpriteName(project) : "player";
       let spriteName: string | undefined;
-      if (actorRef !== "self") {
-        const npc =
-          typeof actorRef === "number"
-            ? npcs[actorRef]
-            : npcs.find((n) => n.name === actorRef);
-        spriteName = npc?.sprite ?? "player";
+      if (actorRef === "player") spriteName = playerSprite;
+      else if (actorRef !== "self") {
+        const npc = typeof actorRef === "number" ? npcs[actorRef] : npcs.find((n) => n.name === actorRef);
+        spriteName = npc?.sprite || playerSprite;
       }
-      const sheet = spriteName ? spriteSheets.find((s) => s.name === spriteName) : undefined;
-      const states = sheet?.states ?? [];
-      if (actorRef === "self" || states.length === 0) {
+      // A sprite with no entry has just the default state.
+      const stateNames = spriteName
+        ? (spriteSheets.find((s) => s.name === spriteName)?.states ?? [{ name: "" }]).map((st) => st.name || "Default")
+        : [];
+      if (actorRef === "self" || stateNames.length === 0) {
         return (
           <input
             value={String(value ?? "")}
-            placeholder={states.length === 0 ? "(sprite has no authored states)" : "state name"}
+            placeholder="state name"
             onChange={(e) => patch({ [field.key]: e.target.value }, true)}
           />
         );
       }
       const cur = String(value ?? "");
-      const found = states.some((st) => st.name === cur);
+      const found = stateNames.includes(cur) || (cur.toLowerCase() === "default" && stateNames.includes("Default"));
       return (
         <select
           className={!found ? "select-invalid" : undefined}
-          value={cur}
+          value={found && cur.toLowerCase() === "default" ? "Default" : cur}
           onChange={(e) => patch({ [field.key]: e.target.value })}
         >
           {!found && <option value={cur}>{cur ? `${cur} (missing!)` : "Choose a state…"}</option>}
-          {states.map((st) => (
-            <option key={st.name} value={st.name}>
-              {st.name}
+          {stateNames.map((n) => (
+            <option key={n} value={n}>
+              {n}
             </option>
           ))}
         </select>

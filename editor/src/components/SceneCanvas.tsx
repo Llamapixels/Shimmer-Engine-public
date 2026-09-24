@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
-import { SPRITE_LEFT_SLOT_TO_RIGHT } from "../../shared/projectTypes";
-import type { DoorJSON, NpcJSON, SceneJSON, SpriteSheetJSON, SpriteStateJSON } from "../../shared/projectTypes";
+import type { DoorJSON, NpcJSON, ProjectJSON, SceneJSON } from "../../shared/projectTypes";
 import { sceneName, useProjectStore, type Brush, type Tool } from "../state/projectStore";
-import { mirrorTilesForLeft, normalizeTileIds, tileHeightFor } from "./views/sprites/metasprite";
+import { loadSpriteImage, type SpriteImage } from "../sprites/image";
+import { playerSpriteName, type Facing } from "../sprites/model";
+import { drawActor, sheetFor } from "../sprites/render";
 import "./SceneCanvas.css";
 
 const TILE = 8;
@@ -49,10 +50,6 @@ const BRUSHES: { id: Brush; label: string; swatch: string }[] = [
   { id: ".", label: "Erase", swatch: "erase" },
 ];
 
-/** Frame column per facing in a 96x16 sheet (see the compiler's
- * convert_npc_sprite): down 0, up 2, right 4; left = mirrored right. */
-const FRAME_COL: Record<string, number> = { down: 0, up: 2, right: 4, left: 4 };
-
 type Drag =
   | { kind: "move-npc"; index: number; dx: number; dy: number; x: number; y: number }
   | { kind: "move-door"; index: number; dx: number; dy: number; x: number; y: number }
@@ -91,27 +88,19 @@ function useImage(rootPath: string | null, relPath: string | null, base: "projec
   return { img, error };
 }
 
-/** Loads every sprite sheet the scene's NPCs use (keyed by sprite name). */
-function useSpriteSheets(rootPath: string | null, names: string[], hasPlayer: boolean, assetsVersion: unknown) {
-  const [sheets, setSheets] = useState<Record<string, HTMLImageElement>>({});
+/** Loads every sprite the scene shows (keyed by sprite name). */
+function useSpriteImages(rootPath: string | null, names: string[], assetsVersion: unknown) {
+  const [images, setImages] = useState<Record<string, SpriteImage>>({});
   const key = names.join("|");
   useEffect(() => {
     if (!rootPath) return;
     let cancelled = false;
     for (const name of names) {
-      const isPlayer = name === "player";
-      if (isPlayer && !hasPlayer) continue;
       window.api
-        .readAsset({
-          rootPath,
-          relPath: isPlayer ? "engine/data/player.png" : `assets/sprites/${name}.png`,
-          base: isPlayer ? "engine" : "project",
-        })
-        .then((r) => {
-          if (cancelled || !r.ok) return;
-          const im = new Image();
-          im.onload = () => !cancelled && setSheets((s) => ({ ...s, [name]: im }));
-          im.src = r.value.dataUrl;
+        .readAsset({ rootPath, relPath: `assets/sprites/${name}.png`, base: "project" })
+        .then((r) => (r.ok ? loadSpriteImage(r.value.dataUrl) : null))
+        .then((img) => {
+          if (!cancelled && img) setImages((s) => ({ ...s, [name]: img }));
         })
         .catch(() => undefined);
     }
@@ -119,8 +108,8 @@ function useSpriteSheets(rootPath: string | null, names: string[], hasPlayer: bo
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootPath, key, hasPlayer, assetsVersion]);
-  return sheets;
+  }, [rootPath, key, assetsVersion]);
+  return images;
 }
 
 export default function SceneCanvas() {
@@ -140,11 +129,7 @@ export default function SceneCanvas() {
   const placePrefab = useProjectStore((s) => s.placePrefab);
   const palettes = useProjectStore((s) => s.project?.project.palettes ?? []);
   const prefabs = useProjectStore((s) => s.project?.project.prefabs ?? []);
-  /** Authored per-sprite canvas size/composed-frame data (see
-   * SpriteSheetJSON) - so NPCs drawn on the canvas can show their real,
-   * possibly-bigger-than-16x16 composed frame instead of always cropping
-   * a fixed 16x16 legacy-layout square out of the sheet image. */
-  const spriteSheetDefs = useProjectStore((s) => s.project?.project.spriteSheets ?? []);
+  const projectJson = useProjectStore((s) => s.project?.project);
   const tilePick = useProjectStore((s) => s.tilePick);
   const setTilePick = useProjectStore((s) => s.setTilePick);
   const updateScene = useProjectStore((s) => s.updateScene);
@@ -183,11 +168,12 @@ export default function SceneCanvas() {
   const bgRel = data?.background ? `scenes/${data.background}` : null;
   const { img: bgImage, error: bgError } = useImage(rootPath, bgRel);
 
+  const playerSprite = projectJson ? playerSpriteName(projectJson) : "player";
   const spriteNames = useMemo(
-    () => Array.from(new Set((data?.npcs ?? []).map((n) => n.sprite ?? "player"))).sort(),
-    [data?.npcs],
+    () => Array.from(new Set([playerSprite, ...(data?.npcs ?? []).map((n) => n.sprite || playerSprite)])).sort(),
+    [data?.npcs, playerSprite],
   );
-  const sheets = useSpriteSheets(rootPath, spriteNames, !!assets?.playerSprite, assets);
+  const sheets = useSpriteImages(rootPath, spriteNames, assets);
 
   const bgTilesW = bgImage ? Math.floor(bgImage.width / TILE) : 0;
   const bgTilesH = bgImage ? Math.floor(bgImage.height / TILE) : 0;
@@ -308,25 +294,22 @@ export default function SceneCanvas() {
     });
 
     // NPCs.
-    (view.npcs ?? []).forEach((npc, i) => drawNpc(ctx, npc, i, S, sheets, spriteSheetDefs, selection.kind === "npc" && selection.sceneId === activeScene?.fileId && selection.index === i, v));
+    (view.npcs ?? []).forEach((npc, i) => drawNpc(ctx, npc, i, S, sheets, projectJson, playerSprite, selection.kind === "npc" && selection.sceneId === activeScene?.fileId && selection.index === i, v));
 
     // Player start.
     if (view.player_start) {
       const x = view.player_start.x * S;
       const y = view.player_start.y * S;
       const sz = ACTOR_TILES * S;
-      const sheet = sheets.player;
-      if (sheet) {
-        ctx.globalAlpha = 0.85;
-        ctx.drawImage(sheet, 0, 0, 16, 16, x, y, sz, sz);
-        ctx.globalAlpha = 1;
-      }
+      const img = sheets[playerSprite];
+      const sheet = img && projectJson ? sheetFor(projectJson, playerSprite, img) : null;
+      const drew = !!img && !!sheet && drawActor(ctx, img, sheet, "down", x, y, S / TILE, { alpha: 0.85 });
       ctx.strokeStyle = v("--success", "#3dd68c");
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
       ctx.strokeRect(x + 1, y + 1, sz - 2, sz - 2);
       ctx.setLineDash([]);
-      if (!sheet) {
+      if (!drew) {
         ctx.fillStyle = v("--marker-spawn", "rgba(72,199,116,.65)");
         ctx.fillRect(x, y, sz, sz);
       }
@@ -349,7 +332,7 @@ export default function SceneCanvas() {
       ctx.lineWidth = tilePick ? 2 : 1;
       ctx.strokeRect(hover.x * S + 0.5, hover.y * S + 0.5, size * S - 1, size * S - 1);
     }
-  }, [view, bgImage, zoom, showCollision, showPalettes, showGrid, tileW, tileH, selection, activeScene?.fileId, sheets, spriteSheetDefs, hover, drag, tool, tilePick]);
+  }, [view, bgImage, zoom, showCollision, showPalettes, showGrid, tileW, tileH, selection, activeScene?.fileId, sheets, projectJson, playerSprite, hover, drag, tool, tilePick]);
 
   // Cursor-centered ctrl+wheel zoom: the wheel handler below stores the
   // cursor's content-space position (see zoomAnchorRef) before changing
@@ -782,135 +765,27 @@ export default function SceneCanvas() {
   );
 }
 
-/** Best animation state on `states` to represent facing `dir` in a static
- * (non-animated) canvas preview: an explicit "idle<Dir>" slot first, then
- * "moving<Dir>"/"jumping<Dir>", then any slot merely ending in that
- * direction, then (for sheets with no `slot`s authored at all - a plain
- * custom-named state) a name that happens to mention the direction word,
- * preferring one that also says "idle" over "walk"/"jump"/etc. */
-function findStateForDir(states: SpriteStateJSON[], dir: "up" | "down" | "left" | "right"): SpriteStateJSON | undefined {
-  const cap = dir[0].toUpperCase() + dir.slice(1);
-  const bySlot = (slot: string) => states.find((st) => (st.slot ?? "").toLowerCase() === slot.toLowerCase());
-  const slotMatch =
-    bySlot(`idle${cap}`) ??
-    bySlot(`moving${cap}`) ??
-    bySlot(`jumping${cap}`) ??
-    states.find((st) => (st.slot ?? "").toLowerCase().endsWith(dir));
-  if (slotMatch) return slotMatch;
-  const byName = states.filter((st) => !st.slot && st.name.toLowerCase().includes(dir));
-  if (!byName.length) return undefined;
-  return byName.find((st) => /idle/i.test(st.name)) ?? byName[0];
-}
-
-/** The composed ("metasprite") tiles to show for `def`'s sprite facing
- * `dir`, or null if this sheet has no composed frames at all (the caller
- * falls back to the legacy fixed 96x16 crop in that case) - see
- * SpriteSheetJSON/SpriteStateJSON's doc comments for the data shape this
- * mirrors (same rules SpritesView's own preview uses: a "*Left" state
- * with no frames of its own is derived from its "Right" sibling, mirrored,
- * unless `flipLeft` is explicitly off). */
-function composedFrameFor(def: SpriteSheetJSON, dir: "up" | "down" | "left" | "right") {
-  const states = def.states ?? [];
-  const frames = def.frames ?? [];
-  const byId = (id: string) => frames.find((f) => f.id === id);
-  const state = findStateForDir(states, dir);
-  if (!state) return null;
-  let refs = state.frameRefs ?? [];
-  let mirror = false;
-  if (!refs.length && dir === "left") {
-    const rightSlot = state.slot ? SPRITE_LEFT_SLOT_TO_RIGHT[state.slot] : undefined;
-    const rightState = rightSlot
-      ? states.find((st) => st.slot === rightSlot)
-      : states.find((st) => !st.slot && st.name.toLowerCase().includes("right"));
-    if (rightState?.frameRefs?.length) {
-      refs = rightState.frameRefs;
-      mirror = def.flipLeft !== false;
-    }
-  }
-  if (!refs.length) return null;
-  const frame = byId(refs[0]);
-  if (!frame || !frame.tiles.length) return null;
-  const cw = def.canvasWidth ?? 16;
-  const ch = def.canvasHeight ?? 16;
-  const th = tileHeightFor(def.spriteMode === "8x8" ? "8x8" : "8x16");
-  const tiles = normalizeTileIds(frame.tiles);
-  return {
-    tiles: mirror ? mirrorTilesForLeft(tiles, cw) : tiles,
-    cw,
-    ch,
-    th,
-    originX: def.canvasOriginX ?? 0,
-    originY: def.canvasOriginY ?? 0,
-  };
-}
-
-/** Draws one composed frame's tiles at the entity's footprint (x, y) in
- * screen px, using the exact anchoring rule SpriteSheetJSON's doc comment
- * gives (a bigger-than-16x16 canvas grows upward/sideways from the
- * footprint's bottom-centre, shifted by canvasOrigin). Returns true if it
- * drew anything, so the caller knows not to fall back to the legacy crop. */
-function drawComposedNpc(
-  ctx: CanvasRenderingContext2D,
-  sheet: HTMLImageElement,
-  def: SpriteSheetJSON | undefined,
-  dir: "up" | "down" | "left" | "right",
-  x: number,
-  y: number,
-  S: number,
-): boolean {
-  if (!def) return false;
-  const composed = composedFrameFor(def, dir);
-  if (!composed) return false;
-  const pxZoom = S / 8; // screen px per sprite (game) pixel
-  for (const t of composed.tiles) {
-    const dx = t.x + Math.floor((16 - composed.cw) / 2) + composed.originX;
-    const dy = t.y + (16 - composed.ch) + composed.originY;
-    const sx = t.sheetX * 8;
-    const sy = t.sheetY * composed.th;
-    const dw = 8 * pxZoom;
-    const dh = composed.th * pxZoom;
-    ctx.save();
-    ctx.translate(x + dx * pxZoom + dw / 2, y + dy * pxZoom + dh / 2);
-    ctx.scale(t.flipX ? -1 : 1, t.flipY ? -1 : 1);
-    ctx.drawImage(sheet, sx, sy, 8, composed.th, -dw / 2, -dh / 2, dw, dh);
-    ctx.restore();
-  }
-  return true;
-}
-
 function drawNpc(
   ctx: CanvasRenderingContext2D,
   npc: NpcJSON,
   index: number,
   S: number,
-  sheets: Record<string, HTMLImageElement>,
-  spriteSheetDefs: SpriteSheetJSON[],
+  sheets: Record<string, SpriteImage>,
+  project: ProjectJSON | undefined,
+  playerSprite: string,
   selected: boolean,
   v: (name: string, fallback: string) => string,
 ) {
   const x = npc.x * S;
   const y = npc.y * S;
   const sz = ACTOR_TILES * S;
-  const sheet = sheets[npc.sprite ?? "player"];
-  const dir = (npc.direction ?? "down") as "up" | "down" | "left" | "right";
-  const def = spriteSheetDefs.find((sd) => sd.name === (npc.sprite ?? "player"));
-  const drewComposed = !!sheet && drawComposedNpc(ctx, sheet, def, dir, x, y, S);
-  if (!drewComposed) {
-    if (sheet && sheet.width >= 96) {
-      const col = FRAME_COL[dir] ?? 0;
-      ctx.save();
-      if (dir === "left") {
-        ctx.translate(x + sz, y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(sheet, col * 16, 0, 16, 16, 0, 0, sz, sz);
-      } else {
-        ctx.drawImage(sheet, col * 16, 0, 16, 16, x, y, sz, sz);
-      }
-      ctx.restore();
-    } else {
-      ctx.fillStyle = v("--marker-npc", "rgba(64,200,220,.6)");
-      ctx.fillRect(x, y, sz, sz);
-    }
+  const name = npc.sprite || playerSprite;
+  const img = sheets[name];
+  const sheet = img && project ? sheetFor(project, name, img) : null;
+  const facing = (npc.direction ?? "down") as Facing;
+  if (!img || !sheet || !drawActor(ctx, img, sheet, facing, x, y, S / TILE)) {
+    ctx.fillStyle = v("--marker-npc", "rgba(64,200,220,.6)");
+    ctx.fillRect(x, y, sz, sz);
   }
   ctx.strokeStyle = selected ? "#ffffff" : v("--marker-npc", "rgba(64,200,220,.6)");
   ctx.lineWidth = selected ? 2 : 1;

@@ -152,9 +152,8 @@ export interface ActorMoveToEvent extends EventBase {
   y: number;
 }
 
-/** "state" is a name (resolved against the actor's sprite's
- * SpriteSheetJSON.states) or a 0-based index into that list. Compile
- * error if the actor's sprite defines no states at all. */
+/** "state" is a state name of the actor's sprite ("Default" for the
+ * first) or a 0-based index into its states. */
 export interface ActorSetStateEvent extends EventBase {
   type: "actor_set_state";
   actor: ActorRef;
@@ -167,16 +166,16 @@ export interface ActorSetAnimateEvent extends EventBase {
   enabled: boolean;
 }
 
-/** Frame index into the actor's sprite sheet (0-7 under the legacy
- * convention; whatever the sheet's compiled frame count is otherwise). */
+/** Frame (0-based) of the actor's current animation; animation stops
+ * until re-enabled or the actor turns or starts/stops moving. */
 export interface ActorSetFrameEvent extends EventBase {
   type: "actor_set_frame";
   actor: ActorRef;
   frame: number;
 }
 
-/** Same fields as SpriteSheetJSON's collisionBox, but flat on the event
- * (not nested) and settable at runtime. */
+/** Like a sprite's bounds (relative to the actor's 16x16 footprint), but
+ * set at runtime. */
 export interface ActorSetCollisionBoxEvent extends EventBase {
   type: "actor_set_collision_box";
   actor: ActorRef;

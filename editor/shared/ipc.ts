@@ -85,9 +85,6 @@ export interface AssetListing {
   backgrounds: AssetInfo[];
   sprites: AssetInfo[];
   music: AssetInfo[];
-  /** The built-in "player" sprite sheet (engine/data/player.png), if the
-   * engine folder was found. */
-  playerSprite: AssetInfo | null;
   /** Absolute path of the folder containing engine/, or null if this
    * project isn't inside a Shimmer Engine checkout (music and the
    * player sprite can't be listed then). */
@@ -99,8 +96,15 @@ export interface ImportAssetsPayload {
   kind: AssetKind;
 }
 
-export interface ReplacePlayerSpritePayload {
+export interface SpriteNamePayload {
   rootPath: string;
+  name: string;
+}
+
+export interface RenameSpritePayload {
+  rootPath: string;
+  from: string;
+  to: string;
 }
 
 export interface CreateBackgroundPayload {
@@ -213,16 +217,12 @@ export interface ShimmerEngineApi {
   /** Opens a file picker, copies the chosen files into the right folder,
    * returns the fresh listing (null if cancelled). */
   importAssets(payload: ImportAssetsPayload): Promise<IpcResult<AssetListing | null>>;
-  /** Opens a file picker for a single PNG and overwrites the built-in
-   * player sprite sheet (engine/data/player.png) with it - the player's
-   * source PNG has always been "editable" in the sense that the compiler
-   * reads it fresh (see generate_player_graphics in build_project.py),
-   * this just gives the editor a way to replace the file itself instead
-   * of the user swapping it on disk by hand. Requires an exact 96x16 six-
-   * frame layout (same as any NPC sprite's legacy frames), since the
-   * player's non-composed fallback animation still depends on that fixed
-   * layout - returns the fresh listing, or null if cancelled. */
-  replacePlayerSprite(payload: ReplacePlayerSpritePayload): Promise<IpcResult<AssetListing | null>>;
+  /** Overwrite assets/sprites/<name>.png with a PNG the user picks (the
+   * sprite keeps its animations). The fresh listing, or null if cancelled. */
+  replaceSpriteImage(payload: SpriteNamePayload): Promise<IpcResult<AssetListing | null>>;
+  /** Renames assets/sprites/<from>.png; resolves to the new name. */
+  renameSprite(payload: RenameSpritePayload): Promise<IpcResult<string>>;
+  deleteSprite(payload: SpriteNamePayload): Promise<IpcResult<void>>;
   createBackground(payload: CreateBackgroundPayload): Promise<IpcResult<AssetInfo>>;
   newProjectDialog(): Promise<IpcResult<NewProjectDialogResult | null>>;
   createProject(payload: CreateProjectPayload): Promise<IpcResult<OpenProjectResult>>;
@@ -257,7 +257,9 @@ export const IPC_CHANNELS = {
   readAsset: "asset:read",
   listAssets: "asset:list",
   importAssets: "asset:import",
-  replacePlayerSprite: "asset:replace-player",
+  replaceSpriteImage: "sprite:replace-image",
+  renameSprite: "sprite:rename",
+  deleteSprite: "sprite:delete",
   createBackground: "asset:create-background",
   newProjectDialog: "project:new-dialog",
   createProject: "project:create",
