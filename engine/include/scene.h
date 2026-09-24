@@ -26,128 +26,12 @@ typedef struct
 } DoorDef;
 
 /*
- * An NPC's sprite sheet, shared across any scene that references it.
- * Compiled by compiler/build_project.py into npc_sprites[] in scenes_data.c.
+ * Every sprite sheet the project uses, compiled by
+ * compiler/build_project.py into sprite_defs[] in scenes_data.c (see
+ * SpriteDef in entity.h). player_sprite_index picks the player's.
  */
-typedef struct
-{
-    const uint8_t  *frames;       /* 4bpp tile data, 128 bytes per frame */
-    uint16_t        frame_count;  /* total frames (8: down/up/right/left × 2) */
-    uint8_t         palette_bank; /* OBJ palette bank (0 = player, 1-15 = NPC) */
-    const uint16_t *palette;      /* 16 GBA colors */
-
-    /*
-     * Authored animation states (optional - see EntityAnimState in
-     * entity.h), compiled from this sprite's project.json
-     * "spriteSheets" entry. 0/0 (the default for a sprite with no
-     * authored states) means scene_entities_load() leaves the NPC on
-     * the legacy fixed 4-direction/8-frame convention, driven by
-     * entity_animate() exactly as before this field existed.
-     */
-    const EntityAnimState *states;
-    uint8_t                state_count;
-
-    /*
-     * Authored collision box: offset + size within the sprite's 16x16
-     * canvas, compiled from the same "spriteSheets" entry. Defaults to
-     * (0, 0, 16, 16) - the full sprite rect, i.e. today's behavior -
-     * for a sprite with no authored box.
-     */
-    int8_t  col_ox;
-    int8_t  col_oy;
-    uint8_t col_w;
-    uint8_t col_h;
-
-    /*
-     * Authored canvas size in pixels (project.json "canvasWidth"/
-     * "canvasHeight"), default 16x16. For a legacy (non-composed) sheet
-     * this is metadata only and must be one of the 12 legal GBA OBJ sizes
-     * - frames are still 16x16 and the entity is created 16x16. For a
-     * composed sheet (multi_frames below) it is any 1..240 x 1..160 and
-     * has already been applied by the compiler: each sub-tile's dx/dy is
-     * anchored so the canvas's bottom-centre sits on the entity's 16x16
-     * footprint cell's bottom-centre (+ canvasOriginX/Y).
-     */
-    uint8_t width;
-    uint8_t height;
-
-    /*
-     * Authored tile-composed ("metasprite") frames (optional - see
-     * ASpriteMultiFrame in entity.h/sprite.h), compiled from this
-     * sprite's project.json "spriteSheets" entry (its "frames" list and
-     * any state's "frameRefs" - see shared/projectTypes.ts). 0/0 (the
-     * default) means this sprite has no authored tile placements at
-     * all - scene_entities_load() calls entity_set_frames() exactly as
-     * before this field existed, using `frames`/`frame_count` above.
-     * When set, `states` above are ALREADY indices into
-     * `multi_frames`/`multi_frame_count` (not the legacy numbered set) -
-     * see build_project.py's spriteSheets pass - and
-     * scene_entities_load() calls entity_set_multi_frames() instead,
-     * with `multi_max_sub_tiles` (the largest tile_count - OBJs/OAM
-     * entries - across multi_frames) and `multi_max_vram_tiles` (the
-     * largest vram_tiles - an 8x16 tall OBJ uses 2) as the OAM and VRAM
-     * reservations. When multi_frames is set, `width`/`height` above are
-     * the authored canvas size (any 1..240 x 1..160), already folded
-     * into each sub-tile's dx/dy by the compiler - the entity itself is
-     * still created as a 16x16 footprint cell.
-     */
-    const ASpriteMultiFrame *multi_frames;
-    uint16_t                 multi_frame_count;
-    uint8_t                  multi_max_sub_tiles;
-    uint16_t                 multi_max_vram_tiles;
-
-    /*
-     * Direction map (Animation Type) - see ANIM_MAP_KEEP/Entity.anim_map
-     * in entity.h. 8 state indices, indexed moving*4 + Direction, compiled
-     * from this sheet's slot-tagged states; 0 for a sheet with none (no
-     * change in runtime behaviour).
-     */
-    const uint8_t           *anim_map;
-} NpcSpriteDef;
-
-/*
- * The player's own authored animation states + collision box, compiled
- * from project.json's "spriteSheets" entry named "player" (same schema
- * as an NPC sprite's entry above). Unlike NpcSpriteDef this carries no
- * legacy frame/palette data - the player uses player_graphics.h's
- * player_graphics/PLAYER_FRAME_COUNT/player_palette (generated
- * separately by tools/png_to_gba_sprite.py), unless the sheet has
- * composed frames (multi_frames below).
- *
- * A project with no "player" spriteSheets entry (or one with neither
- * "states" nor "collisionBox") gets state_count == 0 and the default
- * (0, 0, 16, 16) box here - main.c leaves the player Entity on the
- * legacy fixed 4-direction/8-frame convention (entity_animate()),
- * unchanged from before this feature existed. Always defined by
- * compiler/build_project.py (as player_sprite_def in scenes_data.c),
- * even for a project with no "spriteSheets" at all.
- */
-typedef struct
-{
-    const EntityAnimState *states;
-    uint8_t                state_count;
-
-    int8_t  col_ox;
-    int8_t  col_oy;
-    uint8_t col_w;
-    uint8_t col_h;
-
-    /* Authored canvas/hardware size - see NpcSpriteDef's width/height
-     * doc comment above. */
-    uint8_t width;
-    uint8_t height;
-
-    /* Tile-composed frames + direction map - same meaning as the
-     * NpcSpriteDef fields of the same names. multi_frame_count > 0 makes
-     * main.c use entity_set_multi_frames() for the player (frames sliced
-     * from engine/data/player.png, drawn with player_palette in OBJ bank
-     * 0) instead of player_graphics; 0 = the legacy path, unchanged. */
-    const ASpriteMultiFrame *multi_frames;
-    uint16_t                 multi_frame_count;
-    uint8_t                  multi_max_sub_tiles;
-    uint16_t                 multi_max_vram_tiles;
-    const uint8_t           *anim_map;
-} PlayerSpriteDef;
+extern const SpriteDef sprite_defs[];
+extern const uint8_t player_sprite_index;
 
 /*
  * One NPC placed in a scene. x/y are in pixels (already multiplied
@@ -162,7 +46,9 @@ typedef struct
     int16_t x;
     int16_t y;
     uint8_t direction;      /* Direction: 0=down 1=up 2=right 3=left */
-    uint8_t sprite_index;   /* index into npc_sprites[] */
+    uint8_t sprite_index;   /* index into sprite_defs[] */
+    uint8_t palette_bank;   /* OBJ palette bank the compiler gave this
+                              * sprite in this scene (0 = the player's) */
     uint8_t movement;       /* 0 = static (default), 1 = wanders nearby
                               * tiles at random - see "movement" in
                               * scene JSON. This (like GB Studio's own

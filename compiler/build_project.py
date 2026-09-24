@@ -12,141 +12,18 @@ Reads a Shimmer Engine project folder:
                                    "variables": ["score"] }         <- optional
         scenes/<name>.json      one file per scene
         assets/backgrounds/     background PNGs
-        assets/sprites/         NPC sprite PNGs (96x16, same format as player.png)
+        assets/sprites/         sprite PNGs (any size, up to 15 colors)
 
 and writes GBA-ready C data into engine/data/:
 
     scenes_data.c / scenes_data.h
 
-NPC sprites are embedded in scenes_data.c.  The special sprite name "player"
-reuses the player_graphics / player_palette symbols already compiled by
-tools/png_to_gba_sprite.py.
-
-Optional per-sprite-sheet animation/collision metadata, in project.json's
-"spriteSheets" list (matched by name to "sprite" in an NPC, or "player"):
-    "spriteSheets": [
-        {
-            "name": "npc1",             <- matches assets/sprites/npc1.png,
-                                            or "player" for the built-in sheet
-            "states": [                 <- optional; a sprite with none keeps
-                                            the legacy fixed convention below
-                {
-                    "name": "wave",     <- unique within this sheet; targeted
-                                            by "actor_set_state" events
-                    "frames": [4, 5, 4, 6],  <- frame indices into this
-                                                sheet's compiled 8-frame set
-                                                (0,1=down 2,3=up 4,5=right
-                                                6,7=left - see "Sheet layout"
-                                                below), shown in this order
-                    "speed": 6,         <- optional, VBlanks per frame
-                                            (default 8, ENTITY_ANIM_SPEED)
-                    "slot": "movingRight"  <- optional (see "animationType"
-                                                below)
-                }
-            ],
-            "collisionBox": {           <- optional; default is the full
-                                            16x16 sprite rect
-                "x": 4, "y": 8,         <- offset within the sprite's canvas
-                "width": 8, "height": 8
-            },
-            "animationType": "multi_movement",  <- optional (see
-                                                     editor/shared/
-                                                     projectTypes.ts's
-                                                     SpriteAnimationType) -
-                                                     decides which "slot"s
-                                                     feed the runtime
-                                                     direction map (below)
-            "flipLeft": true,           <- optional, default true. Any state
-                                            whose "slot" above is
-                                            idleLeft/movingLeft/jumpingLeft
-                                            has its frames/speed/flips
-                                            REPLACED with a mirror of its
-                                            "*Right" sibling state (matched
-                                            by "slot") - set false to author
-                                            such a state's frames yourself
-            "canvasWidth": 16,           <- optional, default 16. On a sheet
-            "canvasHeight": 16               WITHOUT composed frames: metadata
-                                              only, must be one of the 12 legal
-                                              GBA OBJ sizes (GBA_SPRITE_SIZES).
-                                              On a composed sheet: any 1..240 x
-                                              1..160 (see anchoring below)
-            "canvasOriginX": 0,          <- optional (composed sheets), shifts
-            "canvasOriginY": 0              the anchored canvas, px
-            "spriteMode": "8x16",        <- optional (composed sheets), "8x16"
-                                             (default) or "8x8" - size of ONE
-                                             placed tile. An 8x16 tile is one
-                                             tall hardware OBJ covering sheet
-                                             rows sheetY and sheetY+1
-            "frames": [                  <- optional; authored tile-composed
-                                             ("metasprite") frames - see
-                                             editor/shared/projectTypes.ts's
-                                             SpriteFrameJSON/PlacedTileJSON.
-                                             Referenced by a state's
-                                             "frameRefs" (below), NOT by its
-                                             "frames" (the legacy numbered
-                                             set)
-                {
-                    "id": "walk_right_1",
-                    "tiles": [
-                        { "x": 0, "y": 0, "sheetX": 4, "sheetY": 0 },
-                        { "x": 9, "y": -3, "sheetX": 5, "sheetY": 0,
-                          "flipX": true, "palette": 3, "priority": true }
-                    ]
-                }
-            ]
-        }
-    ]
-A state's "frameRefs" (parallel/alternative to "frames" above): ordered
-ids into its sheet's "frames" - when non-empty, this state is shown/
-compiled from these tile-composed frames instead of the legacy numbered
-set. A sheet where ANY state references a composed frame compiles its
-WHOLE animation set (every state, composed or legacy-numbered) through the
-engine's multi-tile ("metasprite") path (see engine/source/sprite.c's
-sprite_init_multi/ASpriteMultiFrame); a legacy numbered frame on such a
-sheet becomes two tall 8x16 OBJs at entity offset (0,0)/(8,0). A sheet
-where no state references a composed frame compiles exactly as before
-this feature existed (the backward-compatibility boundary). Composed-frame
-rules:
-  - Only frames some state references are compiled; unreferenced frames
-    are skipped entirely (no validation, no ROM space).
-  - Tile x/y are pixel positions (any integer) relative to the canvas's
-    top-left; a tile may hang partly outside the canvas, one lying
-    entirely outside it is dropped with a warning.
-  - Anchoring: the canvas's bottom-centre sits on the bottom-centre of
-    the entity's 16x16 footprint cell, then shifts by canvasOrigin:
-        dx = x + (16 - canvasWidth) // 2 + canvasOriginX
-        dy = y + (16 - canvasHeight)     + canvasOriginY
-    The result must fit the engine's int8 offsets (-128..127).
-  - A frame with no tiles is valid and shows nothing.
-  - flipLeft: a "*Left" slot state derived from its "*Right" sibling shows
-    the sibling's composed frames mirrored tile by tile (x' = canvasWidth
-    - x - 8, flipX toggled, before anchoring).
-  - Later-listed tiles draw on top (as in GB Studio's editor).
-The "player" sheet may use composed frames too: its atlas is
-engine/data/player.png (checked against engine/data/player_graphics.c, so
-the colours match player_palette in OBJ bank 0).
-
-Every sheet with slot-tagged states also gets a runtime direction map
-(anim_map - see build_anim_map() and engine/include/entity.h): walking/
-facing picks the state for that direction per the sheet's animationType,
-the way GB Studio's actors animate.
-
-A sprite sheet with no "spriteSheets" entry (or an entry with neither
-"states" nor "collisionBox") compiles exactly as it always has: the legacy
-fixed 4-direction/8-frame convention (engine/include/entity.h's
-entity_animate()) and a collision box equal to the full sprite rect.
-
-A "player" entry applies to BOTH any NPC that reuses the player sprite
-sheet (via npc_sprites[], like any other sprite name) AND the actual
-player Entity created in engine/source/main.c - the latter is compiled
-into a separate player_sprite_def global (see PlayerSpriteDef in
-scene.h), since the player's frame/palette data itself still comes from
-the statically pre-baked engine/data/player_graphics.h (generated by
-tools/png_to_gba_sprite.py, not by this script) rather than from
-project.json/assets/sprites. A project with no "player" spriteSheets
-entry gets a player_sprite_def with state_count 0 and the default
-(0,0,16,16) box, and main.c's player Entity is completely unaffected -
-same legacy convention as always.
+Sprites (the player's and every NPC's) are compiled into scenes_data.c as
+sprite_defs[] - see compiler/sprites.py for the "spriteSheets" format (GB
+Studio's: a canvas, animation states, 8 animations per state, frames built
+from tiles cut out of the PNG) and how frames become GBA hardware OBJs.
+project.json "playerSprite" names the player's sprite (default "player";
+with no assets/sprites/player.png that is engine/data/player.png).
 
 "items", "flags" and "variables" in project.json are project-wide named lists
 (like GB Studio's own inventory/switches/variables): "items" back an
@@ -167,7 +44,8 @@ item" baked into the engine.
 Scene JSON NPC format:
     "npcs": [
         {
-            "sprite": "npc1",          <- assets/sprites/npc1.png (or "player")
+            "sprite": "npc1",          <- assets/sprites/npc1.png (default:
+                                           the player's sprite)
             "x": 10,                   <- tile column
             "y": 8,                    <- tile row
             "direction": "down",       <- down / up / right / left
@@ -310,24 +188,21 @@ Event script types (used in "on_interact" and door "events" lists):
         author-directed movement, not the player's collision-checked
         movement.
     { "type": "actor_set_state", "actor": ..., "state": "<name, or index>" }
-        Switch an actor to one of its sprite's authored animation states
-        (see "spriteSheets" above). The actor's sprite must define at least
-        one state - this is a compile error on a sprite using the legacy
-        fixed convention.
+        Switch an actor to one of its sprite's animation states (by name,
+        "Default"/"" for the first, or index).
     { "type": "actor_set_animate", "actor": ..., "enabled": true }
-        Turn per-frame animation stepping on ("enabled": true, the default)
-        or off for an actor using authored states - off holds whatever
-        frame is currently shown.
+        Turn animation on ("enabled": true, the default) or off - off holds
+        whatever frame is currently shown.
     { "type": "actor_set_frame", "actor": ..., "frame": 3 }
-        Show a specific frame directly, by index into the actor's sprite
-        sheet - bypasses the current state's frame list (and also stops
-        animation stepping, like actor_set_animate false, until re-enabled).
+        Show a frame (0-based) of the actor's current animation and stop
+        animating, until animation is turned back on or the actor turns or
+        starts/stops moving.
     { "type": "actor_set_collision_box", "actor": ...,
       "x": 0, "y": 4, "width": 16, "height": 12 }
         Override an actor's collision box: offset ("x"/"y", default 0/0)
-        and size ("width"/"height", required) in pixels within its sprite's
-        canvas - same shape as a sprite sheet's "collisionBox" above, but
-        settable at runtime (e.g. shrinking a character's box when it lies
+        and size ("width"/"height", required) in pixels, relative to the
+        actor's 16x16 footprint - like a sprite's "bounds", but settable at
+        runtime (e.g. shrinking a character's box when it lies
         down).
     { "type": "wait_button", "buttons": "a" }
     { "type": "wait_button", "buttons": ["a", "b"] }
@@ -481,6 +356,8 @@ import sys
 
 from PIL import Image
 
+from sprites import (SheetImage, SpriteError, check_sheet, compile_sprite, default_sheet,
+                     emit_sprite)
 from uge import UgeError, build_uge_songs, track_const as uge_track_const
 from expr import ExprError, compile_expression, to_rpn as expr_to_rpn
 import expr as X
@@ -521,121 +398,6 @@ DIRECTION_MAP = {
     "right": 2,
     "left":  3,
 }
-
-ENTITY_STATE_MAX_FRAMES = 16   # keep in sync with entity.h's ENTITY_STATE_MAX_FRAMES
-
-# Known project.json "animationType" values (editor/shared/projectTypes.ts's
-# SpriteAnimationType / SPRITE_ANIMATION_SLOTS) - validated here for an
-# early, clear error on a typo. flipLeft derivation is driven off each
-# state's own "slot"; the animationType additionally picks which slots feed
-# the runtime direction map (see build_anim_map()).
-SPRITE_ANIMATION_TYPES = {
-    "fixed", "fixed_movement", "multi", "multi_movement",
-    "horizontal", "horizontal_movement", "platform_player", "cursor",
-}
-
-# "*Left" slot -> its "*Right" sibling slot (editor/shared/projectTypes.ts's
-# SPRITE_LEFT_SLOT_TO_RIGHT). A state whose "slot" is a key here, on a sheet
-# whose "flipLeft" isn't explicitly false, is derived from the sibling
-# state whose "slot" is the mapped value - see the spriteSheets pass below.
-SPRITE_LEFT_SLOT_TO_RIGHT = {
-    "idleLeft": "idleRight",
-    "movingLeft": "movingRight",
-    "jumpingLeft": "jumpingRight",
-}
-
-# Legal GBA hardware OBJ sizes (engine/source/sprite.c's size_table) that a
-# sheet's "canvasWidth"/"canvasHeight" must be one of - see the spriteSheets
-# pass below and SpriteSheetJSON.canvasWidth's doc comment.
-GBA_SPRITE_SIZES = {
-    (8, 8), (16, 16), (32, 32), (64, 64),
-    (16, 8), (32, 8), (32, 16), (64, 32),
-    (8, 16), (8, 32), (16, 32), (32, 64),
-}
-
-# engine/include/sprite.h's ASPRITE_MAX_SUBTILES - the most placed tiles
-# one authored composed ("metasprite") frame may use (also how many OAM
-# slots get reserved, once, for a sheet that uses this feature at all -
-# see sprite.c's sprite_init_multi doc comment).
-ASPRITE_MAX_SUBTILES = 16
-
-# GBA OBJ palette banks (sprite.c's ADV_OBJ_PALETTE, 16 banks x 16
-# colors). A placed tile's "palette" (shared/projectTypes.ts's
-# PlacedTileJSON.palette - the GBA-only simplification of GB Studio's
-# dual OBP0/OBP1 + color-palette fields, see that type's doc comment)
-# must be one of these; unlike MAX_BANKS/COLORS_PER_BANK above (BG
-# palettes), no bank is reserved here - all 16 are addressable, it's up
-# to the project not to collide two different sprites' bank choices
-# (same constraint the existing "npc_palette_bank" assignment lives
-# with already).
-OBJ_PALETTE_BANK_MAX = 16
-
-# Composed-sheet canvas limits (SpriteSheetJSON "ROUND 3 CONTRACT" in
-# editor/shared/projectTypes.ts): a composed frame is built from many OBJs,
-# so the canvas is any size up to the GBA screen, not one legal OBJ shape.
-COMPOSED_CANVAS_MAX_W = 240
-COMPOSED_CANVAS_MAX_H = 160
-
-# SpriteSheetJSON.spriteMode values -> placed-tile height in pixels. "8x16"
-# (the default, as in GB Studio) is ONE tall hardware OBJ per placed tile,
-# using two consecutive 8x8 VRAM tiles (1D OBJ mapping: sheet row sheetY on
-# top, sheetY+1 below).
-SPRITE_MODE_TILE_H = {"8x8": 8, "8x16": 16}
-DEFAULT_SPRITE_MODE = "8x16"
-
-# Which "slot" names each animationType defines (editor/shared/
-# projectTypes.ts's SPRITE_ANIMATION_SLOTS) - used to build a sheet's
-# runtime direction->state map (anim_map, see build_anim_map()).
-SPRITE_ANIMATION_SLOTS = {
-    "fixed": {"idle"},
-    "fixed_movement": {"idle", "moving"},
-    "horizontal": {"idleRight", "idleLeft"},
-    "horizontal_movement": {"idleRight", "idleLeft", "movingRight", "movingLeft"},
-    "multi": {"idleRight", "idleLeft", "idleUp", "idleDown"},
-    "multi_movement": {"idleRight", "idleLeft", "idleUp", "idleDown",
-                       "movingRight", "movingLeft", "movingUp", "movingDown"},
-    "platform_player": {"idleRight", "idleLeft", "jumpingRight", "jumpingLeft",
-                        "movingRight", "movingLeft", "climbing"},
-    "cursor": {"idle", "hover"},
-}
-
-# engine/include/entity.h's Direction order - anim_map is indexed
-# moving * 4 + direction.
-ANIM_MAP_DIRS = ("Down", "Up", "Right", "Left")
-ANIM_MAP_KEEP = 0xFF   # "keep whatever state is current" (entity.h ANIM_MAP_KEEP)
-
-
-def build_anim_map(anim_type, slot_to_index):
-    """Build the 8-entry runtime direction map for one sprite sheet
-    (engine/include/entity.h's Entity.anim_map, indexed moving*4 + Direction,
-    value = state index or ANIM_MAP_KEEP), from its slot-tagged states.
-    Returns None when the sheet has no usable slot-tagged state (-> no map,
-    the engine keeps its legacy behaviour).
-
-    Only the slots `anim_type` defines (SPRITE_ANIMATION_SLOTS) are
-    considered - a state left over from a previous animationType is not
-    picked up; with no animationType at all, every slot is considered.
-      idle[d]   = state for "idle<D>", else "idle" (fixed/cursor), else KEEP
-      moving[d] = state for "moving<D>", else "moving" (fixed_movement),
-                  else idle[d]
-    So multi(_movement) maps all 4 directions; horizontal(_movement) and
-    platform_player map Right/Left only (Up/Down = KEEP); fixed(_movement)
-    and cursor map every direction to idle (and moving). jumping*/
-    climbing/hover slots are NOT mapped (no jump/climb/hover state in the
-    engine's movement code yet) - reachable via actor_set_state only."""
-    allowed = SPRITE_ANIMATION_SLOTS.get(anim_type) if anim_type else None
-    slots = {k: v for k, v in slot_to_index.items()
-             if allowed is None or k in allowed}
-    if not slots:
-        return None
-    idle = [slots.get("idle" + d, slots.get("idle", ANIM_MAP_KEEP)) for d in ANIM_MAP_DIRS]
-    moving = [slots.get("moving" + d, slots.get("moving", idle[i]))
-              for i, d in enumerate(ANIM_MAP_DIRS)]
-    anim_map = idle + moving
-    if all(v == ANIM_MAP_KEEP for v in anim_map):
-        return None
-    return anim_map
-
 
 MAX_EVENT_FLAGS = 32   # one bit per named flag, in SaveData.flags
 MAX_ITEMS = 32         # one bit per named item, in SaveData.inventory
@@ -1134,20 +896,13 @@ def resolve_small_int(value, field, where, lo, hi):
 
 
 def resolve_state(actor_idx, ref, ctx, where):
-    """Resolve an "actor_set_state" event's "state" field (a name or an
-    index) to its 0-based index within the target actor's sprite's
-    authored states list (project.json "spriteSheets"[].states) - same
-    shape as resolve_actor()/resolve_timer() above."""
-    sprite_of = ctx.get("npc_sprite_of", {})
-    sprite_name = sprite_of.get(actor_idx)
+    """Resolve an "actor_set_state" event's "state" field (a state name or
+    an index) to its index in the target actor's sprite's "states" list.
+    The first state's name is "" (shown as "Default"); "default" also
+    finds it."""
+    sprite_name = ctx.get("npc_sprite_of", {}).get(actor_idx)
     names = ctx.get("sprite_state_names", {}).get(sprite_name, {})
     count = len(names)
-
-    if not names:
-        raise BuildError(
-            f"{where}: actor's sprite '{sprite_name}' has no authored "
-            "animation states. Add a \"states\" list to it under "
-            "project.json's \"spriteSheets\" first.")
 
     if isinstance(ref, bool):
         raise BuildError(f"{where}: \"state\" must be a state name or index.")
@@ -1160,12 +915,14 @@ def resolve_state(actor_idx, ref, ctx, where):
         return ref
 
     if isinstance(ref, str):
-        if ref not in names:
-            known = ", ".join(sorted(names))
-            raise BuildError(
-                f"{where}: unknown state '{ref}' on sprite '{sprite_name}'. "
-                f"Known states: {known}")
-        return names[ref]
+        if ref in names:
+            return names[ref]
+        if ref.lower() == "default" and "" in names:
+            return names[""]
+        known = ", ".join(sorted(n or "Default" for n in names))
+        raise BuildError(
+            f"{where}: unknown state '{ref}' on sprite '{sprite_name}'. "
+            f"Its states: {known}")
 
     raise BuildError(f"{where}: \"state\" must be a state name or index.")
 
@@ -2299,273 +2056,70 @@ def _emit_script_array(c_parts, ident, instructions):
 
 
 # ---------------------------------------------------------------------------
-# NPC sprite conversion
+# Sprites (the conversion itself lives in compiler/sprites.py)
 # ---------------------------------------------------------------------------
 
-SPRITE_FRAME_W = 16
-SPRITE_FRAME_H = 16
-SPRITE_FRAMES  = 8   # 2 per direction × 4 directions
-
-def _sprite_palette(image):
-    """Build a 16-entry GBA palette from a sprite sheet. Slot 0 = transparent."""
-    colors = []
-    for r, g, b, a in image.getdata():
-        if a == 0:
-            continue
-        rgb = (r, g, b)
-        if rgb not in colors:
-            colors.append(rgb)
-    if len(colors) > 15:
-        raise BuildError(
-            f"Sprite has {len(colors)} visible colors; maximum is 15.")
-    palette = [0]   # slot 0 = transparent
-    for rgb in colors:
-        palette.append(gba_color(rgb))
-    while len(palette) < 16:
-        palette.append(0)
-    return palette, colors
+DEFAULT_PLAYER_PNG = Path(__file__).resolve().parent.parent / "engine" / "data" / "player.png"
 
 
-def _sprite_pixel_index(pixel, vis_colors):
-    r, g, b, a = pixel
-    if a == 0:
-        return 0
-    return 1 + vis_colors.index((r, g, b))
+def compile_project_sprites(project, project_dir, names):
+    """Compile each sprite in `names` (assets/sprites/<name>.png plus its
+    project.json "spriteSheets" entry, if any). Returns {name:
+    CompiledSprite}."""
+    sheets = project.get("spriteSheets", [])
+    if not isinstance(sheets, list):
+        raise BuildError("project.json \"spriteSheets\" must be a list.")
+    by_name = {}
+    for i, sheet in enumerate(sheets):
+        if not isinstance(sheet, dict) or not isinstance(sheet.get("name"), str):
+            raise BuildError(f"project.json spriteSheets[{i}] must be an object with a \"name\".")
+        if sheet["name"] in by_name:
+            raise BuildError(f"project.json spriteSheets has two entries named '{sheet['name']}'.")
+        by_name[sheet["name"]] = (i, sheet)
+
+    sprites_dir = project_dir / "assets" / "sprites"
+    compiled = {}
+    for name in names:
+        png = sprites_dir / f"{name}.png"
+        if not png.exists() and name == "player":
+            png = DEFAULT_PLAYER_PNG
+        if not png.exists():
+            raise BuildError(
+                f"sprite '{name}': {sprites_dir / (name + '.png')} not found. Add the PNG "
+                "in the editor's Sprites section, or pick another sprite.")
+        try:
+            image = SheetImage(png, name)
+            if name in by_name:
+                i, sheet = by_name[name]
+                sheet = check_sheet(sheet, f"project.json spriteSheets[{i}] ('{name}')")
+            else:
+                sheet = default_sheet(name, image.width, image.height)
+            cs = compile_sprite(sheet, image, f"sprite '{name}'")
+        except SpriteError as e:
+            raise BuildError(str(e)) from None
+        print(f"  sprite: {name} - {len(cs.frames)} frame(s), {len(cs.state_maps)} state(s), "
+              f"up to {cs.max_objs} OBJ(s) / {cs.max_vram} VRAM tile(s) per frame")
+        compiled[name] = cs
+    return compiled
 
 
-def _sprite_8x8(tile_img, vis_colors):
-    pixels = []
-    for y in range(8):
-        for x in range(8):
-            pixels.append(_sprite_pixel_index(tile_img.getpixel((x, y)), vis_colors))
-    result = []
-    for i in range(0, 64, 2):
-        result.append(pixels[i] | (pixels[i + 1] << 4))
-    return result
-
-
-def _sprite_frame(frame_img, vis_colors):
-    """Convert one 16x16 frame to GBA 4bpp, 1D-mapped (2×2 of 8×8 tiles)."""
-    data = []
-    for ty in range(2):
-        for tx in range(2):
-            tile = frame_img.crop((tx*8, ty*8, tx*8+8, ty*8+8))
-            data.extend(_sprite_8x8(tile, vis_colors))
-    return data
-
-
-def _sprite_atlas_tile(image, vis_colors, col, row, flip_x=False, flip_y=False):
-    """32 bytes of raw 4bpp pixel data for the 8x8 tile at tile-grid
-    (col, row) in the full imported sheet `image` (NOT a flip-baked
-    legacy frame - the source PlacedTileJSON references straight into
-    this atlas by tile-grid coordinates - see shared/projectTypes.ts's
-    PlacedTileJSON). Used for composed ("metasprite") frames: unlike the
-    legacy whole-frame flip bake (emit_sprite_states' remap_frames),
-    flip_x/flip_y here are ONLY used for validation-time preview/consistency -
-    the engine applies per-tile flip as an OAM bit at runtime (see
-    sprite.c's ASpriteSubTile), so the byte data returned is always the
-    tile's raw, unflipped pixels."""
-    tile = image.crop((col * 8, row * 8, col * 8 + 8, row * 8 + 8))
-    return _sprite_8x8(tile, vis_colors)
-
-
-def convert_npc_sprite(path, name):
-    """
-    Load a sprite sheet PNG as an 8x8-tile atlas, for composed
-    ("metasprite") frames (project.json spriteSheets[].frames - see
-    shared/projectTypes.ts's SpriteFrameJSON/PlacedTileJSON): each placed
-    tile addresses this atlas by tile-grid (sheetX, sheetY), so the
-    sheet's overall size doesn't matter beyond being tile-aligned - a
-    256x256 sheet holding every animation for several differently-sized
-    sprites is exactly as valid as an 8x8 sheet holding one tile. Only
-    the individually AUTHORED sprite size (canvasWidth/canvasHeight) is
-    hardware-constrained, not this source PNG.
-    ('sprite size' vs 'sheet size': the sheet is just where tiles are
-    imported from - see SpriteSheetJSON's doc comment in
-    shared/projectTypes.ts.)
-
-    The legacy fixed-layout convention (a sprite sheet with no
-    spriteSheets entry, or a state that shows plain numbered "frames"
-    instead of composed frameRefs) is a DIFFERENT, narrower format - a
-    hardcoded 96x16 six-frame walk sheet - and is only decoded lazily, by
-    _load_legacy_frames() below, the first time something actually needs
-    it. Most sprites authored entirely with composed frames never call
-    that function at all, so their sheet PNG is never size-restricted.
-
-    Returns { "palette": [16 uint16], "vis_colors": [...], "image":
-    PIL.Image, "atlas_cols"/"atlas_rows": int, "path": Path, "name": str }.
-    "frames"/"tile_data" (the legacy 96x16 six-frame layout) are added
-    lazily by _load_legacy_frames(), not present until then.
-    """
-    image = Image.open(path).convert("RGBA")
-    if image.width % 8 != 0 or image.height % 8 != 0:
-        raise BuildError(
-            f"NPC sprite '{name}' ({path.name}): {image.width}x{image.height} px - "
-            "sprite sheets must be a multiple of 8 pixels in both directions "
-            "(GBA tiles are 8x8), so every tile in the sheet lines up on an "
-            "8-pixel grid.")
-
-    palette, vis_colors = _sprite_palette(image)
-
-    return {
-        "palette": palette,
-        "vis_colors": vis_colors,
-        # Kept for composed ("metasprite") frames: the full imported
-        # sheet, sliced as an 8x8-tile atlas by _sprite_atlas_tile(),
-        # plus its size in tiles. Any sheet size works here.
-        "image": image,
-        "atlas_cols": image.width // 8,
-        "atlas_rows": image.height // 8,
-        # Kept so _load_legacy_frames() can report a useful error and
-        # re-derive vis_colors-consistent pixel data lazily.
-        "path": path,
-        "name": name,
-    }
-
-
-def _load_legacy_frames(data):
-    """Lazily decode this sheet's LEGACY fixed layout (see
-    convert_npc_sprite's doc comment): a hardcoded 96x16 six-frame walk
-    sheet (col 0,1 = down, col 2,3 = up, col 4,5 = right; left frames are
-    generated by horizontally flipping the right frames). Populates and
-    returns `data["frames"]`/`data["tile_data"]` (memoized - a no-op if
-    already loaded). Only called where the legacy convention is actually
-    needed (no spriteSheets entry, or a state using plain numbered
-    "frames" instead of composed frameRefs - see sprite_needs_legacy in
-    the caller) - a sheet authored entirely with composed frames never
-    reaches this function, so its PNG is never held to this fixed size.
-    """
-    if "tile_data" in data:
-        return data
-
-    image, name, path = data["image"], data["name"], data["path"]
-    if image.size != (96, 16):
-        raise BuildError(
-            f"NPC sprite '{name}' ({path.name}): this sprite has a state using "
-            "plain numbered animation frames (the classic fixed layout), which "
-            f"needs a 96x16 six-frame sheet - but this sheet is {image.width}x"
-            f"{image.height}. Either make the sheet 96x16, or author every one "
-            "of this sprite's states with tile-composed frames instead (which "
-            "accepts any sheet size).")
-
-    vis_colors = data["vis_colors"]
-    frames = []
-    for i in range(6):
-        frame = image.crop((i * SPRITE_FRAME_W, 0,
-                            (i + 1) * SPRITE_FRAME_W, SPRITE_FRAME_H))
-        frames.append(frame)
-
-    # Generate left frames by mirroring right frames (indices 4, 5).
-    frames.append(frames[5].transpose(Image.Transpose.FLIP_LEFT_RIGHT))  # left-1
-    frames.append(frames[4].transpose(Image.Transpose.FLIP_LEFT_RIGHT))  # left-2
-
-    tile_data = []
-    for frame in frames:
-        tile_data.extend(_sprite_frame(frame, vis_colors))
-
-    # Kept for baking per-frame horizontal flips (authored "flips" in a
-    # spriteSheets state - see emit_sprite_states below): the 8 source
-    # PIL frames (same order as tile_data), re-sliced on a mirrored copy.
-    data["frames"] = frames
-    data["tile_data"] = tile_data
-    return data
-
-
-def _parse_c_int_array(text, name):
-    """Integer initializer of `name[...] = { ... };` in generated C, or None."""
-    m = re.search(re.escape(name) + r"\s*\[[^\]]*\]\s*=\s*\{([^}]*)\}", text)
-    if not m:
-        return None
-    return [int(v, 0) for v in re.findall(r"0[xX][0-9A-Fa-f]+|\d+", m.group(1))]
-
-
-def generate_player_graphics(pdata, player_c):
-    """Writes engine/data/player_graphics.c/.h straight from
-    engine/data/player.png (via convert_npc_sprite()/_load_legacy_frames(),
-    the exact same pixel/palette conversion NPC sprite sheets use for
-    their own legacy frames), so editing player.png (e.g. from the
-    editor's Sprites view - see editor/electron/projectIO.ts's
-    replacePlayerSprite()) and rebuilding is enough on its own: nothing
-    needs to be pre-baked or manually re-run first.
-
-    This REPLACES the old validate-and-raise check_player_graphics(),
-    which only compared player.png against an already-baked
-    player_graphics.c (produced by hand via `python
-    tools/png_to_gba_sprite.py engine/data/player.png
-    engine/data/player_graphics.c`) and refused to build on a mismatch.
-    That manual step is gone now - this always regenerates fresh output
-    matching whatever engine/data/player.png currently contains, in the
-    identical format/layout tools/png_to_gba_sprite.py used to produce by
-    hand (same array names/sizes), so no other code needs to change.
-
-    Only rewrites either file when its content actually changed, so an
-    unmodified player.png doesn't touch player_graphics.c's mtime (and
-    doesn't force a devkitARM rebuild of it) on every single build."""
-    tile_data = list(pdata["tile_data"][:SPRITE_FRAMES * 128])
-    palette = list(pdata["palette"])   # already a full 16-entry GBA palette
-    frame_offsets = [i * 128 for i in range(8)]
-
-    c_lines = [
-        "/*",
-        " * Generated by compiler/build_project.py from engine/data/player.png",
-        " * (do not edit by hand - change player.png and rebuild instead)",
-        " */",
-        "",
-        "#include <stdint.h>",
-        "",
-        "#define PLAYER_FRAME_COUNT 8",
-        "#define PLAYER_FRAME_SIZE 128",
-        "",
-        "const uint8_t player_graphics[] =",
-        "{",
-    ]
-    for i in range(0, len(tile_data), 16):
-        chunk = tile_data[i:i + 16]
-        c_lines.append("    " + ", ".join(f"0x{v:02X}" for v in chunk) + ",")
-    c_lines += [
-        "};",
-        "",
-        "const uint16_t player_palette[16] =",
-        "{",
-        "    " + ", ".join(f"0x{v:04X}" for v in palette) + ",",
-        "};",
-        "",
-        "const uint32_t player_frame_offsets[8] =",
-        "{",
-        "    " + ", ".join(str(v) for v in frame_offsets) + ",",
-        "};",
-        "",
-    ]
-    c_text = "\n".join(c_lines)
-
-    header_path = player_c.with_suffix(".h")
-    guard = header_path.stem.upper() + "_H"
-    h_text = "\n".join([
-        "/*",
-        " * Generated by compiler/build_project.py from engine/data/player.png",
-        " * (do not edit by hand - change player.png and rebuild instead)",
-        " */",
-        "",
-        f"#ifndef {guard}",
-        f"#define {guard}",
-        "",
-        "#include <stdint.h>",
-        "",
-        "#define PLAYER_FRAME_COUNT 8",
-        "#define PLAYER_FRAME_SIZE 128",
-        "",
-        "extern const uint8_t player_graphics[];",
-        "extern const uint16_t player_palette[16];",
-        "extern const uint32_t player_frame_offsets[8];",
-        "",
-        "#endif",
-        "",
-    ])
-
-    if not player_c.exists() or player_c.read_text(encoding="utf-8") != c_text:
-        player_c.write_text(c_text, encoding="utf-8")
-    if not header_path.exists() or header_path.read_text(encoding="utf-8") != h_text:
-        header_path.write_text(h_text, encoding="utf-8")
+def assign_palette_banks(sprites, player_sprite, compiled, scene_name):
+    """OBJ palette bank for each sprite a scene's NPCs use. Bank 0 is the
+    player's; sprites with identical palettes share a bank. Returns
+    {sprite name: bank}."""
+    bank_of_palette = {tuple(compiled[player_sprite].palette): 0}
+    banks = {}
+    for name in sprites:
+        key = tuple(compiled[name].palette)
+        if key not in bank_of_palette:
+            if len(bank_of_palette) >= 16:
+                raise BuildError(
+                    f"{scene_name}: its actors' sprites need more than 16 different palettes "
+                    "(the GBA has 16 OBJ palette banks, one of them the player's). Use fewer "
+                    "different sprites in this scene, or give some the same colors.")
+            bank_of_palette[key] = len(bank_of_palette)
+        banks[name] = bank_of_palette[key]
+    return banks
 
 
 # ---------------------------------------------------------------------------
@@ -2702,13 +2256,6 @@ def build(project_dir, out_dir):
 
     project = json.loads(project_file.read_text(encoding="utf-8"))
 
-    # engine/data/player.png -> engine/data/player_graphics.c/.h - moved
-    # below, after the spriteSheets pass, so it's known whether "player"
-    # needs the legacy fixed 96x16 layout (same rule as any NPC sprite -
-    # see sprite_needs_legacy) before deciding whether to enforce that
-    # size. See the "Player sprite:" block further down for the actual
-    # generation call.
-
     # Project-wide named item list: { "items": ["Old Key", ...] }.
     # Index in this list = the item's bit in SaveData.inventory. Referenced
     # by name from "give_item"/"if_item" events (see module docstring).
@@ -2787,7 +2334,7 @@ def build(project_dir, out_dir):
         "npc_sprite_of": {},
         "scene_npc_count": 0,
         "self_actor_index": None,
-        "sprite_state_names": {},   # filled in below, once npc_sprite_names is known
+        "sprite_state_names": {},   # filled in below, once the sprites are compiled
         "timer_name_to_index": {},
         "scene_timer_count": 0,
         "custom_scripts": custom_scripts,
@@ -2795,764 +2342,19 @@ def build(project_dir, out_dir):
     }
 
     # -----------------------------------------------------------------------
-    # NPC sprite pass: collect unique sprite names, convert PNGs,
-    # assign OBJ palette banks (0 = player, 1+ = NPC).
-    # The special name "player" reuses player_graphics / player_palette.
+    # Sprites: the player's plus every NPC's (see compiler/sprites.py).
     # -----------------------------------------------------------------------
-    npc_sprite_names  = []   # ordered list of unique sprite names
-    npc_sprite_data   = {}   # name -> { tile_data, palette } or None if "player"
-
+    player_sprite = project.get("playerSprite") or "player"
+    sprite_names = [player_sprite]
     for _, scene in scene_data_list:
         for npc in scene.get("npcs", []):
-            sname = npc.get("sprite", "player")
-            if sname not in npc_sprite_names:
-                npc_sprite_names.append(sname)
-
-    # Convert PNGs for non-player sprites.
-    sprites_dir = project_dir / "assets" / "sprites"
-    for sname in npc_sprite_names:
-        if sname == "player":
-            npc_sprite_data[sname] = None   # handled specially in C
-            continue
-        png = sprites_dir / f"{sname}.png"
-        if not png.exists():
-            raise BuildError(
-                f"NPC sprite '{sname}': {png} not found. "
-                "Place a sprite sheet PNG there (any size, as long as it's a "
-                "multiple of 8px in both directions), or use sprite \"player\".")
-        npc_sprite_data[sname] = convert_npc_sprite(png, sname)
-        print(f"  NPC sprite: {sname} from {png.name}")
-
-    # OBJ palette bank per sprite: player = 0, others start at 1.
-    npc_palette_bank = {}
-    next_bank = 1
-    for sname in npc_sprite_names:
-        if sname == "player":
-            npc_palette_bank[sname] = 0
-        else:
-            npc_palette_bank[sname] = next_bank
-            next_bank += 1
-
-    if next_bank > 16:
-        raise BuildError(
-            "Too many unique NPC sprites: only 15 OBJ palette banks "
-            "are available for NPCs (player uses bank 0).")
-
-    # -----------------------------------------------------------------------
-    # Sprite sheet metadata pass: project.json "spriteSheets" - optional,
-    # additive per-sprite animation states + collision box (see module
-    # docstring). A sprite sheet with no entry here (or an entry with
-    # neither "states" nor "collisionBox") compiles exactly as before this
-    # feature existed: the legacy fixed 4-direction/8-frame convention and
-    # a collision box equal to the full 16x16 sprite rect.
-    # -----------------------------------------------------------------------
-    sprite_sheets = project.get("spriteSheets", [])
-    if not isinstance(sprite_sheets, list):
-        raise BuildError("project.json \"spriteSheets\" must be a list.")
-
-    # name -> { state_name: index }, for resolve_state() / actor_set_state.
-    sprite_state_names = {}
-    # name -> [(frame_list, speed), ...], parallel to sprite_state_names.
-    sprite_state_lists = {}
-    # name -> (ox, oy, w, h), authored collision box.
-    sprite_collision_box = {}
-    # name -> (width, height), authored canvas/hardware size - see
-    # SpriteSheetJSON.canvasWidth's doc comment. Defaults to (16, 16),
-    # this sheet's actual current effective frame size, below.
-    sprite_canvas_size = {}
-    # name -> { frame_id: [placed-tile dict, ...] }, authored composed
-    # ("metasprite") frames - see shared/projectTypes.ts's
-    # SpriteFrameJSON/PlacedTileJSON and the composed-frame emission
-    # pass further below (after the flip-baking pass).
-    sprite_frame_tiles = {}
-    # name -> [8 state indices / ANIM_MAP_KEEP], the runtime direction map
-    # (see build_anim_map()) - only for sheets with slot-tagged states.
-    sprite_anim_map = {}
-
-    seen_sheet_names = set()
-    for si, sheet in enumerate(sprite_sheets):
-        if not isinstance(sheet, dict) or "name" not in sheet:
-            raise BuildError(
-                f"project.json spriteSheets[{si}] must be an object with a \"name\".")
-        sname = sheet["name"]
-        swhere = f"project.json spriteSheets[{si}] ('{sname}')"
-        if sname in seen_sheet_names:
-            raise BuildError(f"{swhere}: duplicate sprite sheet name.")
-        seen_sheet_names.add(sname)
-
-        anim_type = sheet.get("animationType")
-        if anim_type is not None and anim_type not in SPRITE_ANIMATION_TYPES:
-            raise BuildError(
-                f"{swhere}: unknown \"animationType\" '{anim_type}'. Must be one of "
-                f"{sorted(SPRITE_ANIMATION_TYPES)}.")
-
-        # Default true - matches GB Studio's own default and
-        # SpriteSheetJSON.flipLeft's doc comment. Only ever consulted for
-        # states whose "slot" is a "*Left" one (see SPRITE_LEFT_SLOT_TO_RIGHT
-        # below), so a sheet with no slot-tagged states (every sheet from
-        # before this feature existed) is unaffected either way.
-        flip_left = bool(sheet.get("flipLeft", True))
-
-        states = sheet.get("states", [])
-        if not isinstance(states, list):
-            raise BuildError(f"{swhere}: \"states\" must be a list.")
-        state_names = {}
-        state_lists = []
-        # slot -> index into state_lists, for the flipLeft derivation pass
-        # right below this loop.
-        slot_to_index = {}
-        for sti, st in enumerate(states):
-            stwhere = f"{swhere}: states[{sti}]"
-            if not isinstance(st, dict) or "name" not in st:
-                raise BuildError(f"{stwhere} must be an object with a \"name\".")
-            st_name = st["name"]
-            if st_name in state_names:
-                raise BuildError(f"{stwhere}: duplicate state name '{st_name}'.")
-            # Tile-composed ("metasprite") frames - see shared/
-            # projectTypes.ts's SpriteStateJSON.frameRefs. Parsed before
-            # "frames"'s own non-empty check below, since a state whose
-            # frameRefs is non-empty is shown/compiled from THOSE (its
-            # own "frames" is then optional - typically omitted).
-            frame_refs = st.get("frameRefs", [])
-            if not isinstance(frame_refs, list):
-                raise BuildError(f"{stwhere} ('{st_name}'): \"frameRefs\" must be a list.")
-            # (frame_id, mirrored) pairs - `mirrored` is only ever set by
-            # the flipLeft derivation below (a "*Left" state's frames are
-            # its "*Right" sibling's, mirrored tile by tile).
-            frame_refs = [(str(r), False) for r in frame_refs]
-
-            frames = st.get("frames", [])
-            if frames is None:
-                frames = []
-            if not isinstance(frames, list):
-                raise BuildError(f"{stwhere} ('{st_name}'): \"frames\" must be a list.")
-            if len(frames) > ENTITY_STATE_MAX_FRAMES:
-                raise BuildError(
-                    f"{stwhere} ('{st_name}'): {len(frames)} frames, but the "
-                    f"engine's ENTITY_STATE_MAX_FRAMES is {ENTITY_STATE_MAX_FRAMES}.")
-            frame_vals = [resolve_small_int(f, "frames[]", stwhere, 0, 255) for f in frames]
-            speed = resolve_small_int(st.get("speed", 8), "speed", stwhere, 0, 255)
-
-            flips = st.get("flips", [])
-            if not isinstance(flips, list):
-                raise BuildError(f"{stwhere} ('{st_name}'): \"flips\" must be a list.")
-            if flips and len(flips) != len(frame_vals):
-                raise BuildError(
-                    f"{stwhere} ('{st_name}'): \"flips\" ({len(flips)}) must be the "
-                    f"same length as \"frames\" ({len(frame_vals)}).")
-            flip_vals = [bool(f) for f in flips] if flips else [False] * len(frame_vals)
-
-            slot = st.get("slot")
-            is_derived_left = (
-                isinstance(slot, str) and slot in SPRITE_LEFT_SLOT_TO_RIGHT and flip_left
-            )
-
-            # Per-frame "flips" bakes a mirrored copy of the frame's pixel
-            # data (see below) - there's no source PNG to do that against
-            # for "player" (pre-baked engine/data/player_graphics.h), so
-            # it's rejected UNLESS this is a flipLeft-derived state (in
-            # which case the derivation below uses an index-remap instead
-            # of "flips" for "player", and never sets flip_vals itself).
-            if sname == "player" and any(flip_vals) and not is_derived_left and not frame_refs:
-                raise BuildError(
-                    f"{stwhere} ('{st_name}'): per-frame \"flips\" isn't supported on "
-                    "the \"player\" sprite sheet - the compiler bakes a mirrored copy "
-                    "of the frame's pixel data at compile time, but the player sheet "
-                    "has no source PNG here (it's the pre-baked "
-                    "engine/data/player_graphics.h). Use a real NPC sprite sheet "
-                    "instead if you need a flipped frame.")
-
-            # frame_refs already parsed above (before the "frames"
-            # non-empty check) - ordered ids into this sheet's "frames",
-            # validated once the sheet's composed frame defs themselves
-            # are parsed, below. A non-empty frameRefs takes over this
-            # state's shown frames entirely - "frames"/"flips" above are
-            # simply ignored for it (kept parsed/validated regardless,
-            # so switching a state back to legacy frames later needs no
-            # re-authoring).
-
-            state_names[st_name] = len(state_lists)
-            if isinstance(slot, str):
-                slot_to_index[slot] = len(state_lists)
-            state_lists.append([frame_vals, speed, flip_vals, frame_refs])
-
-        # ---------------------------------------------------------------
-        # flipLeft derivation: a state whose "slot" is a "*Left" one (see
-        # SPRITE_LEFT_SLOT_TO_RIGHT) has its own authored frames/speed/
-        # flips above REPLACED with a mirror of its "*Right" sibling
-        # state, when this sheet's "flipLeft" isn't explicitly false (see
-        # SpriteStateJSON.slot's doc comment - the editor keeps such a
-        # state's own frame list read-only/hidden for the same reason).
-        # For a real NPC sheet this reuses the same per-frame "flips" bake
-        # as a manually-authored flip - flip_vals is set to the logical
-        # NOT of the Right sibling's own flips, so the SAME occurrence
-        # (whatever frame index it happens to be) ends up mirrored,
-        # regardless of animationType (works equally for e.g. a
-        # platform_player's "jumpingLeft"/"jumpingRight", which reuse
-        # whatever frame indices the author picked, not necessarily the
-        # legacy walk-right columns).
-        #
-        # "player" has no source PNG to bake a mirrored copy against (see
-        # the BuildError above), so it instead remaps each frame index
-        # through the sheet's already-baked left/right pair (4<->7,
-        # 5<->6 - the compiled 8-frame set's existing down/up/right/left
-        # convention), which is exact for ordinary idle/moving right<->
-        # left pairs but is only an identity fallback (no mirroring) for
-        # any other frame index a "player" state might use - a known
-        # narrower case than the general NPC path above, called out here
-        # since there's no way to bake new player pixel data in this
-        # pipeline (player_graphics.h is pre-baked by
-        # tools/png_to_gba_sprite.py, not this script).
-        # ---------------------------------------------------------------
-        PLAYER_MIRROR_PAIR = {4: 7, 5: 6, 6: 4, 7: 5}
-        for sti, st in enumerate(states):
-            slot = st.get("slot")
-            if not (isinstance(slot, str) and slot in SPRITE_LEFT_SLOT_TO_RIGHT and flip_left):
-                continue
-            right_slot = SPRITE_LEFT_SLOT_TO_RIGHT[slot]
-            right_idx = slot_to_index.get(right_slot)
-            if right_idx is None:
-                continue   # no "*Right" sibling authored yet - leave this state's own data
-            right_frames, right_speed, right_flips, right_refs = state_lists[right_idx]
-            if sname == "player":
-                derived_frames = [PLAYER_MIRROR_PAIR.get(f, f) for f in right_frames]
-                derived_flips = [False] * len(right_frames)
-            else:
-                derived_frames = list(right_frames)
-                derived_flips = [not fl for fl in right_flips]
-            state_lists[sti][0] = derived_frames
-            state_lists[sti][1] = right_speed
-            state_lists[sti][2] = derived_flips
-            # Composed ("metasprite") frameRefs: the "*Left" state shows
-            # the SAME frames as its "*Right" sibling, each mirrored
-            # across the canvas tile by tile (tx' = canvasWidth - tx - 8,
-            # flipX toggled - applied in the composed-frame emission pass
-            # below, before anchoring). Mirroring a mirrored ref is never
-            # needed (Right slots are never derived).
-            state_lists[sti][3] = [(fid, not m) for (fid, m) in right_refs]
-
-        # A state with neither legacy "frames" nor "frameRefs" (a
-        # half-authored state - e.g. a "*Left" slot state with no "*Right"
-        # sibling yet) still compiles: to a 0-frame state, which the engine
-        # treats as "select it, show nothing new" (entity.c's
-        # entity_set_state/entity_step_state_animation both no-op on a
-        # frame_count of 0).
-        for sti, st in enumerate(state_lists):
-            if not st[0] and not st[3]:
-                print(f"  WARNING: {swhere}: state '{states[sti]['name']}' has no "
-                      "frames - it compiles to an empty state (shows nothing new).")
-
-        state_lists = [tuple(s) for s in state_lists]
-
-        if state_names:
-            sprite_state_names[sname] = state_names
-            sprite_state_lists[sname] = state_lists
-
-        box = sheet.get("collisionBox")
-        if box is not None:
-            if not isinstance(box, dict):
-                raise BuildError(f"{swhere}: \"collisionBox\" must be an object.")
-            ox = resolve_small_int(box.get("x", 0), "collisionBox.x", swhere, -128, 127)
-            oy = resolve_small_int(box.get("y", 0), "collisionBox.y", swhere, -128, 127)
-            w = resolve_small_int(_require(box, "width", swhere), "collisionBox.width", swhere, 0, 255)
-            h = resolve_small_int(_require(box, "height", swhere), "collisionBox.height", swhere, 0, 255)
-            sprite_collision_box[sname] = (ox, oy, w, h)
-
-        # Runtime direction->state map (Entity.anim_map, see
-        # build_anim_map()) from this sheet's slot-tagged states - None
-        # (no map, legacy runtime behaviour) for a sheet with none.
-        amap = build_anim_map(anim_type, slot_to_index)
-        if amap is not None:
-            sprite_anim_map[sname] = amap
-
-        # Does this sheet use tile-composed ("metasprite") frames? Only if
-        # some state (after flipLeft derivation) actually references one
-        # via "frameRefs". A sheet whose "frames" list is never referenced
-        # (stale/unused frames only) compiles exactly like a sheet with no
-        # composed frames at all - those frames are ignored entirely (not
-        # validated, no ROM space).
-        is_composed = any(refs for (_f, _s, _fl, refs) in state_lists)
-
-        # Canvas/hardware size - see SpriteSheetJSON.canvasWidth's doc
-        # comment. Defaults to (16, 16) - this sprite's current implicit
-        # size - when omitted, for backward compatibility.
-        cw = sheet.get("canvasWidth")
-        ch = sheet.get("canvasHeight")
-        if is_composed:
-            # ROUND 3 CONTRACT: free canvas size (a composed frame is many
-            # OBJs, not one legal OBJ shape), anchored bottom-centre on the
-            # entity's 16x16 footprint cell, shifted by canvasOriginX/Y.
-            cw = resolve_small_int(16 if cw is None else cw, "canvasWidth", swhere,
-                                   1, COMPOSED_CANVAS_MAX_W)
-            ch = resolve_small_int(16 if ch is None else ch, "canvasHeight", swhere,
-                                   1, COMPOSED_CANVAS_MAX_H)
-            sprite_canvas_size[sname] = (cw, ch)
-        elif cw is not None or ch is not None:
-            # No composed frames: exactly the pre-existing rule/behaviour
-            # (metadata only, must be a legal single-OBJ size).
-            cw = resolve_small_int(_require(sheet, "canvasWidth", swhere) if cw is None else cw,
-                                    "canvasWidth", swhere, 1, 255)
-            ch = resolve_small_int(_require(sheet, "canvasHeight", swhere) if ch is None else ch,
-                                    "canvasHeight", swhere, 1, 255)
-            if (cw, ch) not in GBA_SPRITE_SIZES:
-                raise BuildError(
-                    f"{swhere}: canvasWidth/canvasHeight {cw}x{ch} isn't a legal GBA "
-                    f"hardware sprite size. Must be one of {sorted(GBA_SPRITE_SIZES)}.")
-            sprite_canvas_size[sname] = (cw, ch)
-
-        if not is_composed:
-            continue
-
-        # -----------------------------------------------------------
-        # Composed ("metasprite") frames: project.json spriteSheets[]
-        # "frames" - a list of authored PlacedTileJSON groups (see
-        # shared/projectTypes.ts's SpriteFrameJSON), each a set of
-        # tiles placed within this sheet's canvas. Referenced by id
-        # from a state's "frameRefs" (parsed in the states loop
-        # above). Only REFERENCED frames are parsed/validated here;
-        # turning them into actual engine data (which needs this
-        # sheet's converted source PNG/atlas) happens in the
-        # composed-frame emission pass below, after flip-baking.
-        # -----------------------------------------------------------
-        origin_x = resolve_small_int(sheet.get("canvasOriginX", 0) or 0, "canvasOriginX",
-                                     swhere, -128, 127)
-        origin_y = resolve_small_int(sheet.get("canvasOriginY", 0) or 0, "canvasOriginY",
-                                     swhere, -128, 127)
-        sprite_mode = sheet.get("spriteMode") or DEFAULT_SPRITE_MODE
-        if sprite_mode not in SPRITE_MODE_TILE_H:
-            raise BuildError(
-                f"{swhere}: unknown \"spriteMode\" '{sprite_mode}'. Must be one of "
-                f"{sorted(SPRITE_MODE_TILE_H)}.")
-        tile_h = SPRITE_MODE_TILE_H[sprite_mode]
-
-        frame_defs = sheet.get("frames", [])
-        if frame_defs is None:
-            frame_defs = []
-        if not isinstance(frame_defs, list):
-            raise BuildError(f"{swhere}: \"frames\" must be a list.")
-        used_ids = []
-        for (_f, _s, _fl, refs) in state_lists:
-            for (fid, _m) in refs:
-                if fid not in used_ids:
-                    used_ids.append(fid)
-        # id -> [(index in "frames", frame dict), ...]. Malformed or
-        # duplicate entries only matter if something references them.
-        by_id = {}
-        for fi, fr in enumerate(frame_defs):
-            if isinstance(fr, dict) and "id" in fr:
-                by_id.setdefault(str(fr["id"]), []).append((fi, fr))
-
-        missing_refs = [fid for fid in used_ids if fid not in by_id]
-        if missing_refs:
-            raise BuildError(
-                f"{swhere}: frameRefs reference unknown frame id(s) "
-                f"{sorted(missing_refs)} - not in this sheet's \"frames\".")
-
-        skipped = [str(fr.get("id")) if isinstance(fr, dict) else f"#{fi}"
-                   for fi, fr in enumerate(frame_defs)
-                   if not (isinstance(fr, dict) and str(fr.get("id")) in used_ids)]
-        if skipped:
-            print(f"  {swhere}: skipping {len(skipped)} unreferenced frame(s): "
-                  f"{', '.join(skipped)}")
-
-        frame_tiles = {}
-        for fid in used_ids:
-            entries = by_id[fid]
-            if len(entries) > 1:
-                # Two (or more) authored frame entries share this id - the
-                # editor is meant to keep frame ids unique (see
-                # uniqueId()/takenFrameIds() in SpritesView.tsx) and, since
-                # v7, self-heals this on the next edit to the sheet, but an
-                # already-saved project.json can still have a leftover
-                # duplicate from before that safety net existed. Rather
-                # than hard-failing the build over it, use the first
-                # entry (same one `Array.prototype.find` picks in the
-                # editor's own frame lookups, so this matches what's shown
-                # there) and warn, like the unreferenced-frame case below.
-                print(f"  WARNING: {swhere}: frame id '{fid}' is used by frames"
-                      f"{[fi for fi, _fr in entries]} - frame ids should be "
-                      f"unique; using frames[{entries[0][0]}] and ignoring the rest.")
-            fi, fr = entries[0]
-            fwhere = f"{swhere}: frames[{fi}] ('{fid}')"
-            tiles = fr.get("tiles", [])
-            if tiles is None:
-                tiles = []
-            if not isinstance(tiles, list):
-                raise BuildError(f"{fwhere}: \"tiles\" must be a list.")
-            parsed_tiles = []
-            for ti, t in enumerate(tiles):
-                twhere = f"{fwhere}: tiles[{ti}]"
-                if not isinstance(t, dict):
-                    raise BuildError(f"{twhere} must be an object.")
-                # Pixel-precise position (any integer), relative to the
-                # canvas's top-left; may hang partly outside the canvas.
-                tx = resolve_small_int(_require(t, "x", twhere), "x", twhere, -4096, 4096)
-                ty = resolve_small_int(_require(t, "y", twhere), "y", twhere, -4096, 4096)
-                if tx + 8 <= 0 or tx >= cw or ty + tile_h <= 0 or ty >= ch:
-                    # GB Studio's removeMetaspriteTilesOutsideCanvas rule:
-                    # a tile with no pixel on the canvas is dropped.
-                    print(f"  WARNING: {twhere}: 8x{tile_h} tile at ({tx},{ty}) lies "
-                          f"entirely outside the {cw}x{ch} canvas - dropped.")
-                    continue
-                sx = resolve_small_int(_require(t, "sheetX", twhere), "sheetX", twhere, 0, 255)
-                sy = resolve_small_int(_require(t, "sheetY", twhere), "sheetY", twhere, 0, 255)
-                flip_x = bool(t.get("flipX", False))
-                flip_y = bool(t.get("flipY", False))
-                palette_raw = t.get("palette")
-                palette = (resolve_small_int(palette_raw, "palette", twhere, 0, OBJ_PALETTE_BANK_MAX - 1)
-                           if palette_raw is not None else None)
-                priority = bool(t.get("priority", False))
-                parsed_tiles.append({
-                    "x": tx, "y": ty, "sheetX": sx, "sheetY": sy,
-                    "flipX": flip_x, "flipY": flip_y,
-                    "palette": palette, "priority": priority,
-                    "where": twhere,
-                })
-            if len(parsed_tiles) > ASPRITE_MAX_SUBTILES:
-                raise BuildError(
-                    f"{fwhere}: {len(parsed_tiles)} placed tiles, but "
-                    f"the engine's ASPRITE_MAX_SUBTILES is {ASPRITE_MAX_SUBTILES}.")
-            frame_tiles[fid] = parsed_tiles
-
-        sprite_frame_tiles[sname] = {
-            "frames": frame_tiles,
-            "canvas": (cw, ch),
-            "origin": (origin_x, origin_y),
-            "mode": sprite_mode,
-        }
-
-    ctx["sprite_state_names"] = sprite_state_names
-
-    # Does this NPC sprite need its sheet's LEGACY fixed 96x16 layout at
-    # all (see convert_npc_sprite/_load_legacy_frames)? True if it has no
-    # spriteSheets entry (the legacy convention is the implicit default
-    # for such a sprite), or if any one of its authored states shows
-    # plain numbered "frames" rather than composed frameRefs (a
-    # non-empty frameRefs takes over a state's shown frames entirely -
-    # see the states-parsing pass above - so only a refs-less state with
-    # actual frame numbers counts). A sprite whose every state is
-    # authored with composed frameRefs never needs this and so is never
-    # held to the fixed 96x16 sheet size.
-    sprite_needs_legacy = {}
-    for sname in npc_sprite_names:
-        if sname == "player":
-            continue
-        state_list = sprite_state_lists.get(sname)
-        sprite_needs_legacy[sname] = (
-            not state_list
-            or any(frames for (frames, _speed, _flips, refs) in state_list if not refs)
-        )
-
-    # Player sprite: same rule as any NPC sprite above - does it need the
-    # legacy fixed 96x16 layout, or has project.json authored a "player"
-    # spriteSheets entry whose every state uses composed frameRefs (the
-    # same way an NPC sprite like "cop" can be authored in the Sprites
-    # view)? Computed here (not up in the NPC loop above, since "player"
-    # is deliberately excluded there) because it decides how
-    # engine/data/player.png is read just below.
-    player_state_list = sprite_state_lists.get("player")
-    player_needs_legacy = (
-        not player_state_list
-        or any(frames for (frames, _speed, _flips, refs) in player_state_list if not refs)
-    )
-
-    # engine/data/player.png -> engine/data/player_graphics.c/.h. Always
-    # regenerated fresh (see generate_player_graphics's doc comment), but
-    # the fixed 96x16 six-frame layout is only actually DECODED from it -
-    # and thus only enforced - when player_needs_legacy (computed above)
-    # is true, exactly mirroring how an NPC sprite's sheet is only held
-    # to that size when it actually needs it (sprite_needs_legacy). When
-    # the player is fully composed-frame authored instead, its sheet can
-    # be any size (checked only for 8px alignment, by convert_npc_sprite
-    # below) - main.c's player_sprite_def.multi_frame_count > 0 branch
-    # takes over at runtime and never reads player_graphics[] at all, so
-    # a zero-filled stub is written for those unreachable legacy arrays
-    # (engine/source/main.c still references the symbols at compile
-    # time, in its untaken else-branch, so they must exist either way).
-    # engine/data is resolved the same way sheet_source()'s own
-    # player.png lookup does (this script's own parent/parent), not from
-    # `out_dir`, since player_graphics.c/.h are only ever real source
-    # files there - out_dir is just where THIS build's generated
-    # scene/project C is written, which can be redirected with --out,
-    # but player_graphics.c/.h must not move with it (engine/source/
-    # main.c always #includes the real one).
-    engine_data_dir = Path(__file__).resolve().parent.parent / "engine" / "data"
-    player_png = engine_data_dir / "player.png"
-    if player_png.exists():
-        _pdata = convert_npc_sprite(player_png, "player")
-        if player_needs_legacy:
-            _load_legacy_frames(_pdata)
-        else:
-            _pdata["tile_data"] = [0] * (SPRITE_FRAMES * 128)
-            _pdata["palette"] = [0] * 16
-        generate_player_graphics(_pdata, engine_data_dir / "player_graphics.c")
-
-    # -----------------------------------------------------------------------
-    # Per-frame flip baking: for any NPC sprite sheet with a state that
-    # marks a frame occurrence as flipped (project.json "flips" - see
-    # SpriteStateJSON in shared/projectTypes.ts), bake a horizontally-
-    # mirrored copy of that frame's pixel data as a NEW frame appended to
-    # the sheet, and remap that occurrence to point at it. No engine-side
-    # runtime flip is involved: EntityAnimState.frames is already just
-    # indices into a fixed pixel-data array (see entity.h), so an extra
-    # baked frame is all a "flipped frame" needs to be. Not supported for
-    # "player" (see the BuildError above) - it has no source PNG here.
-    #
-    # flip_frame_index[sname][original_frame] -> baked frame index, only
-    # for sprites/frames actually requested flipped (dedup: flipping the
-    # same frame twice reuses one baked copy).
-    # -----------------------------------------------------------------------
-    flip_frame_index = {}
-    for sname, state_list in sprite_state_lists.items():
-        if sname == "player":
-            continue   # no source PNG to mirror - guarded above
-        data = npc_sprite_data.get(sname)
-        if data is None:
-            continue   # sprite sheet authored in spriteSheets but unused by any NPC
-        # Only states actually SHOWN via the legacy numbered "frames" list
-        # count here - a state with a non-empty frameRefs ignores its own
-        # "frames"/"flips" entirely (see the states-parsing pass above),
-        # including a "*Left" state whose frames/flips got a derived
-        # legacy mirror alongside its derived (already-mirrored) refs -
-        # that derived legacy data is never what's actually rendered, so
-        # skipping refs-driven states here is required, not just an
-        # optimization: without it, a composed-only sprite's "*Left"
-        # states (which inherit an all-True derived "flips" whenever
-        # their "*Right" sibling has no explicit flips at all - see the
-        # flipLeft derivation above) would wrongly pull in
-        # _load_legacy_frames() below and re-impose the fixed 96x16 size
-        # on a sheet that never needed it (see sprite_needs_legacy above,
-        # which already uses this same "not refs" test).
-        needed = sorted({f for (frames, _speed, flips, refs) in state_list if not refs
-                          for f, fl in zip(frames, flips) if fl})
-        if not needed:
-            continue
-
-        _load_legacy_frames(data)   # only sprites with a flipped legacy frame reach here
-        src_frames = data["frames"]
-        vis_colors = data["vis_colors"]
-        remap = {}
-        # Tracks how many frames this sheet has so far (starts at 8, the
-        # fixed down/up/right/left set) - grows by one per distinct baked
-        # flip below.
-        next_index = SPRITE_FRAMES
-        for f in needed:
-            if f < 0 or f >= len(src_frames):
-                raise BuildError(
-                    f"project.json spriteSheets ('{sname}'): can't flip-bake frame "
-                    f"{f} - only frames 0-{len(src_frames) - 1} exist on this sheet.")
-            mirrored = src_frames[f].transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-            data["tile_data"].extend(_sprite_frame(mirrored, vis_colors))
-            remap[f] = next_index
-            next_index += 1
-        data["frame_count"] = next_index
-        flip_frame_index[sname] = remap
-
-    def remap_frames(sname, frames, flips):
-        """Apply flip_frame_index to one state's frame list (identity if
-        this sprite has no baked flips, or nothing in this state is
-        flipped)."""
-        remap = flip_frame_index.get(sname)
-        if not remap:
-            return frames
-        return [remap[f] if fl else f for f, fl in zip(frames, flips)]
-
-    # -----------------------------------------------------------------------
-    # Tile-composed ("metasprite") frame emission: for any sprite sheet
-    # that authored composed frames (project.json spriteSheets[].frames -
-    # see shared/projectTypes.ts's SpriteFrameJSON/PlacedTileJSON), build
-    # this sheet's ASpriteMultiFrame list and REPLACE every one of its
-    # states' frame indices with indices into that list - a legacy
-    # numbered-frame state on an otherwise-composed sheet is folded in
-    # too (as a synthetic single/multi-tile composed frame, reusing its
-    # already flip-baked pixel data sliced per 8x8 tile - see
-    # entity.h/sprite.c's sprite_show_frame() doc comment for why: one
-    # ASprite is either fully legacy-frame-streamed or fully multi-tile,
-    # never mixed, since sprite_show_frame() dispatches per-sprite, not
-    # per-frame).
-    #
-    # A sheet with NO composed frames authored at all never enters this
-    # pass (sprite_frame_tiles has no entry for it) - its states' frame
-    # indices are untouched, and multi_frame_defs[sname] stays absent,
-    # so npc_sprites[]/player_sprite_def's multi_frames/multi_frame_count
-    # compile to 0/0 exactly as before this feature existed. THIS is the
-    # backward-compatibility boundary the critical byte-identical-output
-    # regression check (see the module's build-verification notes)
-    # covers: an untouched sheet is never touched by any code below.
-    # -----------------------------------------------------------------------
-    multi_frame_defs = {}   # sname -> [ (subtile dicts, tile_bytes, vram_tiles), ... ]
-    multi_max_sub = {}      # sname -> max tile_count (OAM entries) across its frames
-    multi_max_vram = {}     # sname -> max vram_tiles (8x8 VRAM tiles) across its frames
-
-    # The built-in "player" sheet's atlas is engine/data/player.png (the
-    # same PNG tools/png_to_gba_sprite.py bakes engine/data/
-    # player_graphics.c from), resolved from this toolchain's own root -
-    # the same root main() uses to find engine/. Loaded lazily, only when
-    # the "player" sheet actually uses composed frames.
-    player_source = {}
-
-    def sheet_source(sname):
-        if sname != "player":
-            return npc_sprite_data.get(sname)
-        if "data" not in player_source:
-            engine_data = Path(__file__).resolve().parent.parent / "engine" / "data"
-            png = engine_data / "player.png"
-            if not png.exists():
-                raise BuildError(
-                    f"project.json spriteSheets ('player'): composed frames need the "
-                    f"player's source sheet, but {png} was not found.")
-            pdata = convert_npc_sprite(png, "player")
-            player_source["data"] = pdata
-        return player_source["data"]
-
-    for sname, info in sprite_frame_tiles.items():
-        data = sheet_source(sname)
-        if data is None:
-            continue   # sheet authored in spriteSheets but unused by any NPC
-
-        frame_tiles = info["frames"]
-        cw, ch = info["canvas"]
-        origin_x, origin_y = info["origin"]
-        tall_mode = info["mode"] == "8x16"
-        # Anchoring (SpriteSheetJSON ROUND 3 CONTRACT): canvas bottom-centre
-        # on the entity's 16x16 footprint cell's bottom-centre, then
-        # shifted by canvasOriginX/Y. Python floor division on purpose
-        # (matches the contract's floor() for odd/wider canvases).
-        anchor_x = (16 - cw) // 2 + origin_x
-        anchor_y = (16 - ch) + origin_y
-
-        atlas_cols, atlas_rows = data["atlas_cols"], data["atlas_rows"]
-        image, vis_colors = data["image"], data["vis_colors"]
-        # Player sheet tiles default to the player's own OBJ bank 0
-        # (main.c's PLAYER_PALETTE, loaded with player_palette) even when
-        # no NPC uses the "player" sprite.
-        default_bank = 0 if sname == "player" else npc_palette_bank.get(sname, 1)
-        swhere = f"project.json spriteSheets ('{sname}')"
-
-        frames_out = []          # ordered [(subtiles, tile_bytes, vram_tiles), ...]
-        index_of = {}            # ("composed", id, mirrored) | ("legacy", frame_num) -> index
-
-        def emit_composed(frame_id, mirrored):
-            """One referenced composed frame -> one ASpriteMultiFrame.
-            Each placed tile is one hardware OBJ: 8x8, or (spriteMode
-            "8x16") one TALL 8x16 OBJ using two consecutive 8x8 VRAM tiles
-            (sheet rows sheetY, sheetY+1 - GBA 1D OBJ mapping). tile_offset
-            counts 8x8 VRAM tiles within this frame's tile_data; identical
-            source tiles within a frame share VRAM. Sub-tiles are emitted in
-            REVERSE authored order: GB Studio draws later-listed tiles on
-            top, and on GBA the lower OAM index (= lower sub-tile index,
-            see sprite.c) wins."""
-            key = ("composed", frame_id, mirrored)
-            if key in index_of:
-                return index_of[key]
-            subtiles = []
-            tile_bytes = []
-            vram = 0
-            vram_of = {}
-            for t in reversed(frame_tiles[frame_id]):
-                sx, sy = t["sheetX"], t["sheetY"]
-                rows = 2 if tall_mode else 1
-                if sx >= atlas_cols or sy + rows > atlas_rows:
-                    raise BuildError(
-                        f"{t['where']}: sheetX/sheetY ({sx},{sy}) is outside this "
-                        f"sheet's {atlas_cols}x{atlas_rows}-tile imported sheet"
-                        + (f" (an 8x16 tile also needs row {sy + 1})." if tall_mode else "."))
-                tx, ty, flip_h = t["x"], t["y"], t["flipX"]
-                if mirrored:
-                    # flipLeft: mirror across the canvas, flip the tile.
-                    tx = cw - tx - 8
-                    flip_h = not flip_h
-                dx = tx + anchor_x
-                dy = ty + anchor_y
-                if not (-128 <= dx <= 127 and -128 <= dy <= 127):
-                    raise BuildError(
-                        f"{t['where']}{' (mirrored for flipLeft)' if mirrored else ''}: "
-                        f"tile at canvas ({tx},{ty}) lands at entity offset ({dx},{dy}) "
-                        f"(= canvas pos + anchor ({anchor_x},{anchor_y}) from the "
-                        f"{cw}x{ch} canvas and canvasOrigin ({origin_x},{origin_y})) - "
-                        "the engine stores offsets as int8, so both must be within "
-                        "-128..127. Move the tile or adjust the canvas origin.")
-                vkey = (sx, sy)
-                if vkey not in vram_of:
-                    vram_of[vkey] = vram
-                    tile_bytes.extend(_sprite_atlas_tile(image, vis_colors, sx, sy))
-                    if tall_mode:
-                        tile_bytes.extend(_sprite_atlas_tile(image, vis_colors, sx, sy + 1))
-                    vram += rows
-                bank = t["palette"] if t["palette"] is not None else default_bank
-                subtiles.append({
-                    "dx": dx, "dy": dy, "tile_offset": vram_of[vkey],
-                    "flip_h": flip_h, "flip_v": t["flipY"],
-                    "palette": bank, "priority": t["priority"],
-                    "tall": tall_mode,
-                })
-            index_of[key] = len(frames_out)
-            frames_out.append((subtiles, tile_bytes, vram))
-            return index_of[key]
-
-        def legacy_to_multi(frame_num):
-            """Fold a legacy numbered frame (post flip-remap) into a
-            synthetic composed frame: TWO tall 8x16 OBJs (left column,
-            right column) of this sheet's already-baked 16x16 frame, at
-            entity offset (0,0)/(8,0) - i.e. exactly where the legacy
-            single 16x16 OBJ draws it (legacy frames are NOT re-anchored
-            by the canvas; they are 16x16 footprint-cell images). Always
-            tall regardless of spriteMode (spriteMode only governs
-            authored placed tiles) - half the OAM of four 8x8s. VRAM
-            order: TL, BL (column 0), TR, BR (column 1). No flip/
-            priority/custom palette (already baked into the pixels, or
-            simply not authored)."""
-            key = ("legacy", frame_num)
-            if key in index_of:
-                return index_of[key]
-            fbytes = data["tile_data"]
-            frame_bytes = SPRITE_FRAME_W * SPRITE_FRAME_H // 2   # 128, 4bpp
-            start = frame_num * frame_bytes
-            chunk = fbytes[start:start + frame_bytes]
-            if len(chunk) != frame_bytes:
-                raise BuildError(
-                    f"{swhere}: legacy frame {frame_num} referenced alongside "
-                    "composed frames, but this sheet only has "
-                    f"{len(fbytes) // frame_bytes} legacy frames.")
-            tl, tr, bl, br = (chunk[i * 32:(i + 1) * 32] for i in range(4))  # _sprite_frame() order
-            subtiles = [
-                {"dx": 0, "dy": 0, "tile_offset": 0, "flip_h": False, "flip_v": False,
-                 "palette": default_bank, "priority": False, "tall": True},
-                {"dx": 8, "dy": 0, "tile_offset": 2, "flip_h": False, "flip_v": False,
-                 "palette": default_bank, "priority": False, "tall": True},
-            ]
-            index_of[key] = len(frames_out)
-            frames_out.append((subtiles, tl + bl + tr + br, 4))
-            return index_of[key]
-
-        # Rewrite EVERY state on this sheet (composed or legacy) to
-        # reference frames_out by index. Only frames some state actually
-        # references are emitted, in first-reference order.
-        state_list = sprite_state_lists.get(sname, [])
-        new_state_list = []
-        for frames, speed, flips, refs in state_list:
-            if refs:
-                new_frames = [emit_composed(fid, m) for (fid, m) in refs]
-            else:
-                remapped = remap_frames(sname, frames, flips)
-                new_frames = [legacy_to_multi(f) for f in remapped]
-            new_state_list.append((new_frames, speed, flips, refs))
-        if new_state_list:
-            sprite_state_lists[sname] = new_state_list
-
-        if len(frames_out) > 255:
-            raise BuildError(
-                f"{swhere}: {len(frames_out)} distinct frames, but a state's frame "
-                "list stores uint8 indices (max 255).")
-        multi_frame_defs[sname] = frames_out
-        multi_max_sub[sname] = max((len(st) for st, _tb, _v in frames_out), default=0)
-        multi_max_vram[sname] = max((v for _st, _tb, v in frames_out), default=0)
-        if multi_max_sub[sname] > ASPRITE_MAX_SUBTILES:
-            raise BuildError(
-                f"{swhere}: needs {multi_max_sub[sname]} placed tiles in one frame, "
-                f"but the engine's ASPRITE_MAX_SUBTILES is {ASPRITE_MAX_SUBTILES}.")
-        print(f"  {swhere}: {len(frames_out)} composed frame(s) emitted, up to "
-              f"{multi_max_sub[sname]} OBJ(s) / {multi_max_vram[sname]} VRAM tile(s) per frame")
+            sname = npc.get("sprite") or player_sprite
+            if sname not in sprite_names:
+                sprite_names.append(sname)
+    if len(sprite_names) > 255:
+        raise BuildError(f"{len(sprite_names)} different sprites are used; the most is 255.")
+    compiled_sprites = compile_project_sprites(project, project_dir, sprite_names)
+    ctx["sprite_state_names"] = {n: cs.state_names for n, cs in compiled_sprites.items()}
 
     # -----------------------------------------------------------------------
     # Build C output.
@@ -3569,10 +2371,6 @@ def build(project_dir, out_dir):
         '#include "input.h"',   # INPUT_* constants, for "wait_button" events
     ]
 
-    # If any NPC uses the "player" sprite, reference player_graphics.h.
-    if "player" in npc_sprite_names:
-        c_parts.append('#include "player_graphics.h"')
-
     if (any(scene.get("music") for _, scene in scene_data_list)
             or _uses_play_music(project)
             or any(_uses_play_music(scene) for _, scene in scene_data_list)):
@@ -3588,239 +2386,19 @@ def build(project_dir, out_dir):
     h_defs = []
     scene_idents = []
 
-    # Emit per-sprite tile data and palette.
-    for sname in npc_sprite_names:
-        if sname == "player":
-            continue   # references player_graphics.h directly
-        ident = c_ident(sname)
-        data = npc_sprite_data[sname]
-        if sprite_needs_legacy.get(sname):
-            _load_legacy_frames(data)
-        elif "tile_data" not in data:
-            # Composed-only sprite (see sprite_needs_legacy above): its
-            # sheet was never held to the legacy 96x16 layout, so there's
-            # no real legacy frame data to emit. npc_sprites[] still
-            # references *_tiles/frame_count by name unconditionally (see
-            # below), but sprite_show_frame() (sprite.c) only ever reads
-            # them when this sprite has NO composed multi_frames, which
-            # is never true here - so a single blank placeholder frame is
-            # all that's needed to keep the generated C valid.
-            data["tile_data"] = [0] * (SPRITE_FRAME_W * SPRITE_FRAME_H // 2)
-            data["frame_count"] = 1
-        c_parts.append(f"/* NPC sprite: {sname} */")
-        c_parts.append(c_array("uint8_t",  f"npc_sprite_{ident}_tiles",
-                               data["tile_data"], "0x{:02X}", 16))
+    # Sprites: sprite_defs[] (SpriteDef, engine/include/entity.h), in
+    # sprite_names order; player_sprite_index picks the player's.
+    sprite_inits = []
+    for sname in sprite_names:
+        code, init = emit_sprite(compiled_sprites[sname], f"spr_{c_ident(sname)}", sname)
+        c_parts.append(code)
         c_parts.append("")
-        c_parts.append(c_array("uint16_t", f"npc_sprite_{ident}_palette",
-                               data["palette"], "0x{:04X}", 8))
-        c_parts.append("")
-
-    def emit_sprite_states(sname):
-        """Emit this sprite's authored EntityAnimState array (if any -
-        see the spriteSheets pass above) and return the C expression +
-        count to put in its npc_sprites[] entry, or ("0", 0) for a
-        sprite with no authored states (the legacy-convention default)."""
-        state_list = sprite_state_lists.get(sname)
-        if not state_list:
-            return "0", 0
-
-        # Once a sheet has gone through the composed-frame pass above
-        # (multi_frame_defs has an entry for it), state_list's "frames"
-        # are ALREADY final indices into that sheet's multi_frames[] -
-        # remap_frames() (legacy per-frame flip baking) must NOT run
-        # again on them here.
-        is_multi = sname in multi_frame_defs
-
-        ident = c_ident(sname)
-        frame_array_idents = []
-        for si, (frames, _speed, flips, _refs) in enumerate(state_list):
-            if not frames:
-                frame_array_idents.append("0")   # empty state - no zero-length array
-                continue
-            fident = f"npc_sprite_{ident}_state{si}_frames"
-            emitted = frames if is_multi else remap_frames(sname, frames, flips)
-            c_parts.append(c_array("uint8_t", fident, emitted, "{}", 16))
-            c_parts.append("")
-            frame_array_idents.append(fident)
-
-        states_ident = f"npc_sprite_{ident}_states"
-        c_parts.append(f"static const EntityAnimState {states_ident}[{len(state_list)}] =")
-        c_parts.append("{")
-        for si, (frames, speed, _flips, _refs) in enumerate(state_list):
-            c_parts.append(
-                f"    {{ {frame_array_idents[si]}, {len(frames)}, {speed} }},")
-        c_parts.append("};")
-        c_parts.append("")
-        return states_ident, len(state_list)
-
-    sprite_states_expr = {}
-    for sname in npc_sprite_names:
-        sprite_states_expr[sname] = emit_sprite_states(sname)
-
-    def emit_multi_frames(sname):
-        """Emit this sprite's ASpriteMultiFrame array (if it uses composed
-        frames - see the composed-frame emission pass above) and return
-        (C expression, frame count, max OBJs per frame, max VRAM tiles
-        per frame), or ("0", 0, 0, 0) for a sheet with none (every sheet
-        from before this feature existed) - the multi_frame_count == 0
-        case main.c reads as "use entity_set_frames() exactly as before".
-        An empty frame (no placed tiles) compiles to { 0, 0, 0, 0 } -
-        tile_count 0, NULL pointers, no zero-length arrays - and simply
-        shows nothing."""
-        frames_out = multi_frame_defs.get(sname)
-        if not frames_out:
-            return "0", 0, 0, 0
-
-        ident = c_ident(sname)
-        frame_inits = []
-        for fi, (subtiles, tile_bytes, vram_tiles) in enumerate(frames_out):
-            if not subtiles:
-                frame_inits.append("    { 0, 0, 0, 0 },   /* empty frame */")
-                continue
-            sub_ident = f"npc_sprite_{ident}_multi{fi}_tiles"
-            c_parts.append(f"static const ASpriteSubTile {sub_ident}[{len(subtiles)}] =")
-            c_parts.append("{")
-            c_parts.append("    /* dx, dy, tile_offset (8x8 VRAM tiles), flip_h, flip_v, "
-                           "palette_bank, priority, tall */")
-            for st in subtiles:
-                # tile_offset: this sub-tile's first 8x8 VRAM tile within
-                # its frame's tile_data - sprite_set_multi_frame() uploads
-                # the frame's vram_tiles*32 bytes contiguously at
-                # sub_tile_index, and write_multi_oam() addresses this OBJ
-                # as sub_tile_index + tile_offset (see sprite.c).
-                c_parts.append(
-                    f"    {{ {st['dx']}, {st['dy']}, {st['tile_offset']}, "
-                    f"{1 if st['flip_h'] else 0}, {1 if st['flip_v'] else 0}, "
-                    f"{st['palette']}, {1 if st['priority'] else 0}, "
-                    f"{1 if st['tall'] else 0} }},"
-                )
-            c_parts.append("};")
-            c_parts.append("")
-            data_ident = f"npc_sprite_{ident}_multi{fi}_data"
-            c_parts.append(c_array("uint8_t", data_ident, tile_bytes, "0x{:02X}", 16))
-            c_parts.append("")
-            frame_inits.append(
-                f"    {{ {sub_ident}, {len(subtiles)}, {data_ident}, {vram_tiles} }},")
-
-        multi_ident = f"npc_sprite_{ident}_multi_frames"
-        c_parts.append(f"static const ASpriteMultiFrame {multi_ident}[{len(frames_out)}] =")
-        c_parts.append("{")
-        c_parts.extend(frame_inits)
-        c_parts.append("};")
-        c_parts.append("")
-        return (multi_ident, len(frames_out), multi_max_sub.get(sname, 0),
-                multi_max_vram.get(sname, 0))
-
-    def emit_anim_map(sname):
-        """Emit this sprite's runtime direction->state map (see
-        build_anim_map(); Entity.anim_map in entity.h) and return its C
-        expression, or "0" (no map - legacy runtime behaviour)."""
-        amap = sprite_anim_map.get(sname)
-        if amap is None or not sprite_state_lists.get(sname):
-            return "0"
-        ident = f"npc_sprite_{c_ident(sname)}_anim_map"
-        c_parts.append("/* idle: down, up, right, left; moving: down, up, right, left "
-                       "(255 = keep current state) */")
-        c_parts.append(c_array("uint8_t", ident, amap, "{}", 8))
-        c_parts.append("")
-        return ident
-
-    # The "player" sheet's composed frames / map are also needed by the
-    # player Entity itself (player_sprite_def below), even when no NPC uses
-    # the "player" sprite.
-    sprite_multi_expr = {}
-    sprite_anim_map_expr = {}
-    for sname in npc_sprite_names + ([] if "player" in npc_sprite_names else ["player"]):
-        sprite_multi_expr[sname] = emit_multi_frames(sname)
-        sprite_anim_map_expr[sname] = emit_anim_map(sname)
-
-    # Emit the global npc_sprites[] array.
-    npc_sprite_count = len(npc_sprite_names)
-    if npc_sprite_count > 0:
-        c_parts.append(f"const NpcSpriteDef npc_sprites[{npc_sprite_count}] =")
-        c_parts.append("{")
-        for sname in npc_sprite_names:
-            bank = npc_palette_bank[sname]
-            states_expr, state_count = sprite_states_expr[sname]
-            ox, oy, w, h = sprite_collision_box.get(sname, (0, 0, 16, 16))
-            cw, ch = sprite_canvas_size.get(sname, (16, 16))
-            multi_expr, multi_count, multi_max, multi_vram = sprite_multi_expr[sname]
-            anim_map_expr = sprite_anim_map_expr[sname]
-            if sname == "player":
-                c_parts.append(
-                    f"    /* [0] player */ "
-                    f"{{ player_graphics, PLAYER_FRAME_COUNT, {bank}, player_palette, "
-                    f"{states_expr}, {state_count}, {ox}, {oy}, {w}, {h}, {cw}, {ch}, "
-                    f"{multi_expr}, {multi_count}, {multi_max}, {multi_vram}, {anim_map_expr} }},")
-            else:
-                ident = c_ident(sname)
-                count = npc_sprite_data[sname].get("frame_count", SPRITE_FRAMES)
-                c_parts.append(
-                    f"    /* [{npc_sprite_names.index(sname)}] {sname} */ "
-                    f"{{ npc_sprite_{ident}_tiles, {count}, {bank}, "
-                    f"npc_sprite_{ident}_palette, "
-                    f"{states_expr}, {state_count}, {ox}, {oy}, {w}, {h}, {cw}, {ch}, "
-                    f"{multi_expr}, {multi_count}, {multi_max}, {multi_vram}, {anim_map_expr} }},")
-        c_parts.append("};")
-        c_parts.append("")
-    else:
-        # No NPC sprites in project — emit a zero-length placeholder so
-        # scenes_data.h's extern declaration still resolves.
-        c_parts.append("const NpcSpriteDef npc_sprites[1] = { { 0, 0, 0, 0, 0, 0, 0, 0, 16, 16, 16, 16, 0, 0, 0, 0, 0 } };")
-        c_parts.append("")
-
-    # -----------------------------------------------------------------------
-    # Player sprite metadata: the player Entity's own authored states +
-    # collision box, from project.json's "spriteSheets" entry named
-    # "player" (parsed above into sprite_state_lists/sprite_collision_box,
-    # independent of whether any NPC also uses the "player" sprite - see
-    # PlayerSpriteDef's doc comment in scene.h). Always emitted, even for
-    # a project with no such entry (state_count 0, default box), so
-    # main.c/scenes_data.h always have a stable player_sprite_def to read.
-    # Uses its own "player_entity_*" identifier prefix so it never
-    # collides with emit_sprite_states("player")'s "npc_sprite_player_*"
-    # arrays above, in case an NPC ALSO uses the "player" sprite sheet.
-    # -----------------------------------------------------------------------
-    player_state_list = sprite_state_lists.get("player")
-    if player_state_list:
-        player_frame_idents = []
-        for si, (frames, _speed, _flips, _refs) in enumerate(player_state_list):
-            # No remap_frames() here - flip-baking is refused for "player"
-            # states up front (see the BuildError in the spriteSheets
-            # parsing pass above), so frames is always used as-is.
-            if not frames:
-                player_frame_idents.append("0")   # empty state - no zero-length array
-                continue
-            fident = f"player_entity_state{si}_frames"
-            c_parts.append(c_array("uint8_t", fident, frames, "{}", 16))
-            c_parts.append("")
-            player_frame_idents.append(fident)
-
-        c_parts.append(f"static const EntityAnimState player_entity_states[{len(player_state_list)}] =")
-        c_parts.append("{")
-        for si, (frames, speed, _flips, _refs) in enumerate(player_state_list):
-            c_parts.append(
-                f"    {{ {player_frame_idents[si]}, {len(frames)}, {speed} }},")
-        c_parts.append("};")
-        c_parts.append("")
-        player_states_expr = "player_entity_states"
-        player_state_count = len(player_state_list)
-    else:
-        player_states_expr = "0"
-        player_state_count = 0
-
-    p_ox, p_oy, p_w, p_h = sprite_collision_box.get("player", (0, 0, 16, 16))
-    p_cw, p_ch = sprite_canvas_size.get("player", (16, 16))
-    # Composed ("metasprite") frames + direction map for the player Entity
-    # - the same arrays emit_multi_frames("player")/emit_anim_map("player")
-    # emitted above (shared with any NPC using the "player" sprite).
-    p_multi_expr, p_multi_count, p_multi_max, p_multi_vram = sprite_multi_expr["player"]
-    p_anim_map_expr = sprite_anim_map_expr["player"] if player_state_list else "0"
-    c_parts.append(
-        f"const PlayerSpriteDef player_sprite_def = "
-        f"{{ {player_states_expr}, {player_state_count}, {p_ox}, {p_oy}, {p_w}, {p_h}, "
-        f"{p_cw}, {p_ch}, {p_multi_expr}, {p_multi_count}, {p_multi_max}, {p_multi_vram}, "
-        f"{p_anim_map_expr} }};")
+        sprite_inits.append(f"    /* [{len(sprite_inits)}] {sname} */ {init},")
+    c_parts.append(f"const SpriteDef sprite_defs[{len(sprite_names)}] =")
+    c_parts.append("{")
+    c_parts.extend(sprite_inits)
+    c_parts.append("};")
+    c_parts.append(f"const uint8_t player_sprite_index = {sprite_names.index(player_sprite)};")
     c_parts.append("")
 
     # Emit the item_names[] table (index = inventory bit). Declared with
@@ -3895,9 +2473,9 @@ def build(project_dir, out_dir):
         # Named actors, for this scene's "actor_*" events (see
         # resolve_actor()) - scene-scoped, rebuilt fresh per scene.
         npc_name_to_index = {}
-        npc_sprite_of = {}
+        npc_sprite_of = {PLAYER_ACTOR_INDEX: player_sprite}
         for j, npc in enumerate(npcs):
-            npc_sprite_of[j] = npc.get("sprite", "player")
+            npc_sprite_of[j] = npc.get("sprite") or player_sprite
             nm = npc.get("name")
             if nm is None:
                 continue
@@ -3915,6 +2493,9 @@ def build(project_dir, out_dir):
 
         ctx["npc_name_to_index"] = npc_name_to_index
         ctx["npc_sprite_of"] = npc_sprite_of
+        scene_banks = assign_palette_banks(
+            [npc.get("sprite") or player_sprite for npc in npcs],
+            player_sprite, compiled_sprites, name)
         # For "actor_invoke": each NPC's on_interact events (or its
         # "dialogue" shorthand), inlined wherever it's invoked.
         ctx["npc_events"] = {
@@ -4007,11 +2588,8 @@ def build(project_dir, out_dir):
         if npc_count > 0:
             npc_values = []
             for j, npc in enumerate(npcs):
-                sname = npc.get("sprite", "player")
-                if sname not in npc_sprite_names:
-                    raise BuildError(
-                        f"{name}: NPC {j} sprite '{sname}' not in sprite list.")
-                sprite_idx = npc_sprite_names.index(sname)
+                sname = npc.get("sprite") or player_sprite
+                sprite_idx = sprite_names.index(sname)
                 dir_name   = npc.get("direction", "down").lower()
                 if dir_name not in DIRECTION_MAP:
                     raise BuildError(
@@ -4048,7 +2626,7 @@ def build(project_dir, out_dir):
 
                 npc_values.append(
                     f"    {{ {nx}, {ny}, {dir_val}, {sprite_idx}, "
-                    f"{movement_val}, {script_ref} }},")
+                    f"{scene_banks[sname]}, {movement_val}, {script_ref} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")
@@ -4168,14 +2746,14 @@ def build(project_dir, out_dir):
         "",
         f"#define SCENE_COUNT       {len(scene_idents)}",
         f"#define SCENE_START       (&scene_{start_scene})",
-        f"#define NPC_SPRITE_COUNT  {max(npc_sprite_count, 1)}",
+        f"#define SPRITE_COUNT      {len(sprite_names)}",
         f"#define ITEM_COUNT        {len(item_names)}",
         "",
         *h_defs,
         "",
         "extern const SceneDef *const scenes[SCENE_COUNT];",
-        "extern const NpcSpriteDef    npc_sprites[NPC_SPRITE_COUNT];",
-        "extern const PlayerSpriteDef player_sprite_def;",
+        "extern const SpriteDef       sprite_defs[SPRITE_COUNT];",
+        "extern const uint8_t         player_sprite_index;",
         "extern const char *const      item_names[];",
         "",
         "#endif",
