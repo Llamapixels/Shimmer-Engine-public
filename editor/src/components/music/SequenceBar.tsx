@@ -82,7 +82,7 @@ export default function SequenceBar() {
           </label>
         )}
         <button className="icon-btn" title="Add a new empty pattern after this position" onClick={() => insertAfter((s) => createSequenceItem(addPatternBlock(s)))}>
-          ＋
+          +
         </button>
         <button
           className="icon-btn"

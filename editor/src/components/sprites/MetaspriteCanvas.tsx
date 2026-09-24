@@ -139,14 +139,14 @@ export default function MetaspriteCanvas() {
     c.height = H;
     const ctx = c.getContext("2d")!;
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#15161b";
+    ctx.fillStyle = "#262626";
     ctx.fillRect(0, 0, W, H);
     // Checkerboard canvas.
     const [cx, cy] = toScreen(0, 0);
     const cell = Math.max(Z * 4, 4);
     for (let y = 0; y < ch * Z; y += cell)
       for (let x = 0; x < cw * Z; x += cell) {
-        ctx.fillStyle = ((x / cell + y / cell) & 1) === 0 ? "#2b2d36" : "#24262e";
+        ctx.fillStyle = ((x / cell + y / cell) & 1) === 0 ? "#3a3a3a" : "#333333";
         ctx.fillRect(cx + x, cy + y, Math.min(cell, cw * Z - x), Math.min(cell, ch * Z - y));
       }
     if (ed.showGrid && Z >= 3) {

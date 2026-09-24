@@ -14,7 +14,7 @@
   background: var(--bg-1);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-menu);
   display: flex;
   flex-direction: column;
   overflow: hidden;

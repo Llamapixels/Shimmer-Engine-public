@@ -4,6 +4,7 @@ import { NAMED_LIST_LIMIT, validateName } from "./common/NamedListSelect";
 import PopoverMenu from "./common/PopoverMenu";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import "./Navigator.css";
+import Icon from "./common/Icon";
 
 const COLLAPSE_KEY = "shimmer-engine.sidebar-collapsed";
 /** Pre-rename key, still read (never written) so an existing user's
@@ -510,10 +511,10 @@ function AddPrefabButton() {
   return (
     <span className="navigator-add-group">
       <button className="navigator-add-btn" title="Add NPC prefab" onClick={() => add("npc")}>
-        ☺+
+        <Icon name="actor" />+
       </button>
       <button className="navigator-add-btn" title="Add door prefab" onClick={() => add("door")}>
-        ▭+
+        <Icon name="trigger" />+
       </button>
     </span>
   );
@@ -544,7 +545,7 @@ function PrefabsSection() {
             }}
           >
             <span className="navigator-item-icon" aria-hidden>
-              {p.kind === "npc" ? "☺" : "▭"}
+              <Icon name={p.kind === "npc" ? "actor" : "trigger"} />
             </span>
             <span className="navigator-item-label" title={p.name}>
               {p.name}

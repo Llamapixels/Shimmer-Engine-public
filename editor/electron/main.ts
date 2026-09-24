@@ -75,7 +75,9 @@ function createWindow(): void {
     height: 800,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: "#20232b",
+    backgroundColor: "#1c1c1c",
+    // The window/taskbar icon (editor/resources/icon.png).
+    icon: path.join(__dirname, "..", "..", "resources", process.platform === "win32" ? "icon.ico" : "icon.png"),
     titleBarStyle: "hiddenInset",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

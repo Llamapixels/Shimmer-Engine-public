@@ -214,7 +214,7 @@ function PreviewSection() {
     const c = ref.current;
     if (!c) return;
     const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#101115";
+    ctx.fillStyle = "#1c1c1c";
     ctx.fillRect(0, 0, W, H);
     if (!img || !sheet) return;
     const a = canvasAnchor(sheet);

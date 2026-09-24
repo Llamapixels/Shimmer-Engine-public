@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useProjectStore } from "../state/projectStore";
+import Logo from "./Logo";
 import "./WelcomeScreen.css";
 
 interface Props {
@@ -24,9 +25,7 @@ export default function WelcomeScreen({ loading }: Props) {
   return (
     <div className="welcome">
       <div className="welcome-card">
-        <div className="welcome-mark" aria-hidden>
-          SE
-        </div>
+        <Logo size={130} className="welcome-mark" />
         <h1>Shimmer Engine</h1>
         <p className="welcome-subtitle">Build GBA games with scenes, actors, and event scripts.</p>
 

@@ -11,11 +11,12 @@ import PianoRoll from "../music/PianoRoll";
 import SequenceBar from "../music/SequenceBar";
 import "./views.css";
 import "./MusicView.css";
+import Icon, { type IconName } from "../common/Icon";
 
-const TOOLS: { tool: MusicTool; label: string; title: string }[] = [
-  { tool: "pencil", label: "✎", title: "Pencil (B): click to add notes, drag to move them" },
-  { tool: "eraser", label: "⌫", title: "Eraser (E): click or drag over notes to delete them" },
-  { tool: "select", label: "⬚", title: "Select (S): drag a box around notes" },
+const TOOLS: { tool: MusicTool; label: IconName; title: string }[] = [
+  { tool: "pencil", label: "pencil", title: "Pencil (B): click to add notes, drag to move them" },
+  { tool: "eraser", label: "eraser", title: "Eraser (E): click or drag over notes to delete them" },
+  { tool: "select", label: "marquee", title: "Select (S): drag a box around notes" },
 ];
 
 function isTyping(el: EventTarget | null): boolean {
@@ -69,7 +70,7 @@ export default function MusicView() {
             <PianoRoll />
           </>
         ) : (
-          <div className="view-empty">{loading ? `Loading ${songName}…` : "Pick a song on the left, or make a new one with ＋."}</div>
+          <div className="view-empty">{loading ? `Loading ${songName}…` : "Pick a song on the left, or make a new one with +."}</div>
         )}
       </div>
       <MusicInspector />
@@ -118,12 +119,12 @@ function MusicToolbar() {
         {playing ? "■" : "▶"}
       </button>
       <button className="btn btn-small" onClick={() => togglePlay(true)} title="Play from the start (Shift+Space)" disabled={playing}>
-        ⏮ From start
+        From start
       </button>
       <div className="music-tools">
         {TOOLS.map((t) => (
           <button key={t.tool} className={`music-tool${tool === t.tool ? " music-tool-on" : ""}`} onClick={() => st.setTool(t.tool)} title={t.title}>
-            {t.label}
+            <Icon name={t.label} size={14} />
           </button>
         ))}
       </div>
@@ -153,15 +154,15 @@ function MusicToolbar() {
         </button>
         <span>{Math.round(zoom * 100)}%</span>
         <button className="icon-btn" onClick={() => st.setZoom(zoom * 1.25)} title="Zoom in (Ctrl+wheel)">
-          ＋
+          +
         </button>
       </div>
       <div className="music-toolbar-right">
         <button className="icon-btn" disabled={!canUndo} onClick={st.undo} title="Undo (Ctrl+Z)">
-          ↶
+          <Icon name="undo" />
         </button>
         <button className="icon-btn" disabled={!canRedo} onClick={st.redo} title="Redo (Ctrl+Y)">
-          ↷
+          <Icon name="redo" />
         </button>
         <span className={`music-save music-save-${saveState}`}>
           {saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : "Saving…"}

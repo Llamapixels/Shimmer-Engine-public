@@ -124,7 +124,7 @@
 
 .music-nav-rename {
   margin: 2px 8px;
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -177,7 +177,7 @@
 
 .music-nav-led-on {
   background: var(--success);
-  box-shadow: 0 0 6px var(--success);
+  
 }
 
 .music-nav-mute {
@@ -283,7 +283,7 @@
 .sequence-pattern-pick select,
 .midi-grid select,
 .music-sub-table select {
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -659,7 +659,7 @@
 }
 
 .music-sub-table input {
-  background: var(--bg-3);
+  background: var(--input-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -686,7 +686,7 @@
   background: var(--bg-1);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-menu);
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 60px);

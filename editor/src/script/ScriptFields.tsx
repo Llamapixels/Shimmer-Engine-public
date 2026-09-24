@@ -17,6 +17,7 @@ import NumberInput from "../components/common/NumberInput";
 import { playerSpriteName } from "../sprites/model";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import type { FieldDef } from "./eventCatalog";
+import Icon from "../components/common/Icon";
 
 /** What a script's fields need to know about where the script lives. */
 export interface ScriptEnv {
@@ -431,7 +432,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
               })
             }
           >
-            ⌖ Pick
+            <Icon name="pick" /> Pick
           </button>
         </div>
       );

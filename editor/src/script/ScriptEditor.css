@@ -81,7 +81,6 @@
   height: 3px;
   border-radius: 2px;
   background: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
   margin: -1px 0 1px;
 }
 
@@ -232,7 +231,6 @@
 .menu-option-label:focus,
 .named-new input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .select-invalid {
@@ -419,7 +417,7 @@
   background: var(--bg-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-menu);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -433,7 +431,6 @@
   color: var(--text-primary);
   padding: 6px 8px;
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .add-event-list {

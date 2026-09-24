@@ -271,7 +271,7 @@ export default function PianoRoll() {
     }
 
     // Header: sequence positions and row numbers.
-    g.fillStyle = "#1c1e25";
+    g.fillStyle = "#262626";
     g.fillRect(0, 0, W, HEADER_H);
     g.textAlign = "left";
     g.font = `11px ${getComputedStyle(document.body).fontFamily}`;
@@ -317,7 +317,7 @@ export default function PianoRoll() {
       }
     }
     g.restore();
-    g.fillStyle = "#1c1e25";
+    g.fillStyle = "#262626";
     g.fillRect(0, 0, KEY_W, HEADER_H);
     g.fillRect(0, H - FX_H, KEY_W, FX_H);
     g.fillStyle = "#9a9ca8";

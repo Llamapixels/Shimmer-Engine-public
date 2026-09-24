@@ -125,7 +125,7 @@ export default function NamedListSelect({ kind, value, onChange }: Props) {
           {n}
         </option>
       ))}
-      <option value={NEW}>＋ New {NOUN[kind]}…</option>
+      <option value={NEW}>+ New {NOUN[kind]}…</option>
     </select>
   );
 }

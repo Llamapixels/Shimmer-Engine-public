@@ -191,7 +191,7 @@ function EventList({ path, list }: { path: ListPath; list: EventScript }) {
       {lineAt === list.length && <div className="drop-line" />}
       <div className="event-list-end" onDragOver={endDragOver} onDrop={(e) => performDrop(e, env.rootId, apply)}>
         <button className="add-event-btn" onClick={(e) => setMenuAnchor(e.currentTarget)}>
-          ＋ Add Event
+          + Add Event
         </button>
         {clipboard && clipboard.length > 0 && (
           <button
@@ -492,7 +492,7 @@ function BranchEntries<T extends Entry>({
         </div>
       ))}
       <button className="link-btn" disabled={entries.length >= max} onClick={() => editEntries((list) => [...list, create(list)])}>
-        ＋ Add {noun.toLowerCase()} {entries.length >= max ? `(max ${max})` : ""}
+        + Add {noun.toLowerCase()} {entries.length >= max ? `(max ${max})` : ""}
       </button>
     </div>
   );
