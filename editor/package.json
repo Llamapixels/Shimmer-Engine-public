@@ -1,0 +1,34 @@
+{
+  "name": "shimmer-engine",
+  "productName": "Shimmer Engine",
+  "version": "0.1.0",
+  "description": "A GB Studio-style visual editor for Shimmer Engine GBA games.",
+  "private": true,
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev:vite": "vite",
+    "dev:electron": "tsc -p electron/tsconfig.json && wait-on tcp:5173 && electron dist-electron/electron/main.js",
+    "dev": "concurrently -k -n VITE,ELECTRON -c blue,magenta \"npm:dev:vite\" \"npm:dev:electron\"",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build": "npm run build:renderer && npm run build:electron",
+    "start": "electron dist-electron/electron/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p electron/tsconfig.json"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "electron": "^31.3.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2",
+    "wait-on": "^7.2.0"
+  }
+}

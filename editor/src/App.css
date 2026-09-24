@@ -1,0 +1,36 @@
+.app-shell {
+  display: grid;
+  grid-template-rows: 44px 1fr 26px;
+  height: 100vh;
+  width: 100vw;
+}
+
+.app-body {
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+
+.app-body-single {
+  grid-template-columns: 1fr;
+  overflow: hidden;
+}
+
+.col-resizer {
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.1s ease;
+}
+
+.col-resizer:hover,
+body.col-resizing .col-resizer {
+  background: var(--accent);
+}
+
+body.col-resizing {
+  cursor: col-resize;
+}
+
+body.col-resizing * {
+  user-select: none !important;
+}

@@ -1,0 +1,208 @@
+/*
+ * Shimmer Engine's theme: a dark editor UI in the same spirit as GB
+ * Studio's own (sidebar + canvas + inspector, muted greys, one bright
+ * accent color used sparingly for selection/active states/primary
+ * actions) - but with the accent swapped from GB Studio's magenta to
+ * the user's chosen purple, #791FFF, and original color values
+ * throughout rather than a copy of GB Studio's exact palette.
+ */
+
+:root {
+  /* Accent - used for selection highlights, active tabs, primary
+   * buttons, focus rings. Everywhere GB Studio would use its magenta,
+   * this uses #791FFF instead. */
+  --accent: #791fff;
+  --accent-hover: #8a3bff;
+  --accent-active: #6415e0;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(121, 31, 255, 0.16);
+  --accent-soft-border: rgba(121, 31, 255, 0.45);
+
+  /* Surfaces, darkest to lightest. */
+  --bg-0: #16171c; /* app background */
+  --bg-1: #1c1e25; /* sidebars, panels */
+  --bg-2: #23252e; /* panel headers, toolbar */
+  --bg-3: #2b2e38; /* raised elements: inputs, cards */
+  --bg-4: #343744; /* hover state on raised elements */
+
+  --border: #34363f;
+  --border-strong: #434652;
+
+  --text-primary: #e7e8ec;
+  --text-secondary: #9a9ca8;
+  --text-muted: #6b6d78;
+  --text-disabled: #4a4c56;
+
+  --canvas-bg: #101115;
+  --grid-line: rgba(255, 255, 255, 0.06);
+
+  /* Collision overlay tints, matching the same meaning the compiler's
+   * build/*_preview.png files already use for solid/water/damage. */
+  --collision-solid: rgba(255, 64, 64, 0.45);
+  --collision-water: rgba(64, 128, 255, 0.45);
+  --collision-damage: rgba(255, 160, 0, 0.45);
+  --marker-door: rgba(121, 31, 255, 0.55);
+  --marker-spawn: rgba(72, 199, 116, 0.65);
+  --marker-npc: rgba(64, 200, 220, 0.6);
+
+  --danger: #e5484d;
+  --success: #3dd68c;
+  --warning: #f2b84b;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+input,
+button,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-4);
+  border-radius: 999px;
+  border: 2px solid var(--bg-1);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* ---- Shared controls --------------------------------------------------- */
+
+.btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-4);
+}
+
+.btn:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-small {
+  padding: 3px 8px;
+  font-size: 11.5px;
+}
+
+.link-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.link-btn:hover:not(:disabled) {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.link-btn:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.link-btn-danger:hover:not(:disabled) {
+  color: #ff8a8d;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex: none;
+  line-height: 1;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-4);
+  color: var(--text-primary);
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+input:focus-visible,
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+textarea,
+input[type="text"],
+input:not([type]) {
+  user-select: text;
+}

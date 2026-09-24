@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    // CommonJS, deliberately, even though the renderer (tsconfig.json)
+    // is ESM: preload.ts loads into Electron's sandboxed preload
+    // context (sandbox: true in main.ts), which cannot run `import`/
+    // `export` syntax - see the "Cannot use import statement outside a
+    // module" preload crash this replaced. Compiling everything under
+    // electron/ as CommonJS, and leaving package.json without
+    // "type": "module", makes every .js file here CJS by default so
+    // main.js and preload.js behave identically instead of needing two
+    // different module systems side by side.
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "../dist-electron",
+    "rootDir": "..",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["**/*.ts", "../shared/**/*.ts"]
+}

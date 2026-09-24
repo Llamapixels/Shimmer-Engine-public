@@ -1,0 +1,122 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+
+.toolbar-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), var(--accent-active));
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 10px;
+  flex: none;
+}
+
+.toolbar-project-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: none;
+}
+
+.toolbar-section-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar-section-select:hover {
+  background: var(--bg-4);
+}
+
+.toolbar-section-select-chevron {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.toolbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar-icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  width: 28px;
+  height: 26px;
+  font-size: 15px;
+}
+
+.toolbar-icon-btn:hover:not(:disabled) {
+  background: var(--bg-4);
+  color: var(--text-primary);
+}
+
+.toolbar-icon-btn:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.toolbar-build-btn {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--accent-text);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar-build-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.toolbar-build-btn:disabled {
+  background: var(--bg-3);
+  border-color: var(--border-strong);
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.toolbar-open-btn {
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar-open-btn:hover {
+  background: var(--bg-4);
+}
