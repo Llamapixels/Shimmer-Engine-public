@@ -5,6 +5,7 @@
  * long-running action against whatever project is currently open. See
  * electron/buildRunner.ts for what actually runs the build.
  */
+import { BUILD_SUCCESS_ART } from "../components/buildArt";
 import { create } from "zustand";
 
 import type { BuildLogEvent, BuildRomResult } from "../../shared/ipc";
@@ -80,7 +81,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     }
 
     if (res.value.ok) {
-      set({ status: "success", result: res.value });
+      set((s) => ({ status: "success", result: res.value, log: [...s.log, { stream: "art", line: BUILD_SUCCESS_ART }] }));
     } else {
       set({
         status: res.value.error === "Build cancelled." ? "cancelled" : "error",

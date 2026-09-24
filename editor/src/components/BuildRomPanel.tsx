@@ -54,11 +54,17 @@ export default function BuildRomPanel() {
           {log.length === 0 ? (
             <div className="build-panel-log-empty">Starting…</div>
           ) : (
-            log.map((entry, i) => (
-              <div key={i} className={`build-panel-line build-panel-line-${entry.stream}`}>
-                {entry.line}
-              </div>
-            ))
+            log.map((entry, i) =>
+              entry.stream === "art" ? (
+                <pre key={i} className="build-panel-art" data-testid="build-art">
+                  {entry.line}
+                </pre>
+              ) : (
+                <div key={i} className={`build-panel-line build-panel-line-${entry.stream}`}>
+                  {entry.line}
+                </div>
+              ),
+            )
           )}
         </div>
 
