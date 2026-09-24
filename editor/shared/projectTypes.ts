@@ -232,8 +232,9 @@ export interface BgLayerJSON {
   /** Drift in pixels per frame (-8..8), e.g. clouds. */
   auto_x?: number;
   auto_y?: number;
-  /** Drawn over the map and actors instead of behind. */
-  front?: boolean;
+  /** Behind the map (default), over the map but under actors (true), or
+   * over the map and actors ("actors"). */
+  front?: boolean | "actors";
 }
 
 /** GB Studio's scene types (compiler/engine_settings.json "modes"). */

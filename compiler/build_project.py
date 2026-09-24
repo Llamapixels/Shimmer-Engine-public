@@ -130,9 +130,12 @@ More scene settings (GB Studio's scene inspector):
          "speed_x": 0.25, "speed_y": 0,              at speed x the camera
          "auto_x": 0.5, "auto_y": 0,                 (0-4; 1 = with the map)
          "front": false}                             plus px/frame drift
-    ]                                                (-8..8). front: drawn
-                                                     over the map and actors
-                                                     instead of behind.
+    ]                                                (-8..8). front: false =
+                                                     behind the map, true =
+                                                     over it (under actors),
+                                                     "actors" = over both.
+        Layers line up with the map (as the editor shows them) with the
+        camera at the player's start; parallax moves them from there.
         Layer images are up to 512x256 or 256x512 and repeat. With a layer
         behind, only transparent pixels of the scene's background show it.
         The scene and its layers share the 1024 tiles and 15 palettes.
@@ -917,9 +920,13 @@ def convert_layer(scene_file, layer, i, scene_name):
     padded = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     padded.paste(image, (0, 0))
     bg = convert_background(path, f"{where} ({path.name})", see_through_only=True, image=padded)
+    front = layer.get("front", False)
+    if front not in (False, True, "actors"):
+        raise BuildError(f"{where}: \"front\" must be false (behind the map), true (over the map) "
+                         "or \"actors\" (over the map and actors).")
     settings = {
         "size": LAYER_SIZES[(w // TILE, h // TILE)],
-        "front": 1 if layer.get("front") else 0,
+        "front": 2 if front == "actors" else 1 if front else 0,
         "speed_x": _fixed8(layer.get("speed_x", 0.5), "speed_x", where, 0, LAYER_SPEED_MAX),
         "speed_y": _fixed8(layer.get("speed_y", 0.5), "speed_y", where, 0, LAYER_SPEED_MAX),
         "auto_x": _fixed8(layer.get("auto_x", 0), "auto_x", where, -8, 8),
@@ -3216,9 +3223,14 @@ def build(project_dir, out_dir):
         c_parts.append(f"    .parallax_count = {len(parallax)},")
         if layer_data:
             c_parts.append("    .layers        = {")
+            # The camera at the player's start: where the layers line up
+            # with the map, as the editor draws them (engine/background.c).
+            anchor_x = max(0, min(spawn[0] + 8 - 120, w * TILE - 240))
+            anchor_y = max(0, min(spawn[1] + 8 - 80, h * TILE - 160))
             for li, l in enumerate(layer_data):
                 c_parts.append(f"        {{ {ident}_layer{li}_map, {l['size']}, {l['front']}, "
-                               f"{l['speed_x']}, {l['speed_y']}, {l['auto_x']}, {l['auto_y']} }},")
+                               f"{l['speed_x']}, {l['speed_y']}, {l['auto_x']}, {l['auto_y']}, "
+                               f"{anchor_x}, {anchor_y} }},")
             c_parts.append("    },")
         c_parts.append(f"    .layer_count   = {len(layer_data)},")
         c_parts.append(f"    .mode          = {scene_mode},")
