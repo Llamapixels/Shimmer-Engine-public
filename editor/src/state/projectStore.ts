@@ -21,16 +21,41 @@ export type Selection =
   | { kind: "scene"; sceneId: string }
   | { kind: "door"; sceneId: string; index: number }
   | { kind: "npc"; sceneId: string; index: number }
+  | { kind: "note"; sceneId: string; index: number }
   | { kind: "customScript"; id: string }
   | { kind: "palette"; id: string }
   | { kind: "prefab"; id: string };
 
 export type Section = "world" | "sprites" | "backgrounds" | "music" | "settings";
 
-export type Tool = "select" | "npc" | "door" | "collision" | "spawn" | "palette" | "placePrefab";
+export type Tool =
+  | "select"
+  | "npc"
+  | "door"
+  | "note"
+  | "collision"
+  | "palette"
+  | "tiles"
+  | "eraser"
+  | "spawn"
+  | "placePrefab";
 
 /** Collision brush: the same characters scene JSON uses. */
-export type Brush = "#" | "~" | "!" | ".";
+export type Brush = "#" | "~" | "!" | "." | "^" | "v" | "<" | ">";
+
+/** How painting tools apply (GB Studio's brush toolbar). */
+export type BrushShape = "8px" | "16px" | "fill" | "magic" | "selection";
+
+/** Which layer the paint tools / eraser work on. */
+export type PaintLayer = "collision" | "palette" | "tiles";
+
+/** Tiles tool stamp: a rectangle of the background's own tiles. */
+export interface TileStamp {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /** An in-progress "click a tile on the canvas" request from a script
  * field (e.g. Move Actor To's x/y). */
@@ -123,6 +148,10 @@ interface ProjectState {
   section: Section;
   tool: Tool;
   brush: Brush;
+  brushShape: BrushShape;
+  /** Layer the eraser clears (the last paint tool used). */
+  eraseLayer: PaintLayer;
+  tileStamp: TileStamp | null;
   /** id of the palette being painted with the "palette" tool. */
   paletteBrush: string | null;
   /** id of the prefab armed for placement with the "placePrefab" tool. */
@@ -154,6 +183,9 @@ interface ProjectState {
   setSection: (section: Section) => void;
   setTool: (tool: Tool) => void;
   setBrush: (brush: Brush) => void;
+  setBrushShape: (shape: BrushShape) => void;
+  setEraseLayer: (layer: PaintLayer) => void;
+  setTileStamp: (stamp: TileStamp | null) => void;
   setPaletteBrush: (id: string | null) => void;
   setPlacingPrefab: (id: string | null) => void;
   setTilePick: (pick: TilePick | null) => void;
@@ -300,9 +332,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     set({ project: { ...project, project: snap.project, scenes: snap.scenes }, lastCoalesce: null });
     // Drop a selection that no longer exists.
     const sel = get().selection;
-    if (sel.kind === "door" || sel.kind === "npc") {
+    if (sel.kind === "door" || sel.kind === "npc" || sel.kind === "note") {
       const scene = snap.scenes.find((s) => s.fileId === sel.sceneId)?.data;
-      const list = sel.kind === "door" ? scene?.doors : scene?.npcs;
+      const list = sel.kind === "door" ? scene?.doors : sel.kind === "npc" ? scene?.npcs : scene?.notes;
       if (!list || sel.index >= list.length) set({ selection: { kind: "scene", sceneId: sel.sceneId } });
     }
   };
@@ -332,6 +364,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     section: "world",
     tool: "select",
     brush: "#",
+    brushShape: "8px",
+    eraseLayer: "collision",
+    tileStamp: null,
     paletteBrush: null,
     placingPrefabId: null,
     tilePick: null,
@@ -410,6 +445,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setSection: (section) => set({ section, tilePick: null }),
     setTool: (tool) => set({ tool, tilePick: null }),
     setBrush: (brush) => set({ brush, tool: "collision", tilePick: null }),
+    setBrushShape: (brushShape) => set({ brushShape }),
+    setEraseLayer: (eraseLayer) => set({ eraseLayer }),
+    setTileStamp: (tileStamp) => set({ tileStamp, tool: "tiles", tilePick: null }),
     setPaletteBrush: (paletteBrush) => set({ paletteBrush, tool: "palette", tilePick: null }),
     setPlacingPrefab: (placingPrefabId) => set({ placingPrefabId, tool: placingPrefabId ? "placePrefab" : "select", tilePick: null }),
     setTilePick: (tilePick) => set({ tilePick, section: tilePick ? "world" : get().section }),
@@ -643,6 +681,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         set({ selection: { kind: "scene", sceneId: selection.sceneId } });
       } else if (selection.kind === "npc") {
         get().deleteIndexed(selection.sceneId, "actor", selection.index);
+        set({ selection: { kind: "scene", sceneId: selection.sceneId } });
+      } else if (selection.kind === "note") {
+        get().updateScene(selection.sceneId, (s) => ({ ...s, notes: (s.notes ?? []).filter((_, i) => i !== selection.index) }));
         set({ selection: { kind: "scene", sceneId: selection.sceneId } });
       }
       set({ tilePick: null });

@@ -245,6 +245,8 @@ export interface ShimmerEngineApi {
    * function. There's only ever one build running at a time (see
    * buildRom), so this isn't scoped to a particular request. */
   onBuildLog(cb: (event: BuildLogEvent) => void): () => void;
+  /** Help > About was picked in the app menu. Returns an unsubscribe. */
+  onShowAbout(cb: () => void): () => void;
 }
 
 export const IPC_CHANNELS = {
@@ -275,6 +277,8 @@ export const IPC_CHANNELS = {
    * ipcRenderer.invoke channel like the others above - see
    * ShimmerEngineApi.onBuildLog. */
   buildLog: "build:log",
+  /** Main -> renderer: show the About dialog. */
+  showAbout: "menu:about",
 } as const;
 
 export type { DoorJSON, NpcJSON, TimerJSON };

@@ -80,6 +80,7 @@ export default function PropertiesPanel() {
       {selection.kind === "scene" && <SceneProps scene={scene} scenes={project.scenes} />}
       {selection.kind === "door" && <DoorProps scene={scene} scenes={project.scenes} index={selection.index} />}
       {selection.kind === "npc" && <NpcProps scene={scene} scenes={project.scenes} index={selection.index} />}
+      {selection.kind === "note" && <NoteProps scene={scene} index={selection.index} />}
     </div>
   );
 }
@@ -947,5 +948,44 @@ function DoorPrefabFields({
         </select>
       </FieldRow>
     </>
+  );
+}
+
+function NoteProps({ scene, index }: { scene: SceneRecord; index: number }) {
+  const updateScene = useProjectStore((s) => s.updateScene);
+  const deleteSelected = useProjectStore((s) => s.deleteSelected);
+  const note = scene.data.notes?.[index];
+  if (!note) return <div className="properties-panel-empty">Note not found.</div>;
+  const patch = (p: Partial<typeof note>, key?: string) =>
+    updateScene(
+      scene.fileId,
+      (s) => ({ ...s, notes: (s.notes ?? []).map((n, i) => (i === index ? { ...n, ...p } : n)) }),
+      key ? `note${index}:${key}` : undefined,
+    );
+  return (
+    <div className="panel-section">
+      <FieldRow label="Note" hint="Only for you - notes aren't part of the game.">
+        <textarea
+          className="note-text"
+          rows={8}
+          value={note.text}
+          autoFocus={!note.text}
+          placeholder="Write a note…"
+          onChange={(e) => patch({ text: e.target.value }, "text")}
+          data-testid="note-text"
+        />
+      </FieldRow>
+      <div className="field-row-pair">
+        <FieldRow label="X">
+          <NumberInput value={note.x} min={0} max={1024} onChange={(x) => patch({ x }, "x")} />
+        </FieldRow>
+        <FieldRow label="Y">
+          <NumberInput value={note.y} min={0} max={1024} onChange={(y) => patch({ y }, "y")} />
+        </FieldRow>
+      </div>
+      <button className="btn btn-small btn-danger" onClick={deleteSelected}>
+        Delete note
+      </button>
+    </div>
   );
 }
