@@ -7,16 +7,19 @@
 
 #include "scene.h"
 
-#define SCENE_COUNT       1
-#define SCENE_START       (&scene_start)
-#define NPC_SPRITE_COUNT  1
-#define ITEM_COUNT        0
+#define SCENE_COUNT       4
+#define SCENE_START       (&scene_town)
+#define SPRITE_COUNT      1
+#define ITEM_COUNT        1
 
-extern const SceneDef scene_start;
+extern const SceneDef scene_house_inside;
+extern const SceneDef scene_testmap;
+extern const SceneDef scene_teststream;
+extern const SceneDef scene_town;
 
 extern const SceneDef *const scenes[SCENE_COUNT];
-extern const NpcSpriteDef    npc_sprites[NPC_SPRITE_COUNT];
-extern const PlayerSpriteDef player_sprite_def;
+extern const SpriteDef       sprite_defs[SPRITE_COUNT];
+extern const uint8_t         player_sprite_index;
 extern const char *const      item_names[];
 
 #endif
