@@ -642,7 +642,7 @@ export interface TimerDisableEvent extends EventBase {
 }
 
 /** Runs "script" whenever one of the buttons is pressed. "override"
- * replaces the button's normal action (A = talk, START = pause menu). */
+ * replaces the button's normal action (A = talk). */
 export interface InputScriptSetEvent extends EventBase {
   type: "input_script_set";
   buttons: ButtonName | ButtonName[];
@@ -804,7 +804,7 @@ export interface SceneResetEvent extends EventBase {
   type: "scene_reset";
 }
 
-/** Save slot 0-2 (slot 0 is the pause menu's). */
+/** Save slot 0-2. */
 export interface DataSaveEvent extends EventBase {
   type: "data_save";
   slot: number;
