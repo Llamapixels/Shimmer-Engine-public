@@ -700,10 +700,53 @@ export const EVENT_DEFS: EventDef[] = [
     type: "play_sound",
     label: "Play Sound",
     category: "Sound",
-    description: "Play a built-in sound effect.",
-    fields: [{ key: "sound", label: "Sound", kind: "sound" }],
+    description:
+      "Play a sound: a built-in beep, or a WAV from assets/sounds (add them in the Music section). WAVs play on the GBA's two digital channels, over the music; the options below are for WAVs.",
+    fields: [
+      { key: "sound", label: "Sound", kind: "sound" },
+      {
+        key: "channel",
+        label: "Channel (WAV)",
+        kind: "select",
+        options: [
+          { value: "auto", label: "Any free channel" },
+          { value: "a", label: "Channel A" },
+          { value: "b", label: "Channel B" },
+        ],
+      },
+      { key: "loop", label: "Loop (WAV)", kind: "bool" },
+      {
+        key: "volume",
+        label: "Volume (WAV)",
+        kind: "select",
+        options: [
+          { value: "full", label: "Full" },
+          { value: "half", label: "Half" },
+        ],
+      },
+    ],
     create: () => ({ type: "play_sound", sound: "blip" }),
-    summary: (ev) => ev.sound,
+    summary: (ev) => `${ev.sound}${ev.loop ? " (loop)" : ""}`,
+  }),
+  def({
+    type: "stop_sound",
+    label: "Stop Sound",
+    category: "Sound",
+    description: "Stop a WAV sound that's playing (e.g. a looping one).",
+    fields: [
+      {
+        key: "channel",
+        label: "Channel",
+        kind: "select",
+        options: [
+          { value: "auto", label: "Both channels" },
+          { value: "a", label: "Channel A" },
+          { value: "b", label: "Channel B" },
+        ],
+      },
+    ],
+    create: () => ({ type: "stop_sound", channel: "auto" }),
+    summary: (ev) => (ev.channel === "a" ? "channel A" : ev.channel === "b" ? "channel B" : "all WAVs"),
   }),
   def({
     type: "play_music",

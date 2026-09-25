@@ -205,6 +205,13 @@ Event script types (used in "on_interact" and door "events" lists):
         "!S5!" sets the text speed (frames per character, 0 = instant)
         from that point on. Text too long for the box continues on the
         next page.
+    { "type": "play_sound", "sound": "<wav name>", "channel": "auto" | "a" | "b",
+      "loop": false, "volume": "full" | "half" }
+        A WAV from assets/sounds (compiler/wav.py) on one of the GBA's two
+        Direct Sound channels ("auto" picks a free one). The built-in
+        blip/door/save/item still work as before.
+    { "type": "stop_sound", "channel": "auto" | "a" | "b" }
+        Stop WAV playback on a channel ("auto" = both).
     { "type": "set_engine_setting", "setting": "pl_extra_jumps", "value": 1 }
         Change an engine setting (compiler/engine_settings.json) for the
         rest of the scene.
@@ -446,12 +453,15 @@ from sprites import (SheetImage, SpriteError, check_sheet, compile_sprite, defau
 from ui import UiError, build_ui, encode_char, ui_to_c
 import modes as M
 from uge import UgeError, build_uge_songs, track_const as uge_track_const
+from wav import WavError, build_sounds, sound_files
 from expr import ExprError, compile_expression, to_rpn as expr_to_rpn
 import expr as X
 
 # Each project's .uge songs live in <project>/assets/music/ and are
 # compiled into engine/data/uge_songs.c.
 PROJECT_MUSIC_DIR = Path("assets") / "music"
+PROJECT_SOUNDS_DIR = Path("assets") / "sounds"   # WAV sound effects (compiler/wav.py)
+WAV_CHANNELS = {"auto": 0, "a": 1, "b": 2}
 
 
 TILE = 8
@@ -1482,12 +1492,26 @@ def compile_events(events, out, ctx, where):
             _compile_branch(out, "SCRIPT_IF_ITEM", {"a": idx}, "b", ev, ctx, ev_where)
 
         elif etype == "play_sound":
-            sound = str(_require(ev, "sound", ev_where)).strip().lower()
+            raw = str(_require(ev, "sound", ev_where)).strip()
+            if raw in ctx["wav_names"]:
+                channel = str(ev.get("channel", "auto")).lower()
+                if channel not in WAV_CHANNELS:
+                    raise BuildError(f"{ev_where}: \"channel\" must be auto, a or b.")
+                flags = (1 if ev.get("loop") else 0) | (2 if ev.get("volume") == "half" else 0)
+                out.append(_instr("SCRIPT_PLAY_WAV", a=ctx["wav_names"].index(raw), b=WAV_CHANNELS[channel], c=flags))
+                continue
+            sound = raw.lower()
             const = SOUND_NAME_TO_CONST.get(sound)
             if const is None:
-                known = ", ".join(sorted(SOUND_NAME_TO_CONST))
+                known = ", ".join(sorted(SOUND_NAME_TO_CONST) + ctx["wav_names"])
                 raise BuildError(f"{ev_where}: unknown sound '{sound}'. Use one of: {known}")
             out.append(_instr("SCRIPT_PLAY_SOUND", a=const))
+
+        elif etype == "stop_sound":
+            channel = str(ev.get("channel", "auto")).lower()
+            if channel not in WAV_CHANNELS:
+                raise BuildError(f"{ev_where}: \"channel\" must be auto (both), a or b.")
+            out.append(_instr("SCRIPT_STOP_WAV", a=WAV_CHANNELS[channel]))
 
         elif etype == "wait":
             frames = ev.get("frames")
@@ -2756,6 +2780,7 @@ def build(project_dir, out_dir):
         "scene_timer_count": 0,
         "custom_scripts": custom_scripts,
         "music_names": {p.stem for p in (project_dir / PROJECT_MUSIC_DIR).glob("*.uge")},
+        "wav_names": [p.stem for p in sound_files(project_dir / PROJECT_SOUNDS_DIR)],
     }
 
     # Dialogue fonts, frames and cursor (compiler/ui.py) - needed before any
@@ -3301,6 +3326,12 @@ def build(project_dir, out_dir):
         raise BuildError(str(e)) from None
     if uge_names:
         print(f"Wrote {out_dir / 'uge_songs.c'} ({len(uge_names)} .uge song(s))")
+    try:
+        wav_names = build_sounds(project_dir / PROJECT_SOUNDS_DIR, out_dir)
+    except WavError as e:
+        raise BuildError(str(e)) from None
+    if wav_names:
+        print(f"  sounds: {', '.join(wav_names)}")
     write_if_changed(out_dir / "ui_data.c", ui_to_c(ctx["ui"]))
     write_if_changed(out_dir / "mode_settings.h", M.header())
     write_if_changed(out_dir / "scenes_data.c", "\n".join(c_parts))

@@ -20,6 +20,7 @@ export default function MusicNavigator({ onImportMidi }: Props) {
       <SongList onImportMidi={onImportMidi} />
       <ChannelList />
       <InstrumentList />
+      <SoundList />
     </div>
   );
 }
@@ -292,5 +293,80 @@ export function WaveThumb({ samples }: { samples: Uint8Array | undefined }) {
     <svg className="music-wave-thumb" viewBox="0 0 31 15" preserveAspectRatio="none">
       <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
     </svg>
+  );
+}
+
+/** WAV sound effects (assets/sounds), played with the Play Sound event. */
+function SoundList() {
+  const project = useProjectStore((s) => s.project);
+  const assets = useProjectStore((s) => s.assets);
+  const refreshAssets = useProjectStore((s) => s.refreshAssets);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; relPath: string } | null>(null);
+  const sounds = assets?.sounds ?? [];
+
+  const preview = async (relPath: string) => {
+    if (!project) return;
+    const r = await window.api.readAsset({ rootPath: project.rootPath, relPath });
+    if (!r.ok) return;
+    const audio = new Audio(r.value.dataUrl);
+    setPlaying(relPath);
+    audio.onended = () => setPlaying((p) => (p === relPath ? null : p));
+    void audio.play();
+  };
+
+  return (
+    <section className="music-nav-section">
+      <header className="music-nav-head">
+        <span>Sound effects</span>
+        <button
+          className="icon-btn"
+          title="Import WAV files"
+          onClick={async () => {
+            if (!project) return;
+            const r = await window.api.importAssets({ rootPath: project.rootPath, kind: "sounds" });
+            if (r.ok && r.value) await refreshAssets();
+          }}
+        >
+          +
+        </button>
+      </header>
+      <div className="music-nav-list">
+        {sounds.length === 0 && (
+          <div className="music-nav-empty">
+            No sounds yet. Use + to add WAV files, then play them with the Play Sound event. They play on the GBA's two digital channels,
+            over the music, as 16 kHz 8-bit mono (about 16 KB per second).
+          </div>
+        )}
+        {sounds.map((a) => (
+          <button
+            key={a.relPath}
+            className="music-nav-item"
+            title={`${a.fileName} - click to listen`}
+            onClick={() => void preview(a.relPath)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({ x: e.clientX, y: e.clientY, relPath: a.relPath });
+            }}
+          >
+            <span className="music-nav-icon">{playing === a.relPath ? "▶" : "~"}</span>
+            <span className="music-nav-name">{a.name}</span>
+          </button>
+        ))}
+      </div>
+      {menu && (
+        <PopoverMenu
+          anchor={menu}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: "Listen", onClick: () => void preview(menu.relPath) },
+            {
+              label: "Show in folder",
+              onClick: () => project && void window.api.revealInFolder({ rootPath: project.rootPath, relPath: menu.relPath }),
+            },
+          ]}
+        />
+      )}
+    </section>
   );
 }

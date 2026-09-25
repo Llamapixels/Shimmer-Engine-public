@@ -19,6 +19,7 @@
 #include "ui.h"
 #include "modes.h"
 #include "projectile.h"
+#include "wav.h"
 
 /*
  * One running script. Slot 0 is the "main" script (script_start) -
@@ -980,6 +981,14 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_LAUNCH_PROJECTILE:
             projectile_launch((const int16_t *)ev->ptr);
+            break;
+
+        case SCRIPT_PLAY_WAV:
+            wav_play(ev->a, ev->b, ev->c);
+            break;
+
+        case SCRIPT_STOP_WAV:
+            wav_stop(ev->a);
             break;
 
         case SCRIPT_END:
