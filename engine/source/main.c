@@ -10,11 +10,9 @@
 #include "scene.h"
 #include "transition.h"
 #include "dialogue.h"
-#include "menu.h"
 #include "audio.h"
 #include "music.h"
 #include "save.h"
-#include "debug.h"
 #include "script.h"
 #include "state.h"
 #include "actor.h"
@@ -38,7 +36,6 @@
  * Scene-transition state machine.
  * PLAY      = normal gameplay (includes dialogue/scripts - see
  *             dialogue_active()/script_active())
- * MENU      = pause menu open (START)
  * FADE_OUT  = a script hit SCRIPT_SWITCH_SCENE, darkening screen
  * LOADING   = screen is black, load the target scene
  * FADE_IN   = brightening into new scene
@@ -46,7 +43,6 @@
 typedef enum
 {
     STATE_PLAY,
-    STATE_MENU,
     STATE_FADE_OUT,
     STATE_LOADING,
     STATE_FADE_IN
@@ -905,59 +901,6 @@ static int scene_to_index(const SceneDef *target)
     return 0;
 }
 
-/* Builds a SaveData from however things stand right now and writes it. */
-static void save_game(Entity *player)
-{
-    (void)player;
-    game_save_slot(0);
-    audio_play_save();
-}
-
-/*
- * One item name per dialogue "page" (dialogue_update() advances on
- * '\n', see dialogue.c) - the pause menu's ITEMS option just calls
- * dialogue_show(build_items_text()). Static buffer: dialogue_show()
- * only holds a pointer, so this has to outlive the call, and it's
- * about to become the box's only content.
- */
-#define ITEMS_TEXT_MAX 256
-static char items_text[ITEMS_TEXT_MAX];
-
-static const char *build_items_text(void)
-{
-    int pos = 0;
-    int have_any = 0;
-
-    for (int i = 0; i < ITEM_COUNT && pos < ITEMS_TEXT_MAX - 2; i++)
-    {
-        if (!item_has(i))
-            continue;
-
-        const char *name = item_names[i];
-
-        for (int j = 0; name[j] != 0 && pos < ITEMS_TEXT_MAX - 2; j++)
-            items_text[pos++] = name[j];
-
-        items_text[pos++] = '\n';
-        have_any = 1;
-    }
-
-    if (have_any)
-    {
-        /* Drop the trailing '\n' so the last page isn't blank. */
-        pos--;
-    }
-    else
-    {
-        static const char *none = "You don't have any items yet.";
-
-        for (int j = 0; none[j] != 0 && pos < ITEMS_TEXT_MAX - 1; j++)
-            items_text[pos++] = none[j];
-    }
-
-    items_text[pos] = 0;
-    return items_text;
-}
 
 
 
@@ -984,44 +927,27 @@ int main(void)
     collision_init();
     entity_system_init();
     dialogue_init();
-    debug_init();
     audio_init();
     music_init();
 
 
-    /*
-     * Dev/testing reset: hold SELECT + L + R at boot to skip loading
-     * any existing save and start a brand-new game (clears flags/
-     * inventory too, since those live in the save). This doesn't
-     * touch SRAM by itself - the wipe only becomes permanent once
-     * you actually save again from the pause menu.
-     */
-    int reset_requested =
-        (~REG_KEYINPUT & (INPUT_SELECT | INPUT_L | INPUT_R)) ==
-        (INPUT_SELECT | INPUT_L | INPUT_R);
+    /* Every game starts fresh at the start scene; loading a save is up
+     * to the game's scripts (If Game Data Saved / Load Game Data), as in
+     * GB Studio. */
+    state_init(0, 0, 0);
 
-    /* Resume from a save if there is one; otherwise start fresh. */
-    SaveData save;
-    int has_save = reset_requested ? 0 : save_read(&save);
-
-    state_init(has_save ? save.flags : 0,
-               has_save ? save.inventory : 0,
-               has_save ? save.variables : 0);
-
-    const SceneDef *scene =
-        has_save ? scenes[save.scene_index] : SCENE_START;
+    const SceneDef *scene = SCENE_START;
 
     scene_load(scene);
 
     /* NPCs are spawned below, AFTER the player - see scene_sprite_mark. */
 
-    /* Player entity using your sprite sheet, at the scene's spawn
-     * (or the saved position, if we're resuming). */
+    /* Player entity using your sprite sheet, at the scene's spawn. */
     Entity *player =
         entity_create(
             ENTITY_PLAYER,
-            has_save ? save.player_x : scene->player_x,
-            has_save ? save.player_y : scene->player_y,
+            scene->player_x,
+            scene->player_y,
             16,
             16
         );
@@ -1037,10 +963,7 @@ int main(void)
      * PLAYER_ACTOR_INDEX above. */
     g_player = player;
 
-    if (has_save)
-        player->direction = save.player_direction;
-    else
-        player->direction = scene->player_start_direction;
+    player->direction = scene->player_start_direction;
 
     /* Every sprite - the player's too, since each scene can pick the
      * player's sprite - belongs to the current scene and is released on
@@ -1082,12 +1005,6 @@ int main(void)
         transition_update();
         timers_update();
         update_invincibility(player);
-
-        /* Dev HUD: hold SELECT and press A to toggle. Checked here,
-         * outside the state machine, so it works no matter what else
-         * is going on (walking, dialogue, a running script). */
-        if (input_held(INPUT_SELECT) && input_pressed(INPUT_A))
-            debug_toggle();
 
         switch (game_state)
         {
@@ -1150,21 +1067,11 @@ int main(void)
             if (script_check_input())
                 break;
 
-            /* START: open the pause menu. */
-            if (input_pressed(INPUT_START) && !script_input_overridden(INPUT_START) &&
-                modes_current() != SCENE_MODE_LOGO)
-            {
-                menu_open();
-                game_state = STATE_MENU;
-                break;
-            }
-
             /* The scene type moves the player (and may start a script:
-             * talking to an actor, clicking a trigger...). SELECT+A is
-             * the debug HUD toggle above, not a talk. */
+             * talking to an actor, clicking a trigger...). There's no
+             * built-in pause menu: games attach one to START themselves
+             * (Attach Script To Button). */
             const ScriptEvent *action = modes_update(player);
-            if (action && input_held(INPUT_SELECT))
-                action = 0;
 
             /* Wander, then sync the camera (follows the player by
              * default, or whatever a script has it locked to - see
@@ -1229,28 +1136,6 @@ int main(void)
             break;
         }
 
-        case STATE_MENU:
-        {
-            MenuAction action = menu_update();
-
-            if (action == MENU_SAVE)
-            {
-                save_game(player);
-                dialogue_show("Game saved!");
-                game_state = STATE_PLAY;   /* dialogue_active() takes it from here */
-            }
-            else if (action == MENU_ITEMS)
-            {
-                dialogue_show(build_items_text());
-                game_state = STATE_PLAY;   /* dialogue_active() takes it from here */
-            }
-            else if (action == MENU_CLOSE)
-            {
-                game_state = STATE_PLAY;
-            }
-            break;
-        }
-
         case STATE_FADE_OUT:
             if (!transition_active())
                 game_state = STATE_LOADING;
@@ -1310,13 +1195,6 @@ int main(void)
             break;
         }
 
-        /* Runs after the state machine so it wins if dialogue/menu
-         * just turned BG1 off this same frame. Rows 0-3 only, so it
-         * never collides with the dialogue/menu box in rows 16-19. */
-        debug_update(scene_current(), player, state_flags(), state_inventory());
-
-        if (debug_active())
-            REG_DISPCNT |= BG1_ENABLE;
     }
 
     return 0;

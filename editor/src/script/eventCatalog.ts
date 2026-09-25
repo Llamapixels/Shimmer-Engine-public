@@ -1423,7 +1423,7 @@ export const EVENT_DEFS: EventDef[] = [
     category: "Timing & Input",
     description:
       "Run a script whenever a button is pressed, until removed or the scene changes. \"Override\" replaces the " +
-      "button's normal action (A = talk, Start = pause menu).",
+      "button's normal action (e.g. A = talk).",
     fields: [
       { key: "buttons", label: "Buttons", kind: "buttons" },
       { key: "override", label: "Override", kind: "bool" },
@@ -1547,7 +1547,7 @@ export const EVENT_DEFS: EventDef[] = [
     type: "data_save",
     label: "Save Data",
     category: "Save Data",
-    description: "Save the game (variables, flags, items, scene and position) to a slot. Slot 0 is the pause menu's.",
+    description: "Save the game (variables, flags, items, scene and position) to a slot.",
     fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
     create: () => ({ type: "data_save", slot: 0 }),
     summary: (ev) => `slot ${ev.slot}`,
