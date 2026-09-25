@@ -124,7 +124,18 @@ export interface IfItemEvent extends EventBase {
 
 export interface PlaySoundEvent extends EventBase {
   type: "play_sound";
-  sound: SoundEffect;
+  /** A built-in effect, or the name of a WAV in assets/sounds. */
+  sound: SoundEffect | string;
+  /** WAV only: which Direct Sound channel ("auto" = a free one). */
+  channel?: "auto" | "a" | "b";
+  loop?: boolean;
+  volume?: "full" | "half";
+}
+
+/** Stop WAV playback on a channel ("auto" = both). */
+export interface StopSoundEvent extends EventBase {
+  type: "stop_sound";
+  channel?: "auto" | "a" | "b";
 }
 
 export interface WaitEvent extends EventBase {
@@ -902,6 +913,7 @@ export type ScriptEventJSON =
   | GiveItemEvent
   | IfItemEvent
   | PlaySoundEvent
+  | StopSoundEvent
   | WaitEvent
   | SwitchSceneEvent
   | SetVarEvent

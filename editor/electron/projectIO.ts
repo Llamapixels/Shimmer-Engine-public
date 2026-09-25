@@ -38,6 +38,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".gif": "image/gif",
   ".bmp": "image/bmp",
   ".uge": "application/octet-stream",
+  ".wav": "audio/wav",
 };
 
 /** JSON.stringify with the same 2-space indent + trailing newline
@@ -224,6 +225,8 @@ function assetFolder(kind: AssetKind): { base: AssetBase; rel: string; exts: str
       return { base: "project", rel: "assets/fonts", exts: IMAGE_EXTS };
     case "frames":
       return { base: "project", rel: "assets/frames", exts: IMAGE_EXTS };
+    case "sounds":
+      return { base: "project", rel: "assets/sounds", exts: [".wav"] };
   }
 }
 
@@ -267,7 +270,9 @@ export async function listAssets(rootPath: string): Promise<AssetListing> {
     if (ui) frames.unshift(ui);
   }
 
-  return { backgrounds, sprites, music, fonts, frames, engineRoot };
+  const sounds = await listFolder(rootPath, "project", "assets/sounds", [".wav"]);
+
+  return { backgrounds, sprites, music, fonts, frames, sounds, engineRoot };
 }
 
 /** A file name that doesn't collide with anything already in `dir`:
@@ -310,7 +315,7 @@ export async function importAssetFiles(rootPath: string, kind: AssetKind, source
     if (!folder.exts.includes(ext)) {
       throw new Error(`"${path.basename(src)}" isn't a ${folder.exts.join("/")} file.`);
     }
-    const stem = safeStem(path.basename(src, path.extname(src)), kind === "music" ? "track" : "image");
+    const stem = safeStem(path.basename(src, path.extname(src)), kind === "music" ? "track" : kind === "sounds" ? "sound" : "image");
     const fileName = await uniqueFileName(destDir, stem, ext, kind === "fonts" ? [ext, ".json"] : [ext]);
     await fs.copyFile(src, path.join(destDir, fileName));
     // A GB Studio font's .json (character mapping) comes along with it.
@@ -400,7 +405,8 @@ async function ensurePlayerSprite(rootPath: string, project: ProjectJSON): Promi
 
 export function importFilters(kind: AssetKind): { name: string; extensions: string[] }[] {
   const folder = assetFolder(kind);
-  return [{ name: kind === "music" ? "hUGETracker / GB Studio songs" : "PNG images", extensions: folder.exts.map((e) => e.slice(1)) }];
+  const label = kind === "music" ? "hUGETracker / GB Studio songs" : kind === "sounds" ? "WAV sounds" : "PNG images";
+  return [{ name: label, extensions: folder.exts.map((e) => e.slice(1)) }];
 }
 
 // ---------------------------------------------------------------------------

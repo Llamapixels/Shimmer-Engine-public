@@ -100,6 +100,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
   const project = useProjectStore((s) => s.project?.project);
   const spriteSheets = project?.spriteSheets ?? [];
   const musicTracks = useProjectStore((s) => s.assets?.music ?? []);
+  const wavs = useProjectStore((s) => s.assets?.sounds ?? []);
   const fonts = useProjectStore((s) => s.assets?.fonts ?? []);
   const frames = useProjectStore((s) => s.assets?.frames ?? []);
   const variables = useProjectStore((s) => s.project?.project.variables) ?? [];
@@ -301,16 +302,31 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       );
     }
 
-    case "sound":
+    case "sound": {
+      const cur = String(value ?? "blip");
+      const known = SOUNDS.includes(cur as SoundEffect) || wavs.some((w) => w.name === cur);
       return (
-        <select value={String(value)} onChange={(e) => patch({ [field.key]: e.target.value })}>
-          {SOUNDS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
+        <select className={!known ? "select-invalid" : undefined} value={cur} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {!known && <option value={cur}>{cur} (not in assets/sounds)</option>}
+          {wavs.length > 0 && (
+            <optgroup label="WAV (assets/sounds)">
+              {wavs.map((w) => (
+                <option key={w.name} value={w.name}>
+                  {w.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          <optgroup label="Built in">
+            {SOUNDS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </optgroup>
         </select>
       );
+    }
 
     case "music": {
       const names = musicTracks.map((t) => t.name);

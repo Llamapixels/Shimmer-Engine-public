@@ -364,7 +364,11 @@ typedef enum
     SCRIPT_TEXT_SET_SPEED,     /* a = frames per character */
 
     SCRIPT_SET_ENGINE_SETTING, /* a = MS_* index, b = value (modes.h) */
-    SCRIPT_LAUNCH_PROJECTILE   /* ptr = int16 PROJ_P_* array (projectile.h) */
+    SCRIPT_LAUNCH_PROJECTILE,  /* ptr = int16 PROJ_P_* array (projectile.h) */
+
+    SCRIPT_PLAY_WAV,           /* a = wav_sounds[] index, b = WAV_CHANNEL_*,
+                                 * c = WAV_FLAG_* (wav.h) */
+    SCRIPT_STOP_WAV            /* a = WAV_CHANNEL_* (AUTO = both) */
 } ScriptOp;
 
 /*
