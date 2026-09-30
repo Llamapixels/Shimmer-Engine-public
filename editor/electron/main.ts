@@ -15,6 +15,7 @@ import type {
   SaveSongPayload,
   SongNamePayload,
   DeleteScenePayload,
+  MoveScenePayload,
   ImportAssetsPayload,
   IpcResult,
   ReadAssetPayload,
@@ -167,6 +168,11 @@ function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.deleteScene, async (payload: DeleteScenePayload) => {
     checkRoot(payload.rootPath);
     return projectIO.deleteScene(payload.rootPath, payload.fileId);
+  });
+
+  handle(IPC_CHANNELS.moveScene, async (payload: MoveScenePayload) => {
+    checkRoot(payload.rootPath);
+    return projectIO.moveScene(payload);
   });
 
   handle(IPC_CHANNELS.readAsset, async (payload: ReadAssetPayload) => {

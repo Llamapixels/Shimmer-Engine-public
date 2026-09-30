@@ -27,6 +27,7 @@ import type {
   ReadAssetResult,
   SaveProjectPayload,
   SaveScenePayload,
+  MoveScenePayload,
 } from "../shared/ipc.js";
 import type { OpenProjectResult } from "../shared/ipc.js";
 import type { ProjectJSON, SceneJSON, SceneRecord } from "../shared/projectTypes.js";
@@ -52,8 +53,59 @@ function writeJson(value: unknown): string {
 
 function sceneFilePath(rootPath: string, fileId: string): string {
   // fileId comes from the renderer - never let it walk out of scenes/.
-  if (!/^[A-Za-z0-9_-]+$/.test(fileId)) throw new Error(`Invalid scene id "${fileId}".`);
-  return path.join(rootPath, "scenes", `${fileId}.json`);
+  // It's the file's path under scenes/ without ".json", "/"-separated
+  // when the scene is in a folder (GB Studio style, see moveScene()).
+  if (!/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*$/.test(fileId)) throw new Error(`Invalid scene id "${fileId}".`);
+  return path.join(rootPath, "scenes", ...fileId.split("/")) + ".json";
+}
+
+/** Every scene file's id (path under scenes/ without .json), subfolders too. */
+async function listSceneIds(dir: string, prefix = ""): Promise<string[]> {
+  let names: string[] = [];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const n of names.sort()) {
+    const st = await fs.stat(path.join(dir, n));
+    if (st.isDirectory()) out.push(...(await listSceneIds(path.join(dir, n), `${prefix}${n}/`)));
+    else if (n.endsWith(".json")) out.push(prefix + n.slice(0, -".json".length));
+  }
+  return out;
+}
+
+/** Remove the now-empty folders a scene file was in, up to scenes/. */
+async function pruneEmptySceneDirs(rootPath: string, fileId: string): Promise<void> {
+  const parts = fileId.split("/").slice(0, -1);
+  while (parts.length) {
+    const dir = path.join(rootPath, "scenes", ...parts);
+    try {
+      if ((await fs.readdir(dir)).length) return;
+      await fs.rmdir(dir);
+    } catch {
+      return;
+    }
+    parts.pop();
+  }
+}
+
+/** A scene name's folders as a path under scenes/, the way GB Studio
+ * makes them: "Forest/Cave 1" -> "forest" (lowercase, spaces as "_"). */
+function sceneFolderFor(name: string): string {
+  return name
+    .split("/")
+    .slice(0, -1)
+    .map((p) =>
+      p
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^a-z0-9_-]+/g, ""),
+    )
+    .filter(Boolean)
+    .join("/");
 }
 
 /** Guards against a relPath that escapes the project root (e.g. via
@@ -102,23 +154,12 @@ export async function openProjectAtPath(rootPath: string): Promise<OpenProjectRe
   });
   const project = JSON.parse(raw) as ProjectJSON;
 
-  const scenesDir = path.join(rootPath, "scenes");
-  let sceneFiles: string[] = [];
-  try {
-    sceneFiles = (await fs.readdir(scenesDir))
-      .filter((f) => f.endsWith(".json"))
-      .sort();
-  } catch {
-    // No scenes/ directory yet - a brand-new project. Leave the list empty
-    // rather than failing the whole open, same as build_project.py would
-    // only complain about this at build time, not at "does this look like
-    // a project" time.
-  }
+  // No scenes/ directory yet (a brand-new project) just means no scenes.
+  const sceneIds = await listSceneIds(path.join(rootPath, "scenes"));
 
   const scenes: SceneRecord[] = [];
-  for (const f of sceneFiles) {
-    const fileId = f.slice(0, -".json".length);
-    const sceneRaw = await fs.readFile(path.join(scenesDir, f), "utf-8");
+  for (const fileId of sceneIds) {
+    const sceneRaw = await fs.readFile(sceneFilePath(rootPath, fileId), "utf-8");
     const data = JSON.parse(sceneRaw) as SceneJSON;
     scenes.push({ fileId, data });
   }
@@ -134,9 +175,27 @@ export async function saveProject(payload: SaveProjectPayload): Promise<void> {
 }
 
 export async function saveScene(payload: SaveScenePayload): Promise<void> {
-  const scenesDir = path.join(payload.rootPath, "scenes");
-  await fs.mkdir(scenesDir, { recursive: true });
-  await fs.writeFile(sceneFilePath(payload.rootPath, payload.fileId), writeJson(payload.scene), "utf-8");
+  const file = sceneFilePath(payload.rootPath, payload.fileId);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, writeJson(payload.scene), "utf-8");
+}
+
+/** Put a scene's file in the folder its name says (GB Studio: a scene
+ * called "Forest/Cave 1" lives in scenes/forest/), writing `scene` there
+ * and removing the old file. Returns the new file id. */
+export async function moveScene(payload: MoveScenePayload): Promise<string> {
+  const { rootPath, fileId, scene } = payload;
+  const folder = sceneFolderFor(scene.name ?? "");
+  const base = fileId.split("/").pop()!;
+  let next = folder ? `${folder}/${base}` : base;
+  if (next === fileId) return fileId;
+  for (let n = 2; await exists(sceneFilePath(rootPath, next)); n++) next = `${folder ? `${folder}/` : ""}${base}_${n}`;
+  const file = sceneFilePath(rootPath, next);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, writeJson(scene), "utf-8");
+  await fs.unlink(sceneFilePath(rootPath, fileId));
+  await pruneEmptySceneDirs(rootPath, fileId);
+  return next;
 }
 
 export async function createScene(payload: CreateScenePayload): Promise<CreateSceneResult> {
@@ -149,6 +208,7 @@ export async function createScene(payload: CreateScenePayload): Promise<CreateSc
 
 export async function deleteScene(rootPath: string, fileId: string): Promise<void> {
   await fs.unlink(sceneFilePath(rootPath, fileId));
+  await pruneEmptySceneDirs(rootPath, fileId);
 }
 
 export async function readAsset(payload: ReadAssetPayload): Promise<ReadAssetResult> {

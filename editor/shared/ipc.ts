@@ -37,6 +37,13 @@ export interface CreateSceneResult {
   scene: SceneJSON;
 }
 
+export interface MoveScenePayload {
+  rootPath: string;
+  fileId: string;
+  /** Its current data; its name's folders pick where it goes. */
+  scene: SceneJSON;
+}
+
 export interface DeleteScenePayload {
   rootPath: string;
   fileId: string;
@@ -226,6 +233,8 @@ export interface ShimmerEngineApi {
   saveScene(payload: SaveScenePayload): Promise<IpcResult<void>>;
   createScene(payload: CreateScenePayload): Promise<IpcResult<CreateSceneResult>>;
   deleteScene(payload: DeleteScenePayload): Promise<IpcResult<void>>;
+  /** Returns the scene's new file id. */
+  moveScene(payload: MoveScenePayload): Promise<IpcResult<string>>;
   readAsset(payload: ReadAssetPayload): Promise<IpcResult<ReadAssetResult>>;
   listAssets(rootPath: string): Promise<IpcResult<AssetListing>>;
   /** Opens a file picker, copies the chosen files into the right folder,
@@ -280,6 +289,7 @@ export const IPC_CHANNELS = {
   saveScene: "scene:save",
   createScene: "scene:create",
   deleteScene: "scene:delete",
+  moveScene: "scene:move",
   readAsset: "asset:read",
   listAssets: "asset:list",
   importAssets: "asset:import",

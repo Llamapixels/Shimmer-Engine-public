@@ -392,3 +392,20 @@
 .folder-tree-icon {
   font-size: 11px;
 }
+
+.folder-tree {
+  min-height: 12px;
+  border-radius: 4px;
+}
+
+.folder-tree-drop {
+  outline: 1px dashed var(--accent, #791fff);
+  outline-offset: -1px;
+}
+
+.folder-tree-rename {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 0 4px;
+}

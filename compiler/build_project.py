@@ -918,6 +918,15 @@ def _fixed8(value, field, where, lo, hi):
     return int(round(value * 256))
 
 
+def scenes_root(scene_file):
+    """The project's scenes/ folder, which a scene's asset paths
+    ("../assets/...") are relative to wherever in it the scene file is."""
+    for parent in scene_file.parents:
+        if parent.name == "scenes":
+            return parent
+    return scene_file.parent
+
+
 def convert_layer(scene_file, layer, i, scene_name):
     """One entry of a scene's "layers": its image, padded with transparency
     up to a hardware background size (256 or 512 px each way, at most
@@ -926,7 +935,7 @@ def convert_layer(scene_file, layer, i, scene_name):
     where = f"{scene_name}: layer {i + 1}"
     if not isinstance(layer, dict) or not layer.get("image"):
         raise BuildError(f"{where}: needs an \"image\".")
-    path = (scene_file.parent / layer["image"]).resolve()
+    path = (scenes_root(scene_file) / layer["image"]).resolve()
     if not path.exists():
         raise BuildError(f"{where}: image not found: {path}")
     image = Image.open(path).convert("RGBA")
@@ -2801,7 +2810,8 @@ def build(project_dir, out_dir):
                 f"project.json customScripts has duplicate id '{cs['id']}'.")
         custom_scripts[cs["id"]] = cs["script"]
 
-    scene_files = sorted((project_dir / "scenes").glob("*.json"))
+    # Scenes can sit in subfolders (a "/" in a scene's name, like GB Studio).
+    scene_files = sorted((project_dir / "scenes").rglob("*.json"))
     if not scene_files:
         raise BuildError(f"No scenes in {project_dir / 'scenes'}")
 
@@ -2937,7 +2947,7 @@ def build(project_dir, out_dir):
         name = scene.get("name", scene_file.stem)
         ident = c_ident(name)
 
-        bg_path = (scene_file.parent / scene["background"]).resolve()
+        bg_path = (scenes_root(scene_file) / scene["background"]).resolve()
         if not bg_path.exists():
             raise BuildError(f"{name}: background not found: {bg_path}")
 

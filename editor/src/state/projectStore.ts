@@ -218,6 +218,9 @@ interface ProjectState {
   /** Change a scene's "name" and every door/switch_scene/start_scene
    * reference to it. */
   renameScene: (sceneId: string, newName: string) => void;
+  /** Rename every scene in folder `from` (e.g. "Forest") to be in `to`
+   * ("" = out of any folder), moving their files. */
+  renameSceneFolder: (from: string, to: string) => void;
   addScene: (name: string, background?: string) => Promise<void>;
   removeScene: (sceneId: string) => Promise<void>;
   addNpc: (sceneId: string, x: number, y: number) => void;
@@ -323,10 +326,52 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     });
   };
 
+  /** GB Studio keeps a scene's file in the folder its name says ("Forest/
+   * Cave 1" -> scenes/forest/): move it there if it isn't, and point
+   * everything that knew the old file id at the new one. */
+  const syncSceneFile = async (fileId: string) => {
+    const start = get().project;
+    if (!start) return;
+    const key = sceneKey(start.rootPath, fileId);
+    await cancelWrites(key);
+    const rec = get().project?.scenes.find((s) => s.fileId === fileId);
+    if (!rec) return;
+    const r = await window.api.moveScene({ rootPath: start.rootPath, fileId, scene: rec.data });
+    if (!r.ok) {
+      set({ saveError: r.error });
+      return;
+    }
+    const next = r.value;
+    if (next === fileId) return;
+    // An edit made while moving queued a save to the old file: drop it and
+    // save the latest data at the new place instead.
+    await cancelWrites(key);
+    writeErrors.delete(key);
+    const remap = (list: SceneRecord[]) => list.map((s) => (s.fileId === fileId ? { ...s, fileId: next } : s));
+    const st = get();
+    if (!st.project) return;
+    const scenes = remap(st.project.scenes);
+    const latest = scenes.find((s) => s.fileId === next);
+    if (latest && latest.data !== rec.data) persistScene(st.project.rootPath, next, latest.data);
+    const sel = st.selection;
+    set({
+      project: { ...st.project, scenes },
+      activeSceneId: st.activeSceneId === fileId ? next : st.activeSceneId,
+      selection: "sceneId" in sel && sel.sceneId === fileId ? { ...sel, sceneId: next } : sel,
+      past: st.past.map((p) => ({ ...p, scenes: remap(p.scenes) })),
+      future: st.future.map((p) => ({ ...p, scenes: remap(p.scenes) })),
+    });
+  };
+
   /** Swap in a snapshot and write whatever differs to disk. */
   const restore = (snap: Snapshot) => {
     const { project } = get();
     if (!project) return;
+    // Undoing a rename puts the scene back in its old folder too.
+    for (const rec of snap.scenes) {
+      const cur = project.scenes.find((s) => s.fileId === rec.fileId);
+      if (cur && (cur.data.name ?? "") !== (rec.data.name ?? "")) queueMicrotask(() => void syncSceneFile(rec.fileId));
+    }
     for (const rec of snap.scenes) {
       const cur = project.scenes.find((s) => s.fileId === rec.fileId);
       if (!cur || cur.data !== rec.data) persistScene(project.rootPath, rec.fileId, rec.data);
@@ -551,7 +596,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const rec = project.scenes.find((s) => s.fileId === sceneId);
       if (!rec) return;
       const oldName = sceneName(rec);
-      const trimmed = newName.trim();
+      // "/" makes folders, as in GB Studio. Tidy the path ("Forest / Cave"
+      // -> "Forest/Cave", "/Cave" -> "Cave"), and a name ending in "/"
+      // ("Forest/") keeps the scene's own name inside that folder.
+      const parts = newName.split("/").map((p) => p.trim());
+      const leaf = parts.pop() || oldName.split("/").pop()!.trim();
+      const trimmed = newName.trim() ? [...parts.filter(Boolean), leaf].join("/") : "";
       const effective = trimmed || sceneId;
       if (effective === oldName) {
         if ((rec.data.name ?? "") !== trimmed) {
@@ -572,6 +622,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
       if (pj !== project.project) persistProject(project.rootPath, pj);
       set({ project: { ...project, project: pj, scenes } });
+      void syncSceneFile(sceneId);
+    },
+
+    renameSceneFolder: (from, to) => {
+      const { project } = get();
+      if (!project) return;
+      const prefix = `${from}/`;
+      for (const rec of project.scenes) {
+        const name = sceneName(rec);
+        if (!name.startsWith(prefix)) continue;
+        const rest = name.slice(prefix.length);
+        get().renameScene(rec.fileId, to ? `${to}/${rest}` : rest);
+      }
     },
 
     addScene: async (name, background) => {

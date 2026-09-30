@@ -16,6 +16,7 @@ const api: ShimmerEngineApi = {
   saveScene: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveScene, payload),
   createScene: (payload) => ipcRenderer.invoke(IPC_CHANNELS.createScene, payload),
   deleteScene: (payload) => ipcRenderer.invoke(IPC_CHANNELS.deleteScene, payload),
+  moveScene: (payload) => ipcRenderer.invoke(IPC_CHANNELS.moveScene, payload),
   readAsset: (payload) => ipcRenderer.invoke(IPC_CHANNELS.readAsset, payload),
   listAssets: (rootPath) => ipcRenderer.invoke(IPC_CHANNELS.listAssets, rootPath),
   importAssets: (payload) => ipcRenderer.invoke(IPC_CHANNELS.importAssets, payload),

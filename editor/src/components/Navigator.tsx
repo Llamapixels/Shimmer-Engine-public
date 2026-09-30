@@ -140,6 +140,8 @@ function ScenesSection() {
   const setActiveScene = useProjectStore((s) => s.setActiveScene);
   const setSelection = useProjectStore((s) => s.setSelection);
   const removeScene = useProjectStore((s) => s.removeScene);
+  const renameScene = useProjectStore((s) => s.renameScene);
+  const renameSceneFolder = useProjectStore((s) => s.renameSceneFolder);
   const updateProject = useProjectStore((s) => s.updateProject);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; label: string } | null>(null);
 
@@ -153,6 +155,11 @@ function ScenesSection() {
         getKey={(s) => s.fileId}
         storageKey="scenes"
         isActive={(s) => s.fileId === activeSceneId}
+        onMoveToFolder={(s, folder) => {
+          const leaf = sceneName(s).split("/").pop()!;
+          renameScene(s.fileId, folder ? `${folder}/${leaf}` : leaf);
+        }}
+        onRenameFolder={renameSceneFolder}
         renderItem={(scene, leaf) => {
           const label = sceneName(scene);
           const isActive = scene.fileId === activeSceneId;
