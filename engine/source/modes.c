@@ -29,6 +29,7 @@ static int coyote, jump_buffer, hold_timer, air_jumps, wall_jumps;
 static int climbing, drop_timer;
 static int dash_timer, dash_cooldown, dash_vx, dash_vy;
 static int kb_timer;
+static int kick_timer;                /* wall kick: gravity/steering off */
 static int push_timer;
 static int running, wall_sliding, floating, crouching, pushing;
 static int tap_timer[2], tap_dir;     /* double-tap dash (left, right) */
@@ -77,7 +78,7 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
     pos_y = player->y << 8;
     vel_x = vel_y = 0;
     grounded = coyote = jump_buffer = hold_timer = air_jumps = wall_jumps = 0;
-    climbing = drop_timer = dash_timer = dash_cooldown = kb_timer = push_timer = 0;
+    climbing = drop_timer = dash_timer = dash_cooldown = kb_timer = push_timer = kick_timer = 0;
     running = wall_sliding = floating = crouching = pushing = 0;
     tap_timer[0] = tap_timer[1] = 0;
     look_offset = 0;
@@ -488,7 +489,9 @@ static const ScriptEvent *platform_update(Entity *p)
         int max = running ? MSET(PL_RUN_VEL) : MSET(PL_WALK_VEL);
         int acc = running ? MSET(PL_RUN_ACC) : MSET(PL_WALK_ACC);
 
-        if (!grounded && !MSET(PL_AIR_CONTROL))
+        if (grounded)
+            kick_timer = 0;
+        if (kick_timer > 0 || (!grounded && !MSET(PL_AIR_CONTROL)))
         {
             /* keep momentum */
         }
@@ -534,6 +537,7 @@ static const ScriptEvent *platform_update(Entity *p)
                 vel_x = -wall * MSET(PL_WALL_KICK);
                 facing_left = wall > 0;
                 hold_timer = MSET(PL_HOLD_FRAMES);
+                kick_timer = MSET(PL_WALL_KICK_FRAMES);
                 wall_jumps++;
                 jump_buffer = 0;
             }
@@ -557,7 +561,10 @@ static const ScriptEvent *platform_update(Entity *p)
         }
         if (!input_held(jump_btn))
             hold_timer = 0;
-        vel_y += grav;
+        if (kick_timer > 0)
+            kick_timer--;       /* pushed up and away: no gravity yet */
+        else
+            vel_y += grav;
         int max_fall = MSET(PL_MAX_FALL);
         if (MSET(PL_FLOAT) && input_held(jump_btn) && vel_y > 0 && !grounded)
         {
@@ -634,7 +641,10 @@ static const ScriptEvent *platform_update(Entity *p)
         if (was_y > 0)
             grounded = 1;
         vel_y = 0;
+        kick_timer = 0;
     }
+    if (hit_x)
+        kick_timer = 0;
     collision_set_ignore_top(0);
 
     /* What are we standing on (for moving platforms)? */

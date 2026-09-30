@@ -44,6 +44,7 @@
     { "key": "pl_wall_jump", "mode": "platform", "group": "Walls", "label": "Wall jump", "unit": "bool", "default": 0, "if": "pl_jump" },
     { "key": "pl_wall_jumps_max", "mode": "platform", "group": "Walls", "label": "Wall jumps before landing (0 = no limit)", "unit": "count", "default": 0, "min": 0, "max": 255, "if": "pl_wall_jump" },
     { "key": "pl_wall_kick", "mode": "platform", "group": "Walls", "label": "Wall kick speed", "unit": "speed", "default": 2, "min": 0, "max": 6, "if": "pl_wall_jump" },
+    { "key": "pl_wall_kick_frames", "mode": "platform", "group": "Walls", "label": "Wall kick push (frames)", "unit": "frames", "default": 0, "min": 0, "max": 60, "if": "pl_wall_jump", "desc": "For this many frames after a wall jump, gravity and left/right are ignored, so the kick carries the player up and away from the wall." },
     { "key": "pl_wall_slide", "mode": "platform", "group": "Walls", "label": "Wall slide", "unit": "bool", "default": 0, "desc": "Slide down slowly while pushing against a wall in the air." },
     { "key": "pl_wall_slide_vel", "mode": "platform", "group": "Walls", "label": "Wall slide speed", "unit": "speed", "default": 0.75, "min": 0, "max": 4, "if": "pl_wall_slide" },
     { "key": "pl_drop_through", "mode": "platform", "group": "Platforms", "label": "Drop through platforms", "unit": "bool", "default": 1, "desc": "Down + Jump drops through one-way (Top) tiles." },
