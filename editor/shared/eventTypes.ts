@@ -668,6 +668,21 @@ export interface InputScriptSetEvent extends EventBase {
   script?: EventScript;
 }
 
+export interface ActorLineOfSightEvent extends EventBase {
+  type: "actor_line_of_sight";
+  actor: ActorRef;
+  /** tiles */
+  range?: number;
+  /** Solid tiles block the view (default true). */
+  walls?: boolean;
+  script?: EventScript;
+}
+
+export interface ActorLineOfSightRemoveEvent extends EventBase {
+  type: "actor_line_of_sight_remove";
+  actor: ActorRef;
+}
+
 export interface InputScriptRemoveEvent extends EventBase {
   type: "input_script_remove";
   buttons: ButtonName | ButtonName[];
@@ -990,6 +1005,8 @@ export type ScriptEventJSON =
   | TimerDisableEvent
   | InputScriptSetEvent
   | InputScriptRemoveEvent
+  | ActorLineOfSightEvent
+  | ActorLineOfSightRemoveEvent
   | MusicRoutineEvent
   | ActorSetPositionVarsEvent
   | ActorMoveToVarsEvent

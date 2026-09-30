@@ -368,7 +368,11 @@ typedef enum
 
     SCRIPT_PLAY_WAV,           /* a = wav_sounds[] index, b = WAV_CHANNEL_*,
                                  * c = WAV_FLAG_* (wav.h) */
-    SCRIPT_STOP_WAV            /* a = WAV_CHANNEL_* (AUTO = both) */
+    SCRIPT_STOP_WAV,           /* a = WAV_CHANNEL_* (AUTO = both) */
+
+    SCRIPT_LINE_OF_SIGHT       /* a = NPC index, b = range in tiles,
+                                 * c = 1 if solid tiles block the view,
+                                 * ptr = script (0 = stop watching) */
 } ScriptOp;
 
 /*
@@ -467,6 +471,11 @@ void script_reset_scene(void);
  * returns 1 if it did; script_input_overridden(mask) says whether a
  * button's normal action (A = talk, START = pause menu) is replaced. */
 int script_check_input(void);
+
+/* "Line Of Sight" watchers: starts the script of an actor that has just
+ * seen the player (the player stepped into the tiles in front of it, up
+ * to its range). Returns 1 if one started. Checked during normal play. */
+int script_check_sight(void);
 int script_input_overridden(uint16_t mask);
 
 /* Ask for a scene switch from outside a script (loading a save,

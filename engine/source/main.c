@@ -1074,6 +1074,10 @@ int main(void)
             if (script_check_input())
                 break;
 
+            /* "Line Of Sight": an actor just saw the player. */
+            if (script_check_sight())
+                break;
+
             /* The scene type moves the player (and may start a script:
              * talking to an actor, clicking a trigger...). There's no
              * built-in pause menu: games attach one to START themselves

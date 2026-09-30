@@ -19,6 +19,8 @@
 #include "ui.h"
 #include "modes.h"
 #include "projectile.h"
+#include "world.h"
+#include "collision.h"
 #include "wav.h"
 
 /*
@@ -155,8 +157,22 @@ void script_request_scene_switch(int scene_index, int x, int y, int direction)
     pending_switch = 1;
 }
 
+/* Line Of Sight watchers (SCRIPT_LINE_OF_SIGHT), one per actor. */
+#define SIGHT_SLOTS 8
+typedef struct
+{
+    const ScriptEvent *script;   /* 0 = free */
+    int8_t actor;
+    uint8_t range;               /* tiles */
+    uint8_t walls;               /* solid tiles block the view */
+    uint8_t in_view;             /* fire again only after the player leaves */
+} SightWatch;
+static SightWatch sight[SIGHT_SLOTS];
+
 void script_reset_scene(void)
 {
+    for (int i = 0; i < SIGHT_SLOTS; i++)
+        sight[i].script = 0;
     for (int i = 1; i < THREAD_COUNT; i++)
         threads[i].ip = 0;
     for (int i = 0; i < TIMER_SLOTS; i++)
@@ -818,6 +834,26 @@ static void thread_step(ScriptThread *t, int is_main)
                 timer_slots[ev->a].script = 0;
             break;
 
+        case SCRIPT_LINE_OF_SIGHT:
+        {
+            SightWatch *slot = 0;
+            for (int i = 0; i < SIGHT_SLOTS && !slot; i++)
+                if (sight[i].script && sight[i].actor == ev->a)
+                    slot = &sight[i];
+            for (int i = 0; i < SIGHT_SLOTS && !slot && ev->ptr; i++)
+                if (!sight[i].script)
+                    slot = &sight[i];
+            if (slot)
+            {
+                slot->script = (const ScriptEvent *)ev->ptr;
+                slot->actor = (int8_t)ev->a;
+                slot->range = (uint8_t)ev->b;
+                slot->walls = (uint8_t)ev->c;
+                slot->in_view = 0;
+            }
+            break;
+        }
+
         case SCRIPT_INPUT_SCRIPT_SET:
         case SCRIPT_INPUT_SCRIPT_REMOVE:
             for (int bit = 0; bit < INPUT_BITS; bit++)
@@ -1049,6 +1085,61 @@ int script_check_input(void)
             script_start(input_scripts[bit]);
             return 1;
         }
+    }
+    return 0;
+}
+
+/* Does actor `n` see the player right now? Its view is a strip as wide as
+ * its collision box, `range` tiles long, in the way it's facing. */
+static int actor_sees_player(const SightWatch *w)
+{
+    Entity *n = world_npc(w->actor);
+    Entity *p = world_player();
+    if (!n || !p || !world_npc_solid(w->actor) || !p->sprite.visible)
+        return 0;
+    int len = w->range * 8;
+    int x0 = n->x + n->col_ox, y0 = n->y + n->col_oy;
+    int x1 = x0 + n->col_w, y1 = y0 + n->col_h;
+    int dx = 0, dy = 0;
+    switch (n->direction)
+    {
+    case DIR_RIGHT: x0 = x1; x1 += len; dx = 1; break;
+    case DIR_LEFT:  x1 = x0; x0 -= len; dx = -1; break;
+    case DIR_UP:    y1 = y0; y0 -= len; dy = -1; break;
+    default:        y0 = y1; y1 += len; dy = 1; break;
+    }
+    int px0 = p->x + p->col_ox, py0 = p->y + p->col_oy;
+    int px1 = px0 + p->col_w, py1 = py0 + p->col_h;
+    if (!(px0 < x1 && px1 > x0 && py0 < y1 && py1 > y0))
+        return 0;
+    if (!w->walls)
+        return 1;
+    /* Walk from the actor's edge toward the player a tile at a time, down
+     * the middle of the strip: any solid tile in between blocks it. */
+    int cx = dx ? (dx > 0 ? x0 : x1 - 1) : n->x + n->col_ox + n->col_w / 2;
+    int cy = dy ? (dy > 0 ? y0 : y1 - 1) : n->y + n->col_oy + n->col_h / 2;
+    int dist = dx > 0 ? px0 - x0 : dx < 0 ? x1 - px1 : dy > 0 ? py0 - y0 : y1 - py1;
+    for (int d = 0; d < dist; d += 8)
+        if (collision_test_point(cx + dx * d, cy + dy * d))
+            return 0;
+    return 1;
+}
+
+int script_check_sight(void)
+{
+    for (int i = 0; i < SIGHT_SLOTS; i++)
+    {
+        SightWatch *w = &sight[i];
+        if (!w->script)
+            continue;
+        int seen = actor_sees_player(w);
+        if (seen && !w->in_view)
+        {
+            w->in_view = 1;
+            script_start(w->script);
+            return 1;
+        }
+        w->in_view = (uint8_t)seen;
     }
     return 0;
 }

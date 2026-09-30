@@ -393,6 +393,13 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
     { "type": "input_script_set", "buttons": ["a"], "override": false,
       "script": [...] }
     { "type": "input_script_remove", "buttons": ["a"] }
+    { "type": "actor_line_of_sight", "actor": ..., "range": 4, "walls": true,
+      "script": [...] }
+        Runs "script" (as that actor) whenever the player steps into the
+        tiles in front of it, up to "range" tiles, following its position
+        and facing; "walls": solid tiles block the view. Again only after
+        the player has left the view. Until the scene changes, or
+    { "type": "actor_line_of_sight_remove", "actor": ... }
     { "type": "music_routine", "routine": 0-15, "script": [...] }
         "script"s run as separate background scripts (see script.h).
     { "type": "actor_set_position_vars" | "actor_move_to_vars", "actor": ...,
@@ -1913,6 +1920,7 @@ PARITY_EVENT_TYPES = [
     "if_var_flags", "vars_reset", "seed_rng", "rate_limit", "label", "goto",
     "switch", "if_color_supported", "if_device_gba", "if_device_sgb",
     "actor_invoke", "thread_start", "thread_stop", "timer_script_set",
+    "actor_line_of_sight", "actor_line_of_sight_remove",
     "timer_restart", "timer_disable", "input_script_set",
     "input_script_remove", "music_routine", "actor_set_position_vars",
     "actor_move_to_vars", "actor_set_position_relative",
@@ -2105,6 +2113,25 @@ def compile_parity_event(etype, ev, out, ctx, where):
         override = 1 if ev.get("override", False) else 0
         ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_INPUT_SCRIPT_SET", a=mask, b=override, ptr=ptr))
+
+    elif etype == "actor_line_of_sight":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        if idx == PLAYER_ACTOR_INDEX:
+            raise BuildError(f"{where}: Line Of Sight is for an actor watching the player, not the player.")
+        rng = resolve_small_int(ev.get("range", 4), "range", where, 1, 30)
+        walls = 1 if ev.get("walls", True) else 0
+        # "self" inside the script = the watching actor.
+        saved_self = ctx.get("self_actor_index")
+        ctx["self_actor_index"] = idx
+        try:
+            ptr = compile_subscript(ev.get("script", []), ctx, where)
+        finally:
+            ctx["self_actor_index"] = saved_self
+        out.append(_instr("SCRIPT_LINE_OF_SIGHT", a=idx, b=rng, c=walls, ptr=ptr))
+
+    elif etype == "actor_line_of_sight_remove":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        out.append(_instr("SCRIPT_LINE_OF_SIGHT", a=idx))
 
     elif etype == "input_script_remove":
         out.append(_instr("SCRIPT_INPUT_SCRIPT_REMOVE", a=_button_mask(ev.get("buttons"), where)))

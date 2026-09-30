@@ -1480,6 +1480,32 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => `${buttonsLabel(ev.buttons)}${ev.override ? " (override)" : ""}`,
   }),
   def({
+    type: "actor_line_of_sight",
+    label: "Line Of Sight",
+    category: "Actors",
+    description:
+      "Run a script when the player steps into an actor's view: the tiles straight in front of it, up to the range. " +
+      "The view follows the actor as it moves and turns (like Pokémon trainers). Runs again only after the player " +
+      "leaves the view. Lasts until the scene changes.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "range", label: "Range (tiles)", kind: "int", min: 1, max: 30 },
+      { key: "walls", label: "Solid tiles block the view", kind: "bool" },
+    ],
+    branches: [{ key: "script", label: "On sight" }],
+    create: (c) => ({ type: "actor_line_of_sight", actor: c.firstActor ?? "self", range: 4, walls: true, script: [] }),
+    summary: (ev) => `${actorLabel(ev.actor)}, ${ev.range ?? 4} tiles`,
+  }),
+  def({
+    type: "actor_line_of_sight_remove",
+    label: "Remove Line Of Sight",
+    category: "Actors",
+    description: "Stop watching for the player with this actor's Line Of Sight script.",
+    fields: [{ key: "actor", label: "Actor", kind: "actor" }],
+    create: (c) => ({ type: "actor_line_of_sight_remove", actor: c.firstActor ?? "self" }),
+    summary: (ev) => actorLabel(ev.actor),
+  }),
+  def({
     type: "input_script_remove",
     label: "Remove Button Script",
     category: "Timing & Input",
