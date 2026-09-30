@@ -2609,6 +2609,13 @@ def assign_palette_banks(sprites, player_sprite, compiled, scene_name):
 # Preview
 # ---------------------------------------------------------------------------
 
+def file_stem(name):
+    """A scene name as a plain file name: "Forest/Cave 1" -> "Forest-Cave 1"
+    (folder slashes, and anything else Windows won't take, become "-")."""
+    stem = re.sub(r'[\/:*?"<>|]+', "-", str(name)).strip(" .-")
+    return stem or "scene"
+
+
 def write_preview(bg, grid, spawn, path, doors=(), npcs=()):
     base = bg["image"].convert("RGBA")
     overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
@@ -2987,7 +2994,7 @@ def build(project_dir, out_dir):
                 f"MAX_TIMERS is {MAX_TIMERS} per scene.")
 
         write_preview(bg, grid, spawn,
-                      project_dir / "build" / f"{name}_preview.png",
+                      project_dir / "build" / f"{file_stem(name)}_preview.png",
                       doors, npcs)
 
         # Named actors, for this scene's "actor_*" events (see
