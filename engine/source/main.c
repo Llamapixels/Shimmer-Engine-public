@@ -759,8 +759,12 @@ int camera_step_to(int target_x, int target_y, int speed)
     cx = step_toward(cx, target_x, speed);
     cy = step_toward(cy, target_y, speed);
 
+    /* A target near the scene's edge can't be centred on: the camera
+     * stops at the edge, and that counts as arriving (otherwise the
+     * script waits forever and e.g. the next Display Text never shows). */
+    int old_x = camera_get_x(), old_y = camera_get_y();
     camera_follow(cx, cy);
-    return 1;
+    return camera_get_x() != old_x || camera_get_y() != old_y;
 }
 
 void camera_release(void)
