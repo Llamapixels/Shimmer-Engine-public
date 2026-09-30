@@ -523,6 +523,8 @@ MAX_VARIABLES = 256    # one int16_t per named variable, in SaveData.variables.
 MAX_TIMERS = 8         # background timers per scene - keep in sync with
                         # MAX_TIMERS in engine/source/main.c
 MAX_MENU_OPTIONS = 4   # keep in sync with MENU_MAX_OPTIONS in dialogue.c
+MAX_NPCS = 16          # actors per scene - keep in sync with NPC_MAX in
+                        # engine/source/main.c (more were silently dropped)
 
 # Event "play_sound" names -> engine/include/script.h SoundEffect constants.
 SOUND_NAME_TO_CONST = {
@@ -3055,6 +3057,10 @@ def build(project_dir, out_dir):
                 else None)
             for j, npc in enumerate(npcs)
         }
+        if len(npcs) > MAX_NPCS:
+            raise BuildError(
+                f"{name}: {len(npcs)} actors, but a scene can have at most {MAX_NPCS}. "
+                "Split it into two scenes, or reuse actors (move/show/hide them with events).")
         ctx["scene_npc_count"] = len(npcs)
         ctx["self_actor_index"] = None
 
