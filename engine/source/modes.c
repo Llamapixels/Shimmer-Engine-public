@@ -674,13 +674,14 @@ static const ScriptEvent *platform_update(Entity *p)
     }
     else
     {
-        /* platform_player sprites: idle 0/1, walk 2/3, jump 4/5, climb 6. */
+        /* platform_player sprites (GB Studio's order): idle 0/1,
+         * jump 2/3, walk 4/5, climb 6. */
         if (climbing)
             slot = 6;
         else if (!grounded || kb_timer > 0)
-            slot = facing_left ? 5 : 4;
-        else if (moving)
             slot = facing_left ? 3 : 2;
+        else if (moving)
+            slot = facing_left ? 5 : 4;
         else
             slot = facing_left ? 1 : 0;
         show_slot(p, slot);
