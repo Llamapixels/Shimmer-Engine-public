@@ -123,6 +123,7 @@ export async function openProjectAtPath(rootPath: string): Promise<OpenProjectRe
     scenes.push({ fileId, data });
   }
 
+  await ensureAssetFolders(rootPath).catch(() => undefined);
   await ensurePlayerSprite(rootPath, project).catch(() => undefined);
   return { data: { rootPath, project, scenes } };
 }
@@ -204,6 +205,22 @@ async function baseDir(rootPath: string, base: AssetBase): Promise<string> {
   const engineRoot = await findEngineRoot(rootPath);
   if (!engineRoot) throw new Error("Couldn't find the Shimmer Engine toolchain folder above this project.");
   return engineRoot;
+}
+
+/** Every folder a project can hold assets in. Made (empty) for new projects
+ * and on open, so people can see where things go. */
+const ASSET_FOLDERS = [
+  "assets/backgrounds",
+  "assets/sprites",
+  "assets/music",
+  "assets/sounds",
+  "assets/fonts",
+  "assets/frames",
+  "assets/ui",
+];
+
+async function ensureAssetFolders(rootPath: string): Promise<void> {
+  for (const rel of ASSET_FOLDERS) await fs.mkdir(path.join(rootPath, rel), { recursive: true });
 }
 
 const IMAGE_EXTS = [".png"];
@@ -503,9 +520,7 @@ export async function createProject(payload: CreateProjectPayload): Promise<Open
   }
 
   await fs.mkdir(path.join(rootPath, "scenes"), { recursive: true });
-  await fs.mkdir(path.join(rootPath, "assets", "backgrounds"), { recursive: true });
-  await fs.mkdir(path.join(rootPath, "assets", "sprites"), { recursive: true });
-  await fs.mkdir(path.join(rootPath, MUSIC_DIR), { recursive: true });
+  await ensureAssetFolders(rootPath);
 
   await fs.writeFile(
     path.join(rootPath, "assets", "backgrounds", "start.png"),
