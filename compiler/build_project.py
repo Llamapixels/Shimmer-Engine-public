@@ -2809,6 +2809,7 @@ def build(project_dir, out_dir):
         "music_names": {p.stem for p in (project_dir / PROJECT_MUSIC_DIR).glob("*.uge")},
         "wav_names": [p.stem for p in sound_files(project_dir / PROJECT_SOUNDS_DIR)],
     }
+    M.set_sound_names(ctx["wav_names"])
 
     # Dialogue fonts, frames and cursor (compiler/ui.py) - needed before any
     # text is compiled, for "!F:font!" codes and character mapping.

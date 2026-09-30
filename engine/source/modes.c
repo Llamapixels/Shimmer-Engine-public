@@ -5,6 +5,7 @@
 #include "input.h"
 #include "collision.h"
 #include "camera.h"
+#include "wav.h"
 
 /*
  * The scene types. Each one's update function moves the player for a
@@ -31,6 +32,7 @@ static int dash_timer, dash_cooldown, dash_vx, dash_vy;
 static int kb_timer;
 static int kick_timer;                /* wall kick: gravity/steering off */
 static int kick_anim;                 /* frames left of the wall kick animation */
+static int was_grounded, was_sliding; /* for the land / wall slide sounds */
 static int push_timer;
 static int running, wall_sliding, floating, crouching, pushing;
 static int tap_timer[2], tap_dir;     /* double-tap dash (left, right) */
@@ -88,10 +90,20 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
     cam_ready = 0;
     triggers_fired[0] = triggers_fired[1] = 0;
     facing_left = player->direction == DIR_LEFT;
+    was_grounded = 1;
+    was_sliding = 0;
     collision_set_ignore_top(0);
     player->sprite.visible = mode != SCENE_MODE_LOGO;
     if (mode == SCENE_MODE_SHMUP)
         player->direction = scene->player_start_direction;
+}
+
+/* A "sound" engine setting: a WAV index + 1, 0 = none. */
+static void play_setting_sound(int setting)
+{
+    int v = mode_settings[setting];
+    if (v > 0 && v <= wav_sound_count)
+        wav_play(v - 1, WAV_CHANNEL_AUTO, 0);
 }
 
 /* Something else moved the player: pick up its new position. */
@@ -525,6 +537,7 @@ static const ScriptEvent *platform_update(Entity *p)
             int wall = tile_wall(p, -1) ? -1 : tile_wall(p, 1) ? 1 : 0;
             if (grounded || coyote > 0)
             {
+                play_setting_sound(MS_PL_SOUND_JUMP);
                 vel_y = -MSET(PL_JUMP_VEL);
                 hold_timer = MSET(PL_HOLD_FRAMES);
                 coyote = 0;
@@ -539,12 +552,14 @@ static const ScriptEvent *platform_update(Entity *p)
                 facing_left = wall > 0;
                 hold_timer = MSET(PL_HOLD_FRAMES);
                 kick_timer = MSET(PL_WALL_KICK_FRAMES);
+                play_setting_sound(MSET(PL_SOUND_WALL_KICK) ? MS_PL_SOUND_WALL_KICK : MS_PL_SOUND_JUMP);
                 kick_anim = kick_timer > 12 ? kick_timer : 12;
                 wall_jumps++;
                 jump_buffer = 0;
             }
             else if (jump_pressed && air_jumps > 0)
             {
+                play_setting_sound(MS_PL_SOUND_JUMP);
                 vel_y = -MSET(PL_EXTRA_JUMP_VEL);
                 hold_timer = MSET(PL_HOLD_FRAMES);
                 air_jumps--;
@@ -641,7 +656,11 @@ static const ScriptEvent *platform_update(Entity *p)
     if (hit_y)
     {
         if (was_y > 0)
+        {
+            if (!was_grounded)
+                play_setting_sound(MS_PL_SOUND_LAND);
             grounded = 1;
+        }
         vel_y = 0;
         kick_timer = 0;
     }
@@ -661,6 +680,11 @@ static const ScriptEvent *platform_update(Entity *p)
             standing_y = world_npc(standing_on)->y;
         }
     }
+
+    if (wall_sliding && !was_sliding)
+        play_setting_sound(MS_PL_SOUND_WALL_SLIDE);
+    was_sliding = wall_sliding;
+    was_grounded = grounded;
 
     /* Animation. */
     int moving = vel_x != 0;

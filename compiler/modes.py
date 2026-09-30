@@ -34,6 +34,15 @@ BUTTON_MASKS = {"a": 0x0001, "b": 0x0002, "select": 0x0004, "start": 0x0008, "ri
                 "left": 0x0020, "up": 0x0040, "down": 0x0080, "r": 0x0100, "l": 0x0200}
 
 
+# WAV names (assets/sounds, build order) for "sound" settings: stored as
+# index + 1, 0 = none. Set by build_project.py before any setting is read.
+SOUND_NAMES = []
+
+
+def set_sound_names(names):
+    SOUND_NAMES[:] = list(names)
+
+
 def scene_mode(scene, where):
     t = scene.get("type") or "topdown"
     t = {"platformer": "platform", "top_down": "topdown"}.get(t, t)
@@ -53,6 +62,13 @@ def setting_value(key, value, where):
         if isinstance(value, str) and value.lower() in BUTTON_MASKS:
             return BUTTON_MASKS[value.lower()]
         raise ModeError(f"{label} must be a button: {', '.join(BUTTON_MASKS)}.")
+    if unit == "sound":
+        if value in (None, "", 0, False):
+            return 0
+        if isinstance(value, str) and value in SOUND_NAMES:
+            return SOUND_NAMES.index(value) + 1
+        known = ", ".join(SOUND_NAMES) or "none - add .wav files to assets/sounds"
+        raise ModeError(f"{label}: no sound '{value}'. Sounds: {known}.")
     if unit == "bool":
         if isinstance(value, bool) or value in (0, 1):
             return 1 if value else 0

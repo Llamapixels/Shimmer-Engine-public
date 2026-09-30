@@ -7,7 +7,7 @@
  */
 import table from "../../../compiler/engine_settings.json";
 
-export type SettingUnit = "speed" | "accel" | "frames" | "pixels" | "count" | "bool" | "button" | "choice";
+export type SettingUnit = "speed" | "accel" | "frames" | "pixels" | "count" | "bool" | "button" | "choice" | "sound";
 export type EngineValue = number | boolean | string;
 
 export interface EngineSettingDef {

@@ -1,5 +1,6 @@
 import CommitInput from "../components/common/CommitInput";
 import NumberInput from "../components/common/NumberInput";
+import { useProjectStore } from "../state/projectStore";
 import { ENGINE_BUTTONS, type EngineSettingDef, type EngineValue } from "./engineSettings";
 
 const BUTTON_LABELS: Record<string, string> = {
@@ -12,6 +13,23 @@ const BUTTON_LABELS: Record<string, string> = {
   select: "Select",
 };
 
+/** A WAV from assets/sounds, or none. */
+function SoundSelect({ value, onChange }: { value: string; onChange: (v: EngineValue) => void }) {
+  const sounds = useProjectStore((s) => s.assets?.sounds ?? []);
+  const names = sounds.map((a) => a.name);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">(none)</option>
+      {value && !names.includes(value) && <option value={value}>{value} (missing)</option>}
+      {names.map((n) => (
+        <option key={n} value={n}>
+          {n}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 /** The input for one engine setting, by its unit. */
 export default function EngineValueInput({
   def,
@@ -23,6 +41,8 @@ export default function EngineValueInput({
   onChange: (v: EngineValue) => void;
 }) {
   switch (def.unit) {
+    case "sound":
+      return <SoundSelect value={String(value || "")} onChange={onChange} />;
     case "bool":
       return (
         <label className="engine-bool">
