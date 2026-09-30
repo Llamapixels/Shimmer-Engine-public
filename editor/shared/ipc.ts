@@ -96,6 +96,9 @@ export interface AssetListing {
    * *.png, plus a GB Studio-style assets/ui/frame.png as "frame"). The
    * built-in "default" of each isn't listed. See compiler/ui.py. */
   fonts: AssetInfo[];
+  /** The app's own extra fonts (engine/data/ui/fonts), selectable in any
+   * project; a project font of the same name replaces one. */
+  builtinFonts: AssetInfo[];
   frames: AssetInfo[];
   /** WAV sound effects (assets/sounds/*.wav, compiler/wav.py). */
   sounds: AssetInfo[];

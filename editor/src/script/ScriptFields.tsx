@@ -102,7 +102,13 @@ export function FieldControl({ field, ev, env, patch }: Props) {
   const spriteSheets = project?.spriteSheets ?? [];
   const musicTracks = useProjectStore((s) => s.assets?.music ?? []);
   const wavs = useProjectStore((s) => s.assets?.sounds ?? []);
-  const fonts = useProjectStore((s) => s.assets?.fonts ?? []);
+  const projectFonts = useProjectStore((s) => s.assets?.fonts);
+  const builtinFonts = useProjectStore((s) => s.assets?.builtinFonts);
+  // The project's fonts, then the app's built-in ones it doesn't replace.
+  const fonts = [
+    ...(projectFonts ?? []),
+    ...(builtinFonts ?? []).filter((b) => !(projectFonts ?? []).some((a) => a.name === b.name)),
+  ];
   const frames = useProjectStore((s) => s.assets?.frames ?? []);
   const variables = useProjectStore((s) => s.project?.project.variables) ?? [];
 
@@ -374,7 +380,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           {!known && <option value={cur}>{cur ? `${cur} (not in ${folder})` : "Choose…"}</option>}
           {names.map((n) => (
             <option key={n} value={n}>
-              {n === "default" ? "default (built in)" : n}
+              {n === "default" || (field.kind === "font" && !(projectFonts ?? []).some((a) => a.name === n)) ? `${n} (built in)` : n}
             </option>
           ))}
         </select>

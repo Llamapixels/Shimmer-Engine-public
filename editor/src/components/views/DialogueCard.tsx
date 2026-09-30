@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { AssetKind } from "../../../shared/ipc";
 import type { UiSettingsJSON } from "../../../shared/projectTypes";
 import { useProjectStore } from "../../state/projectStore";
-import DialogueBoxPreview, { BUILT_IN_UI as BUILT_IN, uiAssetList } from "../common/DialogueBoxPreview";
+import DialogueBoxPreview, { BUILT_IN_UI as BUILT_IN, isBuiltIn, startName, uiAssetList } from "../common/DialogueBoxPreview";
 import NumberInput from "../common/NumberInput";
 
 const SAMPLE = "Hello there! The quick brown fox jumps over the lazy dog. 0123456789";
@@ -20,11 +20,11 @@ export default function DialogueCard() {
 
   const ui = project.project.ui ?? {};
   // A project file called "default" replaces the built-in one (compiler/ui.py).
-  const fonts = uiAssetList(assets?.fonts ?? [], BUILT_IN.font);
+  const fonts = uiAssetList(assets?.fonts ?? [], BUILT_IN.font, assets?.builtinFonts ?? []);
   const frames = uiAssetList(assets?.frames ?? [], BUILT_IN.frame);
   // Same fallback as the compiler: the first one in the folder, else the built-in one.
-  const fontName = ui.font || (fonts[1] ?? fonts[0]).name;
-  const frameName = ui.frame || (frames[1] ?? frames[0]).name;
+  const fontName = startName(ui.font, assets?.fonts ?? []);
+  const frameName = startName(ui.frame, assets?.frames ?? []);
   const speed = ui.textSpeed ?? 1;
 
   const font = fonts.find((f) => f.name === fontName) ?? null;
@@ -71,7 +71,13 @@ export default function DialogueCard() {
             {!font && <option value={fontName}>{fontName} (missing)</option>}
             {fonts.map((f) => (
               <option key={f.name} value={f.name}>
-                {f === BUILT_IN.font ? "default (built in)" : f.name === "default" ? "default (project copy)" : f.name}
+                {f === BUILT_IN.font
+                  ? "default (built in)"
+                  : f.name === "default"
+                    ? "default (project copy)"
+                    : isBuiltIn(f)
+                      ? `${f.name} (built in)`
+                      : f.name}
               </option>
             ))}
           </select>

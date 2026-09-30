@@ -198,6 +198,17 @@ def build_ui(project, project_dir, defaults_dir, referenced):
         named = f"!{code}:{FONT_REF_NAME}!" in referenced or f'"{field}": "{FONT_REF_NAME}"' in referenced
         return not files or wanted == FONT_REF_NAME or named
 
+    # Built-in fonts (engine/data/ui/fonts): only the ones this game uses -
+    # the start font, a !F:name! code or a Set Font event - since every font
+    # in a game shares one 15-colour palette. A project font of the same
+    # name wins.
+    for p in _assets(defaults_dir / "fonts"):
+        name = p.stem
+        if name in font_files:
+            continue
+        if want_font == name or f"!F:{name}!" in referenced or f'"font": "{name}"' in referenced:
+            font_files[name] = p
+
     if needs_default(font_files, want_font, "font", "F"):
         font_files = {FONT_REF_NAME: defaults_dir / "font.png", **font_files}
     if needs_default(frame_files, want_frame, "frame", "R"):

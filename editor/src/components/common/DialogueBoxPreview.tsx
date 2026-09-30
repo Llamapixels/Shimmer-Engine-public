@@ -12,24 +12,40 @@ export const BUILT_IN_UI: Record<"font" | "frame", AssetInfo> = {
 };
 
 /** Project fonts/frames plus the built-in "default" (a project file called
- * "default" replaces it, as in compiler/ui.py). */
-export function uiAssetList(list: AssetInfo[], builtIn: AssetInfo): AssetInfo[] {
-  return [list.find((a) => a.name === "default") ?? builtIn, ...list.filter((a) => a.name !== "default")];
+ * "default" replaces it, as in compiler/ui.py), then the app's other
+ * built-in fonts that no project font replaces. */
+export function uiAssetList(list: AssetInfo[], builtIn: AssetInfo, extra: AssetInfo[] = []): AssetInfo[] {
+  const own = list.filter((a) => a.name !== "default");
+  return [
+    list.find((a) => a.name === "default") ?? builtIn,
+    ...own,
+    ...extra.filter((b) => b.name !== "default" && !own.some((a) => a.name === b.name)),
+  ];
 }
 
-/** The font and frame the game starts with - same fallback as the
- * compiler: the setting, else the first one in the folder, else built in. */
+/** What the game starts with when the setting is empty - same as the
+ * compiler: the first one in the project's folder, else the built-in one. */
+export function startName(setting: string | undefined, projectList: AssetInfo[]): string {
+  return setting || projectList.find((a) => a.name !== "default")?.name || "default";
+}
+
+/** Is this a font/frame that ships with the app rather than the project? */
+export function isBuiltIn(asset: AssetInfo): boolean {
+  return asset.base === "engine";
+}
+
+/** The font and frame the game starts with. */
 export function useStartUi(): { fonts: AssetInfo[]; frames: AssetInfo[]; fontName: string; frameName: string } {
   const project = useProjectStore((s) => s.project);
   const assets = useProjectStore((s) => s.assets);
   const ui = project?.project.ui ?? {};
-  const fonts = uiAssetList(assets?.fonts ?? [], BUILT_IN_UI.font);
+  const fonts = uiAssetList(assets?.fonts ?? [], BUILT_IN_UI.font, assets?.builtinFonts ?? []);
   const frames = uiAssetList(assets?.frames ?? [], BUILT_IN_UI.frame);
   return {
     fonts,
     frames,
-    fontName: ui.font || (fonts[1] ?? fonts[0]).name,
-    frameName: ui.frame || (frames[1] ?? frames[0]).name,
+    fontName: startName(ui.font, assets?.fonts ?? []),
+    frameName: startName(ui.frame, assets?.frames ?? []),
   };
 }
 

@@ -58,11 +58,13 @@ jobs:
       - name: Stage the toolchain
         run: python editor/scripts/stage_toolchain.py --builder pyi-dist/shimmer-build.exe --devkitpro "$env:DKP"
 
-      # Build the demo with nothing but the staged bundle, from a plain
-      # Windows shell - what an installed copy will do.
-      - name: Smoke test - build the demo ROM with the bundle
+      # Build a generated test project (using a built-in font) with nothing
+      # but the staged bundle, from a plain Windows shell - what an
+      # installed copy will do.
+      - name: Smoke test - build a test ROM with the bundle
         run: |
-          & ./editor/toolchain-bundle/shimmer-build.exe examples/demo `
+          python tools/make_test_project.py smoke/project --font "Sky Blue"
+          & ./editor/toolchain-bundle/shimmer-build.exe smoke/project `
             --engine editor/toolchain-bundle/engine `
             --devkitpro editor/toolchain-bundle/devkitpro `
             --out smoke/demo.gba

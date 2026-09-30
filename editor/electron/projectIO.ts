@@ -360,8 +360,9 @@ export async function listAssets(rootPath: string): Promise<AssetListing> {
   }
 
   const sounds = await listFolder(rootPath, "project", "assets/sounds", [".wav"]);
+  const builtinFonts = engineRoot ? await listFolder(engineRoot, "engine", "engine/data/ui/fonts", IMAGE_EXTS) : [];
 
-  return { backgrounds, sprites, music, fonts, frames, sounds, engineRoot };
+  return { backgrounds, sprites, music, fonts, builtinFonts, frames, sounds, engineRoot };
 }
 
 /** A file name that doesn't collide with anything already in `dir`:
