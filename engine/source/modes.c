@@ -30,6 +30,7 @@ static int climbing, drop_timer;
 static int dash_timer, dash_cooldown, dash_vx, dash_vy;
 static int kb_timer;
 static int kick_timer;                /* wall kick: gravity/steering off */
+static int kick_anim;                 /* frames left of the wall kick animation */
 static int push_timer;
 static int running, wall_sliding, floating, crouching, pushing;
 static int tap_timer[2], tap_dir;     /* double-tap dash (left, right) */
@@ -538,6 +539,7 @@ static const ScriptEvent *platform_update(Entity *p)
                 facing_left = wall > 0;
                 hold_timer = MSET(PL_HOLD_FRAMES);
                 kick_timer = MSET(PL_WALL_KICK_FRAMES);
+                kick_anim = kick_timer > 12 ? kick_timer : 12;
                 wall_jumps++;
                 jump_buffer = 0;
             }
@@ -695,7 +697,17 @@ static const ScriptEvent *platform_update(Entity *p)
     {
         /* platform_player sprites (GB Studio's order): idle 0/1,
          * jump 2/3, walk 4/5, climb 6. */
-        if (climbing)
+        if (grounded || wall_sliding)
+            kick_anim = 0;
+        else if (kick_anim > 0)
+            kick_anim--;
+        if (!climbing && !grounded && kb_timer == 0 && (wall_sliding || kick_anim > 0))
+        {
+            int extra = wall_sliding ? ENTITY_SLOT_WALL_SLIDE_R : ENTITY_SLOT_WALL_KICK_R;
+            entity_animate_slot(p, facing_left ? DIR_LEFT : DIR_RIGHT, extra + (facing_left ? 1 : 0));
+            slot = -1;
+        }
+        else if (climbing)
             slot = 6;
         else if (!grounded || kb_timer > 0)
             slot = facing_left ? 3 : 2;
@@ -703,7 +715,8 @@ static const ScriptEvent *platform_update(Entity *p)
             slot = facing_left ? 5 : 4;
         else
             slot = facing_left ? 1 : 0;
-        show_slot(p, slot);
+        if (slot >= 0)
+            show_slot(p, slot);
     }
 
     if (grounded && input_pressed(MSET(PL_INTERACT)))

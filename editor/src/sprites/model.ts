@@ -67,6 +67,11 @@ export function newId(): string {
 
 const DIR_NAMES = ["Idle Right", "Idle Left", "Idle Up", "Idle Down", "Moving Right", "Moving Left", "Moving Up", "Moving Down"];
 
+/** Animations a state can have: GB Studio's 8, plus the Platformer type's
+ * wall slide and wall kick (right/left) at 8-11. */
+export const ANIMATION_SLOTS = 12;
+const PLATFORM_EXTRA_NAMES = { 8: "Wall Slide Right", 9: "Wall Slide Left", 10: "Wall Kick Right", 11: "Wall Kick Left" };
+
 /** The animations (by index into state.animations) a state of this type
  * shows in the editor, in GB Studio's order, with their names. */
 export function visibleAnimations(type: SpriteAnimationType, flipLeft: boolean): { index: number; name: string }[] {
@@ -84,8 +89,10 @@ export function visibleAnimations(type: SpriteAnimationType, flipLeft: boolean):
     case "horizontal_movement":
       return pick(flipLeft ? [0, 4] : [0, 1, 4, 5]);
     case "platform_player": {
-      const names = { 2: "Jump Right", 3: "Jump Left", 6: "Climbing" };
-      return pick(flipLeft ? [0, 4, 2, 6] : [0, 1, 4, 5, 2, 3, 6], names);
+      const names = { 2: "Jump Right", 3: "Jump Left", 6: "Climbing", ...PLATFORM_EXTRA_NAMES };
+      const pl = pick(flipLeft ? [0, 4, 2, 6, 8, 10] : [0, 1, 4, 5, 2, 3, 6, 8, 9, 10, 11], names);
+      // Mirrored left: the right-hand names read as just "Wall Slide"/"Wall Kick".
+      return flipLeft ? pl.map((a) => (a.index >= 8 ? { ...a, name: a.name.replace(" Right", "") } : a)) : pl;
     }
     case "cursor":
       return pick([0, 1], { 0: "Idle", 1: "Hover" });
@@ -157,7 +164,27 @@ export function frame(tiles: SpriteTileJSON[] = []): SpriteFrameJSON {
 }
 
 export function emptyAnimations(): SpriteAnimationJSON[] {
-  return Array.from({ length: 8 }, () => ({ id: newId(), frames: [frame()] }));
+  return Array.from({ length: ANIMATION_SLOTS }, () => ({ id: newId(), frames: [frame()] }));
+}
+
+/** The sheet with every state's animation list at least ANIMATION_SLOTS
+ * long (older sheets have 8), so any animation can be edited by index. */
+export function padAnimations(sheet: SpriteSheetJSON): SpriteSheetJSON {
+  if (sheet.states.every((st) => st.animations.length >= ANIMATION_SLOTS)) return sheet;
+  return {
+    ...sheet,
+    states: sheet.states.map((st) =>
+      st.animations.length >= ANIMATION_SLOTS
+        ? st
+        : {
+            ...st,
+            animations: [
+              ...st.animations,
+              ...Array.from({ length: ANIMATION_SLOTS - st.animations.length }, () => ({ id: newId(), frames: [frame()] })),
+            ],
+          },
+    ),
+  };
 }
 
 export function newState(name: string, type: SpriteAnimationType = "multi_movement"): SpriteStateJSON {

@@ -42,7 +42,8 @@ typedef struct
  * 8 combinations of facing direction x standing/moving to one of
  * `anims`:
  *
- *   state_maps[state * 8 + moving * 4 + direction]
+ *   state_maps[state * ENTITY_STATE_SLOTS + moving * 4 + direction] (then
+ *   the extra ENTITY_SLOT_* ones)
  *
  * (direction as in Direction above). The compiler has already resolved
  * the state's animation type and "flip right to make left" into this map.
@@ -94,6 +95,8 @@ typedef struct
     uint8_t anim_frame;     /* index into that animation's frames */
     uint8_t anim_timer;     /* VBlanks counted toward the next frame */
     uint8_t anim_enabled;   /* "Set Actor Animate" */
+    uint8_t extra_slot;     /* 0, or ENTITY_SLOT_* + 1: shown instead
+                             * of the direction/moving animation */
     uint8_t anim_hold;      /* a script picked a frame: keep it until the
                              * actor's direction or moving flag changes */
 
@@ -138,6 +141,15 @@ void entity_set_sprite(Entity *entity, const SpriteDef *def, int palette_bank);
 /* Set facing and whether the entity is walking; picks the matching
  * animation of its current state. */
 void entity_animate(Entity *entity, Direction direction, int moving);
+
+/* Extra animation slots after a state's 8 direction/moving ones (see
+ * compiler/sprites.py): the Platformer's wall slide and wall kick. */
+#define ENTITY_STATE_SLOTS 12
+enum { ENTITY_SLOT_WALL_SLIDE_R, ENTITY_SLOT_WALL_SLIDE_L, ENTITY_SLOT_WALL_KICK_R, ENTITY_SLOT_WALL_KICK_L };
+
+/* Show extra slot `slot` (ENTITY_SLOT_*, -1 = none) - it stays until the
+ * next entity_animate() call. */
+void entity_animate_slot(Entity *entity, Direction direction, int slot);
 
 /* "Set Actor Animation State": switch to another of the sprite's states
  * (out of range = ignored). */

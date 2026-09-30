@@ -8,7 +8,7 @@ import { create } from "zustand";
 
 import type { SpriteFrameJSON, SpriteSheetJSON, SpriteTileJSON } from "../../shared/projectTypes";
 import { useProjectStore } from "../state/projectStore";
-import type { Facing } from "./model";
+import { padAnimations, type Facing } from "./model";
 
 export interface PaletteSelection {
   x: number;
@@ -90,7 +90,7 @@ export function editSheet(base: SpriteSheetJSON, updater: (s: SpriteSheetJSON) =
       const sheets = p.spriteSheets ?? [];
       const i = sheets.findIndex((s) => s.name === base.name);
       const cur = i >= 0 ? sheets[i] : base;
-      const next = updater(cur);
+      const next = updater(padAnimations(cur));
       if (next === cur && i >= 0) return p;
       const list = sheets.slice();
       if (i >= 0) list[i] = next;

@@ -411,7 +411,7 @@ class CompiledSprite:
         self.frames = []        # [(objs, data_key)]
         self.tile_data = []     # unique pixel blobs
         self.anims = []         # [(frame indices, speed)]
-        self.state_maps = []    # [8 anim indices], engine slot order
+        self.state_maps = []    # [12 anim indices], engine slot order
         self.state_names = {}   # name -> state index
         self.state_types = []   # animationType per state
         self.bounds = (0, 0, 16, 16)
@@ -491,6 +491,24 @@ def compile_sprite(sheet, image, where):
             for direction in range(4):
                 ai, mirrored = mapping[GB_INDEX_FOR_DIRECTION[direction] + 4 * moving]
                 slots.append(engine_anim(ai, mirrored))
+        # Extra slots (entity.h's ENTITY_SLOT_*): wall slide right/left,
+        # wall kick right/left. Platformer states have their own
+        # animations 8-11 (left mirrors right with flipLeft); empty ones,
+        # and other types, show the jump (idle up/down slots).
+        is_platform = st.get("animationType") == "platform_player"
+        flip = bool(st.get("flipLeft", True))
+
+        def has_frames(ai):
+            return 0 <= ai < len(anims) and any(f.get("tiles") for f in (anims[ai].get("frames") or []))
+
+        for right_ai, left_ai in ((8, 9), (10, 11)):
+            if is_platform and has_frames(right_ai):
+                slots.append(engine_anim(right_ai, False))
+                slots.append(engine_anim(right_ai, True) if flip else
+                             engine_anim(left_ai if has_frames(left_ai) else right_ai, not has_frames(left_ai)))
+            else:
+                slots.append(slots[1])   # idle up = jump right for platform_player
+                slots.append(slots[0])   # idle down = jump left
         cs.state_maps.append(slots)
 
     if len(cs.anims) > 255:

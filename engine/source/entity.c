@@ -79,7 +79,11 @@ static void apply_state_map(Entity *e)
     if (e->def == 0 || e->def->state_count == 0 || e->anim_hold)
         return;
     uint8_t dir = e->direction & 3;
-    play_animation(e, e->def->state_maps[e->anim_state * 8 + (e->moving ? 4 : 0) + dir]);
+    const uint8_t *map = &e->def->state_maps[e->anim_state * ENTITY_STATE_SLOTS];
+    if (e->extra_slot)
+        play_animation(e, map[8 + e->extra_slot - 1]);
+    else
+        play_animation(e, map[(e->moving ? 4 : 0) + dir]);
 }
 
 void entity_set_sprite(Entity *entity, const SpriteDef *def, int palette_bank)
@@ -106,6 +110,24 @@ void entity_animate(Entity *entity, Direction direction, int moving)
         entity->anim_hold = 0;
     entity->direction = d;
     entity->moving = m;
+    entity->extra_slot = 0;
+    apply_state_map(entity);
+}
+
+void entity_animate_slot(Entity *entity, Direction direction, int slot)
+{
+    if (entity == 0)
+        return;
+    if (slot < 0)
+    {
+        entity_animate(entity, direction, 0);
+        return;
+    }
+    if ((uint8_t)direction != entity->direction || entity->extra_slot != slot + 1)
+        entity->anim_hold = 0;
+    entity->direction = (uint8_t)direction;
+    entity->moving = 0;
+    entity->extra_slot = (uint8_t)(slot + 1);
     apply_state_map(entity);
 }
 
