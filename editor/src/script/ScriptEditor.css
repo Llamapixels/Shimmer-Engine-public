@@ -320,6 +320,24 @@
   color: var(--accent-text);
 }
 
+.script-field-dialogue {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dialogue-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dialogue-preview-label {
+  font-size: 11px;
+  color: var(--text-2, #999);
+}
+
 .script-field-bool {
   display: inline-flex;
   align-items: center;

@@ -22,6 +22,7 @@ import { playerSpriteName } from "../sprites/model";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import type { FieldDef } from "./eventCatalog";
 import Icon from "../components/common/Icon";
+import DialogueBoxPreview from "../components/common/DialogueBoxPreview";
 
 /** What a script's fields need to know about where the script lives. */
 export interface ScriptEnv {
@@ -115,8 +116,8 @@ export function FieldControl({ field, ev, env, patch }: Props) {
         />
       );
 
-    case "multiline":
-      return (
+    case "multiline": {
+      const box = (
         <textarea
           rows={Math.min(6, Math.max(2, String(value ?? "").split("\n").length))}
           value={String(value ?? "")}
@@ -124,6 +125,15 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           onChange={(e) => patch({ [field.key]: e.target.value }, true)}
         />
       );
+      // Display Text: the box as it'll look in the game, pages and all.
+      if (ev.type !== "text") return box;
+      return (
+        <div className="script-field-dialogue">
+          {box}
+          {String(value ?? "") && <DialogueBoxPreview text={String(value ?? "")} />}
+        </div>
+      );
+    }
 
     case "int":
       return (

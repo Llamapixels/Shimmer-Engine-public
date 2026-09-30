@@ -6,6 +6,17 @@ import type { AssetInfo } from "../../../shared/ipc";
  * every PNG over IPC (and an edited file on disk gets a fresh read). */
 const cache = new Map<string, string>();
 
+/** The asset as a data: URL (cached like useAssetUrl), or null. */
+export async function loadAssetUrl(rootPath: string, asset: AssetInfo): Promise<string | null> {
+  const key = `${rootPath}|${asset.base}|${asset.relPath}|${asset.mtimeMs}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const r = await window.api.readAsset({ rootPath, relPath: asset.relPath, base: asset.base });
+  if (!r.ok) return null;
+  cache.set(key, r.value.dataUrl);
+  return r.value.dataUrl;
+}
+
 export function useAssetUrl(rootPath: string | undefined, asset: AssetInfo | null | undefined): string | null {
   const key = asset && rootPath ? `${rootPath}|${asset.base}|${asset.relPath}|${asset.mtimeMs}` : null;
   const [url, setUrl] = useState<string | null>(key ? (cache.get(key) ?? null) : null);
