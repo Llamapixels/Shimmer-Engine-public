@@ -247,7 +247,16 @@ function assetFolder(kind: AssetKind): { base: AssetBase; rel: string; exts: str
   }
 }
 
-async function listFolder(baseAbs: string, base: AssetBase, rel: string, exts: string[]): Promise<AssetInfo[]> {
+/** The folder's assets. With `subfolders`, files in subfolders too, named
+ * "folder/name" (sprites: a "/" in a sprite's name is a subfolder). */
+async function listFolder(
+  baseAbs: string,
+  base: AssetBase,
+  rel: string,
+  exts: string[],
+  subfolders = false,
+  prefix = "",
+): Promise<AssetInfo[]> {
   const dir = path.join(baseAbs, rel);
   let names: string[] = [];
   try {
@@ -257,12 +266,15 @@ async function listFolder(baseAbs: string, base: AssetBase, rel: string, exts: s
   }
   const out: AssetInfo[] = [];
   for (const fileName of names.sort((a, b) => a.localeCompare(b))) {
-    const ext = path.extname(fileName).toLowerCase();
-    if (!exts.includes(ext)) continue;
     const st = await fs.stat(path.join(dir, fileName));
-    if (!st.isFile()) continue;
+    if (st.isDirectory() && subfolders) {
+      out.push(...(await listFolder(baseAbs, base, `${rel}/${fileName}`, exts, true, `${prefix}${fileName}/`)));
+      continue;
+    }
+    const ext = path.extname(fileName).toLowerCase();
+    if (!exts.includes(ext) || !st.isFile()) continue;
     out.push({
-      name: fileName.slice(0, -ext.length),
+      name: prefix + fileName.slice(0, -ext.length),
       fileName,
       relPath: `${rel}/${fileName}`,
       base,
@@ -276,7 +288,7 @@ async function listFolder(baseAbs: string, base: AssetBase, rel: string, exts: s
 export async function listAssets(rootPath: string): Promise<AssetListing> {
   const engineRoot = await findEngineRoot(rootPath);
   const backgrounds = await listFolder(rootPath, "project", "assets/backgrounds", IMAGE_EXTS);
-  const sprites = await listFolder(rootPath, "project", "assets/sprites", IMAGE_EXTS);
+  const sprites = await listFolder(rootPath, "project", "assets/sprites", IMAGE_EXTS, true);
   const music = await listFolder(rootPath, "project", MUSIC_DIR, MUSIC_EXTS);
   const fonts = await listFolder(rootPath, "project", "assets/fonts", IMAGE_EXTS);
   const frames = await listFolder(rootPath, "project", "assets/frames", IMAGE_EXTS);
@@ -395,10 +407,13 @@ export async function replaceSpriteImage(rootPath: string, name: string, sourceP
 /** Renames assets/sprites/<from>.png. Returns the new name (cleaned up,
  * and refused if another sprite already has it). */
 export async function renameSprite(rootPath: string, from: string, to: string): Promise<string> {
-  const name = safeStem(to, "");
-  if (!name) throw new Error("Sprite names need at least one letter or digit.");
+  // "Forest/tree" puts it in a Forest subfolder, which the lists show as a folder.
+  const parts = to.split("/").map((p) => safeStem(p, ""));
+  const name = parts.filter(Boolean).join("/");
+  if (!parts[parts.length - 1]) throw new Error("Sprite names need at least one letter or digit.");
   if (name === from) return name;
   if (await exists(spritePath(rootPath, name))) throw new Error(`There's already a sprite called "${name}".`);
+  await fs.mkdir(path.dirname(spritePath(rootPath, name)), { recursive: true });
   await fs.rename(spritePath(rootPath, from), spritePath(rootPath, name));
   return name;
 }

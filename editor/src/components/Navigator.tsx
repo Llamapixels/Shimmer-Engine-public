@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 
 import { NAMED_LIST_LIMIT, validateName } from "./common/NamedListSelect";
+import FolderTree from "./common/FolderTree";
 import PopoverMenu from "./common/PopoverMenu";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import "./Navigator.css";
@@ -146,82 +147,89 @@ function ScenesSection() {
 
   return (
     <div className="navigator-list">
-      {scenes.map((scene) => {
-        const label = sceneName(scene);
-        const isActive = scene.fileId === activeSceneId;
-        const isSelected = selection.kind === "scene" && selection.sceneId === scene.fileId;
-        const npcs = scene.data.npcs ?? [];
-        const doors = scene.data.doors ?? [];
-        return (
-          <div key={scene.fileId}>
-            <div
-              className={`navigator-item${isActive ? " navigator-item-active" : ""}${isSelected ? " navigator-item-selected" : ""}`}
-              onClick={() => setActiveScene(scene.fileId)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setActiveScene(scene.fileId);
-                setCtxMenu({ x: e.clientX, y: e.clientY, label });
-              }}
-            >
-              <span className="navigator-item-icon" aria-hidden />
-              <span className="navigator-item-label" title={label}>
-                {label}
-              </span>
-              {label === startScene && (
-                <span className="navigator-badge" title="The game starts in this scene (change from the right-click menu)">
-                  start
-                </span>
-              )}
-              <button
-                className="navigator-item-delete"
-                title="Delete scene"
-                onClick={(e) => {
+      <FolderTree
+        items={scenes}
+        getName={sceneName}
+        getKey={(s) => s.fileId}
+        storageKey="scenes"
+        isActive={(s) => s.fileId === activeSceneId}
+        renderItem={(scene, leaf) => {
+          const label = sceneName(scene);
+          const isActive = scene.fileId === activeSceneId;
+          const isSelected = selection.kind === "scene" && selection.sceneId === scene.fileId;
+          const npcs = scene.data.npcs ?? [];
+          const doors = scene.data.doors ?? [];
+          return (
+            <div key={scene.fileId}>
+              <div
+                className={`navigator-item${isActive ? " navigator-item-active" : ""}${isSelected ? " navigator-item-selected" : ""}`}
+                onClick={() => setActiveScene(scene.fileId)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
-                  if (window.confirm(`Delete scene "${label}"? This deletes scenes/${scene.fileId}.json and can't be undone.`)) {
-                    void removeScene(scene.fileId);
-                  }
+                  setActiveScene(scene.fileId);
+                  setCtxMenu({ x: e.clientX, y: e.clientY, label });
                 }}
               >
-                ×
-              </button>
-            </div>
-
-            {isActive && (npcs.length > 0 || doors.length > 0) && (
-              <div className="navigator-children">
-                {npcs.map((npc, i) => {
-                  const sel = selection.kind === "npc" && selection.sceneId === scene.fileId && selection.index === i;
-                  return (
-                    <div
-                      key={`n${i}`}
-                      className={`navigator-child${sel ? " navigator-item-selected" : ""}`}
-                      onClick={() => setSelection({ kind: "npc", sceneId: scene.fileId, index: i })}
-                    >
-                      <span className="navigator-dot navigator-dot-npc" />
-                      <span className="navigator-item-label">{npc.name || `NPC #${i}`}</span>
-                      {npc.on_interact && <span className="navigator-tag">script</span>}
-                    </div>
-                  );
-                })}
-                {doors.map((door, i) => {
-                  const sel = selection.kind === "door" && selection.sceneId === scene.fileId && selection.index === i;
-                  return (
-                    <div
-                      key={`d${i}`}
-                      className={`navigator-child${sel ? " navigator-item-selected" : ""}`}
-                      onClick={() => setSelection({ kind: "door", sceneId: scene.fileId, index: i })}
-                    >
-                      <span className="navigator-dot navigator-dot-door" />
-                      <span className="navigator-item-label">{door.events ? `Trigger #${i}` : `Door → ${door.target_scene ?? "?"}`}</span>
-                      {door.events && <span className="navigator-tag">script</span>}
-                    </div>
-                  );
-                })}
+                <span className="navigator-item-icon" aria-hidden />
+                <span className="navigator-item-label" title={label}>
+                  {leaf}
+                </span>
+                {label === startScene && (
+                  <span className="navigator-badge" title="The game starts in this scene (change from the right-click menu)">
+                    start
+                  </span>
+                )}
+                <button
+                  className="navigator-item-delete"
+                  title="Delete scene"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`Delete scene "${label}"? This deletes scenes/${scene.fileId}.json and can't be undone.`)) {
+                      void removeScene(scene.fileId);
+                    }
+                  }}
+                >
+                  ×
+                </button>
               </div>
-            )}
-          </div>
-        );
-      })}
+
+              {isActive && (npcs.length > 0 || doors.length > 0) && (
+                <div className="navigator-children">
+                  {npcs.map((npc, i) => {
+                    const sel = selection.kind === "npc" && selection.sceneId === scene.fileId && selection.index === i;
+                    return (
+                      <div
+                        key={`n${i}`}
+                        className={`navigator-child${sel ? " navigator-item-selected" : ""}`}
+                        onClick={() => setSelection({ kind: "npc", sceneId: scene.fileId, index: i })}
+                      >
+                        <span className="navigator-dot navigator-dot-npc" />
+                        <span className="navigator-item-label">{npc.name || `NPC #${i}`}</span>
+                        {npc.on_interact && <span className="navigator-tag">script</span>}
+                      </div>
+                    );
+                  })}
+                  {doors.map((door, i) => {
+                    const sel = selection.kind === "door" && selection.sceneId === scene.fileId && selection.index === i;
+                    return (
+                      <div
+                        key={`d${i}`}
+                        className={`navigator-child${sel ? " navigator-item-selected" : ""}`}
+                        onClick={() => setSelection({ kind: "door", sceneId: scene.fileId, index: i })}
+                      >
+                        <span className="navigator-dot navigator-dot-door" />
+                        <span className="navigator-item-label">{door.events ? `Trigger #${i}` : `Door → ${door.target_scene ?? "?"}`}</span>
+                        {door.events && <span className="navigator-tag">script</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }}
+      />
 
       {ctxMenu && (
         <PopoverMenu
@@ -461,35 +469,41 @@ function ScriptsSection() {
 
   return (
     <div className="navigator-list">
-      {scripts.map((s) => {
-        const isSelected = selection.kind === "customScript" && selection.id === s.id;
-        return (
-          <div
-            key={s.id}
-            className={`navigator-item${isSelected ? " navigator-item-selected" : ""}`}
-            onClick={() => {
-              setSection("world");
-              setSelection({ kind: "customScript", id: s.id });
-            }}
-          >
-            <span className="navigator-item-icon" aria-hidden />
-            <span className="navigator-item-label" title={s.name}>
-              {s.name}
-            </span>
-            <span className="navigator-tag">{s.script.length} ev</span>
-            <button
-              className="navigator-item-delete"
-              title="Delete script"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (window.confirm(`Delete script "${s.name}"? This can't be undone.`)) removeCustomScript(s.id);
+      <FolderTree
+        items={scripts}
+        getName={(s) => s.name}
+        getKey={(s) => s.id}
+        storageKey="scripts"
+        renderItem={(s, leaf) => {
+          const isSelected = selection.kind === "customScript" && selection.id === s.id;
+          return (
+            <div
+              key={s.id}
+              className={`navigator-item${isSelected ? " navigator-item-selected" : ""}`}
+              onClick={() => {
+                setSection("world");
+                setSelection({ kind: "customScript", id: s.id });
               }}
             >
-              ×
-            </button>
-          </div>
-        );
-      })}
+              <span className="navigator-item-icon" aria-hidden />
+              <span className="navigator-item-label" title={s.name}>
+                {leaf}
+              </span>
+              <span className="navigator-tag">{s.script.length} ev</span>
+              <button
+                className="navigator-item-delete"
+                title="Delete script"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Delete script "${s.name}"? This can't be undone.`)) removeCustomScript(s.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }
@@ -533,36 +547,42 @@ function PrefabsSection() {
 
   return (
     <div className="navigator-list">
-      {prefabs.map((p) => {
-        const isSelected = selection.kind === "prefab" && selection.id === p.id;
-        return (
-          <div
-            key={p.id}
-            className={`navigator-item${isSelected ? " navigator-item-selected" : ""}`}
-            onClick={() => {
-              setSection("world");
-              setSelection({ kind: "prefab", id: p.id });
-            }}
-          >
-            <span className="navigator-item-icon" aria-hidden>
-              <Icon name={p.kind === "npc" ? "actor" : "trigger"} />
-            </span>
-            <span className="navigator-item-label" title={p.name}>
-              {p.name}
-            </span>
-            <button
-              className="navigator-item-delete"
-              title="Delete prefab"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (window.confirm(`Delete prefab "${p.name}"?`)) removePrefab(p.id);
+      <FolderTree
+        items={prefabs}
+        getName={(p) => p.name}
+        getKey={(p) => p.id}
+        storageKey="prefabs"
+        renderItem={(p, leaf) => {
+          const isSelected = selection.kind === "prefab" && selection.id === p.id;
+          return (
+            <div
+              key={p.id}
+              className={`navigator-item${isSelected ? " navigator-item-selected" : ""}`}
+              onClick={() => {
+                setSection("world");
+                setSelection({ kind: "prefab", id: p.id });
               }}
             >
-              ×
-            </button>
-          </div>
-        );
-      })}
+              <span className="navigator-item-icon" aria-hidden>
+                <Icon name={p.kind === "npc" ? "actor" : "trigger"} />
+              </span>
+              <span className="navigator-item-label" title={p.name}>
+                {leaf}
+              </span>
+              <button
+                className="navigator-item-delete"
+                title="Delete prefab"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Delete prefab "${p.name}"?`)) removePrefab(p.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }
@@ -604,38 +624,44 @@ function PalettesSection() {
 
   return (
     <div className="navigator-list">
-      {palettes.map((p) => {
-        const isSelected = selection.kind === "palette" && selection.id === p.id;
-        return (
-          <div
-            key={p.id}
-            className={`navigator-item${isSelected ? " navigator-item-selected" : ""}`}
-            onClick={() => {
-              setSection("world");
-              setSelection({ kind: "palette", id: p.id });
-            }}
-          >
-            <span className="navigator-palette-swatches" aria-hidden>
-              {p.colors.slice(0, 4).map((c, i) => (
-                <span key={i} className="navigator-palette-swatch" style={{ background: c }} />
-              ))}
-            </span>
-            <span className="navigator-item-label" title={p.name}>
-              {p.name}
-            </span>
-            <button
-              className="navigator-item-delete"
-              title="Delete palette"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (window.confirm(`Delete palette "${p.name}"?`)) removePalette(p.id);
+      <FolderTree
+        items={palettes}
+        getName={(p) => p.name}
+        getKey={(p) => p.id}
+        storageKey="palettes"
+        renderItem={(p, leaf) => {
+          const isSelected = selection.kind === "palette" && selection.id === p.id;
+          return (
+            <div
+              key={p.id}
+              className={`navigator-item${isSelected ? " navigator-item-selected" : ""}`}
+              onClick={() => {
+                setSection("world");
+                setSelection({ kind: "palette", id: p.id });
               }}
             >
-              ×
-            </button>
-          </div>
-        );
-      })}
+              <span className="navigator-palette-swatches" aria-hidden>
+                {p.colors.slice(0, 4).map((c, i) => (
+                  <span key={i} className="navigator-palette-swatch" style={{ background: c }} />
+                ))}
+              </span>
+              <span className="navigator-item-label" title={p.name}>
+                {leaf}
+              </span>
+              <button
+                className="navigator-item-delete"
+                title="Delete palette"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Delete palette "${p.name}"?`)) removePalette(p.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }

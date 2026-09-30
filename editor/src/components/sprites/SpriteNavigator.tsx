@@ -6,6 +6,7 @@ import { useSpriteImage, type SpriteImage } from "../../sprites/image";
 import { newState, playerSpriteName, stateLabel, visibleAnimations } from "../../sprites/model";
 import { drawActor, sheetFor } from "../../sprites/render";
 import { useProjectStore } from "../../state/projectStore";
+import FolderTree from "../common/FolderTree";
 import { useAssetUrl } from "../views/assetImages";
 import { useCurrentSprite } from "./useCurrentSprite";
 
@@ -48,15 +49,21 @@ export default function SpriteNavigator({ onError }: { onError: (e: string | nul
         </div>
         <input className="spr-nav-search" placeholder="Search sprites…" value={search} onChange={(e) => setSearch(e.target.value)} />
         <div className="spr-nav-list">
-          {filtered.map((a) => (
-            <SpriteRow
-              key={a.name}
-              asset={a}
-              selected={a.name === selected}
-              isPlayer={a.name === player}
-              onClick={() => selectSprite(a.name)}
-            />
-          ))}
+          <FolderTree
+            items={filtered}
+            getName={(a) => a.name}
+            storageKey="sprites"
+            isActive={(a) => a.name === selected}
+            renderItem={(a, leaf) => (
+              <SpriteRow
+                asset={a}
+                label={leaf}
+                selected={a.name === selected}
+                isPlayer={a.name === player}
+                onClick={() => selectSprite(a.name)}
+              />
+            )}
+          />
           {list.length === 0 && <div className="spr-nav-empty">No sprites yet. Import a PNG with +.</div>}
           {list.length > 0 && filtered.length === 0 && <div className="spr-nav-empty">No sprites match.</div>}
         </div>
@@ -68,11 +75,14 @@ export default function SpriteNavigator({ onError }: { onError: (e: string | nul
 
 function SpriteRow({
   asset,
+  label,
   selected,
   isPlayer,
   onClick,
 }: {
   asset: AssetInfo;
+  /** The name without its folders. */
+  label: string;
   selected: boolean;
   isPlayer: boolean;
   onClick: () => void;
@@ -92,8 +102,8 @@ function SpriteRow({
       data-testid={`sprite-row-${asset.name}`}
     >
       <SpriteThumb img={img} name={asset.name} />
-      <span className="spr-nav-name" title={asset.fileName}>
-        {asset.name}
+      <span className="spr-nav-name" title={asset.name}>
+        {label}
       </span>
       {isPlayer && (
         <span className="spr-badge" title="The player uses this sprite">
