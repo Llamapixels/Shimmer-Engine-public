@@ -50,6 +50,7 @@ export type FieldKind =
   | "frame"
   | "sprite"
   | "select"
+  | "checks"
   | "float"
   | "engineSetting"
   | "engineValue";
@@ -66,7 +67,7 @@ export interface FieldDef {
   min?: number;
   max?: number;
   placeholder?: string;
-  /** "select": the choices. */
+  /** "select" / "checks" (any number of them, stored as a list): the choices. */
   options?: { value: string; label: string }[];
 }
 
@@ -312,18 +313,18 @@ export const EVENT_DEFS: EventDef[] = [
       {
         key: "hits",
         label: "Hits",
-        kind: "select",
+        kind: "checks",
         options: [
-          { value: "actors", label: "Actors in any collision group" },
-          { value: "group1", label: "Actors in group 1" },
-          { value: "group2", label: "Actors in group 2" },
-          { value: "group3", label: "Actors in group 3" },
-          { value: "player", label: "The player" },
+          { value: "group1", label: "Group 1" },
+          { value: "group2", label: "Group 2" },
+          { value: "group3", label: "Group 3" },
+          { value: "player", label: "Player" },
         ],
       },
       { key: "group", label: "Hits the player as group", kind: "int", min: 1, max: 3 },
       { key: "pierce", label: "Keeps going after a hit", kind: "bool" },
       { key: "through_walls", label: "Flies through walls", kind: "bool" },
+      { key: "front", label: "Drawn in front of the player", kind: "bool" },
       { key: "offset_x", label: "Start offset X (px)", kind: "int", min: -128, max: 128 },
       { key: "offset_y", label: "Start offset Y (px)", kind: "int", min: -128, max: 128 },
     ],
@@ -335,7 +336,7 @@ export const EVENT_DEFS: EventDef[] = [
       angle: 0,
       speed: 3,
       lifetime: 0,
-      hits: "actors",
+      hits: ["group1", "group2", "group3"],
       group: 1,
     }),
     summary: (ev) => `${ev.sprite} from ${actorLabel(ev.actor ?? "player")}, ${ev.direction === "angle" ? `${ev.angle ?? 0}°` : ev.direction ?? "facing"}`,

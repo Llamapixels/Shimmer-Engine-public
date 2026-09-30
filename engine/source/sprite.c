@@ -45,8 +45,14 @@
 #define SCREEN_W 240
 #define SCREEN_H 160
 
-static uint16_t next_oam = 0;
+/* OAM entries 0..FRONT_OAM-1 are kept for sprites drawn in front of all
+ * others (the GBA draws lower OAM entries on top): see sprite_use_front(). */
+#define FRONT_OAM 16
+
+static uint16_t next_oam = FRONT_OAM;
 static uint16_t next_tile = 0;
+static uint16_t next_front = 0;
+static int use_front = 0;
 
 
 static void copy_to_vram(volatile uint16_t *dest, const uint8_t *data, uint32_t size)
@@ -74,10 +80,16 @@ static void hide_from(ASprite *sprite, uint8_t from)
 }
 
 
+void sprite_use_front(int on)
+{
+    use_front = on;
+}
+
 void sprite_system_init(void)
 {
-    next_oam = 0;
+    next_oam = FRONT_OAM;
     next_tile = 0;
+    next_front = 0;
 
     /* Hide all 128 hardware sprites. */
     for (int i = 0; i < SPRITE_MAX; i++)
@@ -107,6 +119,10 @@ void sprite_alloc_reset(uint32_t mark)
 
     for (uint16_t i = mark_oam; i < next_oam && i < SPRITE_MAX; i++)
         write_hidden(i);
+    /* The front block belongs to the scene too. */
+    for (uint16_t i = 0; i < next_front; i++)
+        write_hidden(i);
+    next_front = 0;
 
     next_oam = mark_oam;
     next_tile = mark_tile;
@@ -147,13 +163,14 @@ void sprite_init(
 
     /* Out of OAM entries or VRAM for the largest frame: reserve nothing
      * (the sprite is never drawn) rather than a partial set. */
+    int front = use_front && next_front + max_objs <= FRONT_OAM;
     if (max_objs == 0 ||
-        next_oam + max_objs > SPRITE_MAX ||
+        (!front && next_oam + max_objs > SPRITE_MAX) ||
         next_tile + max_vram_tiles > OBJ_TILE_MAX)
         return;
 
     for (uint8_t i = 0; i < max_objs; i++)
-        sprite->oam[i] = next_oam++;
+        sprite->oam[i] = front ? next_front++ : next_oam++;
     sprite->oam_count = max_objs;
     sprite->tile_index = next_tile;
     sprite->vram_count = max_vram_tiles;

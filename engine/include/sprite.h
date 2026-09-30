@@ -65,6 +65,10 @@ typedef struct
 
 void sprite_system_init(void);
 
+/* While on, sprite_init() takes OAM entries from a small block drawn in
+ * front of every other sprite (falls back to the normal ones when full). */
+void sprite_use_front(int on);
+
 /*
  * OAM/VRAM allocator watermark. The allocator is a simple bump pointer
  * (sprite_init() never frees), so anything created per scene must be

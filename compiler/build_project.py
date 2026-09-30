@@ -223,12 +223,13 @@ Event script types (used in "on_interact" and door "events" lists):
     { "type": "launch_projectile", "sprite": "bullet", "actor": "player",
       "direction": "facing" | "up" | "down" | "left" | "right" | "angle",
       "angle": 45, "speed": 3, "lifetime": 0, "hits": "actors",
-      "group": 1, "pierce": false, "through_walls": false,
+      "group": 1, "pierce": false, "through_walls": false, "front": false,
       "offset_x": 0, "offset_y": 0 }
         Fire a sprite in a straight line (angle: degrees, 0 = right, 90 =
         up; lifetime 0 = until it leaves the screen). hits: "actors" (any
         with a collision group), "group1".."group3", or "player" (runs the
-        scene's on_player_hit for "group").
+        scene's on_player_hit for "group") - or a list of them. front: drawn
+        in front of the player and actors.
     { "type": "text_set_font", "font": "<name>" }
     { "type": "text_set_frame", "frame": "<name>" }
     { "type": "text_set_speed", "speed": 0-30 }
@@ -1175,7 +1176,8 @@ def resolve_state(actor_idx, ref, ctx, where):
 PLAYER_ACTOR_INDEX = -2
 
 
-PROJECTILE_TARGETS = {"player": 0, "group1": 1, "group2": 2, "group3": 3, "actors": 4}
+# "hits" names -> projectile.h's PROJ_P_TARGET bits (bit 0 player, bit g group g).
+PROJECTILE_TARGETS = {"player": 1, "group1": 2, "group2": 4, "group3": 8, "actors": 14}
 PROJECTILE_DIRECTIONS = {"right": (1, 0), "left": (-1, 0), "up": (0, -1), "down": (0, 1)}
 
 
@@ -1211,14 +1213,18 @@ def compile_projectile(ev, ctx, where):
         raise BuildError(f"{where}: \"direction\" must be facing, up, down, left, right or angle.")
     life = resolve_small_int(ev.get("lifetime", 0), "lifetime", where, 0, 32767)
     hits = ev.get("hits", "actors")
-    if hits not in PROJECTILE_TARGETS:
-        raise BuildError(f"{where}: \"hits\" must be one of: {', '.join(PROJECTILE_TARGETS)}.")
+    hit_list = hits if isinstance(hits, list) else [hits]
+    target = 0
+    for h in hit_list:
+        if h not in PROJECTILE_TARGETS:
+            raise BuildError(f"{where}: \"hits\" must be one or a list of: {', '.join(PROJECTILE_TARGETS)}.")
+        target |= PROJECTILE_TARGETS[h]
     group = resolve_small_int(ev.get("group", 1), "group", where, 1, 3)
-    flags = (1 if ev.get("pierce") else 0) | (2 if ev.get("through_walls") else 0)
+    flags = (1 if ev.get("pierce") else 0) | (2 if ev.get("through_walls") else 0) | (4 if ev.get("front") else 0)
     off_x = resolve_small_int(ev.get("offset_x", 0), "offset_x", where, -128, 128)
     off_y = resolve_small_int(ev.get("offset_y", 0), "offset_y", where, -128, 128)
     data = [ctx["sprite_index"][sprite], bank, source, facing, vx, vy, speed_fx, life, group,
-            PROJECTILE_TARGETS[hits], flags, off_x, off_y]
+            target, flags, off_x, off_y]
     ident = _aux_ident(ctx, "projectile")
     ctx["_aux"].append(("expr", ident, data))
     return ident

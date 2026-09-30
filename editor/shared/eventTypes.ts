@@ -12,6 +12,8 @@ export type Direction = "down" | "up" | "right" | "left";
 
 export type SoundEffect = "blip" | "door" | "save" | "item";
 
+export type ProjectileTarget = "actors" | "group1" | "group2" | "group3" | "player";
+
 export type ButtonName =
   | "a"
   | "b"
@@ -84,11 +86,14 @@ export interface LaunchProjectileEvent extends EventBase {
   speed?: number;
   /** frames, 0 = until it leaves the screen */
   lifetime?: number;
-  hits?: "actors" | "group1" | "group2" | "group3" | "player";
+  /** One target, or several (the editor writes a list). */
+  hits?: ProjectileTarget | ProjectileTarget[];
   /** Which On Player Hit script runs when it hits the player. */
   group?: number;
   pierce?: boolean;
   through_walls?: boolean;
+  /** Drawn in front of the player and actors. */
+  front?: boolean;
   offset_x?: number;
   offset_y?: number;
 }

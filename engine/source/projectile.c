@@ -19,6 +19,7 @@ typedef struct
     int vx, vy;
     int life;
     uint8_t group, target, flags;
+    uint8_t front;           /* e's sprite is in the front OAM block */
     int8_t source;           /* NPC index that fired it, -1 = none */
     uint8_t from_player;
     uint16_t hit_npcs;       /* piercing: each actor only once */
@@ -40,10 +41,10 @@ void projectiles_reset(void)
 
 /* A free slot already showing `def`, else a never-used one (sprites
  * can't be freed one by one, so slots keep their sprite). */
-static Projectile *take_slot(const SpriteDef *def, int bank)
+static Projectile *take_slot(const SpriteDef *def, int bank, int front)
 {
     for (int i = 0; i < PROJECTILE_MAX; i++)
-        if (!shots[i].active && shots[i].e && shots[i].def == def)
+        if (!shots[i].active && shots[i].e && shots[i].def == def && shots[i].front == front)
             return &shots[i];
     for (int i = 0; i < PROJECTILE_MAX; i++)
     {
@@ -53,9 +54,12 @@ static Projectile *take_slot(const SpriteDef *def, int bank)
             if (!e)
                 return 0;
             e->solid = 0;
+            sprite_use_front(front);
             entity_set_sprite(e, def, bank);
+            sprite_use_front(0);
             shots[i].e = e;
             shots[i].def = def;
+            shots[i].front = (uint8_t)front;
             return &shots[i];
         }
     }
@@ -72,7 +76,7 @@ void projectile_launch(const int16_t *p)
         return;
     const SpriteDef *def = &sprite_defs[p[PROJ_P_SPRITE]];
     sprite_load_palette(p[PROJ_P_BANK], def->palette);
-    Projectile *s = take_slot(def, p[PROJ_P_BANK]);
+    Projectile *s = take_slot(def, p[PROJ_P_BANK], (p[PROJ_P_FLAGS] & PROJ_FLAG_FRONT) != 0);
     if (!s)
         return;
 
@@ -159,7 +163,7 @@ void projectiles_update(int move, int camera_x, int camera_y)
             }
 
             int hit = 0;
-            if (s->target == PROJ_TARGET_PLAYER)
+            if (s->target & PROJ_TARGET_PLAYER)
             {
                 Entity *p = world_player();
                 if (p && p->solid && overlaps(e, p))
@@ -169,14 +173,14 @@ void projectiles_update(int move, int camera_x, int camera_y)
                     hit = 1;
                 }
             }
-            else
+            if (!hit && (s->target & ~PROJ_TARGET_PLAYER))
             {
                 for (int n = 0; n < world_npc_count() && !hit; n++)
                 {
                     const NpcDef *d = world_npc_def(n);
                     if (n == s->source || !d->collision_group || !world_npc_solid(n))
                         continue;
-                    if (s->target != PROJ_TARGET_ANY && d->collision_group != s->target)
+                    if (!((s->target >> d->collision_group) & 1))
                         continue;
                     if ((s->hit_npcs >> n) & 1)
                         continue;

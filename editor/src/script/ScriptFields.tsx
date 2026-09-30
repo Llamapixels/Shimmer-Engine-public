@@ -385,6 +385,32 @@ export function FieldControl({ field, ev, env, patch }: Props) {
         </select>
       );
 
+    case "checks": {
+      // A plain string is an older single choice; "actors" = every group.
+      const raw = Array.isArray(value) ? (value as string[]) : typeof value === "string" ? [value] : [];
+      const selected = new Set(raw.flatMap((v) => (v === "actors" ? ["group1", "group2", "group3"] : [v])));
+      const options = field.options ?? [];
+      return (
+        <div className="chips">
+          {options.map((o) => (
+            <label key={o.value} className="script-field-bool">
+              <input
+                type="checkbox"
+                checked={selected.has(o.value)}
+                onChange={(e) => {
+                  const next = new Set(selected);
+                  if (e.target.checked) next.add(o.value);
+                  else next.delete(o.value);
+                  patch({ [field.key]: options.map((x) => x.value).filter((v) => next.has(v)) });
+                }}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      );
+    }
+
     case "float":
       return (
         <CommitInput

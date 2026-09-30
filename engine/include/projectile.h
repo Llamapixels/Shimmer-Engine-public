@@ -23,10 +23,11 @@ enum
     PROJ_P_COUNT
 };
 
-#define PROJ_TARGET_PLAYER 0     /* 1-3: actors in that group, 4: any actor with a group */
-#define PROJ_TARGET_ANY    4
+/* PROJ_P_TARGET: bit 0 = the player, bit g = actors in collision group g (1-3). */
+#define PROJ_TARGET_PLAYER 1
 #define PROJ_FLAG_PIERCE   1     /* keeps going after a hit */
 #define PROJ_FLAG_WALLS    2     /* flies through walls */
+#define PROJ_FLAG_FRONT    4     /* drawn in front of the player and actors */
 
 /* Scene change: drop them all (call before the sprite allocator resets). */
 void projectiles_reset(void);
