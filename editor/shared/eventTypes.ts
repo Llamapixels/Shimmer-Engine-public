@@ -600,27 +600,6 @@ export interface SwitchEvent extends EventBase {
   else?: EventScript;
 }
 
-/** Always true on a GBA (resolved at compile time). */
-export interface IfColorSupportedEvent extends EventBase {
-  type: "if_color_supported";
-  then?: EventScript;
-  else?: EventScript;
-}
-
-/** Always true on a GBA (resolved at compile time). */
-export interface IfDeviceGbaEvent extends EventBase {
-  type: "if_device_gba";
-  then?: EventScript;
-  else?: EventScript;
-}
-
-/** Always false on a GBA (resolved at compile time). */
-export interface IfDeviceSgbEvent extends EventBase {
-  type: "if_device_sgb";
-  then?: EventScript;
-  else?: EventScript;
-}
-
 /** Runs an NPC's on_interact script here (inlined at compile time). */
 export interface ActorInvokeEvent extends EventBase {
   type: "actor_invoke";
@@ -994,9 +973,6 @@ export type ScriptEventJSON =
   | LabelEvent
   | GotoEvent
   | SwitchEvent
-  | IfColorSupportedEvent
-  | IfDeviceGbaEvent
-  | IfDeviceSgbEvent
   | ActorInvokeEvent
   | ThreadStartEvent
   | ThreadStopEvent

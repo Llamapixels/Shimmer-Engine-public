@@ -1023,36 +1023,6 @@ export const EVENT_DEFS: EventDef[] = [
     create: (c) => ({ type: "rate_limit", var: c.variables[0] ?? "", frames: 30, body: [] }),
     summary: (ev) => `once per ${ev.frames} frames`,
   }),
-  def({
-    type: "if_color_supported",
-    label: "If Color Supported",
-    category: "Control Flow",
-    description: "From GB Studio. Always true on a GBA, so only Then is compiled.",
-    fields: [],
-    branches: IF_BRANCHES,
-    create: () => ({ type: "if_color_supported", then: [], else: [] }),
-    summary: () => "always true on GBA",
-  }),
-  def({
-    type: "if_device_gba",
-    label: "If Device Is GBA",
-    category: "Control Flow",
-    description: "From GB Studio. Always true here, so only Then is compiled.",
-    fields: [],
-    branches: IF_BRANCHES,
-    create: () => ({ type: "if_device_gba", then: [], else: [] }),
-    summary: () => "always true",
-  }),
-  def({
-    type: "if_device_sgb",
-    label: "If Device Is Super Game Boy",
-    category: "Control Flow",
-    description: "From GB Studio. Always false on a GBA, so only Else is compiled.",
-    fields: [],
-    branches: IF_BRANCHES,
-    create: () => ({ type: "if_device_sgb", then: [], else: [] }),
-    summary: () => "always false",
-  }),
 
   // Variables
   def({

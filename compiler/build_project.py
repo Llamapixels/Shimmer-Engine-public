@@ -380,9 +380,6 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
         Jump within the same script (not into or out of a sub-script).
     { "type": "switch", "var": ..., "cases": [{ "value": 1, "then": [...] }],
       "else": [...] }
-    { "type": "if_color_supported" | "if_device_gba", "then": [...] }
-    { "type": "if_device_sgb", "else": [...] }
-        Resolved at compile time: a GBA supports color, is a GBA, isn't an SGB.
     { "type": "actor_invoke", "actor": ... }
         Runs that NPC's on_interact here (inlined; "self" inside it means
         that NPC).
@@ -1918,7 +1915,7 @@ PARITY_EVENT_TYPES = [
     "set_var_true", "set_var_false", "var_inc", "var_dec", "if_var_true",
     "if_var_false", "var_set_flags", "var_add_flags", "var_clear_flags",
     "if_var_flags", "vars_reset", "seed_rng", "rate_limit", "label", "goto",
-    "switch", "if_color_supported", "if_device_gba", "if_device_sgb",
+    "switch",
     "actor_invoke", "thread_start", "thread_stop", "timer_script_set",
     "actor_line_of_sight", "actor_line_of_sight_remove",
     "timer_restart", "timer_disable", "input_script_set",
@@ -2057,13 +2054,6 @@ def compile_parity_event(etype, ev, out, ctx, where):
         compile_events(ev.get("else", []), out, ctx, f"{where} else")
         for g in end_gotos:
             out[g]["a"] = len(out)
-
-    elif etype in ("if_color_supported", "if_device_gba"):
-        # Always true on a GBA - resolved at compile time.
-        compile_events(ev.get("then", []), out, ctx, where)
-
-    elif etype == "if_device_sgb":
-        compile_events(ev.get("else", []), out, ctx, where)
 
     # ---- Scripts / threads ----
     elif etype == "actor_invoke":
