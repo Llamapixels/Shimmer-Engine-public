@@ -203,6 +203,9 @@ custom script (for a locked door, a one-way trap door, anything) via
 A door must have exactly one of "target_scene" or "events".
 
 Event script types (used in "on_interact" and door "events" lists):
+    Any event can carry "__disabled": true to be skipped entirely (the
+    editor's "Disable event", as in GB Studio), and an event with an
+    "else" branch can carry "__disableElse": true to skip just that branch.
     { "type": "text", "text": "..." }
         Show a dialogue box. "\n" in the text starts a new page. Pauses the
         script until the player dismisses it.
@@ -2757,12 +2760,30 @@ def write_if_changed(path, text):
         path.write_text(text, encoding="utf-8")
 
 
+def strip_disabled(node):
+    """A copy of `node` (any JSON value) with every disabled event removed
+    from every list it's in, and every disabled Else branch emptied. The
+    editor marks these like GB Studio's "Disable Event" / "Disable Else":
+    { ..., "__disabled": true } and { ..., "__disableElse": true }. Done
+    once at load so nothing later (compiling, asset scans, checks) ever
+    sees a disabled event."""
+    if isinstance(node, list):
+        return [strip_disabled(v) for v in node
+                if not (isinstance(v, dict) and "type" in v and v.get("__disabled"))]
+    if isinstance(node, dict):
+        out = {k: strip_disabled(v) for k, v in node.items()}
+        if "type" in out and out.get("__disableElse") and "else" in out:
+            out["else"] = []
+        return out
+    return node
+
+
 def build(project_dir, out_dir):
     project_file = project_dir / "project.json"
     if not project_file.exists():
         raise BuildError(f"No project.json in {project_dir}")
 
-    project = json.loads(project_file.read_text(encoding="utf-8"))
+    project = strip_disabled(json.loads(project_file.read_text(encoding="utf-8")))
 
     # Project-wide named item list: { "items": ["Old Key", ...] }.
     # Index in this list = the item's bit in SaveData.inventory. Referenced
@@ -2822,7 +2843,7 @@ def build(project_dir, out_dir):
     scene_names = []
     scene_data_list = []
     for scene_file in scene_files:
-        scene = json.loads(scene_file.read_text(encoding="utf-8"))
+        scene = strip_disabled(json.loads(scene_file.read_text(encoding="utf-8")))
         name = scene.get("name", scene_file.stem)
         scene_names.append(name)
         scene_data_list.append((scene_file, scene))

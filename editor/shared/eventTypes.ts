@@ -43,6 +43,10 @@ export type TimerRef = string | number;
 
 export interface EventBase {
   type: string;
+  /** Skipped by the compiler, like GB Studio's "Disable Event". */
+  __disabled?: boolean;
+  /** This event's "else" branch is skipped (GB Studio's "Disable Else"). */
+  __disableElse?: boolean;
 }
 
 export interface TextEvent extends EventBase {

@@ -242,6 +242,9 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
   const def = getEventDef(ev.type);
   const hasChildren = !!def?.branches || !!def?.menuOptions || !!def?.switchCases;
   const color = def ? CATEGORY_COLOR[def.category] : "#666";
+  const disabled = !!ev.__disabled;
+  const hasElse = !!def?.branches?.some((b) => b.key === "else");
+  const disabledElse = hasElse && !!ev.__disableElse;
 
   /** Merge changes into this event, reading the *latest* script so a
    * delayed call (e.g. a tile pick) never writes over newer edits. */
@@ -281,6 +284,13 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
       onClick: () => clipboard && apply((root) => insertEvents(root, loc.path, loc.index + 1, clipboard.map(cloneEvent))),
     },
     "separator",
+    // Mirrors GB Studio: a disabled event stays in the script but the
+    // compiler skips it (and everything inside it).
+    { label: disabled ? "Enable event" : "Disable event", onClick: () => patch({ __disabled: disabled ? undefined : true }) },
+    ...(hasElse
+      ? [{ label: disabledElse ? "Enable else" : "Disable else", onClick: () => patch({ __disableElse: disabledElse ? undefined : true }) }]
+      : []),
+    "separator",
     {
       label: "Move up",
       disabled: loc.index === 0,
@@ -311,7 +321,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
 
   return (
     <div
-      className={`event-block${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}`}
+      className={`event-block${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}${disabled ? " event-block-disabled" : ""}`}
       style={{ ["--cat" as string]: color }}
     >
       <div
@@ -344,7 +354,8 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
           ▸
         </button>
         <span className="event-title">{def?.label ?? `Unknown event "${ev.type}"`}</span>
-        {collapsed && <span className="event-summary">{eventSummary(ev)}</span>}
+        {(collapsed || disabled) && <span className="event-summary">{eventSummary(ev)}</span>}
+        {disabled && <span className="event-disabled-tag">Disabled</span>}
         <button
           className="event-menu-btn"
           aria-label="Event menu"
@@ -357,7 +368,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
         </button>
       </div>
 
-      {!collapsed && (
+      {!collapsed && !disabled && (
         <div className="event-body">
           {!def && (
             <pre className="event-unknown-json">{JSON.stringify(ev, null, 2)}</pre>
@@ -373,10 +384,14 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
           {def?.switchCases && ev.type === "switch" && <SwitchCases ev={ev} loc={loc} />}
           {def?.branches?.map((b) => {
             const list = (ev as unknown as Record<string, EventScript | undefined>)[b.key] ?? [];
+            const off = b.key === "else" && disabledElse;
             return (
-              <div key={b.key} className="event-branch">
-                <div className="event-branch-label">{b.label}</div>
-                <EventList path={[...loc.path, { index: loc.index, slot: b.key as Slot }]} list={list} />
+              <div key={b.key} className={`event-branch${off ? " event-branch-disabled" : ""}`}>
+                <div className="event-branch-label">
+                  {b.label}
+                  {off && <span className="event-disabled-tag">Disabled</span>}
+                </div>
+                {!off && <EventList path={[...loc.path, { index: loc.index, slot: b.key as Slot }]} list={list} />}
               </div>
             );
           })}

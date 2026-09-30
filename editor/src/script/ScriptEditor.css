@@ -102,6 +102,34 @@
   border-style: dashed;
 }
 
+/* Disabled (GB Studio's "Disable Event"): kept in the script, greyed
+   out, fields hidden, skipped by the compiler. */
+.event-block-disabled {
+  --cat: var(--text-muted) !important;
+  opacity: 0.55;
+}
+
+.event-block-disabled .event-title {
+  text-decoration: line-through;
+}
+
+.event-disabled-tag {
+  flex: none;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--text-muted);
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.event-branch-disabled {
+  opacity: 0.55;
+}
+
 .event-header {
   display: flex;
   align-items: center;
