@@ -175,7 +175,9 @@ int entity_can_move(Entity *entity, int x, int y)
 {
     if (entity == 0)
         return 0;
-    if (!entity->solid || !entity->collide)
+    /* Hidden actors still bump into tiles (GB Studio's hide only hides
+     * the sprite); `solid` is about other actors and talking. */
+    if (!entity->collide)
         return 1;
     return collision_can_move_from(entity->x + entity->col_ox, entity->y + entity->col_oy,
                                    x + entity->col_ox, y + entity->col_oy, entity->col_w, entity->col_h);

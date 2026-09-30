@@ -1166,6 +1166,9 @@ int main(void)
             player->y = pending_switch_y;
             if (pending_switch_dir >= 0)
                 entity_animate(player, (Direction)(pending_switch_dir & 3), 0);
+            /* Like GB Studio, a new scene shows the player again (a title
+             * screen that hid it mustn't leave it hidden in the level). */
+            actor_set_visible(PLAYER_ACTOR_INDEX, 1);
             modes_scene_enter(next, player);
             invincible_timer = 0;
 
