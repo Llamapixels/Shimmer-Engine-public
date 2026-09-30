@@ -19,6 +19,7 @@ import {
 export type Selection =
   | { kind: "none" }
   | { kind: "scene"; sceneId: string }
+  | { kind: "player"; sceneId: string }
   | { kind: "door"; sceneId: string; index: number }
   | { kind: "npc"; sceneId: string; index: number }
   | { kind: "note"; sceneId: string; index: number }
@@ -438,7 +439,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         } else if (cur.kind !== "none") {
           same =
             cur.sceneId === (selection as { sceneId: string }).sceneId &&
-            (cur.kind === "scene" || cur.index === (selection as { index: number }).index);
+            (cur.kind === "scene" || cur.kind === "player" || cur.index === (selection as { index: number }).index);
         }
       }
       set(same ? { selection } : { selection, tilePick: null });

@@ -961,7 +961,7 @@ export default function SceneCanvas() {
     }
     const ps = data.player_start;
     if (ps && t.x >= ps.x && t.x < ps.x + ACTOR_TILES && t.y >= ps.y && t.y < ps.y + ACTOR_TILES) {
-      setSelection({ kind: "scene", sceneId });
+      setSelection({ kind: "player", sceneId });
       setDrag({ kind: "move-spawn", dx: t.x - ps.x, dy: t.y - ps.y, x: ps.x, y: ps.y });
       return;
     }

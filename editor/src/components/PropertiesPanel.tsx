@@ -5,6 +5,7 @@ import type {
   BgLayerJSON,
   DoorJSON,
   NpcJSON,
+  PlayerJSON,
   NpcMovement,
   ParallaxLayerJSON,
   SceneJSON,
@@ -91,6 +92,7 @@ export default function PropertiesPanel() {
       }}
     >
       {selection.kind === "scene" && <SceneProps scene={scene} scenes={project.scenes} />}
+      {selection.kind === "player" && <PlayerProps scene={scene} scenes={project.scenes} />}
       {selection.kind === "door" && <DoorProps scene={scene} scenes={project.scenes} index={selection.index} />}
       {selection.kind === "npc" && <NpcProps scene={scene} scenes={project.scenes} index={selection.index} />}
       {selection.kind === "note" && <NoteProps scene={scene} index={selection.index} />}
@@ -290,6 +292,156 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
           </>
         )}
         {tab === "timers" && <TimersEditor scene={scene} scenes={scenes} />}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Player (clicked on the canvas): its start, sprite and own scripts, like an NPC
+
+function PlayerProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord[] }) {
+  const updateScene = useProjectStore((s) => s.updateScene);
+  const playerSprite = useProjectStore((s) => s.project?.project.playerSprite) || "player";
+  const [tab, setTab] = useState<"init" | "update" | "hit">("init");
+  const [hitGroup, setHitGroup] = useState<"1" | "2" | "3">("1");
+  const data = scene.data;
+  const id = scene.fileId;
+  const player: PlayerJSON = data.player ?? {};
+  const env = useEnv(`${id}:player:${tab}`, scene, scenes, false);
+  const hitEnv = useEnv(`${id}:on_player_hit:${hitGroup}`, scene, scenes, false);
+
+  const setPlayer = (fn: (p: PlayerJSON) => PlayerJSON, key?: string) =>
+    updateScene(
+      id,
+      (s) => {
+        const cur = s.player ?? {};
+        const next = fn(cur);
+        if (next === cur) return s;
+        const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as PlayerJSON;
+        const { player: _drop, ...rest } = s;
+        return Object.keys(clean).length ? { ...rest, player: clean } : rest;
+      },
+      key ? `player:${key}` : undefined,
+    );
+  const patchPlayer = (p: Partial<PlayerJSON>, key?: string) => setPlayer((cur) => ({ ...cur, ...p }), key);
+  const onScript: ScriptUpdater = (fn, key) => {
+    if (tab === "hit") return;
+    const k = tab === "init" ? "on_init" : "on_update";
+    setPlayer((p) => withScript(p, k, fn), key ? `${k}:${key}` : undefined);
+  };
+  const onHit: ScriptUpdater = (fn, key) =>
+    updateScene(
+      id,
+      (s) => {
+        const hits = s.on_player_hit ?? {};
+        const next = withScript(hits, hitGroup, fn);
+        return next === hits ? s : { ...s, on_player_hit: next };
+      },
+      key ? `hit${hitGroup}:${key}` : undefined,
+    );
+  const count = (s: EventScript | undefined) => (s?.length ? ` (${s.length})` : "");
+  const hitCount = (["1", "2", "3"] as const).reduce((n, g) => n + (data.on_player_hit?.[g]?.length ?? 0), 0);
+
+  return (
+    <>
+      <div className="properties-header">Player</div>
+      <div className="properties-body">
+        <FieldRow label="Start position (tile)">
+          <div className="xy-row">
+            <NumberInput
+              value={data.player_start?.x ?? 0}
+              min={0}
+              onChange={(x) => updateScene(id, (s) => ({ ...s, player_start: { x, y: s.player_start?.y ?? 0 } }), "start")}
+            />
+            <NumberInput
+              value={data.player_start?.y ?? 0}
+              min={0}
+              onChange={(y) => updateScene(id, (s) => ({ ...s, player_start: { x: s.player_start?.x ?? 0, y } }), "start")}
+            />
+            <PickButton label="Player start" onPick={(x, y) => updateScene(id, (s) => ({ ...s, player_start: { x, y } }))} />
+          </div>
+        </FieldRow>
+
+        <FieldRow label="Direction" hint="Which way the player faces when the game starts in this scene.">
+          <DirectionPicker
+            value={data.player_start_direction ?? "down"}
+            onChange={(d) => updateScene(id, (s) => ({ ...s, player_start_direction: d }))}
+          />
+        </FieldRow>
+
+        <FieldRow label="Sprite sheet">
+          <PlayerSpriteSelect
+            value={data.player_sprite}
+            projectDefault={playerSprite}
+            onChange={(v) => updateScene(id, (s) => ({ ...s, player_sprite: v }))}
+          />
+        </FieldRow>
+
+        <div className="field-row-pair">
+          <FieldRow label="Animation speed">
+            <select value={player.anim_speed ?? 0} onChange={(e) => patchPlayer({ anim_speed: Number(e.target.value) || undefined })}>
+              {ANIM_SPEEDS.map((v) => (
+                <option key={v} value={v}>
+                  {v === 0 ? "Sprite's own" : `${v} frames`}
+                </option>
+              ))}
+            </select>
+          </FieldRow>
+          <FieldRow label="Collisions" hint={player.collisions === false ? "Walks through solid tiles and actors." : undefined}>
+            <label className="script-field-bool">
+              <input
+                type="checkbox"
+                checked={player.collisions !== false}
+                onChange={(e) => patchPlayer({ collisions: e.target.checked ? undefined : false })}
+              />
+              {player.collisions === false ? "Off" : "On"}
+            </label>
+          </FieldRow>
+        </div>
+      </div>
+
+      <Tabs
+        tabs={[
+          { id: "init", label: `On Init${count(player.on_init)}` },
+          { id: "update", label: `On Update${count(player.on_update)}` },
+          { id: "hit", label: `On Hit${hitCount ? ` (${hitCount})` : ""}` },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+      <div className="properties-body properties-script">
+        {tab === "hit" ? (
+          <>
+            <div className="seg seg-wide script-subtabs">
+              {(["1", "2", "3"] as const).map((g) => (
+                <button key={g} className={hitGroup === g ? "seg-on" : ""} onClick={() => setHitGroup(g)}>
+                  Group {g}
+                  {count(data.on_player_hit?.[g])}
+                </button>
+              ))}
+            </div>
+            <ScriptEditor
+              key={hitGroup}
+              value={data.on_player_hit?.[hitGroup]}
+              onChange={onHit}
+              env={hitEnv}
+              emptyHint={`Runs when the player touches an actor in collision group ${hitGroup} (unless that actor has its own On Hit script). Same as the scene's On Player Hit.`}
+            />
+          </>
+        ) : (
+          <ScriptEditor
+            key={tab}
+            value={tab === "init" ? player.on_init : player.on_update}
+            onChange={onScript}
+            env={env}
+            emptyHint={
+              tab === "init"
+                ? "Runs when the scene starts, before the actors' and the scene's own On Init."
+                : "Runs over and over in the background while the scene is on screen (at most once a frame)."
+            }
+          />
+        )}
       </div>
     </>
   );

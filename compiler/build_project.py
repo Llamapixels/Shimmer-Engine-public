@@ -118,6 +118,11 @@ More scene settings (GB Studio's scene inspector):
     "on_player_hit": {"1": [...], "2": [...], "3": [...]}
                                    <- runs when the player touches an NPC
                                        of that collision group
+    "player": {"on_init": [...], "on_update": [...], "anim_speed": 8,
+               "collisions": false}
+                                   <- the player's own actor settings, like
+                                       an NPC's ("self" = the player); see
+                                       player_init_events()
     "type": "platform"             <- scene type (GB Studio's): topdown
                                        (default), platform, adventure, shmup,
                                        pointnclick or logo - how the player
@@ -2334,6 +2339,28 @@ def compile_script(events, ctx, where):
     return out
 
 
+def player_init_events(player, where):
+    """The scene's "player" settings as events run (as the player) at the
+    start of its on_init: animation speed, tile collisions off, its own
+    on_init, then its on_update started as a looping background thread.
+        "player": { "anim_speed": 0-255, "collisions": false,
+                    "on_init": [...], "on_update": [...] }"""
+    if not player:
+        return []
+    if not isinstance(player, dict):
+        raise BuildError(f"{where} must be an object.")
+    events = []
+    if player.get("anim_speed"):
+        events.append({"type": "actor_set_anim_speed", "actor": "self", "speed": player["anim_speed"]})
+    if player.get("collisions") is False:
+        events.append({"type": "actor_set_collisions", "actor": "self", "enabled": False})
+    events += _script_list(player.get("on_init") or [], f"{where} \"on_init\"")
+    if player.get("on_update"):
+        body = _script_list(player["on_update"], f"{where} \"on_update\"") + [{"type": "wait", "frames": 1}]
+        events.append({"type": "thread_start", "script": [{"type": "loop", "body": body}]})
+    return events
+
+
 def compile_script_parts(parts, ctx, where):
     """Like compile_script(), for several event lists run one after the
     other as one script, each with its own "self" actor and label scope:
@@ -3028,6 +3055,9 @@ def build(project_dir, out_dir):
         # NPCs' own "on_init"s run first (as themselves), then the scene's.
         init_parts = [(_script_list(npc["on_init"], f"{name}: NPC {j} \"on_init\""), j, f"{name}: NPC {j} on_init")
                       for j, npc in enumerate(npcs) if npc.get("on_init")]
+        player_events = player_init_events(scene.get("player"), f"{name}: \"player\"")
+        if player_events:
+            init_parts.insert(0, (player_events, PLAYER_ACTOR_INDEX, f"{name}: player"))
         on_init_events = scene.get("on_init")
         if on_init_events is not None:
             init_parts.append((on_init_events, None, f"{name}: on_init"))

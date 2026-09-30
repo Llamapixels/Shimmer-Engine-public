@@ -184,6 +184,18 @@ export interface DoorJSON {
 
 export type NpcMovement = "static" | "wander";
 
+/** Scene "player": run (as the player) at the start of the scene's On Init
+ * - see compiler/build_project.py's player_init_events(). */
+export interface PlayerJSON {
+  /** Frames per animation frame; 0/absent = the sprite's own. */
+  anim_speed?: number;
+  /** false = walks through solid tiles. */
+  collisions?: boolean;
+  on_init?: EventScript;
+  /** Loops in a background thread (at most once a frame). */
+  on_update?: EventScript;
+}
+
 export interface NpcJSON {
   sprite?: string;
   x: number;
@@ -275,6 +287,8 @@ export interface SceneJSON {
   on_init?: EventScript;
   /** GB Studio's "On Player Hit", per actor collision group. */
   on_player_hit?: { "1"?: EventScript; "2"?: EventScript; "3"?: EventScript };
+  /** The player's own actor settings in this scene, like an NPC's. */
+  player?: PlayerJSON;
   doors?: DoorJSON[];
   npcs?: NpcJSON[];
   timers?: TimerJSON[];
