@@ -343,9 +343,9 @@ variable instead of a literal number:
     { "type": "camera_lock_point", "x": 10, "y": 8 }
         Keep the camera centered on a fixed tile position instead of any
         actor, until camera_release.
-    { "type": "camera_move_to", "x": 10, "y": 8 }
-        Pan the camera to a tile position over several frames (same speed
-        as actor_move_to). Pauses the script until it arrives. Leaves the
+    { "type": "camera_move_to", "x": 10, "y": 8, "speed": 1 }
+        Pan the camera to a tile position (the screen's centre) at "speed"
+        px per frame (1-16, default 1). Pauses the script until it arrives. Leaves the
         camera locked there afterward (as if camera_lock_point had been
         used) - follow with camera_release to hand control back to the
         player.
@@ -1689,7 +1689,8 @@ def compile_events(events, out, ctx, where):
         elif etype == "camera_move_to":
             x = int(_require(ev, "x", ev_where)) * TILE
             y = int(_require(ev, "y", ev_where)) * TILE
-            out.append(_instr("SCRIPT_CAMERA_MOVE_TO", b=x, c=y))
+            speed = resolve_small_int(ev.get("speed", 1), "speed", ev_where, 1, 16)
+            out.append(_instr("SCRIPT_CAMERA_MOVE_TO", a=speed, b=x, c=y))
 
         elif etype == "camera_release":
             out.append(_instr("SCRIPT_CAMERA_RELEASE"))

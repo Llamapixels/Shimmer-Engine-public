@@ -594,10 +594,13 @@ export const EVENT_DEFS: EventDef[] = [
     type: "camera_move_to",
     label: "Camera Move To",
     category: "Camera",
-    description: "Pan the camera to a tile and wait. The camera stays there until Camera Release.",
-    fields: [{ key: "pos", label: "Tile", kind: "tilePos" }],
-    create: () => ({ type: "camera_move_to", x: 0, y: 0 }),
-    summary: (ev) => `(${ev.x}, ${ev.y})`,
+    description: "Pan the camera so this tile is in the middle of the screen, and wait. The camera stays there until Camera Release.",
+    fields: [
+      { key: "pos", label: "Tile", kind: "tilePos" },
+      { key: "speed", label: "Speed (px/frame)", kind: "int", min: 1, max: 16 },
+    ],
+    create: () => ({ type: "camera_move_to", x: 0, y: 0, speed: 1 }),
+    summary: (ev) => `(${ev.x}, ${ev.y})${ev.speed && ev.speed !== 1 ? `, speed ${ev.speed}` : ""}`,
   }),
   def({
     type: "camera_lock_actor",

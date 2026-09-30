@@ -567,6 +567,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
               setTilePick({
                 label: field.label,
                 onPick: (px, py) => patch(rec.units === "pixels" ? { [xKey]: px * 8, [yKey]: py * 8 } : { [xKey]: px, [yKey]: py }),
+                screenOutline: ev.type === "camera_move_to" || ev.type === "camera_lock_point",
               })
             }
           >

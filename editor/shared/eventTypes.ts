@@ -289,6 +289,8 @@ export interface CameraMoveToEvent extends EventBase {
   type: "camera_move_to";
   x: number;
   y: number;
+  /** px per frame, 1-16 (default 1) */
+  speed?: number;
 }
 
 export interface CameraReleaseEvent extends EventBase {

@@ -25,6 +25,9 @@ import Icon, { type IconName } from "./common/Icon";
 export { resizeCollision };
 
 const TILE = 8;
+/** The GBA screen, in px. */
+const SCREEN_W = 240;
+const SCREEN_H = 160;
 /** NPCs and the player are 16x16 sprites anchored at their tile's
  * top-left - 2x2 tiles (same as the compiler's preview images). */
 const ACTOR_TILES = 2;
@@ -595,6 +598,22 @@ export default function SceneCanvas() {
       ctx.strokeStyle = tilePick ? accent : tool === "eraser" ? "#ff7a7a" : "rgba(255,255,255,.8)";
       ctx.lineWidth = tilePick ? 2 : 1;
       ctx.strokeRect(rect.x * S + 0.5, rect.y * S + 0.5, rect.w * S - 1, rect.h * S - 1);
+    }
+
+    // Camera picks: the 240x160 screen the camera shows when centred on the
+    // hovered tile, stopped at the scene's edges like the engine's camera.
+    if (tilePick?.screenOutline && hover) {
+      const px = S / TILE;
+      const mapW = tileW * TILE;
+      const mapH = tileH * TILE;
+      const camX = Math.max(0, Math.min(mapW - SCREEN_W, hover.x * TILE - SCREEN_W / 2));
+      const camY = Math.max(0, Math.min(mapH - SCREEN_H, hover.y * TILE - SCREEN_H / 2));
+      ctx.save();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(camX * px + 1, camY * px + 1, Math.min(SCREEN_W, mapW) * px - 2, Math.min(SCREEN_H, mapH) * px - 2);
+      ctx.restore();
     }
   }, [
     view,

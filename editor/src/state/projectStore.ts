@@ -63,6 +63,8 @@ export interface TileStamp {
 export interface TilePick {
   label: string;
   onPick: (x: number, y: number) => void;
+  /** Also outline the screen area a camera centred on the tile shows. */
+  screenOutline?: boolean;
 }
 
 interface Snapshot {
