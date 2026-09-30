@@ -424,6 +424,8 @@ static const ScriptEvent *platform_update(Entity *p)
     {
         coyote = MSET(PL_COYOTE);
         air_jumps = MSET(PL_EXTRA_JUMPS);
+        if (MSET(PL_DOUBLE_JUMP) && air_jumps < 1)
+            air_jumps = 1;
         wall_jumps = 0;
         for (int x = p->x + p->col_ox; x < p->x + p->col_ox + p->col_w; x += 4)
             if (tile_at_px(x, feet) == COLLISION_TOP)
