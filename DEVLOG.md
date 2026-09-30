@@ -21,7 +21,8 @@ Quick one this time. I went through the list of bugs and requests you sent in an
 - **Camera Move To** has a speed option, and its Pick button shows the area the camera will show.
 - **Line Of Sight** event. Pokemon trainer style: when the player walks in front of an actor, a script runs. You pick the range, and walls can block the view.
 - **Live dialogue preview.** Display Text shows the box exactly as it'll look in the game while you type, pages and all.
-- **Folders.** Put a "/" in a name, like "Forest/Cave 1", and it goes in a folder in the list.
+- **Folders, GB Studio style.** Put a "/" in a scene's name, like "Forest/Cave 1", and it goes in a Forest folder in the list, with its file moved into a matching folder in your project. Drag scenes onto folders to move them, and double-click a folder to rename it. Scripts, palettes, prefabs and sprites can be put in folders the same way.
+- **Copy Log button** in the build window, so you can paste build errors straight into a message.
 - New projects come with every asset folder already made, so you know where things go.
 
 ## Removed
