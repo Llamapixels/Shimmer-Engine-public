@@ -1,3 +1,37 @@
+# Shimmer Engine Devlog #3: Bug fixes and your wishlist
+
+Quick one this time. I went through the list of bugs and requests you sent in and knocked out all of it.
+
+## Bug fixes
+
+- **Falling through the floor after a scene change.** If a title screen hid the player, the player stayed "ghosted" in the next scene and fell right through the level. Fixed, and a new scene always shows the player again.
+- **Text not showing after Camera Move To.** Moving the camera near the edge of a scene got it stuck, so the next Display Text never came up. Fixed.
+- **Platformer walk and jump animations were swapped.** Fixed.
+- **Mashing A skipped dialogue.** Boxes now ignore buttons for a few frames after they open, turn a page or close.
+- **Wall jumping off NPCs.** Wall jumps and wall slides only work off solid walls now.
+
+## New stuff
+
+- **Player settings.** Click the player in a scene to give it its own On Init, On Update and On Hit scripts, animation speed and collisions, just like an actor.
+- **Double jump** checkbox in the platformer settings.
+- **Wall kick push.** A setting that keeps a wall jump going up for a few frames, so it doesn't just fall away.
+- **Wall Slide and Wall Kick animations** for platformer sprites.
+- **Sound effects** for jump, land, wall slide and wall kick, picked right in the engine settings.
+- **Projectiles** can be drawn in front of the player, and can hit any mix of collision groups.
+- **Camera Move To** has a speed option, and its Pick button shows the area the camera will show.
+- **Line Of Sight** event. Pokemon trainer style: when the player walks in front of an actor, a script runs. You pick the range, and walls can block the view.
+- **Live dialogue preview.** Display Text shows the box exactly as it'll look in the game while you type, pages and all.
+- **Folders.** Put a "/" in a name, like "Forest/Cave 1", and it goes in a folder in the list.
+- New projects come with every asset folder already made, so you know where things go.
+
+## Removed
+
+- The Game Boy only events (If Color Supported, If Device Is GBA, If Device Is Super Game Boy). They did nothing on a GBA.
+
+As always, it's an early alpha, so tell me what breaks: https://www.reddit.com/r/ShimmerEngine/
+
+---
+
 # Shimmer Engine Devlog #2: Game modes, fonts and a lot more
 
 Hey everyone. It's been a busy stretch since the first alpha went up, and this update is a big one. The short version: scenes can now be platformers, shooters, point and click and more, and a lot of the things that were grayed out or missing from the editor are in.
