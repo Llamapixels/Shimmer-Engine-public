@@ -24,6 +24,8 @@
  */
 
 #define TEXT_LINES       2
+#define DIALOGUE_INPUT_DELAY 8   /* frames A/B/START ignored after a box
+                                  * opens, turns a page or closes */
 #define OPTION_X         10   /* px: text after the menu cursor */
 #define MENU_MAX_OPTIONS UI_MAX_LINES
 
@@ -310,6 +312,7 @@ static void open_options(const char *packed, int count, int prompt)
     cursor = 0;
     ui_box_open(count + (prompt ? 1 : 0));
     draw_options();
+    input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 
 void dialogue_init(void)
@@ -324,6 +327,7 @@ void dialogue_show(const char *text)
     mode = MODE_TEXT;
     ui_box_open(TEXT_LINES);
     start_page(text, st);
+    input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 
 int dialogue_active(void)
@@ -356,6 +360,7 @@ static void close_box(void)
 {
     mode = MODE_NONE;
     ui_box_close();
+    input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 
 void dialogue_update(void)
@@ -402,7 +407,10 @@ void dialogue_update(void)
     if (!input_pressed(INPUT_A))
         return;
     if (next_page)
+    {
         start_page(next_page, end_state);
+        input_block_presses(DIALOGUE_INPUT_DELAY);
+    }
     else
         close_box();
 }

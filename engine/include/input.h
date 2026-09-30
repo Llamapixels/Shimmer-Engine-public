@@ -38,4 +38,8 @@ int input_released(uint16_t key);
 /* Old name for input_pressed, kept so existing code still builds. */
 int input_down(uint16_t key);
 
+/* For the next `frames` frames, presses of A/B/START/SELECT don't count
+ * (dialogue uses it so one press can't skip a box or open another). */
+void input_block_presses(int frames);
+
 #endif
