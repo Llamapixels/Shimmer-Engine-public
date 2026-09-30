@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useBuildStore } from "../state/buildStore";
 import "./BuildRomPanel.css";
@@ -18,6 +18,27 @@ export default function BuildRomPanel() {
   const requestCancel = useBuildStore((s) => s.requestCancel);
 
   const logRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  // The log as plain text (without the ASCII-art banner), for sharing errors.
+  const copyLog = async () => {
+    const text = log
+      .filter((e) => e.stream !== "art")
+      .map((e) => e.line)
+      .join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   useEffect(() => {
     const el = logRef.current;
@@ -98,6 +119,12 @@ export default function BuildRomPanel() {
                 ? (result && !result.ok && result.error.split("\n")[0]) || "See the log above for details."
                 : "The build was stopped before it finished."}
             </div>
+          )}
+
+          {log.length > 0 && (
+            <button className="btn btn-small" onClick={() => void copyLog()} title="Copy the build log, e.g. to share an error">
+              {copied ? "Copied!" : "Copy Log"}
+            </button>
           )}
 
           {status !== "running" && (
