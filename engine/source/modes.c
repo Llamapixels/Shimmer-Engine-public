@@ -160,6 +160,13 @@ static int blocked(Entity *p, int nx, int ny)
     return npc_in_way(p, nx, ny) != 0;
 }
 
+/* A solid tile (not an actor) right next to the player, `dx` = -1/+1:
+ * what wall jumps and wall slides need. */
+static int tile_wall(Entity *p, int dx)
+{
+    return p->collide && !entity_can_move(p, p->x + dx, p->y);
+}
+
 /* Move up to `d` px along one axis, a pixel at a time. Returns 1 if
  * something got in the way. */
 static int move_axis(Entity *p, int dx, int dy)
@@ -509,7 +516,7 @@ static const ScriptEvent *platform_update(Entity *p)
 
         if (jump_buffer > 0 && MSET(PL_JUMP))
         {
-            int wall = blocked(p, p->x - 1, p->y) ? -1 : blocked(p, p->x + 1, p->y) ? 1 : 0;
+            int wall = tile_wall(p, -1) ? -1 : tile_wall(p, 1) ? 1 : 0;
             if (grounded || coyote > 0)
             {
                 vel_y = -MSET(PL_JUMP_VEL);
@@ -556,7 +563,7 @@ static const ScriptEvent *platform_update(Entity *p)
             if (max_fall > MSET(PL_FLOAT_VEL))
                 max_fall = MSET(PL_FLOAT_VEL);
         }
-        if (MSET(PL_WALL_SLIDE) && !grounded && vel_y > 0 && dir_x && blocked(p, p->x + dir_x, p->y))
+        if (MSET(PL_WALL_SLIDE) && !grounded && vel_y > 0 && dir_x && tile_wall(p, dir_x))
         {
             wall_sliding = 1;
             if (max_fall > MSET(PL_WALL_SLIDE_VEL))
