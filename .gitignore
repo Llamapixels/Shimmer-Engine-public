@@ -30,3 +30,6 @@ engine/data/uge_songs.*
 editor/toolchain-bundle/
 editor/release/
 **/build/rom/
+
+# Private: the AI game-making API docs (never published)
+/api/
