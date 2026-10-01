@@ -1,11 +1,13 @@
-# Builds "Shimmer Engine Setup" for Windows: the editor plus everything a
-# ROM build needs (the frozen build tool, the engine and a trimmed
+# Builds Shimmer Engine for Windows (NSIS installer), Linux (AppImage +
+# .deb) and Mac (Apple Silicon .dmg): the editor plus everything a ROM
+# build needs (the frozen build tool, the engine and a trimmed
 # devkitARM), so users just install and press Build ROM.
 #
-# Runs on every push to the development branch, on tags like v0.1.0-alpha.1,
-# or from the Actions tab. The installer is attached to the run as an artifact.
+# Runs on every push to the development branch, on tags like v0.3.0-alpha,
+# or from the Actions tab. Each OS is its own job; its installer is
+# attached to the run as an artifact.
 
-name: Windows installer
+name: Installers
 
 on:
   workflow_dispatch:
@@ -86,11 +88,117 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Shimmer-Engine-Setup
+          name: windows-installer
           path: editor/release/*.exe
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
-          name: smoke-test-rom
+          name: smoke-test-rom-windows
           path: smoke/demo.gba
+
+  linux:
+    runs-on: ubuntu-22.04   # oldest supported glibc, so it runs on Ubuntu 22.04-based distros (Zorin 17, Mint 21...)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Freeze the build tool (compiler/build_rom.py)
+        run: |
+          pip install pillow pyinstaller
+          pyinstaller --onefile --name shimmer-build --paths compiler --add-data "compiler/engine_settings.json:." --distpath pyi-dist compiler/build_rom.py
+
+      # devkitPro's official image already has devkitARM, gba-tools and
+      # libgba installed; copy /opt/devkitpro out of it.
+      - name: Get devkitARM, gba-tools and libgba
+        run: |
+          docker pull devkitpro/devkitarm
+          id=$(docker create devkitpro/devkitarm)
+          docker cp "$id:/opt/devkitpro" "$RUNNER_TEMP/devkitpro"
+          docker rm "$id"
+          ls "$RUNNER_TEMP/devkitpro"
+
+      - name: Stage the toolchain
+        run: python editor/scripts/stage_toolchain.py --builder pyi-dist/shimmer-build --devkitpro "$RUNNER_TEMP/devkitpro"
+
+      - name: Smoke test - build a test ROM with the bundle
+        run: |
+          python tools/make_test_project.py smoke/project --font "Sky Blue"
+          ./editor/toolchain-bundle/shimmer-build smoke/project             --engine editor/toolchain-bundle/engine             --devkitpro editor/toolchain-bundle/devkitpro             --out smoke/demo.gba
+          test -f smoke/demo.gba
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: editor/package-lock.json
+
+      - name: Build the AppImage and .deb
+        working-directory: editor
+        run: |
+          npm ci
+          npm run dist -- --linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer
+          path: |
+            editor/release/*.AppImage
+            editor/release/*.deb
+          if-no-files-found: error
+
+  mac:
+    runs-on: macos-14   # Apple Silicon (arm64)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Freeze the build tool (compiler/build_rom.py)
+        run: |
+          pip install pillow pyinstaller
+          pyinstaller --onefile --name shimmer-build --paths compiler --add-data "compiler/engine_settings.json:." --distpath pyi-dist compiler/build_rom.py
+
+      # devkitPro's own pacman for macOS, as documented at
+      # https://devkitpro.org/wiki/devkitPro_pacman
+      - name: Install devkitARM, gba-tools and libgba
+        run: |
+          curl -sSL -o dkp-pacman.pkg https://github.com/devkitPro/pacman/releases/latest/download/devkitpro-pacman-installer.pkg
+          sudo installer -pkg dkp-pacman.pkg -target /
+          sudo /opt/devkitpro/pacman/bin/pacman -Sy --noconfirm
+          sudo /opt/devkitpro/pacman/bin/pacman -S --noconfirm --needed devkitARM gba-tools libgba
+          ls /opt/devkitpro
+
+      - name: Stage the toolchain
+        run: python editor/scripts/stage_toolchain.py --builder pyi-dist/shimmer-build --devkitpro /opt/devkitpro
+
+      - name: Smoke test - build a test ROM with the bundle
+        run: |
+          python tools/make_test_project.py smoke/project --font "Sky Blue"
+          ./editor/toolchain-bundle/shimmer-build smoke/project             --engine editor/toolchain-bundle/engine             --devkitpro editor/toolchain-bundle/devkitpro             --out smoke/demo.gba
+          test -f smoke/demo.gba
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: editor/package-lock.json
+
+      - name: Build the .dmg
+        working-directory: editor
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm ci
+          npm run dist -- --mac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: editor/release/*.dmg
+          if-no-files-found: error

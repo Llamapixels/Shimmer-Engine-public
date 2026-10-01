@@ -307,7 +307,7 @@ export default function PianoRoll() {
       const y = gridY(n);
       if (y > H || y + ch < HEADER_H) continue;
       const black = isBlackKey(n);
-      g.fillStyle = hover?.zone === "keys" && hover.note === n ? "#791fff" : black ? "#26272e" : "#d9dae0";
+      g.fillStyle = hover?.zone === "keys" && hover.note === n ? "#ffd23f" : black ? "#26272e" : "#d9dae0";
       g.fillRect(0, y, black ? KEY_W - 14 : KEY_W, ch - 1);
       if (n % 12 === 0 || ch >= 14) {
         g.fillStyle = black ? "#9a9ca8" : "#3b3d48";

@@ -543,8 +543,8 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Set Actor State",
     category: "Actors",
     description:
-      "Switch an NPC to one of its sprite's authored animation states (define states in the Sprites view). " +
-      "Compile error if that NPC's sprite has no authored states.",
+      "Switch the player or an NPC to one of its sprite's animation states (define states in the Sprites view). " +
+      "On the player the state sticks - the movement mode's own run/jump states won't replace it - until you set Default again.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
       { key: "state", label: "State", kind: "state" },
@@ -556,7 +556,7 @@ export const EVENT_DEFS: EventDef[] = [
     type: "actor_set_animate",
     label: "Set Actor Animate",
     category: "Actors",
-    description: "Turn per-frame animation stepping on or off for an NPC using authored states. Off holds the current frame.",
+    description: "Turn per-frame animation stepping on or off for the player or an NPC. Off holds the current frame.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
       { key: "enabled", label: "Animate", kind: "bool" },

@@ -25,6 +25,7 @@ import { EngineFields } from "../engine/EngineSettingsCard";
 import { type EngineValue, modeLabel, settingsForMode } from "../engine/engineSettings";
 import "./PropertiesPanel.css";
 import Icon from "./common/Icon";
+import Chevron from "./common/Chevron";
 
 const DIRECTIONS: Direction[] = ["down", "up", "left", "right"];
 const MOVEMENTS: NpcMovement[] = ["static", "wander"];
@@ -773,8 +774,8 @@ function TimersEditor({ scene, scenes }: { scene: SceneRecord; scenes: SceneReco
       {timers.map((t, i) => (
         <div key={i} className="timer-card">
           <div className="timer-head">
-            <button className={`event-caret${open === i ? " event-caret-open" : ""}`} onClick={() => setOpen(open === i ? null : i)}>
-              ▸
+            <button className="event-caret" onClick={() => setOpen(open === i ? null : i)}>
+              <Chevron open={open === i} />
             </button>
             <CommitInput
               className="timer-name"

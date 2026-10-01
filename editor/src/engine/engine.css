@@ -8,7 +8,7 @@
 }
 
 .engine-mode-tabs button {
-  font-size: 12px;
+  font-size: 13px;
   padding: 6px 10px;
 }
 
@@ -20,7 +20,7 @@
 }
 
 .engine-group-title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -35,7 +35,7 @@
   grid-template-columns: 1fr 150px 40px;
   gap: 2px 8px;
   align-items: center;
-  font-size: 12px;
+  font-size: 13px;
   padding: 3px 0;
 }
 
@@ -45,7 +45,7 @@
 
 .engine-badge {
   margin-left: 6px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--accent);
   border: 1px solid var(--accent);
@@ -55,7 +55,7 @@
 
 .engine-desc {
   grid-column: 1 / -1;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -76,7 +76,7 @@
 }
 
 .engine-unit {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -85,7 +85,7 @@
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .engine-bool input {
@@ -93,7 +93,7 @@
 }
 
 .engine-reset {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .engine-row input:not([type="checkbox"]),
@@ -104,7 +104,7 @@
   color: var(--text-primary);
   padding: 4px 6px;
   outline: none;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .engine-row input:focus,

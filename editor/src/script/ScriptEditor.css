@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   padding: 0 2px 2px;
 }
@@ -20,13 +20,13 @@
 }
 
 .script-empty-hint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
   padding: 2px 2px 4px;
 }
 
 .script-clipboard-note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   display: flex;
   gap: 8px;
@@ -54,7 +54,7 @@
 }
 
 .drop-hint {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--accent-hover);
 }
 
@@ -63,7 +63,7 @@
   border: 1px dashed var(--border-strong);
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
-  font-size: 11.5px;
+  font-size: 12.5px;
   padding: 3px 10px;
 }
 
@@ -119,7 +119,7 @@
   padding: 0 5px;
   border: 1px solid var(--text-muted);
   border-radius: 3px;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -145,7 +145,7 @@
 
 .event-grip {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 13px;
   width: 12px;
   text-align: center;
   flex: none;
@@ -154,28 +154,29 @@
 .event-caret {
   background: transparent;
   border: none;
-  color: var(--text-muted);
-  width: 16px;
-  height: 16px;
+  color: var(--text-secondary);
+  width: 20px;
+  height: 20px;
   padding: 0;
-  font-size: 10px;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.1s ease;
   flex: none;
 }
 
-.event-caret-open {
-  transform: rotate(90deg);
-}
 
 .event-title {
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .event-summary {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,7 +223,7 @@
 }
 
 .event-field-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -242,7 +243,7 @@
   padding: 4px 6px;
   width: 100%;
   outline: none;
-  font-size: 12px;
+  font-size: 13px;
   min-width: 0;
 }
 
@@ -268,7 +269,7 @@
 
 .field-error {
   color: #ff8a8d;
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 3px;
 }
 
@@ -314,12 +315,12 @@
 
 .script-field-color-hex {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
 .pos-label {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-muted);
 }
 
@@ -335,7 +336,7 @@
   background: var(--bg-1);
   border: none;
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
   padding: 4px 6px;
 }
 
@@ -362,7 +363,7 @@
 }
 
 .dialogue-preview-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-2, #999);
 }
 
@@ -370,7 +371,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -385,7 +386,7 @@
   border: 1px solid var(--border-strong);
   color: var(--text-secondary);
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   padding: 2px 8px;
 }
 
@@ -402,7 +403,7 @@
 }
 
 .event-branch-label {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -443,7 +444,7 @@
 
 .event-unknown-json {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   margin: 0;
   white-space: pre-wrap;
@@ -487,7 +488,7 @@
 }
 
 .add-event-cat {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -505,7 +506,7 @@
   border: none;
   padding: 5px 8px;
   border-radius: var(--radius-sm);
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-primary);
 }
 
@@ -523,14 +524,14 @@
 
 .add-event-empty {
   padding: 12px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
 .add-event-desc {
   border-top: 1px solid var(--border);
   padding: 7px 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   background: var(--bg-1);
 }

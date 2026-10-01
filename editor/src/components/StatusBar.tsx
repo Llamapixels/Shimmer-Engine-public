@@ -14,7 +14,7 @@ export default function StatusBar() {
       <span className="status-bar-count">{sceneCount} scene{sceneCount === 1 ? "" : "s"}</span>
       {hoverTile && activeScene && (
         <span className="status-bar-hover" title="Scene and tile under the cursor">
-          {sceneName(activeScene)} · {hoverTile.x}, {hoverTile.y}
+          {sceneName(activeScene)} · X={hoverTile.x} Y={hoverTile.y}
         </span>
       )}
       {saveError && <span className="status-bar-error">Couldn't save: {saveError}</span>}

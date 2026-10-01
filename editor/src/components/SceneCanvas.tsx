@@ -21,6 +21,8 @@ import {
 } from "../world/paint";
 import "./SceneCanvas.css";
 import Icon, { type IconName } from "./common/Icon";
+import Chevron from "./common/Chevron";
+import PopoverMenu from "./common/PopoverMenu";
 
 export { resizeCollision };
 
@@ -208,6 +210,12 @@ export default function SceneCanvas() {
   const [showActors, setShowActors] = useState(true);
   const [opacity, setOpacity] = useState(100);
   const [hover, setHover] = useState<Pt | null>(null);
+  /** Right-click menu on an actor, trigger or note. */
+  const [ctxMenu, setCtxMenu] = useState<{
+    x: number;
+    y: number;
+    target: { kind: "npc" | "door" | "note"; index: number; label: string };
+  } | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [selRect, setSelRect] = useState<Rect | null>(null);
   const lastPaint = useRef<Pt | null>(null);
@@ -431,7 +439,7 @@ export default function SceneCanvas() {
       ctx.stroke();
     }
 
-    const accent = v("--accent", "#791fff");
+    const accent = v("--canvas-accent", "#ffd23f");
     const font = `${Math.max(9, 5 * zoom)}px ${v("--font-ui", "sans-serif")}`;
     const dim = paintLayer !== null && !showActors;
 
@@ -845,6 +853,28 @@ export default function SceneCanvas() {
     return -1;
   };
 
+  /** Right-click: a menu for the actor / trigger / note under the
+   * cursor (not while right-drag erasing with a paint tool). */
+  const onContextMenu = (e: ReactMouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (tileW === 0 || !showActors || (paintLayer !== null && tool !== "select")) return;
+    const t = tileAt(e);
+    const no = hitNote(t.px, t.py);
+    const ni = no < 0 ? hitNpc(t.x, t.y) : -1;
+    const di = no < 0 && ni < 0 ? hitDoor(t.x, t.y) : -1;
+    const target =
+      no >= 0
+        ? { kind: "note" as const, index: no, label: "note" }
+        : ni >= 0
+          ? { kind: "npc" as const, index: ni, label: data.npcs![ni].name ? `actor "${data.npcs![ni].name}"` : `actor #${ni}` }
+          : di >= 0
+            ? { kind: "door" as const, index: di, label: `trigger #${di}` }
+            : null;
+    if (!target) return;
+    setSelection({ kind: target.kind, sceneId, index: target.index });
+    setCtxMenu({ x: e.clientX, y: e.clientY, target });
+  };
+
   const keyFn = (layer: PaintLayer) => (x: number, y: number) => cellKey(data, layer, x, y, tileKeys, tileW);
 
   const onMouseDown = (e: ReactMouseEvent<HTMLCanvasElement>) => {
@@ -1175,7 +1205,11 @@ export default function SceneCanvas() {
           />
         </label>
         <span className="scene-canvas-coords">
-          {tileW}×{tileH} tiles{hover ? ` · ${hover.x}, ${hover.y}` : ""}
+          {tileW}×{tileH} tiles
+          <span className="scene-canvas-xy">
+            <span>X={hover ? hover.x : "–"}</span>
+            <span>Y={hover ? hover.y : "–"}</span>
+          </span>
         </span>
       </div>
 
@@ -1304,10 +1338,26 @@ export default function SceneCanvas() {
               setHover(null);
               finishDrag();
             }}
-            onContextMenu={(e) => e.preventDefault()}
+            onContextMenu={onContextMenu}
             tabIndex={0}
             data-testid="scene-canvas"
           />
+          {ctxMenu && (
+            <PopoverMenu
+              anchor={{ x: ctxMenu.x, y: ctxMenu.y }}
+              onClose={() => setCtxMenu(null)}
+              items={[
+                {
+                  label: `Delete ${ctxMenu.target.label}`,
+                  danger: true,
+                  onClick: () => {
+                    setSelection({ kind: ctxMenu.target.kind, sceneId, index: ctxMenu.target.index });
+                    deleteSelected();
+                  },
+                },
+              ]}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -1380,7 +1430,7 @@ function TilePicker({ img, stamp, onPick }: { img: HTMLImageElement; stamp: Tile
     <div className={`tile-picker${open ? "" : " tile-picker-closed"}`} data-testid="tile-picker">
       <div className="tile-picker-head">
         <button className="tile-picker-toggle" onClick={() => setOpen((o) => !o)}>
-          {open ? "▾" : "▸"} Tiles
+          <Chevron open={open} /> Tiles
         </button>
         {open && (
           <>
@@ -1441,7 +1491,7 @@ function drawNpc(
   ctx.setLineDash([]);
   if (npc.pinned) {
     const r = Math.max(3, S / 4);
-    ctx.fillStyle = v("--accent", "#791fff");
+    ctx.fillStyle = v("--canvas-accent", "#ffd23f");
     ctx.beginPath();
     ctx.arc(x + sz - r, y + r, r, 0, Math.PI * 2);
     ctx.fill();

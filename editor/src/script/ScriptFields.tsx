@@ -602,7 +602,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       const npcs = env.scene.npcs ?? [];
       const playerSprite = project ? playerSpriteName(project) : "player";
       let spriteName: string | undefined;
-      if (actorRef === "player") spriteName = playerSprite;
+      if (actorRef === "player") spriteName = env.scene.player_sprite || playerSprite;
       else if (actorRef !== "self") {
         const npc = typeof actorRef === "number" ? npcs[actorRef] : npcs.find((n) => n.name === actorRef);
         spriteName = npc?.sprite || playerSprite;

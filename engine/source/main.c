@@ -501,6 +501,10 @@ void actor_set_state(int index, int state_index)
     if (!e)
         return;
 
+    /* The player's movement mode picks its state every frame; remember
+     * the script's choice so it sticks (Default hands control back). */
+    if (index == PLAYER_ACTOR_INDEX)
+        e->script_state = state_index > 0 ? (uint8_t)(state_index + 1) : 0;
     entity_set_anim_state(e, state_index);
 }
 

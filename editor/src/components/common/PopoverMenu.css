@@ -19,7 +19,7 @@
   text-align: left;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-primary);
 }
 
@@ -42,7 +42,7 @@
 }
 
 .popover-shortcut {
-  font-size: 11px;
+  font-size: 12px;
   opacity: 0.6;
 }
 

@@ -6,6 +6,7 @@ import PopoverMenu from "./common/PopoverMenu";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import "./Navigator.css";
 import Icon from "./common/Icon";
+import Chevron from "./common/Chevron";
 
 const COLLAPSE_KEY = "shimmer-engine.sidebar-collapsed";
 /** Pre-rename key, still read (never written) so an existing user's
@@ -91,7 +92,7 @@ function Section({
     <div className={`navigator-section${collapsed ? " navigator-section-collapsed" : ""}`}>
       <div className="navigator-header" onClick={() => onToggle(id)}>
         <span className="navigator-chevron" aria-hidden>
-          {collapsed ? "▸" : "▾"}
+          <Chevron open={!collapsed} />
         </span>
         <span className="navigator-header-title">{title}</span>
         {defaultAction && (

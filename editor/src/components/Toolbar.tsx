@@ -6,11 +6,12 @@ import PopoverMenu from "./common/PopoverMenu";
 import Logo from "./Logo";
 import "./Toolbar.css";
 import Icon from "./common/Icon";
+import Chevron from "./common/Chevron";
 
 /** The sections GB Studio splits its world into - World / Sprites /
  * Backgrounds / Music / Settings - now picked from a single dropdown
- * ("Game World ▾") in the top-left, GB-Studio-style, instead of a row of
- * tabs. */
+ * ("Game World ▾") in the top-left, over the left sidebar, GB-Studio-style,
+ * instead of a row of tabs. */
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "world", label: "Game World" },
   { id: "sprites", label: "Sprites" },
@@ -54,6 +55,24 @@ export default function Toolbar() {
   return (
     <div className="toolbar">
       <Logo size={30} className="toolbar-mark" />
+      <button ref={btnRef} className="toolbar-section-select toolbar-section-picker" onClick={() => setMenuOpen((v) => !v)} aria-haspopup="menu" aria-expanded={menuOpen}>
+        <span>{current.label}</span>
+        <span className="toolbar-section-select-chevron" aria-hidden>
+          <Chevron open size={13} />
+        </span>
+      </button>
+      {menuOpen && btnRef.current && (
+        <PopoverMenu
+          anchor={btnRef.current}
+          onClose={() => setMenuOpen(false)}
+          items={SECTIONS.map((s) => ({
+            label: s.label,
+            onClick: () => setSection(s.id),
+            shortcut: s.id === section ? "●" : undefined,
+          }))}
+        />
+      )}
+
       <div className="toolbar-project-name" title={projectName}>
         {projectName}
       </div>
@@ -79,24 +98,6 @@ export default function Toolbar() {
           <Icon name="folder" /> Open Folder
         </span>
       </button>
-
-      <button ref={btnRef} className="toolbar-section-select" onClick={() => setMenuOpen((v) => !v)} aria-haspopup="menu" aria-expanded={menuOpen}>
-        <span>{current.label}</span>
-        <span className="toolbar-section-select-chevron" aria-hidden>
-          ▾
-        </span>
-      </button>
-      {menuOpen && btnRef.current && (
-        <PopoverMenu
-          anchor={btnRef.current}
-          onClose={() => setMenuOpen(false)}
-          items={SECTIONS.map((s) => ({
-            label: s.label,
-            onClick: () => setSection(s.id),
-            shortcut: s.id === section ? "●" : undefined,
-          }))}
-        />
-      )}
 
       <div className="toolbar-right">
         <button className="toolbar-icon-btn" disabled={!canUndo} onClick={undo} title="Undo (Ctrl+Z)">

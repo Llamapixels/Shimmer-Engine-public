@@ -38,6 +38,7 @@ Entity *entity_create(EntityType type, int x, int y, int width, int height)
         e->anim_timer = 0;
         e->anim_enabled = 1;
         e->anim_hold = 0;
+        e->script_state = 0;
         e->col_ox = 0;
         e->col_oy = 0;
         e->col_w = width;

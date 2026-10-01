@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* First-run help: shown instead of the plain "no scene selected" message
@@ -28,7 +28,7 @@
   border-radius: 10px;
   box-shadow: var(--shadow-menu);
   color: var(--text-secondary);
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 1.5;
   text-align: left;
 }
@@ -43,7 +43,7 @@
 .scene-canvas-firstrun-title {
   margin: 0 0 4px;
   color: var(--text-primary);
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 700;
 }
 
@@ -60,7 +60,7 @@
   background: var(--bg-3);
   border: 1px solid var(--border-strong);
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   vertical-align: -2px;
 }
@@ -84,7 +84,7 @@
   background: var(--bg-3);
   border: 1px solid var(--border-strong);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   padding: 3px 7px;
   border-radius: var(--radius-sm);
 }
@@ -103,7 +103,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
@@ -117,7 +117,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -156,7 +156,7 @@
 
 .scene-canvas-error {
   color: var(--warning);
-  font-size: 12px;
+  font-size: 13px;
   margin-bottom: 10px;
 }
 
@@ -200,7 +200,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-menu);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -212,7 +212,7 @@
 }
 
 .scene-canvas-float-hint {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   padding: 0 6px;
 }
@@ -233,7 +233,7 @@
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -262,7 +262,7 @@
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  font-size: 11.5px;
+  font-size: 12.5px;
   padding: 3px 8px;
 }
 
@@ -283,9 +283,27 @@
 
 .scene-canvas-coords {
   margin-left: auto;
-  font-size: 11px;
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+}
+
+/* Hovered tile position: X=.. Y=.., big and bright so it reads at a glance. */
+.scene-canvas-xy {
+  display: inline-flex;
+  gap: 10px;
+  min-width: 128px;
+  padding: 2px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .scene-canvas-banner {
@@ -295,7 +313,7 @@
   padding: 6px 12px;
   background: var(--accent-soft);
   border-bottom: 1px solid var(--accent-soft-border);
-  font-size: 12px;
+  font-size: 13px;
   flex: none;
 }
 
@@ -365,10 +383,13 @@
 
 .tile-picker-toggle {
   background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   color: var(--text-primary);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 2px 4px;
 }
@@ -400,7 +421,7 @@
 .scene-canvas-zoom-label {
   min-width: 42px;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }

@@ -1,4 +1,5 @@
 import { Fragment, useState, type DragEvent, type ReactNode } from "react";
+import Chevron from "./Chevron";
 
 /**
  * A list grouped into folders by "/" in its names: "Forest/Cave 1" shows
@@ -163,7 +164,7 @@ export default function FolderTree<T>({
                 {...dropProps(p)}
               >
                 <span className="folder-tree-chevron" aria-hidden>
-                  {open ? "▾" : "▸"}
+                  <Chevron open={open} />
                 </span>
                 <span className="folder-tree-icon" aria-hidden>
                   📁

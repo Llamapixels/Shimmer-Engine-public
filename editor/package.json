@@ -1,7 +1,7 @@
 {
   "name": "shimmer-engine",
   "productName": "Shimmer Engine",
-  "version": "0.1.0-alpha.1",
+  "version": "0.3.0-alpha",
   "description": "A game maker for the Game Boy Advance.",
   "private": true,
   "main": "dist-electron/electron/main.js",
@@ -46,7 +46,8 @@
       "dist-electron/**",
       "resources/icon.png",
       "resources/icon.ico",
-      "package.json"
+      "package.json",
+      "resources/icon-512.png"
     ],
     "extraResources": [
       {
@@ -75,10 +76,28 @@
     },
     "linux": {
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb"
       ],
       "icon": "resources/icon-512.png",
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "HoloCatt",
+      "artifactName": "Shimmer-Engine-${version}-linux.${ext}"
+    },
+    "afterPack": "scripts/afterPack.cjs",
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "resources/icon-512.png",
+      "category": "public.app-category.developer-tools",
+      "identity": null,
+      "artifactName": "Shimmer-Engine-${version}-mac.${ext}"
     }
   },
   "repository": {

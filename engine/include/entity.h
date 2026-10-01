@@ -99,6 +99,11 @@ typedef struct
                              * of the direction/moving animation */
     uint8_t anim_hold;      /* a script picked a frame: keep it until the
                              * actor's direction or moving flag changes */
+    uint8_t script_state;   /* 0, or state + 1: "Set Actor State" chose a
+                             * non-default state for the player, so the
+                             * movement mode's own states (run, jump...)
+                             * don't replace it until a script sets the
+                             * Default state again */
 
     /* Collision box: offset + size relative to the footprint, used by
      * entity_can_move(). Starts as the sprite's authored box. */

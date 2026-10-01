@@ -252,6 +252,14 @@ static const ScriptEvent *touching_actor_script(Entity *p)
  * back to its first state when it has none. Returns 1 if it had one. */
 static int use_named_state(Entity *p, int kind)
 {
+    if (p->script_state)
+    {
+        /* A script chose this state ("Set Actor State" on the player):
+         * keep it, with its normal facing/moving animations. */
+        if (p->anim_state != p->script_state - 1)
+            entity_set_anim_state(p, p->script_state - 1);
+        return 1;
+    }
     int want = 0;
     if (kind >= 0 && p->def && p->def->mode_states && p->def->mode_states[kind])
         want = p->def->mode_states[kind] - 1;

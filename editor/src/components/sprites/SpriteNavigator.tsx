@@ -9,6 +9,7 @@ import { useProjectStore } from "../../state/projectStore";
 import FolderTree from "../common/FolderTree";
 import { useAssetUrl } from "../views/assetImages";
 import { useCurrentSprite } from "./useCurrentSprite";
+import Chevron from "../common/Chevron";
 
 /** Left column: the project's sprites, then the selected sprite's
  * animation states and their animations (GB Studio's layout). */
@@ -175,7 +176,7 @@ function AnimationTree() {
                   else setCollapsed((c) => ({ ...c, [st.id]: open }));
                 }}
               >
-                <span className="spr-chevron">{open ? "▾" : "▸"}</span>
+                <span className="spr-chevron"><Chevron open={open} /></span>
                 <span className="spr-nav-name">{stateLabel(st)}</span>
               </div>
               {open &&

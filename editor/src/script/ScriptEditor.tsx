@@ -26,6 +26,7 @@ import {
   type Slot,
 } from "./scriptTree";
 import "./ScriptEditor.css";
+import Chevron from "../components/common/Chevron";
 
 export type ScriptUpdater = (updater: (script: EventScript) => EventScript, coalesceKey?: string) => void;
 
@@ -347,11 +348,11 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
           ⠿
         </span>
         <button
-          className={`event-caret${collapsed ? "" : " event-caret-open"}`}
+          className="event-caret"
           onClick={() => setCollapsed([key], !collapsed)}
           aria-label={collapsed ? "Expand" : "Collapse"}
         >
-          ▸
+          <Chevron open={!collapsed} />
         </button>
         <span className="event-title">{def?.label ?? `Unknown event "${ev.type}"`}</span>
         {(collapsed || disabled) && <span className="event-summary">{eventSummary(ev)}</span>}

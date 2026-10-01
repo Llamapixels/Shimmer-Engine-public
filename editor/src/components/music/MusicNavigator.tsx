@@ -7,6 +7,7 @@ import { useProjectStore } from "../../state/projectStore";
 import PopoverMenu from "../common/PopoverMenu";
 import { INSTRUMENT_COLORS } from "./PianoRoll";
 import Icon from "../common/Icon";
+import Chevron from "../common/Chevron";
 
 interface Props {
   onImportMidi: () => void;
@@ -242,7 +243,7 @@ function InstrumentList() {
         {lists.map(([type, list]) => (
           <div key={type}>
             <button className="music-nav-group" onClick={() => setOpen({ ...open, [type]: !open[type] })}>
-              {open[type] ? "▾" : "▸"} {TYPE_LABEL[type]}
+              <Chevron open={!!open[type]} /> {TYPE_LABEL[type]}
             </button>
             {open[type] &&
               list.map((ins, i) => {
@@ -269,7 +270,7 @@ function InstrumentList() {
           </div>
         ))}
         <button className="music-nav-group" onClick={() => setOpen({ ...open, waves: !open.waves })}>
-          {open.waves ? "▾" : "▸"} Waves
+          <Chevron open={!!open.waves} /> Waves
         </button>
         {open.waves &&
           Array.from({ length: WAVE_COUNT }, (_, i) => (
