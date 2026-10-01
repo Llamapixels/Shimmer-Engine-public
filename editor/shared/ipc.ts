@@ -133,6 +133,18 @@ export interface SaveImagePayload {
   pngBase64: string;
   /** false = refuse if the file already exists (New Image). */
   overwrite: boolean;
+  /** The Art Editor's layers/frames for this image, saved next to it as
+   * "<name>.art.json" (the PNG stays the flattened image the game uses).
+   * null = delete that file (a single plain layer needs none). */
+  sidecar?: string | null;
+}
+
+/** Art Editor export: a file the user puts anywhere (Save dialog). */
+export interface ExportFilePayload {
+  defaultName: string;
+  filterName: string;
+  extensions: string[];
+  base64: string;
 }
 
 export interface CreateBackgroundPayload {
@@ -300,6 +312,11 @@ export interface ShimmerEngineApi {
   /** Art Editor: write a PNG (see SaveImagePayload); returns the
    * refreshed asset listing. */
   saveImage(payload: SaveImagePayload): Promise<IpcResult<AssetListing>>;
+  /** Art Editor export (PNG sheet, GIF): asks where; returns the path, or
+   * null if cancelled. */
+  exportFile(payload: ExportFilePayload): Promise<IpcResult<string | null>>;
+  /** Art Editor import: pick an image file anywhere; null if cancelled. */
+  pickImageFile(): Promise<IpcResult<{ fileName: string; dataUrl: string } | null>>;
   /** The editor theme saved in the app's settings (View > Theme). */
   getTheme(): Promise<IpcResult<ThemeId>>;
   /** File > Save As: asks where, copies the project folder there
@@ -360,6 +377,8 @@ export const IPC_CHANNELS = {
   /** Main -> renderer: show the About dialog. */
   showAbout: "menu:about",
   saveImage: "asset:save-image",
+  exportFile: "art:export-file",
+  pickImageFile: "art:pick-image",
   /** Main -> renderer: a File/View menu command (MenuCommand). */
   menuCommand: "menu:command",
   getTheme: "settings:get-theme",

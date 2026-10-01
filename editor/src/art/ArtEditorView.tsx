@@ -5,8 +5,11 @@ import { useAssetUrl } from "../components/views/assetImages";
 import { useProjectStore } from "../state/projectStore";
 import ArtCanvas, { zoomStep } from "./ArtCanvas";
 import ArtIcon from "./ArtIcons";
-import { type ArtKind, type ArtTool, blankImage, useArtStore } from "./artStore";
-import { type Pt, type RGBA, colorsUsed, encodePng, flipRegion, fromHex, tilesOverLimit, toGbaColor, toHex } from "./pixels";
+import { ImageMenu, SHORTCUT_LABELS, type ShortcutAction, loadShortcuts } from "./ArtMenus";
+import { FramesPanel, LayersPanel } from "./ArtPanels";
+import { type ArtKind, type ArtTool, blankImage, flattenDoc, frameRects, useArtStore } from "./artStore";
+import { tilesOverLimit } from "./pixels";
+import { type Pt, type RGBA, colorsUsed, encodePng, fromHex, toGbaColor, toHex } from "./pixels";
 import "./ArtEditor.css";
 
 const SECTIONS: { kind: ArtKind; label: string }[] = [
@@ -16,18 +19,7 @@ const SECTIONS: { kind: ArtKind; label: string }[] = [
   { kind: "frames", label: "Dialogue Frames" },
 ];
 
-const TOOLS: { id: ArtTool; label: string; key: string }[] = [
-  { id: "pencil", label: "Pencil", key: "B" },
-  { id: "eraser", label: "Eraser", key: "E" },
-  { id: "fill", label: "Fill", key: "G" },
-  { id: "line", label: "Line", key: "L" },
-  { id: "rect", label: "Rectangle", key: "U" },
-  { id: "ellipse", label: "Ellipse", key: "O" },
-  { id: "picker", label: "Colour picker", key: "I" },
-  { id: "select", label: "Select", key: "M" },
-  { id: "move", label: "Move selection", key: "V" },
-  { id: "pan", label: "Hand (pan)", key: "H" },
-];
+const TOOLS: ArtTool[] = ["pencil", "eraser", "fill", "line", "rect", "ellipse", "gradient", "shade", "stamp", "picker", "select", "move", "pan"];
 
 const TOOL_HELP: Record<ArtTool, string> = {
   pencil: "Left click: primary colour, right click: secondary. Shift+click draws a line from the last point. Alt+click picks a colour.",
@@ -36,11 +28,24 @@ const TOOL_HELP: Record<ArtTool, string> = {
   line: "Drag to draw. Shift snaps to 45°.",
   rect: "Drag to draw. Shift makes a square.",
   ellipse: "Drag to draw. Shift makes a circle.",
+  gradient: "Drag from where the primary colour starts to where the secondary ends. Fills the selection (or the layer), dithered.",
+  shade: "Left click lightens, right click darkens - stepping through the image's own colours, so no new colours appear.",
+  stamp: "Draws your custom brush. Make one with Image ▸ Brush from selection.",
   picker: "Left click sets the primary colour, right click the secondary.",
   select: "Drag to select. Drag inside the selection to move it. Ctrl+C / Ctrl+X / Ctrl+V, Delete clears, Esc deselects.",
   move: "Drag the selection (or arrow keys, Shift = 8 px). Enter or Esc drops it.",
   pan: "Drag to move around. Space+drag or middle-drag work with any tool.",
 };
+
+/** Before leaving an image with unsaved changes: save, discard, or stay.
+ * Returns whether it's OK to move on. */
+export async function resolveUnsaved(): Promise<boolean> {
+  const st = useArtStore.getState();
+  if (!st.dirty || !st.doc) return true;
+  const name = st.doc.asset.fileName;
+  if (window.confirm(`${name} has unsaved changes.\n\nOK = Save them\nCancel = more choices`)) return st.save();
+  return window.confirm(`Discard your changes to ${name}?\n\nOK = Discard\nCancel = Keep editing`);
+}
 
 /** The Art Editor section: a pixel art editor for the project's own images. */
 export default function ArtEditorView() {
@@ -54,6 +59,7 @@ export default function ArtEditorView() {
   const [filter, setFilter] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [newOpen, setNewOpen] = useState(false);
+  const [shortcuts, setShortcuts] = useState(loadShortcuts);
 
   const openAsset = async (asset: AssetInfo, kind: ArtKind) => {
     const st = useArtStore.getState();
@@ -62,7 +68,7 @@ export default function ArtEditorView() {
     await st.open(asset, kind);
   };
 
-  useArtShortcuts();
+  useArtShortcuts(shortcuts);
 
   return (
     <div className="art-editor">
@@ -104,10 +110,10 @@ export default function ArtEditorView() {
         </div>
       </aside>
 
-      <ToolStrip />
+      <ToolStrip shortcuts={shortcuts} />
 
       <section className="art-main">
-        <OptionsBar hover={hover} />
+        <OptionsBar hover={hover} onShortcutsChanged={() => setShortcuts(loadShortcuts())} />
         {doc ? (
           <ArtCanvas onHover={setHover} />
         ) : (
@@ -118,19 +124,20 @@ export default function ArtEditorView() {
         <PaletteBar />
       </section>
 
+      <aside className="art-side">
+        {doc ? (
+          <>
+            <LayersPanel />
+            <FramesPanel />
+          </>
+        ) : (
+          <div className="art-panel-note art-side-empty">Layers and frames show here once an image is open.</div>
+        )}
+      </aside>
+
       {newOpen && <NewImageDialog onClose={() => setNewOpen(false)} />}
     </div>
   );
-}
-
-/** Before leaving an image with unsaved changes: save, discard, or stay.
- * Returns whether it's OK to move on. */
-export async function resolveUnsaved(): Promise<boolean> {
-  const st = useArtStore.getState();
-  if (!st.dirty || !st.doc) return true;
-  const name = st.doc.asset.fileName;
-  if (window.confirm(`${name} has unsaved changes.\n\nOK = Save them\nCancel = more choices`)) return st.save();
-  return window.confirm(`Discard your changes to ${name}?\n\nOK = Discard\nCancel = Keep editing`);
 }
 
 function AssetRow({
@@ -160,7 +167,7 @@ function AssetRow({
 
 // ---------------------------------------------------------------------------
 
-function ToolStrip() {
+function ToolStrip({ shortcuts }: { shortcuts: Record<ShortcutAction, string> }) {
   const tool = useArtStore((s) => s.tool);
   const primary = useArtStore((s) => s.primary);
   const secondary = useArtStore((s) => s.secondary);
@@ -169,19 +176,19 @@ function ToolStrip() {
     <nav className="art-tools">
       {TOOLS.map((t) => (
         <button
-          key={t.id}
-          className={`art-tool${tool === t.id ? " art-tool-on" : ""}`}
-          onClick={() => st.setTool(t.id)}
-          title={`${t.label} (${t.key})\n${TOOL_HELP[t.id]}`}
+          key={t}
+          className={`art-tool${tool === t ? " art-tool-on" : ""}`}
+          onClick={() => st.setTool(t)}
+          title={`${SHORTCUT_LABELS[t]}${shortcuts[t] ? ` (${shortcuts[t].toUpperCase()})` : ""}\n${TOOL_HELP[t]}`}
         >
-          <ArtIcon name={t.id} />
+          <ArtIcon name={t} />
         </button>
       ))}
       <div className="art-tool-colors" title="Primary (left click) and secondary (right click) colours. X swaps them.">
-        <ColorSwatch color={primary} onPick={(c) => st.set({ primary: c })} className="art-color-primary" />
+        <ColorSwatch color={primary} onPick={(c) => st.setPrimary(c)} className="art-color-primary" />
         <ColorSwatch color={secondary} onPick={(c) => st.set({ secondary: c })} className="art-color-secondary" />
       </div>
-      <button className="art-tool art-tool-small" onClick={() => st.swapColors()} title="Swap colours (X)">
+      <button className="art-tool art-tool-small" onClick={() => st.swapColors()} title="Swap colours">
         <ArtIcon name="swap" size={16} />
       </button>
       <button
@@ -198,7 +205,6 @@ function ToolStrip() {
 function ColorSwatch({ color, onPick, className }: { color: RGBA; onPick: (c: RGBA) => void; className?: string }) {
   return (
     <label className={`art-swatch-big ${className ?? ""}`} style={{ background: color[3] === 0 ? undefined : toHex(color) }}>
-      {color[3] === 0 && <span className="art-swatch-clear" />}
       <input type="color" value={toHex(color)} onChange={(e) => onPick(fromHex(e.target.value))} />
     </label>
   );
@@ -206,65 +212,72 @@ function ColorSwatch({ color, onPick, className }: { color: RGBA; onPick: (c: RG
 
 // ---------------------------------------------------------------------------
 
-function OptionsBar({ hover }: { hover: Pt | null }) {
+function OptionsBar({ hover, onShortcutsChanged }: { hover: Pt | null; onShortcutsChanged: () => void }) {
   const s = useArtStore();
   const doc = s.doc;
-  const toggle = (key: "mirrorX" | "mirrorY" | "fillGlobal" | "shapeFilled" | "pixelGrid" | "tileGrid", label: string, title: string) => (
+  const toggle = (
+    key: "mirrorX" | "mirrorY" | "fillGlobal" | "shapeFilled" | "pixelGrid" | "tileGrid" | "tileMode" | "dither" | "pixelPerfect" | "gradientRadial",
+    label: string,
+    title: string,
+  ) => (
     <label className="art-opt" title={title}>
-      <input type="checkbox" checked={s[key]} onChange={(e) => s.set({ [key]: e.target.checked })} />
+      <input type="checkbox" checked={s[key]} onChange={(e) => s.set({ [key]: e.target.checked, ...(key === "tileMode" ? { zoom: 0 } : {}) })} />
       {label}
     </label>
   );
   const zoomTo = (z: number) => s.set({ zoom: Math.max(1, Math.min(64, z)) });
+  const drawTool = ["pencil", "eraser", "line", "rect", "ellipse", "fill", "shade"].includes(s.tool);
   return (
     <div className="art-options">
       <span className="art-doc-name">
         {doc ? doc.asset.fileName : "No image"}
         {s.dirty && <span className="art-asset-dirty"> ●</span>}
-        {doc && <span className="art-doc-size">{doc.image.width}×{doc.image.height}</span>}
+        {doc && (
+          <span className="art-doc-size">
+            {doc.width}×{doc.height}
+          </span>
+        )}
       </span>
-      {(s.tool === "pencil" || s.tool === "eraser" || s.tool === "line") && (
+      <ImageMenu onShortcutsChanged={onShortcutsChanged} />
+      {(s.tool === "pencil" || s.tool === "eraser" || s.tool === "line" || s.tool === "shade") && (
         <label className="art-opt" title="Brush size ([ and ])">
           Size
-          <input
-            type="range"
-            min={1}
-            max={16}
-            value={s.brushSize}
-            onChange={(e) => s.set({ brushSize: Number(e.target.value) })}
-          />
+          <input type="range" min={1} max={16} value={s.brushSize} onChange={(e) => s.set({ brushSize: Number(e.target.value) })} />
           <span className="art-opt-value">{s.brushSize}</span>
         </label>
       )}
+      {s.tool === "pencil" && toggle("dither", "Dither", "Draw a checkerboard of the primary and secondary colours")}
+      {(s.tool === "pencil" || s.tool === "eraser") &&
+        toggle("pixelPerfect", "Pixel perfect", "Removes the doubled corner pixels on 1-pixel curves and diagonals")}
       {s.tool === "fill" && toggle("fillGlobal", "Global", "Fill every pixel of the clicked colour, not just the connected area")}
       {(s.tool === "rect" || s.tool === "ellipse") && toggle("shapeFilled", "Filled", "Draw filled shapes")}
-      {(s.tool === "pencil" || s.tool === "eraser" || s.tool === "line" || s.tool === "rect" || s.tool === "ellipse" || s.tool === "fill") && (
+      {s.tool === "gradient" && (
         <>
-          {toggle("mirrorX", "Mirror ↔", "Draw mirrored left/right around the image's centre")}
-          {toggle("mirrorY", "Mirror ↕", "Draw mirrored up/down around the image's centre")}
+          {toggle("gradientRadial", "Radial", "A circular gradient out from where you start dragging")}
+          <label className="art-opt" title="Colours between primary and secondary (2 = just those two, dithered)">
+            Steps
+            <input type="number" min={2} max={16} value={s.gradientSteps} onChange={(e) => s.set({ gradientSteps: Math.max(2, Math.min(16, Number(e.target.value))) })} />
+          </label>
         </>
       )}
-      {s.selection && (
-        <span className="art-opt-group">
-          <button className="btn btn-small" onClick={() => flipSelection(true)} title="Flip the selection left/right">
-            Flip ↔
-          </button>
-          <button className="btn btn-small" onClick={() => flipSelection(false)} title="Flip the selection up/down">
-            Flip ↕
-          </button>
-        </span>
+      {drawTool && (
+        <>
+          {toggle("mirrorX", "Mirror ↔", "Draw mirrored left/right (around the frame's centre when using frames)")}
+          {toggle("mirrorY", "Mirror ↕", "Draw mirrored up/down")}
+        </>
       )}
       <span className="art-options-spacer" />
+      {toggle("tileMode", "Tile mode", "Show the image repeated around itself - drawing wraps across the edges, for seamless tiles")}
       {toggle("pixelGrid", "Pixel grid", "Lines between pixels (from 8x zoom)")}
       {toggle("tileGrid", "8×8 tiles", "The GBA's 8x8 tile boundaries")}
       <span className="art-zoom">
-        <button className="icon-btn" onClick={() => zoomTo(zoomStep(s.zoom, -1))} title="Zoom out (-)">
+        <button className="icon-btn" onClick={() => zoomTo(zoomStep(s.zoom, -1))} title="Zoom out">
           −
         </button>
-        <button className="art-zoom-value" onClick={() => s.set({ zoom: 0 })} title="Fit to the window (0)">
+        <button className="art-zoom-value" onClick={() => s.set({ zoom: 0 })} title="Fit to the window">
           {s.zoom}x
         </button>
-        <button className="icon-btn" onClick={() => zoomTo(zoomStep(s.zoom, 1))} title="Zoom in (+)">
+        <button className="icon-btn" onClick={() => zoomTo(zoomStep(s.zoom, 1))} title="Zoom in">
           +
         </button>
       </span>
@@ -282,16 +295,6 @@ function OptionsBar({ hover }: { hover: Pt | null }) {
   );
 }
 
-function flipSelection(horizontal: boolean) {
-  const st = useArtStore.getState();
-  if (!st.selection) return;
-  if (!st.floating) st.lift();
-  const f = useArtStore.getState().floating;
-  if (!f) return;
-  st.set({ floating: { ...f, image: flipRegion(f.image, horizontal) } });
-  st.touch();
-}
-
 // ---------------------------------------------------------------------------
 
 /** The bottom bar: every colour the image uses, with the GBA's limits. */
@@ -300,6 +303,7 @@ function PaletteBar() {
   const version = useArtStore((s) => s.doc?.version);
   const primary = useArtStore((s) => s.primary);
   const secondary = useArtStore((s) => s.secondary);
+  const recent = useArtStore((s) => s.recent);
   const [stats, setStats] = useState<{ colors: { color: RGBA; count: number }[]; transparent: number; tilesOver: number } | null>(null);
 
   // Counting a big background takes a moment: do it shortly after edits stop.
@@ -309,9 +313,10 @@ function PaletteBar() {
       return;
     }
     const t = setTimeout(() => {
-      const used = colorsUsed(doc.image);
+      const flat = flattenDoc(doc);
+      const used = colorsUsed(flat);
       const backdrop = used.transparent > 0 ? null : (used.colors[0]?.color ?? null);
-      setStats({ ...used, tilesOver: doc.kind === "backgrounds" ? tilesOverLimit(doc.image, backdrop) : 0 });
+      setStats({ ...used, tilesOver: doc.kind === "backgrounds" ? tilesOverLimit(flat, backdrop) : 0 });
     }, 250);
     return () => clearTimeout(t);
   }, [doc, version]);
@@ -331,8 +336,22 @@ function PaletteBar() {
       : `${n} colours (up to 15 per 8×8 tile, plus a shared backdrop)`;
   } else limit = `${n} colours - fonts and frames share the dialogue box's 15-colour palette`;
 
-  const isSel = (c: RGBA, sel: RGBA) => c[0] === sel[0] && c[1] === sel[1] && c[2] === sel[2] && sel[3] !== 0;
+  const same = (c: RGBA, sel: RGBA) => c[0] === sel[0] && c[1] === sel[1] && c[2] === sel[2] && sel[3] !== 0;
   const offGba = stats?.colors.some(({ color }) => toHex(toGbaColor(color)) !== toHex(color)) ?? false;
+
+  const swatch = (color: RGBA, title: string, key: string) => (
+    <button
+      key={key}
+      className={`art-swatch${same(color, primary) ? " art-swatch-primary" : ""}${same(color, secondary) ? " art-swatch-secondary" : ""}`}
+      style={{ background: toHex(color) }}
+      title={`${title}\nLeft click: primary, right click: secondary`}
+      onClick={() => st.setPrimary(color)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        st.set({ secondary: color });
+      }}
+    />
+  );
 
   return (
     <div className="art-palette">
@@ -341,16 +360,12 @@ function PaletteBar() {
         {offGba && (
           <span
             className="art-palette-note"
-            title="The GBA has 5 bits per colour channel, so some colours will look very slightly different in the game. Snap rounds them now."
+            title="The GBA has 5 bits per colour channel, so some colours will look very slightly different in the game. Image ▸ Snap rounds them."
           >
             Some colours aren't exact GBA colours
           </span>
         )}
-        {doc && offGba && (
-          <button className="link-btn" onClick={() => snapToGba()}>
-            Snap to GBA colours
-          </button>
-        )}
+        {doc && over && doc.kind === "sprites" && <span className="art-palette-note">Image ▸ Reduce colours can fix this.</span>}
       </div>
       <div className="art-palette-swatches">
         {doc && (stats?.transparent ?? 0) > 0 && (
@@ -364,38 +379,18 @@ function PaletteBar() {
             }}
           />
         )}
-        {stats?.colors.map(({ color, count }) => (
-          <button
-            key={toHex(color)}
-            className={`art-swatch${isSel(color, primary) ? " art-swatch-primary" : ""}${isSel(color, secondary) ? " art-swatch-secondary" : ""}`}
-            style={{ background: toHex(color) }}
-            title={`${toHex(color)} - ${count} px\nLeft click: primary, right click: secondary`}
-            onClick={() => st.set({ primary: color })}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              st.set({ secondary: color });
-            }}
-          />
-        ))}
+        {stats?.colors.map(({ color, count }) => swatch(color, `${toHex(color)} - ${count} px`, toHex(color)))}
+        {recent.length > 0 && (
+          <>
+            <span className="art-palette-sep" title="Recently used colours">
+              Recent
+            </span>
+            {recent.map((c, i) => swatch(c, toHex(c), `r${i}`))}
+          </>
+        )}
       </div>
     </div>
   );
-}
-
-function snapToGba() {
-  const st = useArtStore.getState();
-  const doc = st.doc;
-  if (!doc) return;
-  st.checkpoint();
-  const d = doc.image.data;
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] === 0) continue;
-    const c = toGbaColor([d[i], d[i + 1], d[i + 2], d[i + 3]]);
-    d[i] = c[0];
-    d[i + 1] = c[1];
-    d[i + 2] = c[2];
-  }
-  st.touch();
 }
 
 // ---------------------------------------------------------------------------
@@ -435,7 +430,6 @@ function NewImageDialog({ onClose }: { onClose: () => void }) {
     if (w % 8 || h % 8 || w < 8 || h < 8) return setError("Width and height must be multiples of 8.");
     if (w > 2048 || h > 2048) return setError("Images are capped at 2048×2048.");
     if (!rootPath) return;
-    const st = useArtStore.getState();
     if (!(await resolveUnsaved())) return;
     setBusy(true);
     const image = blankImage(w, h, kind === "backgrounds" ? fromHex(fill) : null);
@@ -445,7 +439,7 @@ function NewImageDialog({ onClose }: { onClose: () => void }) {
     if (!r.ok) return setError(r.error);
     useProjectStore.setState({ assets: r.value });
     const asset = (r.value[kind] as AssetInfo[]).find((a) => a.relPath === relPath);
-    if (asset) st.openNew(asset, kind, image);
+    if (asset) useArtStore.getState().openNew(asset, kind, image);
     onClose();
   };
 
@@ -505,12 +499,13 @@ function NewImageDialog({ onClose }: { onClose: () => void }) {
 
 // ---------------------------------------------------------------------------
 
-/** Pixelorama-style single-key tool shortcuts, plus the usual Ctrl ones. */
-function useArtShortcuts() {
+/** Pixelorama-style single-key shortcuts (customisable), plus the usual Ctrl ones. */
+function useArtShortcuts(map: Record<ShortcutAction, string>) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+      if (document.querySelector(".art-modal-backdrop")) return;
       const st = useArtStore.getState();
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
@@ -526,17 +521,10 @@ function useArtShortcuts() {
         else if (k === "d") (handled(), st.deselect());
         return;
       }
-      if (!st.doc) return;
-      const tool = TOOLS.find((x) => x.key.toLowerCase() === k);
-      if (tool && !e.altKey) return handled(), st.setTool(tool.id);
-      if (k === "x") return handled(), st.swapColors();
-      if (k === "[") return handled(), st.set({ brushSize: Math.max(1, st.brushSize - 1) });
-      if (k === "]") return handled(), st.set({ brushSize: Math.min(16, st.brushSize + 1) });
-      if (k === "+" || k === "=") return handled(), st.set({ zoom: zoomStep(st.zoom, 1) });
-      if (k === "-") return handled(), st.set({ zoom: zoomStep(st.zoom, -1) });
-      if (k === "0") return handled(), st.set({ zoom: 0 });
+      if (!st.doc || e.altKey) return;
       if (e.key === "Delete" || e.key === "Backspace") return handled(), st.deleteSelection();
-      if (e.key === "Escape" || e.key === "Enter") return handled(), e.key === "Escape" ? st.deselect() : st.commitFloating();
+      if (e.key === "Escape") return handled(), st.deselect();
+      if (e.key === "Enter") return handled(), st.commitFloating();
       if (e.key.startsWith("Arrow") && st.selection) {
         handled();
         if (!st.floating) st.lift();
@@ -547,9 +535,42 @@ function useArtShortcuts() {
         const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
         const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
         st.set({ floating: { ...f, x: f.x + dx, y: f.y + dy }, selection: { ...sel, x: sel.x + dx, y: sel.y + dy } });
+        return;
+      }
+      const action = (Object.keys(map) as ShortcutAction[]).find((a) => map[a] && map[a] === k);
+      if (!action) return;
+      handled();
+      const frames = frameRects(st.doc).length;
+      switch (action) {
+        case "swap":
+          return st.swapColors();
+        case "brushDown":
+          return st.set({ brushSize: Math.max(1, st.brushSize - 1) });
+        case "brushUp":
+          return st.set({ brushSize: Math.min(16, st.brushSize + 1) });
+        case "zoomIn":
+          return st.set({ zoom: zoomStep(st.zoom, 1) });
+        case "zoomOut":
+          return st.set({ zoom: zoomStep(st.zoom, -1) });
+        case "fit":
+          return st.set({ zoom: 0 });
+        case "prevFrame":
+          return frames && st.set({ frame: (st.frame - 1 + frames) % frames, playing: false });
+        case "nextFrame":
+          return frames && st.set({ frame: (st.frame + 1) % frames, playing: false });
+        case "play":
+          return frames > 1 && st.set({ playing: !st.playing });
+        case "tileMode":
+          return st.set({ tileMode: !st.tileMode, zoom: 0 });
+        case "tileGrid":
+          return st.set({ tileGrid: !st.tileGrid });
+        case "pixelGrid":
+          return st.set({ pixelGrid: !st.pixelGrid });
+        default:
+          return st.setTool(action);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [map]);
 }

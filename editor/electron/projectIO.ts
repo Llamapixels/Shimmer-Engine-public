@@ -41,6 +41,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".bmp": "image/bmp",
   ".uge": "application/octet-stream",
   ".wav": "audio/wav",
+  ".json": "application/json",
 };
 
 /** JSON.stringify with the same 2-space indent + trailing newline
@@ -477,11 +478,15 @@ export async function renameSprite(rootPath: string, from: string, to: string): 
   if (await exists(spritePath(rootPath, name))) throw new Error(`There's already a sprite called "${name}".`);
   await fs.mkdir(path.dirname(spritePath(rootPath, name)), { recursive: true });
   await fs.rename(spritePath(rootPath, from), spritePath(rootPath, name));
+  // The Art Editor's layers file goes with it.
+  const side = (n: string) => spritePath(rootPath, n).replace(/\.png$/i, ".art.json");
+  if (await exists(side(from))) await fs.rename(side(from), side(name));
   return name;
 }
 
 export async function deleteSprite(rootPath: string, name: string): Promise<void> {
   await fs.rm(spritePath(rootPath, name));
+  await fs.rm(spritePath(rootPath, name).replace(/\.png$/i, ".art.json"), { force: true });
 }
 
 /** Sprites are per project: a project that uses the default player sprite
@@ -578,18 +583,33 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 /** Art Editor save: a PNG into one of the project's art folders. */
 export async function saveImage(payload: SaveImagePayload): Promise<void> {
   const parts = payload.relPath.split("/");
-  if (parts.length !== 3 || parts[0] !== "assets" || !ART_FOLDERS.has(parts[1]) || !/^[^\\/:*?"<>|]+\.png$/i.test(parts[2])) {
+  // assets/<art folder>/[subfolders/]name.png - sprites can sit in subfolders.
+  const badPart = (p: string) => !p || p === "." || p === ".." || /[\\:*?"<>|]/.test(p);
+  if (
+    parts.length < 3 ||
+    parts[0] !== "assets" ||
+    !ART_FOLDERS.has(parts[1]) ||
+    parts.slice(2).some(badPart) ||
+    !/\.png$/i.test(parts[parts.length - 1])
+  ) {
     throw new Error(`Can't save an image to "${payload.relPath}".`);
   }
   const bytes = Buffer.from(payload.pngBase64, "base64");
   if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) throw new Error("That isn't a PNG image.");
   const abs = resolveWithinRoot(payload.rootPath, payload.relPath);
-  if (!payload.overwrite && (await exists(abs))) throw new Error(`"${parts[2]}" already exists - pick another name.`);
+  if (!payload.overwrite && (await exists(abs))) throw new Error(`"${parts[parts.length - 1]}" already exists - pick another name.`);
   await fs.mkdir(path.dirname(abs), { recursive: true });
   // Write to a temp file and rename, so a failed write never leaves half a PNG.
   const tmp = `${abs}.${process.pid}.tmp`;
   await fs.writeFile(tmp, bytes);
   await fs.rename(tmp, abs);
+
+  // The Art Editor's layers live beside the PNG ("hero.png" -> "hero.art.json").
+  if (payload.sidecar !== undefined) {
+    const side = abs.replace(/\.png$/i, ".art.json");
+    if (payload.sidecar === null) await fs.rm(side, { force: true });
+    else await fs.writeFile(side, payload.sidecar, "utf-8");
+  }
 }
 
 export async function resolveAssetPath(rootPath: string, relPath: string, base: AssetBase): Promise<string> {

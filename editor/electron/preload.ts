@@ -54,6 +54,8 @@ const api: ShimmerEngineApi = {
   },
   getTheme: () => ipcRenderer.invoke(IPC_CHANNELS.getTheme),
   saveImage: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveImage, payload),
+  exportFile: (payload) => ipcRenderer.invoke(IPC_CHANNELS.exportFile, payload),
+  pickImageFile: () => ipcRenderer.invoke(IPC_CHANNELS.pickImageFile),
   saveProjectAs: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveProjectAs, payload),
 };
 

@@ -9,6 +9,7 @@ import type {
   OpenRomPayload,
   CreateBackgroundPayload,
   SaveImagePayload,
+  ExportFilePayload,
   CreateProjectPayload,
   CreateScenePayload,
   CreateSongPayload,
@@ -169,6 +170,32 @@ function registerIpcHandlers(): void {
     checkRoot(payload.rootPath);
     await projectIO.saveImage(payload);
     return projectIO.listAssets(payload.rootPath);
+  });
+
+  handle(IPC_CHANNELS.exportFile, async (payload: ExportFilePayload) => {
+    if (!mainWindow) return null;
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Export",
+      defaultPath: payload.defaultName,
+      filters: [{ name: payload.filterName, extensions: payload.extensions }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    await writeFile(result.filePath, Buffer.from(payload.base64, "base64"));
+    return result.filePath;
+  });
+
+  handle(IPC_CHANNELS.pickImageFile, async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Import image",
+      properties: ["openFile"],
+      filters: [{ name: "Images", extensions: ["png", "gif", "jpg", "jpeg", "bmp"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const file = result.filePaths[0];
+    const ext = path.extname(file).toLowerCase();
+    const mime = ext === ".png" ? "image/png" : ext === ".gif" ? "image/gif" : ext === ".bmp" ? "image/bmp" : "image/jpeg";
+    return { fileName: path.basename(file), dataUrl: `data:${mime};base64,${(await readFile(file)).toString("base64")}` };
   });
 
   // File > Save As: copy the whole project folder (assets, scenes,
