@@ -18,6 +18,7 @@ import type {
   AssetBase,
   AssetInfo,
   AssetKind,
+  SaveImagePayload,
   AssetListing,
   CreateBackgroundPayload,
   CreateProjectPayload,
@@ -568,6 +569,27 @@ export async function createBackground(payload: CreateBackgroundPayload): Promis
     bytes: st.size,
     mtimeMs: st.mtimeMs,
   };
+}
+
+/** Folders the Art Editor may write PNGs into. */
+const ART_FOLDERS = new Set(["backgrounds", "sprites", "fonts", "frames", "ui"]);
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Art Editor save: a PNG into one of the project's art folders. */
+export async function saveImage(payload: SaveImagePayload): Promise<void> {
+  const parts = payload.relPath.split("/");
+  if (parts.length !== 3 || parts[0] !== "assets" || !ART_FOLDERS.has(parts[1]) || !/^[^\\/:*?"<>|]+\.png$/i.test(parts[2])) {
+    throw new Error(`Can't save an image to "${payload.relPath}".`);
+  }
+  const bytes = Buffer.from(payload.pngBase64, "base64");
+  if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) throw new Error("That isn't a PNG image.");
+  const abs = resolveWithinRoot(payload.rootPath, payload.relPath);
+  if (!payload.overwrite && (await exists(abs))) throw new Error(`"${parts[2]}" already exists - pick another name.`);
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  // Write to a temp file and rename, so a failed write never leaves half a PNG.
+  const tmp = `${abs}.${process.pid}.tmp`;
+  await fs.writeFile(tmp, bytes);
+  await fs.rename(tmp, abs);
 }
 
 export async function resolveAssetPath(rootPath: string, relPath: string, base: AssetBase): Promise<string> {

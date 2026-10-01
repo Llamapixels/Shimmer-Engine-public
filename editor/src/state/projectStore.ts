@@ -27,7 +27,7 @@ export type Selection =
   | { kind: "palette"; id: string }
   | { kind: "prefab"; id: string };
 
-export type Section = "world" | "sprites" | "backgrounds" | "music" | "settings";
+export type Section = "world" | "sprites" | "backgrounds" | "art" | "music" | "settings";
 
 export type Tool =
   | "select"

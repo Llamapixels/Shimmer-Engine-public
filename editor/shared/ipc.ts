@@ -124,6 +124,17 @@ export interface RenameSpritePayload {
   to: string;
 }
 
+/** Art Editor: write a PNG into the project's art folders. */
+export interface SaveImagePayload {
+  rootPath: string;
+  /** "assets/<backgrounds|sprites|fonts|frames|ui>/<name>.png". */
+  relPath: string;
+  /** The PNG file's bytes, base64. */
+  pngBase64: string;
+  /** false = refuse if the file already exists (New Image). */
+  overwrite: boolean;
+}
+
 export interface CreateBackgroundPayload {
   rootPath: string;
   /** Desired file stem; de-duped against existing files. */
@@ -286,6 +297,9 @@ export interface ShimmerEngineApi {
   /** A File/View menu item was picked (see MenuCommand). Returns an
    * unsubscribe. */
   onMenuCommand(cb: (command: MenuCommand) => void): () => void;
+  /** Art Editor: write a PNG (see SaveImagePayload); returns the
+   * refreshed asset listing. */
+  saveImage(payload: SaveImagePayload): Promise<IpcResult<AssetListing>>;
   /** The editor theme saved in the app's settings (View > Theme). */
   getTheme(): Promise<IpcResult<ThemeId>>;
   /** File > Save As: asks where, copies the project folder there
@@ -345,6 +359,7 @@ export const IPC_CHANNELS = {
   openRom: "build:open-rom",
   /** Main -> renderer: show the About dialog. */
   showAbout: "menu:about",
+  saveImage: "asset:save-image",
   /** Main -> renderer: a File/View menu command (MenuCommand). */
   menuCommand: "menu:command",
   getTheme: "settings:get-theme",

@@ -8,6 +8,7 @@ import type {
   BuildRomPayload,
   OpenRomPayload,
   CreateBackgroundPayload,
+  SaveImagePayload,
   CreateProjectPayload,
   CreateScenePayload,
   CreateSongPayload,
@@ -163,6 +164,12 @@ const SAVE_AS_SKIP = new Set(["build", "ROM"]);
 
 function registerIpcHandlers(): void {
   handle(IPC_CHANNELS.getTheme, async () => theme);
+
+  handle(IPC_CHANNELS.saveImage, async (payload: SaveImagePayload) => {
+    checkRoot(payload.rootPath);
+    await projectIO.saveImage(payload);
+    return projectIO.listAssets(payload.rootPath);
+  });
 
   // File > Save As: copy the whole project folder (assets, scenes,
   // project.json - not build output) to a new folder, then open it.

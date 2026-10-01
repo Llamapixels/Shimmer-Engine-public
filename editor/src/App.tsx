@@ -14,6 +14,8 @@ import WelcomeScreen from "./components/WelcomeScreen";
 import BackgroundsView from "./components/views/BackgroundsView";
 import SpritesView from "./components/views/SpritesView";
 import MusicView from "./components/views/MusicView";
+import ArtEditorView from "./art/ArtEditorView";
+import { useArtStore } from "./art/artStore";
 import SettingsView from "./components/views/SettingsView";
 import "./App.css";
 
@@ -68,6 +70,8 @@ export default function App() {
           void st.openProjectDialog();
           break;
         case "save":
+          // In the Art Editor, Save also writes the open image.
+          if (st.section === "art" && useArtStore.getState().dirty) void useArtStore.getState().save();
           void st.saveAll();
           break;
         case "saveAs":
@@ -88,6 +92,8 @@ export default function App() {
       if (isTyping(e.target)) return;
       // The music editor has its own undo history and shortcuts.
       if (useProjectStore.getState().section === "music") return;
+      // So does the Art Editor (see art/ArtEditorView.tsx).
+      if (useProjectStore.getState().section === "art") return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       if (mod && k === "z" && !e.shiftKey) {
@@ -169,6 +175,7 @@ export default function App() {
           {section === "backgrounds" && <BackgroundsView />}
           {section === "sprites" && <SpritesView />}
           {section === "music" && <MusicView />}
+          {section === "art" && <ArtEditorView />}
           {section === "settings" && <SettingsView />}
         </div>
       )}
