@@ -120,8 +120,18 @@ jobs:
           docker run --rm -v "$RUNNER_TEMP/devkitpro:/out" devkitpro/devkitarm             sh -c "cp -a /opt/devkitpro/devkitARM /opt/devkitpro/libgba /opt/devkitpro/tools /out/ && chown -R $(id -u):$(id -g) /out"
           ls "$RUNNER_TEMP/devkitpro"
 
+      # devkitPro's Linux GCC needs glibc 2.36+, too new for Ubuntu
+      # 22.04-based distros; use Arm's GCC (glibc 2.27+) with devkitPro's
+      # GBA files instead - see tools/linux-toolchain/assemble.sh.
+      - name: Assemble the Linux toolchain (Arm GCC + devkitPro GBA files)
+        run: |
+          curl -sSL -o armgcc.tar.xz https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+          mkdir -p "$RUNNER_TEMP/armgcc"
+          tar -xf armgcc.tar.xz -C "$RUNNER_TEMP/armgcc" --strip-components=1
+          bash tools/linux-toolchain/assemble.sh "$RUNNER_TEMP/devkitpro" "$RUNNER_TEMP/armgcc" "$RUNNER_TEMP/dkp-linux"
+
       - name: Stage the toolchain
-        run: python editor/scripts/stage_toolchain.py --builder pyi-dist/shimmer-build --devkitpro "$RUNNER_TEMP/devkitpro"
+        run: python editor/scripts/stage_toolchain.py --builder pyi-dist/shimmer-build --devkitpro "$RUNNER_TEMP/dkp-linux"
 
       - name: Smoke test - build a test ROM with the bundle
         run: |
