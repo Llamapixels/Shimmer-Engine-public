@@ -1,3 +1,5 @@
+import { useRef, useState } from "react";
+
 import EngineValueInput from "../engine/EngineValueInput";
 import { ENGINE_MODES, ENGINE_SETTINGS, type EngineValue, SETTING_BY_KEY } from "../engine/engineSettings";
 import { SpriteSelect } from "../components/common/AssetSelect";
@@ -94,7 +96,7 @@ interface Props {
 
 export function FieldControl({ field, ev, env, patch }: Props) {
   const rec = ev as unknown as Record<string, unknown>;
-  const value = rec[field.key];
+  const value = rec[field.key] ?? field.defaultValue;
   const setTilePick = useProjectStore((s) => s.setTilePick);
   const customScripts = useProjectStore((s) => s.project?.project.customScripts ?? []);
   const constants = useProjectStore((s) => s.project?.project.constants ?? []);
@@ -123,21 +125,25 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       );
 
     case "multiline": {
-      const box = (
-        <textarea
-          rows={Math.min(6, Math.max(2, String(value ?? "").split("\n").length))}
-          value={String(value ?? "")}
-          placeholder="Text… (new line = new page)"
-          onChange={(e) => patch({ [field.key]: e.target.value }, true)}
-        />
-      );
-      // Display Text: the box as it'll look in the game, pages and all.
-      if (ev.type !== "text") return box;
+      if (ev.type !== "text")
+        return (
+          <textarea
+            rows={Math.min(6, Math.max(2, String(value ?? "").split("\n").length))}
+            value={String(value ?? "")}
+            placeholder="Text… (new line = new page)"
+            onChange={(e) => patch({ [field.key]: e.target.value }, true)}
+          />
+        );
+      // Display Text: text codes, then the box as it'll look in the game.
       return (
-        <div className="script-field-dialogue">
-          {box}
-          {String(value ?? "") && <DialogueBoxPreview text={String(value ?? "")} />}
-        </div>
+        <DialogueTextField
+          value={String(value ?? "")}
+          onChange={(text) => patch({ [field.key]: text }, true)}
+          fonts={["default", ...fonts.map((a) => a.name).filter((n) => n !== "default")]}
+          variables={variables}
+          lines={typeof rec.rows === "number" ? rec.rows : 2}
+          framed={rec.frame !== false}
+        />
       );
     }
 
@@ -789,4 +795,105 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       );
     }
   }
+}
+
+/**
+ * Display Text's text box, with an Insert bar for the text codes (font,
+ * colour, speed, variable) so nobody has to remember them, and the game's
+ * box drawn underneath.
+ */
+function DialogueTextField({
+  value,
+  onChange,
+  fonts,
+  variables,
+  lines,
+  framed,
+}: {
+  value: string;
+  onChange: (text: string) => void;
+  fonts: string[];
+  variables: string[];
+  lines: number;
+  framed: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [color, setColor] = useState("#ff4040");
+
+  /** Put `code` at the cursor (or over the selection) and keep typing after it. */
+  const insert = (code: string) => {
+    const el = ref.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    const next = value.slice(0, start) + code + value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(start + code.length, start + code.length);
+    });
+  };
+
+  return (
+    <div className="script-field-dialogue">
+      <textarea
+        ref={ref}
+        rows={Math.min(6, Math.max(2, value.split("\n").length))}
+        value={value}
+        placeholder="Text… (new line = new page)"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <div className="text-code-bar">
+        <span className="text-code-label">Insert</span>
+        <select
+          value=""
+          title="Switch font from here on (!F:name!)"
+          onChange={(e) => e.target.value && insert(`!F:${e.target.value}!`)}
+        >
+          <option value="">Font…</option>
+          {fonts.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+        <span className="text-code-color" title="Colour the text from here on (!C:#rrggbb!)">
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Text colour" />
+          <button className="btn btn-small" onClick={() => insert(`!C:${color}!`)}>
+            Colour
+          </button>
+          <button className="btn btn-small" title="Back to the font's own colour (!C!)" onClick={() => insert("!C!")}>
+            Reset
+          </button>
+        </span>
+        <select
+          value=""
+          title="Text speed from here on, frames per letter (!S2!)"
+          onChange={(e) => e.target.value && insert(`!S${e.target.value}!`)}
+        >
+          <option value="">Speed…</option>
+          <option value="0">Instant (0)</option>
+          <option value="1">Fast (1)</option>
+          <option value="2">Normal (2)</option>
+          <option value="4">Slow (4)</option>
+          <option value="8">Very slow (8)</option>
+        </select>
+        {variables.length > 0 && (
+          <select
+            value=""
+            title="Show a variable's value ({name})"
+            onChange={(e) => e.target.value && insert(`{${e.target.value}}`)}
+          >
+            <option value="">Variable…</option>
+            {variables.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {value && <DialogueBoxPreview text={value} lines={lines} framed={framed} />}
+    </div>
+  );
 }

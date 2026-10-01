@@ -1,9 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { cp, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { IPC_CHANNELS } from "../shared/ipc.js";
+import { IPC_CHANNELS, THEMES, type MenuCommand, type ThemeId } from "../shared/ipc.js";
 import type {
   BuildRomPayload,
   OpenRomPayload,
@@ -131,7 +131,67 @@ function handle<Args extends unknown[], T>(
   });
 }
 
+// ---------------------------------------------------------------------------
+// App settings (just the theme for now), kept in the user data folder so
+// the View > Theme radio is right before the renderer has even loaded.
+
+const settingsFile = () => path.join(app.getPath("userData"), "settings.json");
+let theme: ThemeId = "dark";
+
+async function loadSettings(): Promise<void> {
+  try {
+    const s = JSON.parse(await readFile(settingsFile(), "utf-8")) as { theme?: string };
+    if (THEMES.some((t) => t.id === s.theme)) theme = s.theme as ThemeId;
+  } catch {
+    /* first run, or unreadable - keep the default */
+  }
+}
+
+function setTheme(next: ThemeId): void {
+  theme = next;
+  void writeFile(settingsFile(), JSON.stringify({ theme }, null, 2)).catch(() => {});
+  Menu.setApplicationMenu(buildMenu());
+  sendMenuCommand({ kind: "theme", theme });
+}
+
+function sendMenuCommand(command: MenuCommand): void {
+  mainWindow?.webContents.send(IPC_CHANNELS.menuCommand, command);
+}
+
+/** Folders and files Save As leaves out of the copy: build output only. */
+const SAVE_AS_SKIP = new Set(["build", "ROM"]);
+
 function registerIpcHandlers(): void {
+  handle(IPC_CHANNELS.getTheme, async () => theme);
+
+  // File > Save As: copy the whole project folder (assets, scenes,
+  // project.json - not build output) to a new folder, then open it.
+  handle(IPC_CHANNELS.saveProjectAs, async (payload: { rootPath: string }) => {
+    checkRoot(payload.rootPath);
+    if (!mainWindow) return null;
+    const src = path.resolve(payload.rootPath);
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Save Project As",
+      buttonLabel: "Save Project Here",
+      defaultPath: `${src} copy`,
+      properties: ["createDirectory", "showOverwriteConfirmation"],
+    });
+    if (result.canceled || !result.filePath) return null;
+    const dest = path.resolve(result.filePath);
+    if (dest === src || dest.startsWith(src + path.sep)) {
+      throw new Error("Pick a folder outside the current project.");
+    }
+    if (existsSync(dest)) throw new Error(`"${dest}" already exists - pick a new name.`);
+    await cp(src, dest, {
+      recursive: true,
+      filter: (from) => {
+        const rel = path.relative(src, from);
+        return !SAVE_AS_SKIP.has(rel.split(path.sep)[0]);
+      },
+    });
+    return trackRoot(await projectIO.openProjectAtPath(dest));
+  });
+
   // "Open example": copy the demo project somewhere writable (Documents)
   // the first time, then open that copy.
   handle(IPC_CHANNELS.openProjectDialog, async () => {
@@ -341,9 +401,45 @@ function buildMenu(): Menu {
   const showAbout = () => mainWindow?.webContents.send(IPC_CHANNELS.showAbout);
   const template: MenuItemConstructorOptions[] = [
     ...(isMac ? [{ role: "appMenu" as const }] : []),
-    { role: "fileMenu" },
+    {
+      label: "File",
+      submenu: [
+        { label: "New Project…", accelerator: "CmdOrCtrl+N", click: () => sendMenuCommand({ kind: "newProject" }) },
+        { label: "Open Project…", accelerator: "CmdOrCtrl+O", click: () => sendMenuCommand({ kind: "openProject" }) },
+        { type: "separator" },
+        { label: "Save", accelerator: "CmdOrCtrl+S", click: () => sendMenuCommand({ kind: "save" }) },
+        { label: "Save As…", accelerator: "CmdOrCtrl+Shift+S", click: () => sendMenuCommand({ kind: "saveAs" }) },
+        { type: "separator" },
+        { label: "Reload Assets", accelerator: "F5", click: () => sendMenuCommand({ kind: "reloadAssets" }) },
+        { type: "separator" },
+        isMac ? { role: "close" } : { role: "quit", label: "Exit" },
+      ],
+    },
     { role: "editMenu" },
-    { role: "viewMenu" },
+    {
+      label: "View",
+      submenu: [
+        {
+          label: "Theme",
+          submenu: THEMES.map((t) => ({
+            label: t.label,
+            type: "radio" as const,
+            checked: t.id === theme,
+            click: () => setTheme(t.id),
+          })),
+        },
+        { type: "separator" },
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
     { role: "windowMenu" },
     {
       role: "help",
@@ -360,7 +456,8 @@ function buildMenu(): Menu {
   return Menu.buildFromTemplate(template);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await loadSettings();
   // The installed app carries its engine and toolchain in resources/toolchain;
   // a dev build uses the repository it runs from.
   projectIO.setDefaultEngineRoot(

@@ -28,7 +28,8 @@
 typedef enum
 {
     SCRIPT_END = 0,        /* stop - no operands */
-    SCRIPT_TEXT,             /* str = dialogue text; pauses until dismissed */
+    SCRIPT_TEXT,             /* str = dialogue text, a = box options (dialogue.h
+                              * DIALOGUE_OPT_*); pauses until dismissed */
     SCRIPT_SET_FLAG,          /* a = flag index */
     SCRIPT_CLEAR_FLAG,        /* a = flag index */
     SCRIPT_IF_FLAG,           /* a = flag index, b = instruction index to

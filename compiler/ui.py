@@ -32,6 +32,7 @@ Built-in "default" font, frame and cursor live in engine/data/ui/.
 """
 
 import json
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -124,6 +125,16 @@ def load_font(path, palette, name):
     elif first <= 32 < first + count and widths[32 - first] == 0:
         widths[32 - first] = 3   # an all-trimmed space still needs a width
 
+    # The font's ink: its most common colour - what a !C code recolours.
+    ink_counts = {}
+    for rows_out in glyphs:
+        for word in rows_out:
+            for i in range(8):
+                v = (word >> (4 * i)) & 0xF
+                if v:
+                    ink_counts[v] = ink_counts.get(v, 0) + 1
+    ink = max(ink_counts, key=ink_counts.get) if ink_counts else 0
+
     mapping = {}
     meta = path.with_suffix(".json")
     if meta.exists():
@@ -135,7 +146,7 @@ def load_font(path, palette, name):
             if isinstance(ch, str) and len(ch) == 1 and isinstance(code, int) and 0 <= code < 256:
                 mapping[ch] = code
     return {"name": name, "first": first, "glyphs": glyphs, "widths": widths,
-            "fixed": not variable, "mapping": mapping}
+            "fixed": not variable, "mapping": mapping, "ink": ink}
 
 
 def load_tiles(path, palette, where, tw, th, corner_clear=False):
@@ -228,6 +239,12 @@ def build_ui(project, project_dir, defaults_dir, referenced):
     except OSError as e:
         raise UiError(f"Couldn't read a UI image: {e}") from None
 
+    # Text colour codes ("!C:#ff4040!") need their colours in the same
+    # palette, so add every one used anywhere in the project up front.
+    for hexcol in TEXT_COLOR_RE.findall(referenced):
+        rgb = tuple(int(hexcol[i:i + 2], 16) for i in (0, 2, 4))
+        palette.index(rgb, f"text colour !C:#{hexcol}!")
+
     font_names = list(font_files)
     frame_names = list(frame_files)
     if want_font not in font_names:
@@ -247,6 +264,18 @@ def build_ui(project, project_dir, defaults_dir, referenced):
         "default_font": font_names.index(want_font), "default_frame": frame_names.index(want_frame),
         "speed": speed,
     }
+
+
+# "!C:#rrggbb!" text colour codes (see build_project.interpolate_vars).
+TEXT_COLOR_RE = re.compile(r"!C:#([0-9a-fA-F]{6})!")
+
+
+def color_index(ui, rgb):
+    """A colour's index in the dialogue palette (it was added there by
+    build_ui), or None."""
+    c = gba_color(rgb)
+    pal = ui["palette"]
+    return pal.index(c, 1) if c in pal[1:] else None
 
 
 def encode_char(ch, ui):
@@ -276,7 +305,7 @@ def ui_to_c(ui):
                  + ", ".join(map(str, f["widths"])) + " };")
     c.append(f"const UiFont ui_fonts[{len(ui['fonts'])}] = {{")
     for i, f in enumerate(ui["fonts"]):
-        c.append(f"    {{ font{i}_glyphs, font{i}_widths, {len(f['widths'])}, {f['first']} }},")
+        c.append(f"    {{ font{i}_glyphs, font{i}_widths, {len(f['widths'])}, {f['first']}, {f['ink']} }},")
     c.append("};")
     c.append(f"const uint32_t ui_frames[{len(ui['frames'])}][72] = {{")
     for name, fr in zip(ui["frame_names"], ui["frames"]):

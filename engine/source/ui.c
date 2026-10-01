@@ -40,6 +40,8 @@ static int cur_frame;
 static int cur_speed;
 static int box_lines;
 static int box_top = -1;
+static int box_rows;        /* screen rows the box covers, frame included */
+static int box_framed = 1;
 
 static void put(int row, int col, int tile)
 {
@@ -147,55 +149,92 @@ static void blit_row(uint32_t (*canvas)[8], int cols, int line, int x, int y, ui
     }
 }
 
-static void draw_char(uint32_t (*canvas)[8], int cols, int line, int x, int font, unsigned char ch)
+/* A glyph row with every `ink` pixel changed to `color`. */
+static uint32_t recolor(uint32_t row, int ink, int color)
+{
+    uint32_t out = row;
+    for (int i = 0; i < 8; i++)
+    {
+        int shift = i * 4;
+        if (((row >> shift) & 0xF) == (uint32_t)ink)
+            out = (out & ~(0xFu << shift)) | ((uint32_t)color << shift);
+    }
+    return out;
+}
+
+static void draw_char(uint32_t (*canvas)[8], int cols, int line, int x, int font, unsigned char ch, int color)
 {
     int w = 0;
     const uint32_t *g = glyph(font, ch, &w);
     if (!g)
         return;
+    int ink = ui_fonts[font].ink;
     for (int y = 0; y < 8; y++)
-        blit_row(canvas, cols, line, x, y, g[y]);
+        blit_row(canvas, cols, line, x, y, color && ink ? recolor(g[y], ink, color & 0xF) : g[y]);
 }
 
 void ui_box_clear(void)
 {
-    const uint32_t *fill = &ui_frames[cur_frame][4 * 8];
+    static const uint32_t clear[8];
+    const uint32_t *fill = box_framed ? &ui_frames[cur_frame][4 * 8] : clear;
     for (int t = 0; t < UI_MAX_LINES * BOX_COLS; t++)
         for (int y = 0; y < 8; y++)
             box_canvas[t][y] = fill[y];
 }
 
+/* Blank the screen rows the last box covered. */
+static void clear_box_rows(void)
+{
+    if (box_top >= 0)
+        for (int r = box_top; r < box_top + box_rows && r < SCREEN_ROWS; r++)
+            for (int c = 0; c < 30; c++)
+                put(r, c, 0);
+}
+
 void ui_box_open(int lines)
+{
+    ui_box_open_ex(lines, UI_BOX_BOTTOM, 1);
+}
+
+void ui_box_open_ex(int lines, int position, int framed)
 {
     if (lines < 1)
         lines = 1;
     if (lines > UI_MAX_LINES)
         lines = UI_MAX_LINES;
 
-    /* Clear rows a taller box used before. */
-    if (box_top >= 0)
-        for (int r = box_top; r < SCREEN_ROWS; r++)
-            for (int c = 0; c < 30; c++)
-                put(r, c, 0);
+    /* Clear the rows a box of another size or place used before. */
+    clear_box_rows();
 
     box_lines = lines;
-    box_top = SCREEN_ROWS - (lines + 2);
-    int bottom = SCREEN_ROWS - 1;
+    box_framed = framed != 0;
+    box_rows = lines + (box_framed ? 2 : 0);
+    if (position == UI_BOX_TOP)
+        box_top = 0;
+    else if (position == UI_BOX_MIDDLE)
+        box_top = (SCREEN_ROWS - box_rows) / 2;
+    else
+        box_top = SCREEN_ROWS - box_rows;
+    int text_top = box_top + (box_framed ? 1 : 0);
 
-    put(box_top, 0, FRAME_TILE + 0);
-    put(box_top, 29, FRAME_TILE + 2);
-    put(bottom, 0, FRAME_TILE + 6);
-    put(bottom, 29, FRAME_TILE + 8);
-    for (int c = 1; c < 29; c++)
+    if (box_framed)
     {
-        put(box_top, c, FRAME_TILE + 1);
-        put(bottom, c, FRAME_TILE + 7);
+        int bottom = box_top + box_rows - 1;
+        put(box_top, 0, FRAME_TILE + 0);
+        put(box_top, 29, FRAME_TILE + 2);
+        put(bottom, 0, FRAME_TILE + 6);
+        put(bottom, 29, FRAME_TILE + 8);
+        for (int c = 1; c < 29; c++)
+        {
+            put(box_top, c, FRAME_TILE + 1);
+            put(bottom, c, FRAME_TILE + 7);
+        }
     }
     for (int l = 0; l < lines; l++)
     {
-        int r = box_top + 1 + l;
-        put(r, 0, FRAME_TILE + 3);
-        put(r, 29, FRAME_TILE + 5);
+        int r = text_top + l;
+        put(r, 0, box_framed ? FRAME_TILE + 3 : 0);
+        put(r, 29, box_framed ? FRAME_TILE + 5 : 0);
         for (int c = 0; c < BOX_COLS; c++)
             put(r, 1 + c, BOX_TILE + l * BOX_COLS + c);
     }
@@ -207,11 +246,9 @@ void ui_box_open(int lines)
 
 void ui_box_close(void)
 {
-    if (box_top >= 0)
-        for (int r = box_top; r < SCREEN_ROWS; r++)
-            for (int c = 0; c < 30; c++)
-                put(r, c, 0);
+    clear_box_rows();
     box_top = -1;
+    box_framed = 1;
     /* The debug HUD shares BG1; keep the layer on while it's showing. */
     int hud = 0;
     for (int t = 0; t < UI_HUD_ROWS * HUD_COLS && !hud; t++)
@@ -223,8 +260,13 @@ void ui_box_close(void)
 
 void ui_box_char(int line, int x, int font, unsigned char ch)
 {
+    ui_box_char_color(line, x, font, ch, 0);
+}
+
+void ui_box_char_color(int line, int x, int font, unsigned char ch, int color)
+{
     if (line >= 0 && line < box_lines)
-        draw_char(box_canvas, BOX_COLS, line, x, font, ch);
+        draw_char(box_canvas, BOX_COLS, line, x, font, ch, color);
 }
 
 void ui_box_cursor(int line, int x)
@@ -257,7 +299,7 @@ void ui_hud_text(int row, int x, const char *text)
     for (; *text && x < HUD_COLS * 8; text++)
     {
         unsigned char ch = (unsigned char)*text;
-        draw_char(hud_canvas, HUD_COLS, row, x, cur_font, ch);
+        draw_char(hud_canvas, HUD_COLS, row, x, cur_font, ch, 0);
         x += ui_char_width(cur_font, ch);
     }
 }

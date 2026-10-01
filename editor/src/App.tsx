@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
+import type { ThemeId } from "../shared/ipc";
 import { useProjectStore } from "./state/projectStore";
+import Tooltips from "./components/common/Tooltips";
 import AboutDialog from "./components/AboutDialog";
 import BuildRomPanel from "./components/BuildRomPanel";
 import Toolbar from "./components/Toolbar";
@@ -30,6 +32,11 @@ function loadPanelWidth(): number {
   }
 }
 
+/** View > Theme: theme.css keys every theme off <html data-theme>. */
+function applyTheme(theme: ThemeId) {
+  document.documentElement.dataset.theme = theme;
+}
+
 function isTyping(el: EventTarget | null): boolean {
   const t = el as HTMLElement | null;
   return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
@@ -43,6 +50,35 @@ export default function App() {
   const resizing = useRef(false);
   const panelWidthRef = useRef(panelWidth);
   panelWidthRef.current = panelWidth;
+
+  // Theme (saved by the main process) and the File/View menu commands.
+  useEffect(() => {
+    void window.api.getTheme().then((r) => r.ok && applyTheme(r.value));
+    return window.api.onMenuCommand((cmd) => {
+      const st = useProjectStore.getState();
+      switch (cmd.kind) {
+        case "theme":
+          applyTheme(cmd.theme);
+          break;
+        case "newProject":
+          // The start screen is where a new project gets its name.
+          st.closeProject();
+          break;
+        case "openProject":
+          void st.openProjectDialog();
+          break;
+        case "save":
+          void st.saveAll();
+          break;
+        case "saveAs":
+          void st.saveProjectAs();
+          break;
+        case "reloadAssets":
+          void st.refreshAssets().then(() => useProjectStore.getState().project && st.showNotice("Assets reloaded"));
+          break;
+      }
+    });
+  }, []);
 
   // Global shortcuts: undo/redo and Delete. Left to the browser while
   // typing in a field, so text fields keep their own native undo.
@@ -104,6 +140,7 @@ export default function App() {
       <>
         <WelcomeScreen loading={loading} />
         <AboutDialog />
+        <Tooltips />
       </>
     );
   }
@@ -138,6 +175,7 @@ export default function App() {
       <StatusBar />
       <BuildRomPanel />
       <AboutDialog />
+      <Tooltips />
     </div>
   );
 }

@@ -23,7 +23,7 @@
  * rest of the page at once, then A again moves on.
  */
 
-#define TEXT_LINES       2
+#define TEXT_LINES       2    /* default text box height, in lines */
 #define DIALOGUE_INPUT_DELAY 8   /* frames A/B/START ignored after a box
                                   * opens, turns a page or closes */
 #define OPTION_X         10   /* px: text after the menu cursor */
@@ -33,12 +33,14 @@ typedef struct
 {
     int font;
     int speed;
+    int color;   /* UI palette index for the text, 0 = the font's own */
 } TextState;
 
 typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU } Mode;
 
 static Mode mode = MODE_NONE;
 static int last_choice = 0;
+static int text_lines = TEXT_LINES;   /* lines in the current text box */
 
 /* MODE_TEXT */
 static const char *page;         /* start of the page on screen */
@@ -59,7 +61,8 @@ static const char *option_end[MENU_MAX_OPTIONS];
 
 static int is_code(unsigned char c)
 {
-    return c == UI_CODE_VAR || c == UI_CODE_VAR_HI || c == UI_CODE_FONT || c == UI_CODE_SPEED;
+    return c == UI_CODE_VAR || c == UI_CODE_VAR_HI || c == UI_CODE_FONT || c == UI_CODE_SPEED ||
+           c == UI_CODE_COLOR;
 }
 
 /* A code's argument (stored +1, see ui.h); variable codes give the
@@ -125,7 +128,7 @@ static int word_width(const char *p, int font)
 }
 
 /*
- * Lay out one page: word-wrapped over TEXT_LINES lines. Draws the first
+ * Lay out one page: word-wrapped over text_lines lines. Draws the first
  * `limit` characters when `draw` is set. Returns how many characters the
  * page has; sets *next to where the following page starts (0 if none)
  * and updates *st to the font/speed in effect once `limit` characters
@@ -136,6 +139,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
     const char *p = start;
     int line = 0, x = 0, count = 0;
     int font = st->font;
+    int color = st->color;
 
     *next = 0;
     while (*p && *p != '\n' && *p != UI_CODE_OPTION)
@@ -158,7 +162,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
             line++;
             x = 0;
         }
-        if (line >= TEXT_LINES)
+        if (line >= text_lines)
         {
             *next = p;   /* carries on as another page */
             break;
@@ -182,6 +186,12 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
                     if (count <= limit)
                         st->speed = arg;
                 }
+                else if (c == UI_CODE_COLOR)
+                {
+                    color = arg;
+                    if (count <= limit)
+                        st->color = arg;
+                }
                 else
                 {
                     char d[8];
@@ -189,7 +199,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
                     for (int i = 0; i < n; i++)
                     {
                         if (draw && count < limit && x < UI_TEXT_WIDTH)
-                            ui_box_char(line, x, font, (unsigned char)d[i]);
+                            ui_box_char_color(line, x, font, (unsigned char)d[i], color);
                         x += ui_char_width(font, (unsigned char)d[i]);
                         count++;
                     }
@@ -197,7 +207,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
                 continue;
             }
             if (draw && count < limit && x < UI_TEXT_WIDTH)
-                ui_box_char(line, x, font, c);
+                ui_box_char_color(line, x, font, c, color);
             x += ui_char_width(font, c);
             count++;
             p++;
@@ -241,6 +251,7 @@ static int reveal_speed(void)
 /* One line, no wrapping (choice prompts and options). */
 static void draw_line(int line, int x, const char *s, const char *e, int font)
 {
+    int color = 0;
     while (s < e && *s)
     {
         unsigned char c = (unsigned char)*s;
@@ -250,20 +261,22 @@ static void draw_line(int line, int x, const char *s, const char *e, int font)
             s += 2;
             if (c == UI_CODE_FONT)
                 font = arg;
+            else if (c == UI_CODE_COLOR)
+                color = arg;
             else if (is_var(c))
             {
                 char d[8];
                 int n = var_digits(arg, d);
                 for (int i = 0; i < n; i++)
                 {
-                    ui_box_char(line, x, font, (unsigned char)d[i]);
+                    ui_box_char_color(line, x, font, (unsigned char)d[i], color);
                     x += ui_char_width(font, (unsigned char)d[i]);
                 }
             }
             continue;
         }
         if (x < UI_TEXT_WIDTH)
-            ui_box_char(line, x, font, c);
+            ui_box_char_color(line, x, font, c, color);
         x += ui_char_width(font, c);
         s++;
     }
@@ -310,6 +323,7 @@ static void open_options(const char *packed, int count, int prompt)
     }
     option_count = count;
     cursor = 0;
+    text_lines = TEXT_LINES;
     ui_box_open(count + (prompt ? 1 : 0));
     draw_options();
     input_block_presses(DIALOGUE_INPUT_DELAY);
@@ -323,9 +337,18 @@ void dialogue_init(void)
 
 void dialogue_show(const char *text)
 {
-    TextState st = { ui_font(), ui_speed() };
+    dialogue_show_ex(text, 0);
+}
+
+void dialogue_show_ex(const char *text, int options)
+{
+    TextState st = { ui_font(), ui_speed(), 0 };
+    int rows = DIALOGUE_OPT_ROWS(options);
+    text_lines = rows ? rows : TEXT_LINES;
+    if (text_lines > UI_MAX_LINES)
+        text_lines = UI_MAX_LINES;
     mode = MODE_TEXT;
-    ui_box_open(TEXT_LINES);
+    ui_box_open_ex(text_lines, DIALOGUE_OPT_POSITION(options), !(options & DIALOGUE_OPT_NO_FRAME));
     start_page(text, st);
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }

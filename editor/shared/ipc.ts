@@ -283,7 +283,33 @@ export interface ShimmerEngineApi {
   openRom(payload: OpenRomPayload): Promise<IpcResult<void>>;
   /** Help > About was picked in the app menu. Returns an unsubscribe. */
   onShowAbout(cb: () => void): () => void;
+  /** A File/View menu item was picked (see MenuCommand). Returns an
+   * unsubscribe. */
+  onMenuCommand(cb: (command: MenuCommand) => void): () => void;
+  /** The editor theme saved in the app's settings (View > Theme). */
+  getTheme(): Promise<IpcResult<ThemeId>>;
+  /** File > Save As: asks where, copies the project folder there
+   * (without its build output) and opens the copy. null if cancelled. */
+  saveProjectAs(payload: { rootPath: string }): Promise<IpcResult<OpenProjectResult | null>>;
 }
+
+/** The editor's colour themes - View > Theme. */
+export const THEMES = [
+  { id: "dark", label: "Dark" },
+  { id: "light", label: "Light" },
+  { id: "midnight", label: "Midnight Blue" },
+  { id: "classic", label: "Classic Purple" },
+] as const;
+export type ThemeId = (typeof THEMES)[number]["id"];
+
+/** Main -> renderer: File/View menu picks the renderer acts on. */
+export type MenuCommand =
+  | { kind: "newProject" }
+  | { kind: "openProject" }
+  | { kind: "save" }
+  | { kind: "saveAs" }
+  | { kind: "reloadAssets" }
+  | { kind: "theme"; theme: ThemeId };
 
 export const IPC_CHANNELS = {
   openProjectDialog: "project:open-dialog",
@@ -319,6 +345,10 @@ export const IPC_CHANNELS = {
   openRom: "build:open-rom",
   /** Main -> renderer: show the About dialog. */
   showAbout: "menu:about",
+  /** Main -> renderer: a File/View menu command (MenuCommand). */
+  menuCommand: "menu:command",
+  getTheme: "settings:get-theme",
+  saveProjectAs: "project:save-as",
 } as const;
 
 export type { DoorJSON, NpcJSON, TimerJSON };

@@ -21,6 +21,14 @@ void dialogue_init(void);
 /* Start showing `text`. Turns the dialogue box on. */
 void dialogue_show(const char *text);
 
+/* Display Text's options, packed into one int (SCRIPT_TEXT's `a`):
+ * bits 0-1 position (UI_BOX_BOTTOM/TOP/MIDDLE), bits 2-4 text lines
+ * (1-4, 0 = the default 2), bit 5 = no frame. 0 = the usual box. */
+#define DIALOGUE_OPT_POSITION(o) ((o) & 3)
+#define DIALOGUE_OPT_ROWS(o)     (((o) >> 2) & 7)
+#define DIALOGUE_OPT_NO_FRAME    0x20
+void dialogue_show_ex(const char *text, int options);
+
 /* Is a dialogue box currently on screen? */
 int dialogue_active(void);
 

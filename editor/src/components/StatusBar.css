@@ -30,3 +30,8 @@
   color: var(--danger);
   flex: none;
 }
+
+.status-bar-notice {
+  color: var(--text-primary);
+  font-weight: 600;
+}

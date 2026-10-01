@@ -1,0 +1,15 @@
+.app-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: 340px;
+  padding: 6px 9px;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+  font-size: 12.5px;
+  line-height: 1.4;
+  white-space: pre-line;
+  pointer-events: none;
+}

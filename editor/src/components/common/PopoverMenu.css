@@ -34,7 +34,7 @@
 }
 
 .popover-item-danger {
-  color: #ff8a8d;
+  color: var(--danger-text);
 }
 
 .popover-item-danger:hover:not(:disabled) {

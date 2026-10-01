@@ -405,7 +405,7 @@ static void thread_step(ScriptThread *t, int is_main)
                 return;
             }
             if (ev->op == SCRIPT_TEXT)
-                dialogue_show(ev->str);
+                dialogue_show_ex(ev->str, ev->a);
             else if (ev->op == SCRIPT_CHOICE)
             {
                 dialogue_show_choice(ev->str);

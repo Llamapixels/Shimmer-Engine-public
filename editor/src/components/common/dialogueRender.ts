@@ -1,17 +1,22 @@
 /**
  * Draws dialogue boxes the way the game does: fonts read like
  * compiler/ui.py's load_font(), text laid out like engine/source/dialogue.c
- * (word wrap over 2 lines, a new line starts a new page, overflow carries
- * on to the next page, "!F:name!" switches font).
+ * (word wrap over 2 lines - or Display Text's "rows" - a new line starts a
+ * new page, overflow carries on to the next page, "!F:name!" switches
+ * font, "!C:#rrggbb!" recolours the font's ink).
  */
 
 export const BOX_W = 240;
 export const BOX_H = 32;
 const TEXT_X = 8;
-const TEXT_Y = 8;
 const TEXT_WIDTH = 224; // ui.h UI_TEXT_WIDTH
 const TEXT_LINES = 2; // dialogue.c TEXT_LINES
 const TILE = 8;
+
+/** Height in pixels of a box with `lines` text lines (plus its frame). */
+export function boxHeight(lines = TEXT_LINES, framed = true): number {
+  return (lines + (framed ? 2 : 0)) * TILE;
+}
 
 export interface UiFont {
   img: ImageData;
@@ -20,6 +25,8 @@ export interface UiFont {
   cols: number;
   /** "r,g,b" of the see-through background colour, if any. */
   bg: string | null;
+  /** "r,g,b" of its main text colour - what a !C code recolours. */
+  ink: string | null;
   left: number[];
   width: number[];
 }
@@ -85,7 +92,17 @@ export function parseFont(img: HTMLImageElement): UiFont | null {
       width[n] = TILE;
     }
   } else if (first <= 32 && 32 < first + count && width[32 - first] === 0) width[32 - first] = 3;
-  return { img: d, first, count, cols, bg, left, width };
+  // Ink: the most common colour across all glyphs (compiler/ui.py).
+  const inkCounts = new Map<string, number>();
+  for (let y = 0; y < rows * TILE; y++)
+    for (let x = 0; x < cols * TILE; x++) {
+      const i = at(x, y);
+      if (isTrim(d.data, i)) continue;
+      const c = rgb(d.data, i);
+      if (c !== bg) inkCounts.set(c, (inkCounts.get(c) ?? 0) + 1);
+    }
+  const ink = [...inkCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return { img: d, first, count, cols, bg, ink, left, width };
 }
 
 /** A 24x24 frame (3x3 tiles), or null. */
@@ -107,13 +124,21 @@ const charWidth = (font: UiFont, ch: string) => {
   return n < 0 ? 0 : font.width[n];
 };
 
-type Item = { kind: "char"; ch: string } | { kind: "font"; name: string } | { kind: "space" };
+type Item = { kind: "char"; ch: string } | { kind: "font"; name: string } | { kind: "color"; color: string | null } | { kind: "space" };
+
+/** "#rrggbb" -> [r, g, b], or null for "!C!" / "!C:default!" / bad input. */
+function parseHex(value: string | undefined): [number, number, number] | null {
+  const m = /^#([0-9a-f]{6})$/i.exec((value ?? "").trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
 
 /** Text -> items, as build_project.py's interpolate_vars() reads it:
  * {var} shows as a number (0 here), !S5! only changes speed. */
 function tokenize(text: string): Item[] {
   const out: Item[] = [];
-  const re = /\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!/g;
+  const re = /\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!/g;
   let pos = 0;
   const plain = (s: string) => {
     for (const ch of s) out.push(ch === " " ? { kind: "space" } : { kind: "char", ch });
@@ -123,6 +148,7 @@ function tokenize(text: string): Item[] {
     pos = m.index + m[0].length;
     if (m[1] !== undefined) out.push({ kind: "char", ch: "0" });
     else if (m[2] !== undefined) out.push({ kind: "font", name: m[2].trim() });
+    else if (m[0].startsWith("!C")) out.push({ kind: "color", color: m[4] ?? null });
   }
   plain(text.slice(pos));
   return out;
@@ -133,12 +159,15 @@ export interface Glyph {
   ch: string;
   x: number;
   line: number;
+  /** "#rrggbb" the font's ink is drawn in, or null for its own colour. */
+  color: string | null;
 }
 
 /** Pages of placed characters, following dialogue.c's layout(). */
-export function layoutPages(text: string, fonts: Record<string, UiFont>, startFont: string): Glyph[][] {
+export function layoutPages(text: string, fonts: Record<string, UiFont>, startFont: string, lines = TEXT_LINES): Glyph[][] {
   const pages: Glyph[][] = [];
   let font = startFont;
+  let color: string | null = null;
   const paragraphs = text.split("\n");
   while (paragraphs.length > 1 && paragraphs[paragraphs.length - 1] === "") paragraphs.pop();
   for (const para of paragraphs) {
@@ -169,7 +198,7 @@ export function layoutPages(text: string, fonts: Record<string, UiFont>, startFo
         line++;
         x = 0;
       }
-      if (line >= TEXT_LINES) {
+      if (line >= lines) {
         pages.push(page);
         page = [];
         line = 0;
@@ -179,8 +208,10 @@ export function layoutPages(text: string, fonts: Record<string, UiFont>, startFo
         const t = items[i];
         if (t.kind === "font") {
           if (fonts[t.name]) font = t.name;
+        } else if (t.kind === "color") {
+          color = parseHex(t.color ?? undefined) ? t.color!.trim() : null;
         } else if (t.kind === "char" && fonts[font]) {
-          if (x < TEXT_WIDTH) page.push({ font, ch: t.ch, x, line });
+          if (x < TEXT_WIDTH) page.push({ font, ch: t.ch, x, line, color });
           x += charWidth(fonts[font], t.ch);
         }
       }
@@ -190,20 +221,29 @@ export function layoutPages(text: string, fonts: Record<string, UiFont>, startFo
   return pages;
 }
 
-/** One page as a 240x32 box: the frame's 9-slice, then the text. */
-export function drawPage(page: Glyph[], fonts: Record<string, UiFont>, frame: ImageData | null): ImageData {
-  const out = new ImageData(BOX_W, BOX_H);
-  const put = (x: number, y: number, d: Uint8ClampedArray, i: number) => {
-    if (x < 0 || y < 0 || x >= BOX_W || y >= BOX_H) return;
+/** One page as a 240-wide box: the frame's 9-slice (unless framed is
+ * false - then just the text, on a see-through background), then the text. */
+export function drawPage(
+  page: Glyph[],
+  fonts: Record<string, UiFont>,
+  frame: ImageData | null,
+  lines = TEXT_LINES,
+  framed = true,
+): ImageData {
+  const boxH = boxHeight(lines, framed);
+  const textY = framed ? TILE : 0;
+  const out = new ImageData(BOX_W, boxH);
+  const put = (x: number, y: number, d: Uint8ClampedArray, i: number, tint?: [number, number, number] | null) => {
+    if (x < 0 || y < 0 || x >= BOX_W || y >= boxH) return;
     const o = (y * BOX_W + x) * 4;
-    out.data[o] = d[i];
-    out.data[o + 1] = d[i + 1];
-    out.data[o + 2] = d[i + 2];
+    out.data[o] = tint ? tint[0] : d[i];
+    out.data[o + 1] = tint ? tint[1] : d[i + 1];
+    out.data[o + 2] = tint ? tint[2] : d[i + 2];
     out.data[o + 3] = 255;
   };
-  if (frame) {
+  if (frame && framed) {
     const tw = BOX_W / TILE;
-    const th = BOX_H / TILE;
+    const th = boxH / TILE;
     for (let ty = 0; ty < th; ty++)
       for (let tx = 0; tx < tw; tx++) {
         const sx = tx === 0 ? 0 : tx === tw - 1 ? 2 : 1;
@@ -222,12 +262,14 @@ export function drawPage(page: Glyph[], fonts: Record<string, UiFont>, frame: Im
     const cx = (n % f.cols) * TILE;
     const cy = Math.floor(n / f.cols) * TILE;
     const left = f.left[n];
+    const tint = g.color ? parseHex(g.color) : null;
     for (let y = 0; y < TILE; y++)
       for (let px = left; px < TILE; px++) {
         const i = ((cy + y) * f.img.width + cx + px) * 4;
         if (isTrim(f.img.data, i) || rgb(f.img.data, i) === f.bg) continue;
         const dx = g.x + px - left;
-        if (dx < TEXT_WIDTH) put(TEXT_X + dx, TEXT_Y + g.line * TILE + y, f.img.data, i);
+        const isInk = tint && rgb(f.img.data, i) === f.ink;
+        if (dx < TEXT_WIDTH) put(TEXT_X + dx, textY + g.line * TILE + y, f.img.data, i, isInk ? tint : null);
       }
   }
   return out;

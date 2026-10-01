@@ -21,7 +21,7 @@
   align-items: center;
   padding: 6px 12px;
   background: rgba(229, 72, 77, 0.15);
-  color: #ffb3b5;
+  color: var(--danger-text);
   font-size: 13px;
   border-bottom: 1px solid var(--border);
 }

@@ -22,7 +22,7 @@
   justify-content: space-between;
   padding: 6px 12px;
   background: rgba(229, 72, 77, 0.15);
-  color: #ffb3b5;
+  color: var(--danger-text);
   font-size: 13px;
   border-bottom: 1px solid var(--border);
 }
@@ -256,7 +256,7 @@
 
 .spr-tool-danger:hover:not(:disabled) {
   background: rgba(229, 72, 77, 0.2);
-  color: #ffb3b5;
+  color: var(--danger-text);
 }
 
 .spr-zoom-label {

@@ -107,7 +107,7 @@
 }
 
 .build-panel-line-stderr {
-  color: #ff9a9d;
+  color: var(--danger-text);
 }
 
 .build-panel-line-status {

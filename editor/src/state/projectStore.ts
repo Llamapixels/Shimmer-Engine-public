@@ -131,6 +131,13 @@ function queueWrite(key: string, job: WriteJob, onResult: (key: string, error: s
   inFlight.set(key, run());
 }
 
+/** Waits until every queued and in-flight write has finished. */
+async function flushWrites(): Promise<void> {
+  while (inFlight.size > 0) await Promise.all([...inFlight.values()]);
+}
+
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+
 /** Drop any queued write for `key` and wait out the one in flight - so a
  * scene file that's about to be deleted can't be re-created by a save
  * that lands just after the delete. */
@@ -163,6 +170,9 @@ interface ProjectState {
   loading: boolean;
   error: string | null;
   saveError: string | null;
+  /** A short message in the status bar ("Saved", Save As errors...),
+   * cleared after a few seconds. */
+  notice: string | null;
   assets: AssetListing | null;
   recentProjects: string[];
   /** Events copied with Copy in the script editor. */
@@ -232,6 +242,12 @@ interface ProjectState {
   undo: () => void;
   redo: () => void;
   refreshAssets: () => Promise<void>;
+  /** File > Save: writes project.json and every scene now and waits for
+   * all writes (edits already autosave; this makes it certain). */
+  saveAll: () => Promise<void>;
+  /** File > Save As: copy the project to a new folder and open the copy. */
+  saveProjectAs: () => Promise<void>;
+  showNotice: (message: string) => void;
 
   addConstant: (name: string, value: number) => void;
   renameConstant: (name: string, next: string) => void;
@@ -421,6 +437,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     loading: false,
     error: null,
     saveError: null,
+    notice: null,
     assets: null,
     recentProjects: loadRecent(),
     scriptClipboard: null,
@@ -772,6 +789,35 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const cur: Snapshot = { project: project.project, scenes: project.scenes };
       set({ future: future.slice(1), past: [...past, cur].slice(-HISTORY_LIMIT), tilePick: null });
       restore(next);
+    },
+
+    saveAll: async () => {
+      const { project } = get();
+      if (!project) return;
+      persistProject(project.rootPath, project.project);
+      for (const rec of project.scenes) persistScene(project.rootPath, rec.fileId, rec.data);
+      await flushWrites();
+      get().showNotice(get().saveError ? `Couldn't save: ${get().saveError}` : "Saved");
+    },
+
+    saveProjectAs: async () => {
+      const { project } = get();
+      if (!project) return;
+      await flushWrites();
+      const result = await window.api.saveProjectAs({ rootPath: project.rootPath });
+      if (!result.ok) {
+        get().showNotice(`Save As failed: ${result.error}`);
+        return;
+      }
+      if (!result.value) return;
+      afterOpen(result.value.data);
+      get().showNotice(`Saved a copy - now editing ${result.value.data.rootPath}`);
+    },
+
+    showNotice: (message) => {
+      set({ notice: message });
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => set({ notice: null }), 4000);
     },
 
     refreshAssets: async () => {

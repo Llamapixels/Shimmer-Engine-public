@@ -264,11 +264,11 @@
 
 .select-invalid {
   border-color: var(--danger) !important;
-  color: #ffb3b5 !important;
+  color: var(--danger-text) !important;
 }
 
 .field-error {
-  color: #ff8a8d;
+  color: var(--danger-text);
   font-size: 12px;
   margin-top: 3px;
 }
@@ -534,4 +534,41 @@
   font-size: 12px;
   color: var(--text-secondary);
   background: var(--bg-1);
+}
+
+/* Display Text's Insert bar (text codes). */
+.text-code-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+
+.text-code-bar select {
+  width: auto;
+  min-width: 0;
+}
+
+.text-code-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.text-code-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.text-code-color input[type="color"] {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: none;
 }

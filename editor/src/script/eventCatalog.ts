@@ -69,6 +69,8 @@ export interface FieldDef {
   placeholder?: string;
   /** "select" / "checks" (any number of them, stored as a list): the choices. */
   options?: { value: string; label: string }[];
+  /** Shown (and assumed by the compiler) when the event has no value. */
+  defaultValue?: unknown;
 }
 
 export type BranchKey = "then" | "else" | "body" | "children" | "script";
@@ -237,8 +239,23 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Display Text",
     category: "Dialogue",
     description:
-      "Show a dialogue box. A new line starts a new page; long text carries on to the next page. {varname} shows a variable, !F:name! switches font, !S2! sets the text speed (frames per letter, 0 = instant).",
-    fields: [{ key: "text", label: "Text", kind: "multiline" }],
+      "Show a dialogue box. A new line starts a new page; long text carries on to the next page. {varname} shows a variable, !F:name! switches font, !C:#ff4040! colours the text (!C! resets), !S2! sets the text speed (frames per letter, 0 = instant). Use the Insert buttons under the text to add these.",
+    fields: [
+      { key: "text", label: "Text", kind: "multiline" },
+      {
+        key: "position",
+        label: "Position",
+        kind: "select",
+        defaultValue: "bottom",
+        options: [
+          { value: "bottom", label: "Bottom" },
+          { value: "middle", label: "Middle" },
+          { value: "top", label: "Top" },
+        ],
+      },
+      { key: "rows", label: "Rows", kind: "int", min: 1, max: 4, defaultValue: 2 },
+      { key: "frame", label: "Frame", kind: "bool", defaultValue: true },
+    ],
     create: () => ({ type: "text", text: "" }),
     summary: (ev) => `"${short(ev.text)}"`,
   }),

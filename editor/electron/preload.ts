@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import { IPC_CHANNELS } from "../shared/ipc.js";
-import type { ShimmerEngineApi, BuildLogEvent } from "../shared/ipc.js";
+import type { ShimmerEngineApi, BuildLogEvent, MenuCommand } from "../shared/ipc.js";
 
 // contextIsolation is on (see main.ts's webPreferences), so this is the
 // only surface the renderer gets: no direct ipcRenderer/node access,
@@ -47,6 +47,13 @@ const api: ShimmerEngineApi = {
     ipcRenderer.on(IPC_CHANNELS.showAbout, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.showAbout, listener);
   },
+  onMenuCommand: (cb) => {
+    const listener = (_event: unknown, command: MenuCommand) => cb(command);
+    ipcRenderer.on(IPC_CHANNELS.menuCommand, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.menuCommand, listener);
+  },
+  getTheme: () => ipcRenderer.invoke(IPC_CHANNELS.getTheme),
+  saveProjectAs: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveProjectAs, payload),
 };
 
 contextBridge.exposeInMainWorld("api", api);

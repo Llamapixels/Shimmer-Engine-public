@@ -209,7 +209,11 @@ Event script types (used in "on_interact" and door "events" lists):
     { "type": "text", "text": "..." }
         Show a dialogue box. "\n" in the text starts a new page. Pauses the
         script until the player dismisses it.
-        Text codes (as in GB Studio): "!F:fontname!" switches font and
+        Optional box options: "position": "bottom" | "top" | "middle",
+        "rows": 1-4 (text lines, default 2), "frame": false (text only,
+        no box).
+        Text codes (as in GB Studio): "!F:fontname!" switches font,
+        "!C:#ff4040!" colours the text ("!C!" resets) and
         "!S5!" sets the text speed (frames per character, 0 = instant)
         from that point on. Text too long for the box continues on the
         next page.
@@ -463,7 +467,7 @@ from PIL import Image
 
 from sprites import (SheetImage, SpriteError, check_sheet, compile_sprite, default_sheet,
                      emit_sprite)
-from ui import UiError, build_ui, encode_char, ui_to_c
+from ui import UiError, build_ui, color_index, encode_char, ui_to_c
 import modes as M
 from uge import UgeError, build_uge_songs, track_const as uge_track_const
 from wav import WavError, build_sounds, sound_files
@@ -592,8 +596,13 @@ FADE_COLOR_TO_SCRIPT = {"black": 0, "white": 1}
 # strings - see interpolate_vars().
 VAR_REF_RE = re.compile(r"\{([^{}]+)\}")
 # Text codes (GB Studio's): "!F:fontname!" switches font, "!S5!" / "!S:5!"
-# sets the text speed (frames per character, 0 = instant).
-TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!")
+# sets the text speed (frames per character, 0 = instant). Ours:
+# "!C:#ff4040!" colours the text from there on, "!C!" goes back to the
+# font's own colour.
+TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!")
+
+# Display Text "position" -> engine/include/ui.h UI_BOX_*.
+TEXT_POSITIONS = {"bottom": 0, "top": 1, "middle": 2}
 
 # Event "wait_button" button names -> engine/include/input.h INPUT_* bits.
 BUTTON_NAME_TO_CONST = {
@@ -1371,6 +1380,8 @@ def interpolate_vars(text, ctx, where):
             out.append(("\x02" if idx < 128 else "\x05") + chr((idx & 0x7F) + 1))
         elif m.group(2) is not None:
             out.append("\x03" + chr(resolve_ui_name(m.group(2), "font", ctx, where) + 1))
+        elif m.group(0).startswith("!C"):
+            out.append("\x06" + chr(resolve_text_color(m.group(4), ctx, where) + 1))
         else:
             speed = int(m.group(3))
             if speed > 30:
@@ -1378,6 +1389,35 @@ def interpolate_vars(text, ctx, where):
             out.append("\x04" + chr(speed + 1))
     plain(text[pos:])
     return "".join(out)
+
+
+def resolve_text_color(value, ctx, where):
+    """A "!C:...!" code's colour -> its dialogue palette index (0 = the
+    font's own colour, for "!C!" / "!C:default!")."""
+    value = (value or "").strip()
+    if value == "" or value.lower() == "default":
+        return 0
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+        raise BuildError(f"{where}: text colour !C:{value}! should be a hex colour like !C:#ff4040! (or !C! to reset).")
+    ui = ctx.get("ui")
+    rgb = tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
+    idx = color_index(ui, rgb) if ui else None
+    if idx is None:
+        raise BuildError(f"{where}: text colour {value} isn't in the dialogue palette.")
+    return idx
+
+
+def text_options(ev, where):
+    """Display Text's box options -> SCRIPT_TEXT's `a` (see
+    engine/include/dialogue.h DIALOGUE_OPT_*)."""
+    pos = str(ev.get("position", "bottom")).lower()
+    if pos not in TEXT_POSITIONS:
+        raise BuildError(f"{where}: \"position\" must be bottom, top or middle.")
+    rows = ev.get("rows", 2)
+    if isinstance(rows, bool) or not isinstance(rows, int) or not 1 <= rows <= 4:
+        raise BuildError(f"{where}: \"rows\" must be 1 to 4.")
+    framed = ev.get("frame", True) is not False
+    return TEXT_POSITIONS[pos] | ((0 if rows == 2 else rows) << 2) | (0 if framed else 0x20)
 
 
 def resolve_ui_name(name, kind, ctx, where):
@@ -1474,7 +1514,7 @@ def compile_events(events, out, ctx, where):
         if etype == "text":
             text = _require(ev, "text", ev_where)
             text = interpolate_vars(text, ctx, ev_where)
-            out.append(_instr("SCRIPT_TEXT", text=c_string_literal(text)))
+            out.append(_instr("SCRIPT_TEXT", a=text_options(ev, ev_where), text=c_string_literal(text)))
 
         elif etype == "text_set_font":
             idx = resolve_ui_name(_require(ev, "font", ev_where), "font", ctx, ev_where)

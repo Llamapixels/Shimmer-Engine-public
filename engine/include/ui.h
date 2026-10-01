@@ -24,6 +24,8 @@ typedef struct
     const uint8_t *widths;
     uint16_t count;
     uint8_t first;            /* character code of glyph 0 */
+    uint8_t ink;              /* its main text colour (palette index) -
+                               * what a !C colour code recolours */
 } UiFont;
 
 extern const UiFont ui_fonts[];
@@ -44,6 +46,8 @@ extern const uint8_t ui_default_text_speed;
 #define UI_CODE_FONT    0x03   /* a = font index from here on */
 #define UI_CODE_SPEED   0x04   /* a = frames per character from here on */
 #define UI_CODE_VAR_HI  0x05   /* a = variable index 128-255, minus 128 */
+#define UI_CODE_COLOR   0x06   /* a = palette index for the text colour from
+                                * here on, 0 = the font's own colour */
 
 #define UI_TEXT_WIDTH   224    /* px inside the box (28 tiles) */
 #define UI_MAX_LINES    4      /* text lines the box can grow to */
@@ -62,13 +66,23 @@ int ui_speed(void);
 /* Width in pixels of character `ch` in `font` (0 for unknown fonts). */
 int ui_char_width(int font, unsigned char ch);
 
+/* Where a dialogue box sits on screen (Display Text's "Position"). */
+#define UI_BOX_BOTTOM 0
+#define UI_BOX_TOP    1
+#define UI_BOX_MIDDLE 2
+
 /* Show the box, `lines` text lines tall, at the bottom of the screen,
  * with its canvas cleared to the frame's fill. */
 void ui_box_open(int lines);
+/* The same, at `position` (UI_BOX_*); framed = 0 draws no frame at all,
+ * just the text on a see-through background. */
+void ui_box_open_ex(int lines, int position, int framed);
 void ui_box_close(void);
 void ui_box_clear(void);
 /* Draw one character with its left edge at pixel x of text line `line`. */
 void ui_box_char(int line, int x, int font, unsigned char ch);
+/* ... with the font's ink drawn in palette colour `color` (0 = as is). */
+void ui_box_char_color(int line, int x, int font, unsigned char ch, int color);
 /* Draw the menu cursor at pixel x of text line `line`. */
 void ui_box_cursor(int line, int x);
 /* Copy the canvas to VRAM (after drawing). */

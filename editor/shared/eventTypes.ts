@@ -52,6 +52,12 @@ export interface EventBase {
 export interface TextEvent extends EventBase {
   type: "text";
   text: string;
+  /** Where the box sits (default "bottom"). */
+  position?: "bottom" | "top" | "middle";
+  /** Text lines in the box, 1-4 (default 2). */
+  rows?: number;
+  /** false = no frame: just the text, on a see-through background. */
+  frame?: boolean;
 }
 
 /** Dialogue look from here on (compiler/ui.py): a font/frame name
