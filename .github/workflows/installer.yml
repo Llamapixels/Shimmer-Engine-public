@@ -112,13 +112,12 @@ jobs:
           pyinstaller --onefile --name shimmer-build --paths compiler --add-data "compiler/engine_settings.json:." --distpath pyi-dist compiler/build_rom.py
 
       # devkitPro's official image already has devkitARM, gba-tools and
-      # libgba installed; copy /opt/devkitpro out of it.
+      # libgba installed; copy just those out of its /opt/devkitpro (the
+      # rest, e.g. pacman, has symlinks pointing outside it).
       - name: Get devkitARM, gba-tools and libgba
         run: |
-          docker pull devkitpro/devkitarm
-          id=$(docker create devkitpro/devkitarm)
-          docker cp "$id:/opt/devkitpro" "$RUNNER_TEMP/devkitpro"
-          docker rm "$id"
+          mkdir -p "$RUNNER_TEMP/devkitpro"
+          docker run --rm -v "$RUNNER_TEMP/devkitpro:/out" devkitpro/devkitarm             sh -c "cp -a /opt/devkitpro/devkitARM /opt/devkitpro/libgba /opt/devkitpro/tools /out/ && chown -R $(id -u):$(id -g) /out"
           ls "$RUNNER_TEMP/devkitpro"
 
       - name: Stage the toolchain
