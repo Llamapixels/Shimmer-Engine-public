@@ -34,6 +34,7 @@
     "wait-on": "^7.2.0"
   },
   "author": "HoloCatt",
+  "license": "GPL-3.0-only",
   "build": {
     "appId": "com.holocatt.shimmerengine",
     "productName": "Shimmer Engine",

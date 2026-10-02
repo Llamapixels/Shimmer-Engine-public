@@ -32,3 +32,7 @@ python3 compiler/build_rom.py <project folder>
 ## Credits
 
 Made by HoloCatt.
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).
