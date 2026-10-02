@@ -112,6 +112,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
     ...(builtinFonts ?? []).filter((b) => !(projectFonts ?? []).some((a) => a.name === b.name)),
   ];
   const frames = useProjectStore((s) => s.assets?.frames ?? []);
+  const cutsceneNames = (useProjectStore((s) => s.assets?.cutscenes) ?? []).map((c) => c.name);
   const variables = useProjectStore((s) => s.project?.project.variables) ?? [];
 
   switch (field.kind) {
@@ -638,6 +639,22 @@ export function FieldControl({ field, ev, env, patch }: Props) {
         >
           {!found && <option value={cur}>{cur ? `${cur} (missing!)` : "Choose a state…"}</option>}
           {stateNames.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    case "cutscene": {
+      const names = cutsceneNames;
+      const cur = String(value ?? "");
+      const known = names.includes(cur);
+      return (
+        <select className={!known ? "select-invalid" : undefined} value={cur} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {!known && <option value={cur}>{cur ? `${cur} (not found!)` : names.length ? "Choose a cutscene…" : "None yet - make one in the Cutscenes tab"}</option>}
+          {names.map((n) => (
             <option key={n} value={n}>
               {n}
             </option>

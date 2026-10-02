@@ -15,6 +15,7 @@ import BackgroundsView from "./components/views/BackgroundsView";
 import SpritesView from "./components/views/SpritesView";
 import MusicView from "./components/views/MusicView";
 import ArtEditorView from "./art/ArtEditorView";
+import CutscenesView from "./cutscenes/CutscenesView";
 import { useArtStore } from "./art/artStore";
 import SettingsView from "./components/views/SettingsView";
 import "./App.css";
@@ -176,6 +177,7 @@ export default function App() {
           {section === "sprites" && <SpritesView />}
           {section === "music" && <MusicView />}
           {section === "art" && <ArtEditorView />}
+          {section === "cutscenes" && <CutscenesView />}
           {section === "settings" && <SettingsView />}
         </div>
       )}

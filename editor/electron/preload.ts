@@ -56,6 +56,9 @@ const api: ShimmerEngineApi = {
   saveImage: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveImage, payload),
   exportFile: (payload) => ipcRenderer.invoke(IPC_CHANNELS.exportFile, payload),
   pickImageFile: () => ipcRenderer.invoke(IPC_CHANNELS.pickImageFile),
+  pickVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.pickVideoFile),
+  saveCutscene: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveCutscene, payload),
+  deleteCutscene: (payload) => ipcRenderer.invoke(IPC_CHANNELS.deleteCutscene, payload),
   saveProjectAs: (payload) => ipcRenderer.invoke(IPC_CHANNELS.saveProjectAs, payload),
 };
 

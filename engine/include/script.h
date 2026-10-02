@@ -385,7 +385,10 @@ typedef enum
      * actor, b/c = x/y (numbers, variable indices or - for an actor
      * target - b = that actor), d = MOVE_F_* flags. */
     SCRIPT_ACTOR_MOVE_EX,
-    SCRIPT_ACTOR_SET_POSITION_EX
+    SCRIPT_ACTOR_SET_POSITION_EX,
+
+    SCRIPT_PLAY_CUTSCENE       /* a = cutscenes[] index, b = CUTSCENE_*
+                                 * flags (cutscene.h); blocks until done */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

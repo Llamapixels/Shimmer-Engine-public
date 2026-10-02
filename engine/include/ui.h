@@ -54,6 +54,8 @@ extern const uint8_t ui_default_text_speed;
 #define UI_HUD_ROWS     4      /* debug HUD lines at the top of the screen */
 
 void ui_init(void);
+/* Reload the dialogue layer's VRAM after a cutscene used it. */
+void ui_restore_vram(void);
 
 /* The font/frame/text speed dialogue uses from now on ("Set Font",
  * "Set Dialogue Frame", "Set Text Speed" events). Out of range = ignored. */

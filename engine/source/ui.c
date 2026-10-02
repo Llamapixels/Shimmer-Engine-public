@@ -84,6 +84,25 @@ void ui_init(void)
     box_top = -1;
 }
 
+/* After something else used BG1's VRAM (a cutscene): put the palette,
+ * frame tiles and an empty map back, keeping the current font/speed. */
+void ui_restore_vram(void)
+{
+    for (int i = 0; i < 8; i++)
+        UI_TILES[i] = 0;
+    for (int i = 0; i < 16; i++)
+        BG_PAL[PALETTE_BANK * 16 + i] = ui_palette[i];
+    load_frame_tiles();
+    REG_BG1CNT = (0 << 0) | (UI_CHAR_BLOCK << 2) | (UI_SCREEN_BLOCK << 8);
+    for (int i = 0; i < 32 * 32; i++)
+        UI_MAP[i] = PALETTE_BANK << 12;
+    box_top = -1;
+    box_framed = 1;
+    box_left = 0;
+    box_cols = 30;
+    text_cols = BOX_COLS;
+}
+
 void ui_set_font(int font)
 {
     if (font >= 0 && font < ui_font_count)

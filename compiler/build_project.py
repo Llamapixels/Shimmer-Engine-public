@@ -467,6 +467,7 @@ from PIL import Image
 
 from sprites import (SheetImage, SpriteError, check_sheet, compile_sprite, default_sheet,
                      emit_sprite)
+from cutscenes import CutsceneError, build_cutscenes, cutscene_files
 from ui import UiError, build_ui, color_index, encode_char, ui_to_c
 import modes as M
 from uge import UgeError, build_uge_songs, track_const as uge_track_const
@@ -477,7 +478,8 @@ import expr as X
 # Each project's .uge songs live in <project>/assets/music/ and are
 # compiled into engine/data/uge_songs.c.
 PROJECT_MUSIC_DIR = Path("assets") / "music"
-PROJECT_SOUNDS_DIR = Path("assets") / "sounds"   # WAV sound effects (compiler/wav.py)
+PROJECT_SOUNDS_DIR = Path("assets") / "sounds"
+PROJECT_CUTSCENES_DIR = Path("assets") / "cutscenes"   # video cutscenes (compiler/cutscenes.py)   # WAV sound effects (compiler/wav.py)
 WAV_CHANNELS = {"auto": 0, "a": 1, "b": 2}
 
 
@@ -2021,7 +2023,7 @@ def _loop_on_expr(out, node, body, ctx, where, step=None):
 
 # Every event type compile_parity_event() handles (for error messages).
 PARITY_EVENT_TYPES = [
-    "if_expression", "set_var_expression", "loop_while", "loop_for",
+    "play_cutscene", "if_expression", "set_var_expression", "loop_while", "loop_for",
     "set_var_true", "set_var_false", "var_inc", "var_dec", "if_var_true",
     "if_var_false", "var_set_flags", "var_add_flags", "var_clear_flags",
     "if_var_flags", "vars_reset", "seed_rng", "rate_limit", "label", "goto",
@@ -2351,6 +2353,14 @@ def compile_parity_event(etype, ev, out, ctx, where):
             raise BuildError(f"{where}: unknown scene '{scene_name}'. Known scenes: {known}")
         node = X.op("EXPR_EQ", X.op("EXPR_SCENE"), X.const(ctx["name_to_index"][scene_name]))
         _expr_branch(out, node, ev, ctx, where)
+
+    elif etype == "play_cutscene":
+        name = str(_require(ev, "cutscene", where))
+        if name not in ctx["cutscene_names"]:
+            known = ", ".join(ctx["cutscene_names"]) or "(none - make one in the Cutscenes tab)"
+            raise BuildError(f"{where}: unknown cutscene '{name}'. Cutscenes: {known}")
+        flags = (1 if ev.get("skippable", True) else 0) | (2 if ev.get("stop_music", True) else 0)
+        out.append(_instr("SCRIPT_PLAY_CUTSCENE", a=ctx["cutscene_names"].index(name), b=flags))
 
     elif etype in ("scene_push", "scene_pop", "scene_pop_all", "scene_reset"):
         op_name = {"scene_push": "SCRIPT_SCENE_PUSH", "scene_pop": "SCRIPT_SCENE_POP",
@@ -2975,6 +2985,7 @@ def build(project_dir, out_dir):
         "custom_scripts": custom_scripts,
         "music_names": {p.stem for p in (project_dir / PROJECT_MUSIC_DIR).glob("*.uge")},
         "wav_names": [p.stem for p in sound_files(project_dir / PROJECT_SOUNDS_DIR)],
+        "cutscene_names": [n for n, _, _ in cutscene_files(project_dir / PROJECT_CUTSCENES_DIR)],
     }
     M.set_sound_names(ctx["wav_names"])
 
@@ -3529,9 +3540,13 @@ def build(project_dir, out_dir):
     if uge_names:
         print(f"Wrote {out_dir / 'uge_songs.c'} ({len(uge_names)} .uge song(s))")
     try:
-        wav_names = build_sounds(project_dir / PROJECT_SOUNDS_DIR, out_dir)
-    except WavError as e:
+        cut_names, cut_sounds = build_cutscenes(
+            project_dir / PROJECT_CUTSCENES_DIR, out_dir, len(ctx["wav_names"]))
+        wav_names = build_sounds(project_dir / PROJECT_SOUNDS_DIR, out_dir, cut_sounds)
+    except (WavError, CutsceneError) as e:
         raise BuildError(str(e)) from None
+    if cut_names:
+        print(f"  cutscenes: {', '.join(cut_names)}")
     if wav_names:
         print(f"  sounds: {', '.join(wav_names)}")
     write_if_changed(out_dir / "ui_data.c", ui_to_c(ctx["ui"]))

@@ -19,6 +19,7 @@ import type {
   AssetInfo,
   AssetKind,
   SaveImagePayload,
+  SaveCutscenePayload,
   AssetListing,
   CreateBackgroundPayload,
   CreateProjectPayload,
@@ -42,6 +43,8 @@ const MIME_BY_EXT: Record<string, string> = {
   ".uge": "application/octet-stream",
   ".wav": "audio/wav",
   ".json": "application/json",
+  ".cut": "application/octet-stream",
+  ".raw": "application/octet-stream",
 };
 
 /** JSON.stringify with the same 2-space indent + trailing newline
@@ -362,9 +365,10 @@ export async function listAssets(rootPath: string): Promise<AssetListing> {
   }
 
   const sounds = await listFolder(rootPath, "project", "assets/sounds", [".wav"]);
+  const cutscenes = await listFolder(rootPath, "project", CUTSCENES_DIR, [".cut"]);
   const builtinFonts = engineRoot ? await listFolder(engineRoot, "engine", "engine/data/ui/fonts", IMAGE_EXTS) : [];
 
-  return { backgrounds, sprites, music, fonts, builtinFonts, frames, sounds, engineRoot };
+  return { backgrounds, sprites, music, fonts, builtinFonts, frames, sounds, cutscenes, engineRoot };
 }
 
 /** A file name that doesn't collide with anything already in `dir`:
@@ -574,6 +578,29 @@ export async function createBackground(payload: CreateBackgroundPayload): Promis
     bytes: st.size,
     mtimeMs: st.mtimeMs,
   };
+}
+
+const CUTSCENES_DIR = "assets/cutscenes";
+
+/** Cutscenes tab: write <name>.cut, <name>.raw (or remove it) and <name>.json. */
+export async function saveCutscene(payload: SaveCutscenePayload): Promise<void> {
+  const stem = safeStem(payload.name, "cutscene");
+  const dir = path.join(payload.rootPath, CUTSCENES_DIR);
+  await fs.mkdir(dir, { recursive: true });
+  const cut = Buffer.from(payload.cutBase64, "base64");
+  if (cut.length < 12 || cut.subarray(0, 4).toString("latin1") !== "SHCV") throw new Error("That isn't a cutscene file.");
+  await fs.writeFile(path.join(dir, `${stem}.cut`), cut);
+  const raw = path.join(dir, `${stem}.raw`);
+  if (payload.rawBase64) await fs.writeFile(raw, Buffer.from(payload.rawBase64, "base64"));
+  else await fs.rm(raw, { force: true });
+  await fs.writeFile(path.join(dir, `${stem}.json`), payload.meta, "utf-8");
+}
+
+export async function deleteCutscene(rootPath: string, name: string): Promise<void> {
+  const stem = safeStem(name, "");
+  if (!stem) return;
+  const dir = path.join(rootPath, CUTSCENES_DIR);
+  for (const ext of [".cut", ".raw", ".json"]) await fs.rm(path.join(dir, stem + ext), { force: true });
 }
 
 /** Folders the Art Editor may write PNGs into. */

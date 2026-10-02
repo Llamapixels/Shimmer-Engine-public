@@ -808,6 +808,16 @@ export interface IfCurrentSceneEvent extends EventBase {
 }
 
 /** Remembers the current scene and player position. */
+/** Play a video cutscene (assets/cutscenes, compiler/cutscenes.py). */
+export interface PlayCutsceneEvent extends EventBase {
+  type: "play_cutscene";
+  cutscene: string;
+  /** A / START ends it early (default true). */
+  skippable?: boolean;
+  /** Stop the .uge music first (default true). */
+  stop_music?: boolean;
+}
+
 export interface ScenePushEvent extends EventBase {
   type: "scene_push";
 }
@@ -1010,6 +1020,7 @@ export type ScriptEventJSON =
   | IfInputEvent
   | IfCurrentSceneEvent
   | ScenePushEvent
+  | PlayCutsceneEvent
   | ScenePopEvent
   | ScenePopAllEvent
   | SceneResetEvent

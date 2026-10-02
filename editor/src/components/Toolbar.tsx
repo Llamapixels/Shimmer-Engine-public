@@ -18,6 +18,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "backgrounds", label: "Backgrounds" },
   { id: "art", label: "Art Editor" },
   { id: "music", label: "Music" },
+  { id: "cutscenes", label: "Cutscenes" },
   { id: "settings", label: "Settings" },
 ];
 

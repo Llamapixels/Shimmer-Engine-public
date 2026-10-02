@@ -10,6 +10,7 @@
 #include "actor.h"
 #include "input.h"
 #include "camera.h"
+#include "cutscene.h"
 #include "rng.h"
 #include "timer.h"
 #include "transition.h"
@@ -992,6 +993,10 @@ static void thread_step(ScriptThread *t, int is_main)
             }
             break;
         }
+
+        case SCRIPT_PLAY_CUTSCENE:
+            cutscene_play(ev->a, ev->b);
+            break;
 
         case SCRIPT_SCENE_PUSH:
             game_scene_push(ev->a, (int)(t - threads));

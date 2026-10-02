@@ -100,6 +100,8 @@ export interface AssetListing {
    * project; a project font of the same name replaces one. */
   builtinFonts: AssetInfo[];
   frames: AssetInfo[];
+  /** Video cutscenes (assets/cutscenes/*.cut, compiler/cutscenes.py). */
+  cutscenes: AssetInfo[];
   /** WAV sound effects (assets/sounds/*.wav, compiler/wav.py). */
   sounds: AssetInfo[];
   /** Absolute path of the folder containing engine/, or null if this
@@ -137,6 +139,19 @@ export interface SaveImagePayload {
    * "<name>.art.json" (the PNG stays the flattened image the game uses).
    * null = delete that file (a single plain layer needs none). */
   sidecar?: string | null;
+}
+
+/** Cutscenes tab: a converted video. */
+export interface SaveCutscenePayload {
+  rootPath: string;
+  /** File stem in assets/cutscenes. */
+  name: string;
+  /** The .cut file, base64. */
+  cutBase64: string;
+  /** Its sound (.raw, signed 8-bit mono at 16384 Hz), base64; null = silent. */
+  rawBase64: string | null;
+  /** The settings it was made with (.json). */
+  meta: string;
 }
 
 /** Art Editor export: a file the user puts anywhere (Save dialog). */
@@ -317,6 +332,11 @@ export interface ShimmerEngineApi {
   exportFile(payload: ExportFilePayload): Promise<IpcResult<string | null>>;
   /** Art Editor import: pick an image file anywhere; null if cancelled. */
   pickImageFile(): Promise<IpcResult<{ fileName: string; dataUrl: string } | null>>;
+  /** Cutscenes: pick a video file (bytes as base64); null if cancelled. */
+  pickVideoFile(): Promise<IpcResult<{ fileName: string; base64: string; mime: string } | null>>;
+  /** Cutscenes: write <name>.cut/.raw/.json; returns the asset listing. */
+  saveCutscene(payload: SaveCutscenePayload): Promise<IpcResult<AssetListing>>;
+  deleteCutscene(payload: { rootPath: string; name: string }): Promise<IpcResult<AssetListing>>;
   /** The editor theme saved in the app's settings (View > Theme). */
   getTheme(): Promise<IpcResult<ThemeId>>;
   /** File > Save As: asks where, copies the project folder there
@@ -379,6 +399,9 @@ export const IPC_CHANNELS = {
   saveImage: "asset:save-image",
   exportFile: "art:export-file",
   pickImageFile: "art:pick-image",
+  pickVideoFile: "cutscene:pick-video",
+  saveCutscene: "cutscene:save",
+  deleteCutscene: "cutscene:delete",
   /** Main -> renderer: a File/View menu command (MenuCommand). */
   menuCommand: "menu:command",
   getTheme: "settings:get-theme",

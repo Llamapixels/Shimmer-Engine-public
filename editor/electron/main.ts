@@ -11,6 +11,7 @@ import type {
   CreateBackgroundPayload,
   SaveImagePayload,
   ExportFilePayload,
+  SaveCutscenePayload,
   CreateProjectPayload,
   CreateScenePayload,
   CreateSongPayload,
@@ -318,6 +319,32 @@ function registerIpcHandlers(): void {
     if (result.canceled || !result.filePath) return null;
     await writeFile(result.filePath, Buffer.from(payload.base64, "base64"));
     return result.filePath;
+  });
+
+  handle(IPC_CHANNELS.pickVideoFile, async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Choose a video",
+      properties: ["openFile"],
+      filters: [{ name: "Videos", extensions: ["mp4", "m4v", "webm", "mov", "ogv", "mkv"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const file = result.filePaths[0];
+    const ext = path.extname(file).toLowerCase();
+    const mime = ext === ".webm" || ext === ".mkv" ? "video/webm" : ext === ".ogv" ? "video/ogg" : ext === ".mov" ? "video/quicktime" : "video/mp4";
+    return { fileName: path.basename(file), base64: (await readFile(file)).toString("base64"), mime };
+  });
+
+  handle(IPC_CHANNELS.saveCutscene, async (payload: SaveCutscenePayload) => {
+    checkRoot(payload.rootPath);
+    await projectIO.saveCutscene(payload);
+    return projectIO.listAssets(payload.rootPath);
+  });
+
+  handle(IPC_CHANNELS.deleteCutscene, async (payload: { rootPath: string; name: string }) => {
+    checkRoot(payload.rootPath);
+    await projectIO.deleteCutscene(payload.rootPath, payload.name);
+    return projectIO.listAssets(payload.rootPath);
   });
 
   handle(IPC_CHANNELS.pickImageFile, async () => {

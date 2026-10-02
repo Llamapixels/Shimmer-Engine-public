@@ -53,7 +53,8 @@ export type FieldKind =
   | "checks"
   | "float"
   | "engineSetting"
-  | "engineValue";
+  | "engineValue"
+  | "cutscene";
 
 export interface FieldDef {
   /** JSON key. For "tilePos"/"offset" this is a prefix-less pair: the
@@ -1486,6 +1487,20 @@ export const EVENT_DEFS: EventDef[] = [
     fields: [{ key: "remember_all", label: "Remember everything (real pause)", kind: "bool", defaultValue: false }],
     create: () => ({ type: "scene_push" }),
     summary: () => "",
+  }),
+  def({
+    type: "play_cutscene",
+    label: "Play Cutscene",
+    category: "Scene",
+    description:
+      "Play a video cutscene full-screen (make them in the Cutscenes tab), with its sound. Everything waits until it ends; then the scene comes back as it was.",
+    fields: [
+      { key: "cutscene", label: "Cutscene", kind: "cutscene" },
+      { key: "skippable", label: "A / START skips it", kind: "bool", defaultValue: true },
+      { key: "stop_music", label: "Stop the music first", kind: "bool", defaultValue: true },
+    ],
+    create: () => ({ type: "play_cutscene", cutscene: "", skippable: true, stop_music: true }),
+    summary: (ev) => `"${(ev as unknown as { cutscene?: string }).cutscene || "?"}"`,
   }),
   def({
     type: "scene_pop",
