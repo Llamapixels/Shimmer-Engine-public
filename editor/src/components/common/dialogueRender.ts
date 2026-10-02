@@ -8,12 +8,19 @@
 
 export const BOX_W = 240;
 export const BOX_H = 32;
-const TEXT_X = 8;
 const TEXT_WIDTH = 224; // ui.h UI_TEXT_WIDTH
 const TEXT_LINES = 2; // dialogue.c TEXT_LINES
 const TILE = 8;
 
 /** Height in pixels of a box with `lines` text lines (plus its frame). */
+/** A box's text area, as engine/source/ui.c lays it out: `cols` tiles
+ * wide in all (30 = full width), framed or not. */
+export function boxMetrics(cols = 30, framed = true): { width: number; textX: number; textWidth: number } {
+  const full = cols >= 30;
+  const textCols = Math.min(28, framed ? cols - 2 : full ? 28 : cols);
+  return { width: cols * TILE, textX: framed || full ? TILE : 0, textWidth: Math.max(0, textCols) * TILE };
+}
+
 export function boxHeight(lines = TEXT_LINES, framed = true): number {
   return (lines + (framed ? 2 : 0)) * TILE;
 }
@@ -164,7 +171,14 @@ export interface Glyph {
 }
 
 /** Pages of placed characters, following dialogue.c's layout(). */
-export function layoutPages(text: string, fonts: Record<string, UiFont>, startFont: string, lines = TEXT_LINES): Glyph[][] {
+export function layoutPages(
+  text: string,
+  fonts: Record<string, UiFont>,
+  startFont: string,
+  lines = TEXT_LINES,
+  textWidth = TEXT_WIDTH,
+): Glyph[][] {
+  const TEXT_WIDTH = textWidth;
   const pages: Glyph[][] = [];
   let font = startFont;
   let color: string | null = null;
@@ -229,7 +243,9 @@ export function drawPage(
   frame: ImageData | null,
   lines = TEXT_LINES,
   framed = true,
+  cols = 30,
 ): ImageData {
+  const { width: BOX_W, textX: TEXT_X, textWidth: TEXT_WIDTH } = boxMetrics(cols, framed);
   const boxH = boxHeight(lines, framed);
   const textY = framed ? TILE : 0;
   const out = new ImageData(BOX_W, boxH);

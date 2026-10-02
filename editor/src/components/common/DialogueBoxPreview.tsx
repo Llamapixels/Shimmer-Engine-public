@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AssetInfo } from "../../../shared/ipc";
 import { useProjectStore } from "../../state/projectStore";
 import { loadAssetUrl } from "../views/assetImages";
-import { BOX_W, boxHeight, drawPage, fontsIn, layoutPages, loadImage, parseFont, parseFrame, type UiFont } from "./dialogueRender";
+import { boxHeight, boxMetrics, drawPage, fontsIn, layoutPages, loadImage, parseFont, parseFrame, type UiFont } from "./dialogueRender";
 
 /** The built-in font/frame (engine/data/ui), shown as "default". */
 export const BUILT_IN_UI: Record<"font" | "frame", AssetInfo> = {
@@ -77,6 +77,7 @@ export default function DialogueBoxPreview({
   maxPages = 8,
   lines = 2,
   framed = true,
+  cols = 30,
 }: {
   text: string;
   /** Defaults to the font/frame the game starts with. */
@@ -86,6 +87,8 @@ export default function DialogueBoxPreview({
   /** Display Text's "rows" and "frame" options. */
   lines?: number;
   framed?: boolean;
+  /** Box width in tiles (Display Text's custom width); 30 = full. */
+  cols?: number;
 }) {
   const rootPath = useProjectStore((s) => s.project?.rootPath);
   const start = useStartUi();
@@ -108,14 +111,15 @@ export default function DialogueBoxPreview({
       if (cancelled) return;
       const fonts: Record<string, UiFont> = {};
       for (const [name, f] of loaded) if (f) fonts[name] = f;
-      setPages(layoutPages(text, fonts, font, lines).map((p) => drawPage(p, fonts, frameData, lines, framed)));
+      const { textWidth } = boxMetrics(cols, framed);
+      setPages(layoutPages(text, fonts, font, lines, textWidth).map((p) => drawPage(p, fonts, frameData, lines, framed, cols)));
     });
     return () => {
       cancelled = true;
     };
     // fontAssets/frameAsset are covered by assetKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootPath, text, font, assetKey, lines, framed]);
+  }, [rootPath, text, font, assetKey, lines, framed, cols]);
 
   const shown = pages.slice(0, maxPages);
   return (
@@ -144,9 +148,9 @@ function PageCanvas({ image }: { image: ImageData }) {
   return (
     <canvas
       ref={ref}
-      width={BOX_W}
+      width={image.width}
       height={height}
-      style={{ width: "100%", maxWidth: 480, imageRendering: "pixelated", display: "block", background: "var(--bg-0)" }}
+      style={{ width: `${(image.width / 240) * 100}%`, maxWidth: image.width * 2, imageRendering: "pixelated", display: "block", background: "var(--bg-0)" }}
     />
   );
 }

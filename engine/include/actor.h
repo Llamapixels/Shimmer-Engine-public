@@ -55,6 +55,10 @@ void actor_set_direction(int index, int direction);
  */
 int actor_step_toward(int index, int target_x, int target_y);
 
+/* The same with Move To's options: type 0 = horizontal first, 1 =
+ * vertical first, 2 = diagonal; collide = stop at solid tiles. */
+int actor_step_toward_ex(int index, int target_x, int target_y, int type, int collide);
+
 /*
  * Switch an actor to one of its sprite's authored animation states (see
  * EntityAnimState in entity.h) by index - resolved from a name at

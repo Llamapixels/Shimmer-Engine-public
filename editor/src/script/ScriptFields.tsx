@@ -143,6 +143,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           variables={variables}
           lines={typeof rec.rows === "number" ? rec.rows : 2}
           framed={rec.frame !== false}
+          cols={rec.position === "custom" && typeof rec.box_width === "number" ? rec.box_width : 30}
         />
       );
     }
@@ -590,6 +591,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
                 label: field.label,
                 onPick: (px, py) => patch(rec.units === "pixels" ? { [xKey]: px * 8, [yKey]: py * 8 } : { [xKey]: px, [yKey]: py }),
                 screenOutline: ev.type === "camera_move_to" || ev.type === "camera_lock_point",
+                actorBox: ev.type.startsWith("actor_"),
               })
             }
           >
@@ -809,6 +811,7 @@ function DialogueTextField({
   variables,
   lines,
   framed,
+  cols,
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -816,6 +819,7 @@ function DialogueTextField({
   variables: string[];
   lines: number;
   framed: boolean;
+  cols: number;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [color, setColor] = useState("#ff4040");
@@ -893,7 +897,7 @@ function DialogueTextField({
           </select>
         )}
       </div>
-      {value && <DialogueBoxPreview text={value} lines={lines} framed={framed} />}
+      {value && <DialogueBoxPreview text={value} lines={lines} framed={framed} cols={cols} />}
     </div>
   );
 }

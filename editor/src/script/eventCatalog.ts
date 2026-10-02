@@ -71,6 +71,8 @@ export interface FieldDef {
   options?: { value: string; label: string }[];
   /** Shown (and assumed by the compiler) when the event has no value. */
   defaultValue?: unknown;
+  /** Only shown when this returns true (options that depend on another). */
+  showIf?: (ev: Record<string, unknown>) => boolean;
 }
 
 export type BranchKey = "then" | "else" | "body" | "children" | "script";
@@ -232,6 +234,15 @@ function def<T extends ScriptEventJSON["type"]>(
   return d as unknown as EventDef;
 }
 
+/** Move Actor To / Set Actor Position, any target. */
+function moveSummary(ev: Record<string, unknown>, verb: string): string {
+  const who = actorLabel(ev.actor as never);
+  if (ev.target === "actor") return `${who} ${verb} ${actorLabel(ev.target_actor as never)}`;
+  const units = ev.units === "pixels" ? " px" : "";
+  const where = ev.target === "variables" ? `($${ev.x_var || "?"}, $${ev.y_var || "?"})` : `(${ev.x ?? 0}, ${ev.y ?? 0})`;
+  return `${who} ${verb} ${ev.relative ? "+" : ""}${where}${units}${ev.collisions ? ", collisions" : ""}`;
+}
+
 export const EVENT_DEFS: EventDef[] = [
   // ---- Dialogue ----
   def({
@@ -251,8 +262,12 @@ export const EVENT_DEFS: EventDef[] = [
           { value: "bottom", label: "Bottom" },
           { value: "middle", label: "Middle" },
           { value: "top", label: "Top" },
+          { value: "custom", label: "Custom (X, Y, width)" },
         ],
       },
+      { key: "box_x", label: "X (tiles)", kind: "int", min: 0, max: 29, defaultValue: 0, showIf: (e) => e.position === "custom" },
+      { key: "box_y", label: "Y (tiles)", kind: "int", min: 0, max: 19, defaultValue: 0, showIf: (e) => e.position === "custom" },
+      { key: "box_width", label: "Width (tiles)", kind: "int", min: 1, max: 30, defaultValue: 30, showIf: (e) => e.position === "custom" },
       { key: "rows", label: "Rows", kind: "int", min: 1, max: 4, defaultValue: 2 },
       { key: "frame", label: "Frame", kind: "bool", defaultValue: true },
     ],
@@ -522,25 +537,91 @@ export const EVENT_DEFS: EventDef[] = [
     type: "actor_set_position",
     label: "Set Actor Position",
     category: "Actors",
-    description: "Teleport an NPC to a tile.",
+    description:
+      "Teleport an actor (or the player) to a position: numbers, variables, or where another actor is. Relative adds to where it is now.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
-      { key: "pos", label: "Tile", kind: "tilePos" },
+      {
+        key: "target",
+        label: "To",
+        kind: "select",
+        defaultValue: "position",
+        options: [
+          { value: "position", label: "A position" },
+          { value: "variables", label: "Position in variables" },
+          { value: "actor", label: "Another actor (or the player)" },
+        ],
+      },
+      { key: "pos", label: "Position", kind: "tilePos", showIf: (e) => !e.target || e.target === "position" },
+      { key: "x_var", label: "X variable", kind: "variable", showIf: (e) => e.target === "variables" },
+      { key: "y_var", label: "Y variable", kind: "variable", showIf: (e) => e.target === "variables" },
+      { key: "target_actor", label: "Actor to go to", kind: "actor", showIf: (e) => e.target === "actor" },
+      {
+        key: "units",
+        label: "Units",
+        kind: "select",
+        defaultValue: "tiles",
+        options: [
+          { value: "tiles", label: "Tiles" },
+          { value: "pixels", label: "Pixels" },
+        ],
+        showIf: (e) => e.target !== "actor",
+      },
+      { key: "relative", label: "Relative to where it is", kind: "bool", defaultValue: false, showIf: (e) => e.target !== "actor" },
     ],
     create: (c) => ({ type: "actor_set_position", actor: c.firstActor ?? "self", x: 0, y: 0 }),
-    summary: (ev) => `${actorLabel(ev.actor)} → (${ev.x}, ${ev.y})`,
+    summary: (ev) => moveSummary(ev as unknown as Record<string, unknown>, "→"),
   }),
   def({
     type: "actor_move_to",
     label: "Move Actor To",
     category: "Actors",
-    description: "Walk an NPC to a tile (ignores collision). Waits until it arrives.",
+    description:
+      "Walk an actor (or the player) to a position: numbers, variables, or another actor. Waits until it arrives. With Collisions on it stops at solid tiles. Position is the actor's top-left tile (the Pick button shows its whole 16x16 box).",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
-      { key: "pos", label: "Tile", kind: "tilePos" },
+      {
+        key: "target",
+        label: "To",
+        kind: "select",
+        defaultValue: "position",
+        options: [
+          { value: "position", label: "A position" },
+          { value: "variables", label: "Position in variables" },
+          { value: "actor", label: "Another actor (or the player)" },
+        ],
+      },
+      { key: "pos", label: "Position", kind: "tilePos", showIf: (e) => !e.target || e.target === "position" },
+      { key: "x_var", label: "X variable", kind: "variable", showIf: (e) => e.target === "variables" },
+      { key: "y_var", label: "Y variable", kind: "variable", showIf: (e) => e.target === "variables" },
+      { key: "target_actor", label: "Actor to go to", kind: "actor", showIf: (e) => e.target === "actor" },
+      {
+        key: "units",
+        label: "Units",
+        kind: "select",
+        defaultValue: "tiles",
+        options: [
+          { value: "tiles", label: "Tiles" },
+          { value: "pixels", label: "Pixels" },
+        ],
+        showIf: (e) => e.target !== "actor",
+      },
+      { key: "relative", label: "Relative to where it is", kind: "bool", defaultValue: false, showIf: (e) => e.target !== "actor" },
+      { key: "collisions", label: "Collisions", kind: "bool", defaultValue: false },
+      {
+        key: "move_type",
+        label: "Move",
+        kind: "select",
+        defaultValue: "horizontal",
+        options: [
+          { value: "horizontal", label: "Horizontal first" },
+          { value: "vertical", label: "Vertical first" },
+          { value: "diagonal", label: "Diagonal" },
+        ],
+      },
     ],
     create: (c) => ({ type: "actor_move_to", actor: c.firstActor ?? "self", x: 0, y: 0 }),
-    summary: (ev) => `${actorLabel(ev.actor)} walks to (${ev.x}, ${ev.y})`,
+    summary: (ev) => moveSummary(ev as unknown as Record<string, unknown>, "walks to"),
   }),
   def({
     type: "actor_set_direction",
@@ -1398,8 +1479,11 @@ export const EVENT_DEFS: EventDef[] = [
     type: "scene_push",
     label: "Store Current Scene",
     category: "Scene",
-    description: "Remember this scene and the player's position, to return to with Restore Previous Scene.",
-    fields: [],
+    description:
+      "Remember this scene and the player's position, to return to with Restore Previous Scene. \"Remember everything\" " +
+      "also keeps every actor's position, direction and state, running scripts and timers - a real pause: coming back " +
+      "carries on exactly where it left off (the scene's On Init doesn't run again).",
+    fields: [{ key: "remember_all", label: "Remember everything (real pause)", kind: "bool", defaultValue: false }],
     create: () => ({ type: "scene_push" }),
     summary: () => "",
   }),
@@ -1457,10 +1541,12 @@ export const EVENT_DEFS: EventDef[] = [
     category: "Timing & Input",
     description:
       "Run a script whenever a button is pressed, until removed or the scene changes. \"Override\" replaces the " +
-      "button's normal action (e.g. A = talk).",
+      "button's normal action (e.g. A = talk). Like GB Studio the script runs alongside play, so the player keeps moving " +
+      "(mid-jump attacks work); tick \"Freeze player\" to stop everything until it finishes.",
     fields: [
       { key: "buttons", label: "Buttons", kind: "buttons" },
       { key: "override", label: "Override", kind: "bool" },
+      { key: "freeze_player", label: "Freeze player while it runs", kind: "bool", defaultValue: false },
     ],
     branches: [{ key: "script", label: "On press" }],
     create: () => ({ type: "input_script_set", buttons: "a", override: false, script: [] }),

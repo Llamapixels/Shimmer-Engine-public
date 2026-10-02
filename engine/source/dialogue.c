@@ -157,7 +157,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
 
         /* A word: wrap first if it doesn't fit on this line. */
         int w = word_width(p, font);
-        if (x > 0 && x + w > UI_TEXT_WIDTH)
+        if (x > 0 && x + w > ui_text_width())
         {
             line++;
             x = 0;
@@ -198,7 +198,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
                     int n = var_digits(arg, d);
                     for (int i = 0; i < n; i++)
                     {
-                        if (draw && count < limit && x < UI_TEXT_WIDTH)
+                        if (draw && count < limit && x < ui_text_width())
                             ui_box_char_color(line, x, font, (unsigned char)d[i], color);
                         x += ui_char_width(font, (unsigned char)d[i]);
                         count++;
@@ -206,7 +206,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
                 }
                 continue;
             }
-            if (draw && count < limit && x < UI_TEXT_WIDTH)
+            if (draw && count < limit && x < ui_text_width())
                 ui_box_char_color(line, x, font, c, color);
             x += ui_char_width(font, c);
             count++;
@@ -275,7 +275,7 @@ static void draw_line(int line, int x, const char *s, const char *e, int font)
             }
             continue;
         }
-        if (x < UI_TEXT_WIDTH)
+        if (x < ui_text_width())
             ui_box_char_color(line, x, font, c, color);
         x += ui_char_width(font, c);
         s++;
@@ -337,10 +337,10 @@ void dialogue_init(void)
 
 void dialogue_show(const char *text)
 {
-    dialogue_show_ex(text, 0);
+    dialogue_show_ex(text, 0, 0);
 }
 
-void dialogue_show_ex(const char *text, int options)
+void dialogue_show_ex(const char *text, int options, int place)
 {
     TextState st = { ui_font(), ui_speed(), 0 };
     int rows = DIALOGUE_OPT_ROWS(options);
@@ -348,7 +348,11 @@ void dialogue_show_ex(const char *text, int options)
     if (text_lines > UI_MAX_LINES)
         text_lines = UI_MAX_LINES;
     mode = MODE_TEXT;
-    ui_box_open_ex(text_lines, DIALOGUE_OPT_POSITION(options), !(options & DIALOGUE_OPT_NO_FRAME));
+    int framed = !(options & DIALOGUE_OPT_NO_FRAME);
+    if (DIALOGUE_OPT_POSITION(options) == UI_BOX_CUSTOM)
+        ui_box_open_at(text_lines, DIALOGUE_PLACE_X(place), DIALOGUE_PLACE_Y(place), DIALOGUE_PLACE_W(place), framed);
+    else
+        ui_box_open_ex(text_lines, DIALOGUE_OPT_POSITION(options), framed);
     start_page(text, st);
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }

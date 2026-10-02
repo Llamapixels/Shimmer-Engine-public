@@ -29,7 +29,8 @@ typedef enum
 {
     SCRIPT_END = 0,        /* stop - no operands */
     SCRIPT_TEXT,             /* str = dialogue text, a = box options (dialogue.h
-                              * DIALOGUE_OPT_*); pauses until dismissed */
+                              * DIALOGUE_OPT_*), b = custom box place
+                              * (DIALOGUE_PLACE); pauses until dismissed */
     SCRIPT_SET_FLAG,          /* a = flag index */
     SCRIPT_CLEAR_FLAG,        /* a = flag index */
     SCRIPT_IF_FLAG,           /* a = flag index, b = instruction index to
@@ -320,7 +321,10 @@ typedef enum
     SCRIPT_TIMER_RESTART,      /* a = slot */
     SCRIPT_TIMER_DISABLE,      /* a = slot */
     SCRIPT_INPUT_SCRIPT_SET,   /* a = INPUT_* mask, b = 1 to override the
-                                 * button's normal action, ptr = script */
+                                 * button's normal action, c = 1 to freeze
+                                 * the player while it runs (else it runs
+                                 * in the background, like GB Studio),
+                                 * ptr = script */
     SCRIPT_INPUT_SCRIPT_REMOVE,/* a = INPUT_* mask */
 
     SCRIPT_ACTOR_SET_POSITION_VARS, /* a = actor, b = x var, c = y var,
@@ -337,7 +341,9 @@ typedef enum
     SCRIPT_ACTOR_PUSH,              /* a = actor, b = 1 to slide until
                                       * it hits something */
 
-    SCRIPT_SCENE_PUSH,         /* remember scene + player position */
+    SCRIPT_SCENE_PUSH,         /* remember scene + player position; a = 1
+                                 * to also remember every actor, running
+                                 * script and timer (a real pause) */
     SCRIPT_SCENE_POP,          /* a = 1 to pop all the way to the first */
     SCRIPT_SCENE_RESET,        /* forget every remembered scene */
 
@@ -371,10 +377,24 @@ typedef enum
                                  * c = WAV_FLAG_* (wav.h) */
     SCRIPT_STOP_WAV,           /* a = WAV_CHANNEL_* (AUTO = both) */
 
-    SCRIPT_LINE_OF_SIGHT       /* a = NPC index, b = range in tiles,
+    SCRIPT_LINE_OF_SIGHT,      /* a = NPC index, b = range in tiles,
                                  * c = 1 if solid tiles block the view,
                                  * ptr = script (0 = stop watching) */
+
+    /* GB Studio-style Move To / Set Position with every option: a =
+     * actor, b/c = x/y (numbers, variable indices or - for an actor
+     * target - b = that actor), d = MOVE_F_* flags. */
+    SCRIPT_ACTOR_MOVE_EX,
+    SCRIPT_ACTOR_SET_POSITION_EX
 } ScriptOp;
+
+#define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */
+#define MOVE_F_RELATIVE   0x02   /* add to the actor's own position */
+#define MOVE_F_COLLIDE    0x04   /* stop at solid tiles */
+#define MOVE_F_TYPE_SHIFT 3      /* 0 = horizontal first, 1 = vertical
+                                  * first, 2 = diagonal */
+#define MOVE_F_SRC_SHIFT  5      /* 0 = numbers, 1 = variables, 2 = to
+                                  * another actor (b) */
 
 /*
  * Compiled expressions ("If Expression", "Evaluate Math Expression",
@@ -453,6 +473,12 @@ void script_start(const ScriptEvent *script);
 /* Starts `script` as a background thread. Returns its handle
  * (1..SCRIPT_MAX_THREADS), or 0 if every slot is busy. */
 #define SCRIPT_MAX_THREADS 8
+
+/* The scene stack's "real pause": copy every running script, input
+ * script and thread out (exclude_thread = the one doing the storing,
+ * which won't resume) / back in. */
+void script_snapshot_save(int slot, int exclude_thread);
+void script_snapshot_restore(int slot);
 int script_thread_start(const ScriptEvent *script);
 
 /* Is the main script running (including paused on dialogue or a

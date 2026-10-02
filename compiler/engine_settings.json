@@ -99,6 +99,7 @@
     { "key": "pc_interact", "mode": "pointnclick", "group": "Cursor", "label": "Click button", "unit": "button", "default": "a" },
 
     { "key": "hit_invincible", "mode": "all", "group": "Getting hit", "label": "Invincible after a hit (frames)", "unit": "frames", "default": 60, "min": 0, "max": 255, "extra": true, "desc": "The player blinks and can't be hit again for this long." },
-    { "key": "damage_tile_group", "mode": "all", "group": "Getting hit", "label": "Damage tiles hit as group", "unit": "choice", "options": ["None", "1", "2", "3"], "default": 1, "extra": true, "desc": "Touching a Damage collision tile runs the scene's On Player Hit for this group." }
+    { "key": "damage_tile_group", "mode": "all", "group": "Getting hit", "label": "Damage tiles hit as group", "unit": "choice", "options": ["None", "1", "2", "3"], "default": 1, "extra": true, "desc": "Touching a Damage collision tile runs the scene's On Player Hit for this group." },
+    { "key": "dialogue_pauses_world", "mode": "all", "group": "Dialogue", "label": "Pause the world during dialogue", "unit": "bool", "default": 0, "extra": true, "desc": "While a dialogue box is open, other scripts (actors walking about, background and timer scripts) wait until it closes. Off: the world keeps moving, so you're never truly safe." }
   ]
 }

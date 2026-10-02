@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from "electron";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { cp, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -139,21 +140,156 @@ function handle<Args extends unknown[], T>(
 
 const settingsFile = () => path.join(app.getPath("userData"), "settings.json");
 let theme: ThemeId = "dark";
+/** File > Emulator for Play: an emulator program picked by the user ("" =
+ * whatever .gba files open with). */
+let emulatorPath = "";
 
 async function loadSettings(): Promise<void> {
   try {
-    const s = JSON.parse(await readFile(settingsFile(), "utf-8")) as { theme?: string };
+    const s = JSON.parse(await readFile(settingsFile(), "utf-8")) as { theme?: string; emulatorPath?: string };
     if (THEMES.some((t) => t.id === s.theme)) theme = s.theme as ThemeId;
+    if (typeof s.emulatorPath === "string") emulatorPath = s.emulatorPath;
   } catch {
     /* first run, or unreadable - keep the default */
   }
 }
 
+function saveSettings(): void {
+  void writeFile(settingsFile(), JSON.stringify({ theme, emulatorPath }, null, 2)).catch(() => {});
+}
+
 function setTheme(next: ThemeId): void {
   theme = next;
-  void writeFile(settingsFile(), JSON.stringify({ theme }, null, 2)).catch(() => {});
+  saveSettings();
   Menu.setApplicationMenu(buildMenu());
   sendMenuCommand({ kind: "theme", theme });
+}
+
+// ---------------------------------------------------------------------------
+// Play: one emulator window at a time. The emulator Play started last is
+// closed before the next one opens, instead of piling up windows.
+
+let emulatorProcess: ChildProcess | null = null;
+
+function run(cmd: string, args: string[]): Promise<string> {
+  return new Promise((resolve) => execFile(cmd, args, { windowsHide: true }, (_e, out) => resolve(String(out ?? ""))));
+}
+
+/** Programs that may mention the ROM's path but are never the emulator. */
+const NOT_EMULATORS = /^(powershell|pwsh|cmd|bash|sh|zsh|conhost|explorer|node|electron|shimmer engine|shimmer-build|code|git)(\.exe)?$/i;
+
+/** Emulator processes an earlier Play opened, per ROM path. */
+const playedPids = new Map<string, number[]>();
+
+/** Processes whose command line contains `rom` (name + pid), Windows or Unix. */
+async function processesFor(rom: string): Promise<{ pid: number; name: string }[]> {
+  if (process.platform === "win32") {
+    const pattern = rom.replace(/'/g, "''");
+    const out = await run("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$p=[regex]::Escape('${pattern}'); Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $p } | ForEach-Object { "$($_.ProcessId)|$($_.Name)" }`,
+    ]);
+    return out
+      .split(/\r?\n/)
+      .map((l) => l.trim().split("|"))
+      .filter((p) => p.length === 2 && Number(p[0]) > 0)
+      .map(([pid, name]) => ({ pid: Number(pid), name }));
+  }
+  const out = await run("ps", ["-A", "-o", "pid=,comm=,args="]);
+  return out
+    .split("\n")
+    .map((l) => /^\s*(\d+)\s+(\S+)\s+(.*)$/.exec(l))
+    .filter((m): m is RegExpExecArray => !!m && m[3].includes(rom))
+    .map((m) => ({ pid: Number(m[1]), name: path.basename(m[2]) }));
+}
+
+function emulatorPids(list: { pid: number; name: string }[]): number[] {
+  return list.filter((p) => p.pid !== process.pid && !NOT_EMULATORS.test(p.name)).map((p) => p.pid);
+}
+
+/** Close the emulator the last Play opened for this ROM (only processes
+ * Play itself recorded, and only if they still have this ROM open). */
+async function closeEmulatorsFor(rom: string): Promise<void> {
+  if (emulatorProcess && emulatorProcess.exitCode === null && !emulatorProcess.killed) emulatorProcess.kill();
+  emulatorProcess = null;
+  const earlier = playedPids.get(rom);
+  playedPids.delete(rom);
+  if (!earlier?.length) return;
+  const still = new Set(emulatorPids(await processesFor(rom)));
+  let closed = false;
+  for (const pid of earlier) {
+    if (!still.has(pid)) continue;
+    try {
+      process.kill(pid);
+      closed = true;
+    } catch {
+      /* already gone */
+    }
+  }
+  // Give the system a moment to let go of the ROM file.
+  if (closed) await new Promise((r) => setTimeout(r, 500));
+}
+
+/** After launching, note which new processes opened this ROM (so the next
+ * Play can close them). Checks for a few seconds while the emulator starts. */
+async function recordEmulatorFor(rom: string, before: Set<number>): Promise<void> {
+  for (let i = 0; i < 8; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const pids = emulatorPids(await processesFor(rom)).filter((p) => !before.has(p));
+    if (pids.length) {
+      playedPids.set(rom, pids);
+      return;
+    }
+  }
+}
+
+/** Before a build: close every emulator Play opened for a ROM in this
+ * project - an open emulator can keep the ROM file locked, and the build
+ * has to overwrite it. */
+async function closeEmulatorsUnder(rootPath: string): Promise<void> {
+  const root = path.resolve(rootPath) + path.sep;
+  for (const rom of [...playedPids.keys()]) if (rom.startsWith(root)) await closeEmulatorsFor(rom);
+}
+
+async function openInEmulator(rom: string): Promise<void> {
+  await closeEmulatorsFor(rom);
+  const before = new Set((await processesFor(rom)).map((p) => p.pid));
+  const exe = emulatorPath && existsSync(emulatorPath) ? emulatorPath : null;
+  if (!exe) {
+    // Whatever program .gba files open with.
+    const err = await shell.openPath(rom);
+    if (err) {
+      throw new Error(
+        `Couldn't open the ROM (${err}). Install a GBA emulator such as mGBA and set it as the program for .gba files, or pick one with File > Emulator for Play.`,
+      );
+    }
+  } else {
+    const isMacApp = process.platform === "darwin" && exe.endsWith(".app");
+    const child = isMacApp ? spawn("open", ["-n", "-a", exe, "--args", rom], { stdio: "ignore" }) : spawn(exe, [rom], { stdio: "ignore" });
+    child.on("error", () => {});
+    if (!isMacApp) emulatorProcess = child;
+  }
+  void recordEmulatorFor(rom, before);
+}
+
+async function chooseEmulator(): Promise<void> {
+  if (!mainWindow) return;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Emulator for Play",
+    properties: ["openFile"],
+    filters:
+      process.platform === "win32"
+        ? [{ name: "Programs", extensions: ["exe"] }]
+        : process.platform === "darwin"
+          ? [{ name: "Applications", extensions: ["app"] }]
+          : [{ name: "All files", extensions: ["*"] }],
+  });
+  if (result.canceled || !result.filePaths[0]) return;
+  emulatorPath = result.filePaths[0];
+  saveSettings();
+  Menu.setApplicationMenu(buildMenu());
 }
 
 function sendMenuCommand(command: MenuCommand): void {
@@ -394,6 +530,7 @@ function registerIpcHandlers(): void {
       // the renderer does or how many windows/callers there are.
       throw new Error("A build is already running.");
     }
+    await closeEmulatorsUnder(payload.rootPath);
     const toolchainRoot = await projectIO.findEngineRoot(payload.rootPath);
     if (!toolchainRoot) {
       throw new Error("Couldn't find the compiler/engine folder above this project.");
@@ -409,13 +546,9 @@ function registerIpcHandlers(): void {
     if (!rom.startsWith(path.resolve(payload.rootPath) + path.sep) || !rom.toLowerCase().endsWith(".gba")) {
       throw new Error("That isn't this project's ROM.");
     }
-    // Opens the ROM with whatever program .gba files are set to open with.
-    const err = await shell.openPath(rom);
-    if (err) {
-      throw new Error(
-        `Couldn't open the ROM (${err}). Install a GBA emulator such as mGBA and set it as the program for .gba files.`,
-      );
-    }
+    // The chosen emulator (or the one .gba files open with), replacing the
+    // window Play opened last time.
+    await openInEmulator(rom);
   });
 
   handle(IPC_CHANNELS.cancelBuild, async () => {
@@ -445,6 +578,26 @@ function buildMenu(): Menu {
         { label: "Save As…", accelerator: "CmdOrCtrl+Shift+S", click: () => sendMenuCommand({ kind: "saveAs" }) },
         { type: "separator" },
         { label: "Reload Assets", accelerator: "F5", click: () => sendMenuCommand({ kind: "reloadAssets" }) },
+        { type: "separator" },
+        {
+          label: "Emulator for Play",
+          submenu: [
+            {
+              label: emulatorPath ? `Using ${path.basename(emulatorPath)}` : "Using the program .gba files open with",
+              enabled: false,
+            },
+            { label: "Choose Emulator…", click: () => void chooseEmulator() },
+            {
+              label: "Use the program .gba files open with",
+              enabled: !!emulatorPath,
+              click: () => {
+                emulatorPath = "";
+                saveSettings();
+                Menu.setApplicationMenu(buildMenu());
+              },
+            },
+          ],
+        },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit", label: "Exit" },
       ],

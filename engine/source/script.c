@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <gba_base.h>   /* EWRAM_BSS */
 #include <stdint.h>
 
 #include "script.h"
@@ -61,6 +62,9 @@ typedef struct
 
     /* SCRIPT_FADE_OUT/IN with "wait" set. */
     int fade_waiting;
+
+    /* SCRIPT_ACTOR_MOVE_EX: 0x80 | its MOVE_F_* flags (0 = plain move). */
+    int move_flags;
 } ScriptThread;
 
 #define THREAD_COUNT (1 + SCRIPT_MAX_THREADS)
@@ -90,6 +94,10 @@ static struct
 #define INPUT_BITS 10
 static const ScriptEvent *input_scripts[INPUT_BITS];
 static uint16_t input_override_mask = 0;
+/* Per button: freeze the player while its script runs (else it runs as a
+ * background thread, whose handle is kept so it never runs twice at once). */
+static uint8_t input_freeze[INPUT_BITS];
+static int input_thread[INPUT_BITS];
 
 static void play_sound_effect(int id)
 {
@@ -113,6 +121,7 @@ static void thread_begin(ScriptThread *t, const ScriptEvent *script)
     t->pending_choice_jump = -1;
     t->camera_panning = 0;
     t->fade_waiting = 0;
+    t->move_flags = 0;
 }
 
 void script_start(const ScriptEvent *script)
@@ -178,8 +187,58 @@ void script_reset_scene(void)
     for (int i = 0; i < TIMER_SLOTS; i++)
         timer_slots[i].script = 0;
     for (int i = 0; i < INPUT_BITS; i++)
+    {
         input_scripts[i] = 0;
+        input_freeze[i] = 0;
+        input_thread[i] = 0;
+    }
     input_override_mask = 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Snapshots for the scene stack's "real pause" (game_scene_push full). */
+
+#define SNAP_SLOTS 8
+static ScriptThread snap_threads[SNAP_SLOTS][THREAD_COUNT] EWRAM_BSS;
+static const ScriptEvent *snap_inputs[SNAP_SLOTS][INPUT_BITS] EWRAM_BSS;
+static uint8_t snap_input_freeze[SNAP_SLOTS][INPUT_BITS] EWRAM_BSS;
+static uint16_t snap_override[SNAP_SLOTS] EWRAM_BSS;
+
+void script_snapshot_save(int slot, int exclude_thread)
+{
+    if (slot < 0 || slot >= SNAP_SLOTS)
+        return;
+    for (int i = 0; i < THREAD_COUNT; i++)
+    {
+        snap_threads[slot][i] = threads[i];
+        /* No dialogue survives a scene change. */
+        snap_threads[slot][i].owns_dialogue = 0;
+    }
+    /* The script storing the scene is about to leave it: when the scene
+     * comes back, it must not carry on and leave again. */
+    if (exclude_thread >= 0 && exclude_thread < THREAD_COUNT)
+        snap_threads[slot][exclude_thread].ip = 0;
+    for (int i = 0; i < INPUT_BITS; i++)
+    {
+        snap_inputs[slot][i] = input_scripts[i];
+        snap_input_freeze[slot][i] = input_freeze[i];
+    }
+    snap_override[slot] = input_override_mask;
+}
+
+void script_snapshot_restore(int slot)
+{
+    if (slot < 0 || slot >= SNAP_SLOTS)
+        return;
+    for (int i = 0; i < THREAD_COUNT; i++)
+        threads[i] = snap_threads[slot][i];
+    for (int i = 0; i < INPUT_BITS; i++)
+    {
+        input_scripts[i] = snap_inputs[slot][i];
+        input_freeze[i] = snap_input_freeze[slot][i];
+        input_thread[i] = 0;
+    }
+    input_override_mask = snap_override[slot];
 }
 
 /* ------------------------------------------------------------------ */
@@ -307,6 +366,7 @@ static void start_move(ScriptThread *t, int actor, int x, int y)
     t->moving_actor = actor;
     t->moving_x = x;
     t->moving_y = y;
+    t->move_flags = 0;
 }
 
 /* Runs `t` until it pauses or ends. Returns without doing anything if
@@ -345,10 +405,14 @@ static void thread_step(ScriptThread *t, int is_main)
 
     if (t->moving)
     {
-        if (actor_step_toward(t->moving_actor, t->moving_x, t->moving_y))
+        int still = t->move_flags
+            ? actor_step_toward_ex(t->moving_actor, t->moving_x, t->moving_y,
+                                   (t->move_flags >> MOVE_F_TYPE_SHIFT) & 3, t->move_flags & MOVE_F_COLLIDE)
+            : actor_step_toward(t->moving_actor, t->moving_x, t->moving_y);
+        if (still)
             return;
 
-        t->moving = 0;   /* arrived - fall through and continue */
+        t->moving = 0;   /* arrived (or blocked) - fall through and continue */
     }
 
     if (t->camera_panning)
@@ -405,7 +469,7 @@ static void thread_step(ScriptThread *t, int is_main)
                 return;
             }
             if (ev->op == SCRIPT_TEXT)
-                dialogue_show_ex(ev->str, ev->a);
+                dialogue_show_ex(ev->str, ev->a, ev->b);
             else if (ev->op == SCRIPT_CHOICE)
             {
                 dialogue_show_choice(ev->str);
@@ -864,6 +928,8 @@ static void thread_step(ScriptThread *t, int is_main)
                 if (ev->op == SCRIPT_INPUT_SCRIPT_SET)
                 {
                     input_scripts[bit] = (const ScriptEvent *)ev->ptr;
+                    input_freeze[bit] = ev->c ? 1 : 0;
+                    input_thread[bit] = 0;
                     if (ev->b)
                         input_override_mask |= m;
                     else
@@ -928,8 +994,45 @@ static void thread_step(ScriptThread *t, int is_main)
         }
 
         case SCRIPT_SCENE_PUSH:
-            game_scene_push();
+            game_scene_push(ev->a, (int)(t - threads));
             break;
+
+        case SCRIPT_ACTOR_MOVE_EX:
+        case SCRIPT_ACTOR_SET_POSITION_EX:
+        {
+            int f = ev->d;
+            int src = (f >> MOVE_F_SRC_SHIFT) & 3;
+            int x, y;
+            if (src == 2)
+            {
+                /* To another actor's position (pixels already). */
+                x = actor_get_x(ev->b);
+                y = actor_get_y(ev->b);
+            }
+            else
+            {
+                x = src == 1 ? var_get(ev->b) : ev->b;
+                y = src == 1 ? var_get(ev->c) : ev->c;
+                if (!(f & MOVE_F_PIXELS))
+                {
+                    x *= 8;
+                    y *= 8;
+                }
+                if (f & MOVE_F_RELATIVE)
+                {
+                    x += actor_get_x(ev->a);
+                    y += actor_get_y(ev->a);
+                }
+            }
+            if (ev->op == SCRIPT_ACTOR_SET_POSITION_EX)
+            {
+                actor_set_position(ev->a, x, y);
+                break;
+            }
+            start_move(t, ev->a, x, y);
+            t->move_flags = 0x80 | f;
+            return;
+        }
 
         case SCRIPT_SCENE_POP:
             if (game_scene_pop(ev->a))
@@ -1082,8 +1185,17 @@ int script_check_input(void)
     {
         if (input_scripts[bit] && input_pressed((uint16_t)(1u << bit)))
         {
-            script_start(input_scripts[bit]);
-            return 1;
+            if (input_freeze[bit])
+            {
+                script_start(input_scripts[bit]);
+                return 1;
+            }
+            /* Like GB Studio: runs alongside play, the player keeps
+             * moving - but never two copies of the same button's script. */
+            int h = input_thread[bit];
+            if (h > 0 && threads[h].ip && threads[h].base == input_scripts[bit])
+                continue;
+            input_thread[bit] = script_thread_start(input_scripts[bit]);
         }
     }
     return 0;

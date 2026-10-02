@@ -582,7 +582,9 @@ export default function SceneCanvas() {
     // Hover cursor: the brush's footprint.
     if (hover && !drag) {
       let rect: Rect = { x: hover.x, y: hover.y, w: 1, h: 1 };
-      if (tool === "npc" || tool === "spawn" || tool === "placePrefab") rect = { ...rect, w: ACTOR_TILES, h: ACTOR_TILES };
+      // Picking an actor's position: show its whole 16x16 box, so it's
+      // clear the position is the box's top-left tile.
+      if (tilePick?.actorBox || tool === "npc" || tool === "spawn" || tool === "placePrefab") rect = { ...rect, w: ACTOR_TILES, h: ACTOR_TILES };
       else if (paintLayer && brushShape === "16px") rect = { ...rect, w: 2, h: 2 };
       else if (tool === "tiles" && tileStamp && brushShape !== "fill" && brushShape !== "magic" && brushShape !== "selection")
         rect = { ...rect, w: tileStamp.w, h: tileStamp.h };

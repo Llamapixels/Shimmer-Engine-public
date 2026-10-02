@@ -70,6 +70,7 @@ int ui_char_width(int font, unsigned char ch);
 #define UI_BOX_BOTTOM 0
 #define UI_BOX_TOP    1
 #define UI_BOX_MIDDLE 2
+#define UI_BOX_CUSTOM 3   /* anywhere: ui_box_open_at() */
 
 /* Show the box, `lines` text lines tall, at the bottom of the screen,
  * with its canvas cleared to the frame's fill. */
@@ -77,6 +78,11 @@ void ui_box_open(int lines);
 /* The same, at `position` (UI_BOX_*); framed = 0 draws no frame at all,
  * just the text on a see-through background. */
 void ui_box_open_ex(int lines, int position, int framed);
+/* Anywhere on screen: top-left corner at tile (col, row), `width` tiles
+ * wide (frame included). Clamped to fit the screen. */
+void ui_box_open_at(int lines, int col, int row, int width, int framed);
+/* Pixels of text a line of the open box holds. */
+int ui_text_width(void);
 void ui_box_close(void);
 void ui_box_clear(void);
 /* Draw one character with its left edge at pixel x of text line `line`. */

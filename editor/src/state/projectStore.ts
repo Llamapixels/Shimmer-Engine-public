@@ -65,6 +65,8 @@ export interface TilePick {
   onPick: (x: number, y: number) => void;
   /** Also outline the screen area a camera centred on the tile shows. */
   screenOutline?: boolean;
+  /** An actor position: show the actor's 16x16 box, top-left at the tile. */
+  actorBox?: boolean;
 }
 
 interface Snapshot {

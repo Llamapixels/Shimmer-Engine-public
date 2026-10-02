@@ -601,6 +601,63 @@ int actor_step_toward(int index, int target_x, int target_y)
     return 0;
 }
 
+int actor_step_toward_ex(int index, int target_x, int target_y, int type, int collide)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e)
+        return 0;
+    int dx = target_x - e->x;
+    int dy = target_y - e->y;
+    if (!dx && !dy)
+    {
+        entity_animate(e, (Direction)e->direction, 0);   /* arrived - stop */
+        return 0;
+    }
+
+    /* Which axes move this frame: diagonal = both, else one at a time
+     * (horizontal or vertical first). */
+    int mx = 0, my = 0;
+    if (type == 2)
+    {
+        mx = dx;
+        my = dy;
+    }
+    else if (type == 1)
+    {
+        if (dy) my = dy; else mx = dx;
+    }
+    else
+    {
+        if (dx) mx = dx; else my = dy;
+    }
+
+    int speed = e->move_speed ? e->move_speed : 1;
+    int nx = mx ? step_toward(e->x, target_x, speed) : e->x;
+    int ny = my ? step_toward(e->y, target_y, speed) : e->y;
+
+    if (collide && !entity_can_move(e, nx, ny))
+    {
+        /* Diagonal: slide along whichever axis is still free. */
+        if (mx && my && entity_can_move(e, nx, e->y))
+            ny = e->y;
+        else if (mx && my && entity_can_move(e, e->x, ny))
+            nx = e->x;
+        else
+        {
+            entity_animate(e, (Direction)e->direction, 0);   /* blocked - give up */
+            return 0;
+        }
+    }
+
+    int adx = nx - e->x < 0 ? e->x - nx : nx - e->x;
+    int ady = ny - e->y < 0 ? e->y - ny : ny - e->y;
+    Direction dir = adx >= ady ? (nx > e->x ? DIR_RIGHT : DIR_LEFT) : (ny > e->y ? DIR_DOWN : DIR_UP);
+    e->x = nx;
+    e->y = ny;
+    entity_animate(e, dir, 1);
+    return 1;
+}
+
 void actor_set_move_speed(int index, int speed)
 {
     Entity *e = entity_for_actor(index);
@@ -700,17 +757,82 @@ int game_load_slot(int slot)
 }
 
 #define SCENE_STACK_MAX 8
-static struct { uint8_t scene; int16_t x, y; uint8_t dir; } scene_stack[SCENE_STACK_MAX];
+
+/* One actor as a "real pause" store remembers it. */
+typedef struct
+{
+    int16_t x, y;
+    uint8_t direction, visible, anim_state, script_state, anim_enabled, move_speed, collide;
+} ActorSnap;
+
+static struct
+{
+    uint8_t scene;
+    int16_t x, y;
+    uint8_t dir;
+    /* full = 1: actors, scripts and timers were saved too. */
+    uint8_t full;
+    uint8_t npc_count;
+} scene_stack[SCENE_STACK_MAX];
+static ActorSnap snap_npcs[SCENE_STACK_MAX][NPC_MAX] EWRAM_BSS;
+static ActorSnap snap_player[SCENE_STACK_MAX] EWRAM_BSS;
+static int snap_timer_left[SCENE_STACK_MAX][MAX_TIMERS] EWRAM_BSS;
+static int snap_timer_running[SCENE_STACK_MAX][MAX_TIMERS] EWRAM_BSS;
 static int scene_stack_count = 0;
 
-void game_scene_push(void)
+/* Stack slot being restored by the scene switch in progress (-1 = none). */
+static int pending_restore = -1;
+
+static void snap_actor(ActorSnap *s, const Entity *e)
+{
+    s->x = (int16_t)e->x;
+    s->y = (int16_t)e->y;
+    s->direction = e->direction;
+    s->visible = (uint8_t)e->solid;
+    s->anim_state = e->anim_state;
+    s->script_state = e->script_state;
+    s->anim_enabled = e->anim_enabled;
+    s->move_speed = e->move_speed;
+    s->collide = e->collide;
+}
+
+static void unsnap_actor(int index, Entity *e, const ActorSnap *s)
+{
+    e->x = s->x;
+    e->y = s->y;
+    e->move_speed = s->move_speed;
+    e->collide = s->collide;
+    e->script_state = s->script_state;
+    entity_set_anim_state(e, s->anim_state);
+    e->anim_enabled = s->anim_enabled;
+    entity_animate(e, (Direction)(s->direction & 3), 0);
+    actor_set_visible(index, s->visible);
+}
+
+void game_scene_push(int full, int exclude_thread)
 {
     if (scene_stack_count >= SCENE_STACK_MAX || !g_player)
         return;
-    scene_stack[scene_stack_count].scene = (uint8_t)game_scene_index();
-    scene_stack[scene_stack_count].x = (int16_t)g_player->x;
-    scene_stack[scene_stack_count].y = (int16_t)g_player->y;
-    scene_stack[scene_stack_count].dir = g_player->direction;
+    int n = scene_stack_count;
+    scene_stack[n].scene = (uint8_t)game_scene_index();
+    scene_stack[n].x = (int16_t)g_player->x;
+    scene_stack[n].y = (int16_t)g_player->y;
+    scene_stack[n].dir = g_player->direction;
+    scene_stack[n].full = full ? 1 : 0;
+    if (full)
+    {
+        scene_stack[n].npc_count = (uint8_t)npc_count_active;
+        for (int i = 0; i < npc_count_active; i++)
+            if (npc_entities[i])
+                snap_actor(&snap_npcs[n][i], npc_entities[i]);
+        snap_actor(&snap_player[n], g_player);
+        for (int i = 0; i < MAX_TIMERS; i++)
+        {
+            snap_timer_left[n][i] = timer_frames_left[i];
+            snap_timer_running[n][i] = timer_running[i];
+        }
+        script_snapshot_save(n, exclude_thread);
+    }
     scene_stack_count++;
 }
 
@@ -720,6 +842,7 @@ int game_scene_pop(int all)
         return 0;
     int i = all ? 0 : scene_stack_count - 1;
     scene_stack_count = i;
+    pending_restore = scene_stack[i].full ? i : -1;
     script_request_scene_switch(scene_stack[i].scene, scene_stack[i].x,
                                 scene_stack[i].y, scene_stack[i].dir);
     return 1;
@@ -1030,7 +1153,10 @@ int main(void)
                 sync_camera(player);
                 projectiles_update(0, camera_get_display_x(), camera_get_display_y());
                 dialogue_update();
-                script_update();
+                /* "Pause the world during dialogue": other scripts (actors
+                 * walking about, timers' threads) wait until it closes. */
+                if (!MSET(DIALOGUE_PAUSES_WORLD))
+                    script_update();
                 if (script_wants_scene_switch(&pending_switch_scene, &pending_switch_x,
                                               &pending_switch_y, &pending_switch_dir))
                 {
@@ -1181,6 +1307,23 @@ int main(void)
             /* Like GB Studio, a new scene shows the player again (a title
              * screen that hid it mustn't leave it hidden in the level). */
             actor_set_visible(PLAYER_ACTOR_INDEX, 1);
+
+            /* Back from a "real pause": everyone where they were. */
+            if (pending_restore >= 0 && scene_stack[pending_restore].scene == (uint8_t)pending_switch_scene)
+            {
+                int s = pending_restore;
+                for (int i = 0; i < npc_count_active && i < scene_stack[s].npc_count; i++)
+                    if (npc_entities[i])
+                        unsnap_actor(i, npc_entities[i], &snap_npcs[s][i]);
+                unsnap_actor(PLAYER_ACTOR_INDEX, player, &snap_player[s]);
+                for (int i = 0; i < MAX_TIMERS; i++)
+                {
+                    timer_frames_left[i] = snap_timer_left[s][i];
+                    timer_running[i] = snap_timer_running[s][i];
+                }
+            }
+            else
+                pending_restore = -1;
             modes_scene_enter(next, player);
             invincible_timer = 0;
 
@@ -1207,7 +1350,13 @@ int main(void)
                  * one, right as the player regains control - see
                  * "on_init" in scene JSON / scene.h. script_start(0)
                  * is a safe no-op when it doesn't. */
-                start_scene_scripts(scene_current());
+                if (pending_restore >= 0)
+                {
+                    script_snapshot_restore(pending_restore);
+                    pending_restore = -1;
+                }
+                else
+                    start_scene_scripts(scene_current());
                 game_state = STATE_PLAY;
             }
             break;

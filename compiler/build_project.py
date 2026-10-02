@@ -602,7 +602,12 @@ VAR_REF_RE = re.compile(r"\{([^{}]+)\}")
 TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!")
 
 # Display Text "position" -> engine/include/ui.h UI_BOX_*.
-TEXT_POSITIONS = {"bottom": 0, "top": 1, "middle": 2}
+TEXT_POSITIONS = {"bottom": 0, "top": 1, "middle": 2, "custom": 3}
+
+# Move Actor To / Set Actor Position options -> engine/include/script.h
+# MOVE_F_* flags.
+MOVE_TYPES = {"horizontal": 0, "vertical": 1, "diagonal": 2}
+MOVE_TARGETS = {"position": 0, "variables": 1, "actor": 2}
 
 # Event "wait_button" button names -> engine/include/input.h INPUT_* bits.
 BUTTON_NAME_TO_CONST = {
@@ -1408,16 +1413,60 @@ def resolve_text_color(value, ctx, where):
 
 
 def text_options(ev, where):
-    """Display Text's box options -> SCRIPT_TEXT's `a` (see
-    engine/include/dialogue.h DIALOGUE_OPT_*)."""
+    """Display Text's box options -> SCRIPT_TEXT's `a` and `b` (see
+    engine/include/dialogue.h DIALOGUE_OPT_* / DIALOGUE_PLACE_*)."""
     pos = str(ev.get("position", "bottom")).lower()
     if pos not in TEXT_POSITIONS:
-        raise BuildError(f"{where}: \"position\" must be bottom, top or middle.")
+        raise BuildError(f"{where}: \"position\" must be bottom, top, middle or custom.")
     rows = ev.get("rows", 2)
     if isinstance(rows, bool) or not isinstance(rows, int) or not 1 <= rows <= 4:
         raise BuildError(f"{where}: \"rows\" must be 1 to 4.")
     framed = ev.get("frame", True) is not False
-    return TEXT_POSITIONS[pos] | ((0 if rows == 2 else rows) << 2) | (0 if framed else 0x20)
+    a = TEXT_POSITIONS[pos] | ((0 if rows == 2 else rows) << 2) | (0 if framed else 0x20)
+    b = 0
+    if pos == "custom":
+        bx = resolve_small_int(ev.get("box_x", 0), "box_x", where, 0, 29)
+        by = resolve_small_int(ev.get("box_y", 0), "box_y", where, 0, 19)
+        bw = resolve_small_int(ev.get("box_width", 30), "box_width", where, 1, 30)
+        height = rows + (2 if framed else 0)
+        if bx + bw > 30:
+            raise BuildError(f"{where}: the box goes off the right of the screen (X {bx} + width {bw} > 30 tiles).")
+        if by + height > 20:
+            raise BuildError(f"{where}: the box goes off the bottom of the screen (Y {by} + {height} tiles tall > 20).")
+        if framed and bw < 3:
+            raise BuildError(f"{where}: a framed box needs a width of at least 3 tiles.")
+        b = bx | (by << 5) | (bw << 10)
+    return a, b
+
+
+def actor_move_ex(ev, idx, ctx, where):
+    """Move Actor To / Set Actor Position with any GB Studio-style option
+    -> (b, c, d) for SCRIPT_ACTOR_MOVE_EX / SET_POSITION_EX."""
+    target = str(ev.get("target", "position")).lower()
+    if target not in MOVE_TARGETS:
+        raise BuildError(f"{where}: \"target\" must be position, variables or actor.")
+    pixels = str(ev.get("units", "tiles")).lower() == "pixels"
+    move_type = str(ev.get("move_type", "horizontal")).lower()
+    if move_type not in MOVE_TYPES:
+        raise BuildError(f"{where}: \"move_type\" must be horizontal, vertical or diagonal.")
+    flags = (1 if pixels else 0) | (2 if ev.get("relative") else 0) | (4 if ev.get("collisions") else 0)
+    flags |= MOVE_TYPES[move_type] << 3
+    flags |= MOVE_TARGETS[target] << 5
+    if target == "variables":
+        b = resolve_var(_require(ev, "x_var", where), ctx, where)
+        c = resolve_var(_require(ev, "y_var", where), ctx, where)
+    elif target == "actor":
+        b = resolve_actor(_require(ev, "target_actor", where), ctx, where)
+        c = 0
+    else:
+        lo, hi = (-32768, 32767) if pixels or ev.get("relative") else (0, 4095)
+        b = resolve_small_int(ev.get("x", 0), "x", where, lo, hi)
+        c = resolve_small_int(ev.get("y", 0), "y", where, lo, hi)
+    return b, c, flags
+
+
+# Fields that switch Move Actor To / Set Actor Position to the full version.
+MOVE_EX_KEYS = ("target", "relative", "units", "collisions", "move_type")
 
 
 def resolve_ui_name(name, kind, ctx, where):
@@ -1514,7 +1563,8 @@ def compile_events(events, out, ctx, where):
         if etype == "text":
             text = _require(ev, "text", ev_where)
             text = interpolate_vars(text, ctx, ev_where)
-            out.append(_instr("SCRIPT_TEXT", a=text_options(ev, ev_where), text=c_string_literal(text)))
+            opts, place = text_options(ev, ev_where)
+            out.append(_instr("SCRIPT_TEXT", a=opts, b=place, text=c_string_literal(text)))
 
         elif etype == "text_set_font":
             idx = resolve_ui_name(_require(ev, "font", ev_where), "font", ctx, ev_where)
@@ -1641,6 +1691,12 @@ def compile_events(events, out, ctx, where):
         elif etype == "actor_hide":
             idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)
             out.append(_instr("SCRIPT_ACTOR_HIDE", a=idx))
+
+        elif etype in ("actor_set_position", "actor_move_to") and any(k in ev for k in MOVE_EX_KEYS):
+            idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)
+            b, c, d = actor_move_ex(ev, idx, ctx, ev_where)
+            op = "SCRIPT_ACTOR_MOVE_EX" if etype == "actor_move_to" else "SCRIPT_ACTOR_SET_POSITION_EX"
+            out.append(_instr(op, a=idx, b=b, c=c, d=d))
 
         elif etype == "actor_set_position":
             idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)
@@ -2155,8 +2211,11 @@ def compile_parity_event(etype, ev, out, ctx, where):
     elif etype == "input_script_set":
         mask = _button_mask(ev.get("buttons"), where)
         override = 1 if ev.get("override", False) else 0
+        # Like GB Studio the script runs alongside play; "freeze_player"
+        # stops the player (and everything waiting on the main script) instead.
+        freeze = 1 if ev.get("freeze_player", False) else 0
         ptr = compile_subscript(ev.get("script", []), ctx, where)
-        out.append(_instr("SCRIPT_INPUT_SCRIPT_SET", a=mask, b=override, ptr=ptr))
+        out.append(_instr("SCRIPT_INPUT_SCRIPT_SET", a=mask, b=override, c=freeze, ptr=ptr))
 
     elif etype == "actor_line_of_sight":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
@@ -2296,7 +2355,11 @@ def compile_parity_event(etype, ev, out, ctx, where):
     elif etype in ("scene_push", "scene_pop", "scene_pop_all", "scene_reset"):
         op_name = {"scene_push": "SCRIPT_SCENE_PUSH", "scene_pop": "SCRIPT_SCENE_POP",
                    "scene_pop_all": "SCRIPT_SCENE_POP", "scene_reset": "SCRIPT_SCENE_RESET"}[etype]
-        out.append(_instr(op_name, a=1 if etype == "scene_pop_all" else 0))
+        if etype == "scene_push":
+            a = 1 if ev.get("remember_all", False) else 0
+        else:
+            a = 1 if etype == "scene_pop_all" else 0
+        out.append(_instr(op_name, a=a))
 
     elif etype in ("data_save", "data_load", "data_clear"):
         op_name = {"data_save": "SCRIPT_DATA_SAVE", "data_load": "SCRIPT_DATA_LOAD",

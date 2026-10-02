@@ -27,7 +27,12 @@ void dialogue_show(const char *text);
 #define DIALOGUE_OPT_POSITION(o) ((o) & 3)
 #define DIALOGUE_OPT_ROWS(o)     (((o) >> 2) & 7)
 #define DIALOGUE_OPT_NO_FRAME    0x20
-void dialogue_show_ex(const char *text, int options);
+/* With position UI_BOX_CUSTOM, SCRIPT_TEXT's `b` places the box: tile
+ * column, row and width (frame included). */
+#define DIALOGUE_PLACE_X(p)      ((p) & 31)
+#define DIALOGUE_PLACE_Y(p)      (((p) >> 5) & 31)
+#define DIALOGUE_PLACE_W(p)      (((p) >> 10) & 31)
+void dialogue_show_ex(const char *text, int options, int place);
 
 /* Is a dialogue box currently on screen? */
 int dialogue_active(void);

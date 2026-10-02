@@ -374,7 +374,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
           {!def && (
             <pre className="event-unknown-json">{JSON.stringify(ev, null, 2)}</pre>
           )}
-          {def?.fields.map((f) => (
+          {def?.fields.filter((f) => !f.showIf || f.showIf(ev as unknown as Record<string, unknown>)).map((f) => (
             <div key={f.key} className={`event-field${WIDE_FIELDS.has(f.kind) ? " event-field-wide" : ""}`}>
               <span className="event-field-label">{f.label}</span>
               <div className="event-field-control">

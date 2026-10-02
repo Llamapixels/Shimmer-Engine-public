@@ -24,7 +24,7 @@ int  game_load_slot(int slot);
  * back to the last one pushed (all = 1: the first one, clearing the
  * stack) and returns 1 if it started a switch, 0 if the stack was
  * empty; reset forgets everything pushed. */
-void game_scene_push(void);
+void game_scene_push(int full, int exclude_thread);
 int  game_scene_pop(int all);
 void game_scene_reset(void);
 

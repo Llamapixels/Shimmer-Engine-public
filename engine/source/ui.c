@@ -42,6 +42,9 @@ static int box_lines;
 static int box_top = -1;
 static int box_rows;        /* screen rows the box covers, frame included */
 static int box_framed = 1;
+static int box_left = 0;    /* screen column of the box's left edge */
+static int box_cols = 30;   /* screen columns it covers, frame included */
+static int text_cols = BOX_COLS;   /* text tiles per line */
 
 static void put(int row, int col, int tile)
 {
@@ -182,12 +185,12 @@ void ui_box_clear(void)
             box_canvas[t][y] = fill[y];
 }
 
-/* Blank the screen rows the last box covered. */
+/* Blank the screen area the last box covered. */
 static void clear_box_rows(void)
 {
     if (box_top >= 0)
         for (int r = box_top; r < box_top + box_rows && r < SCREEN_ROWS; r++)
-            for (int c = 0; c < 30; c++)
+            for (int c = box_left; c < box_left + box_cols && c < 30; c++)
                 put(r, c, 0);
 }
 
@@ -196,35 +199,64 @@ void ui_box_open(int lines)
     ui_box_open_ex(lines, UI_BOX_BOTTOM, 1);
 }
 
+int ui_text_width(void)
+{
+    return text_cols * 8;
+}
+
 void ui_box_open_ex(int lines, int position, int framed)
 {
     if (lines < 1)
         lines = 1;
     if (lines > UI_MAX_LINES)
         lines = UI_MAX_LINES;
+    int rows = lines + (framed ? 2 : 0);
+    int top = position == UI_BOX_TOP ? 0 : position == UI_BOX_MIDDLE ? (SCREEN_ROWS - rows) / 2 : SCREEN_ROWS - rows;
+    ui_box_open_at(lines, 0, top, 30, framed);
+}
 
-    /* Clear the rows a box of another size or place used before. */
+void ui_box_open_at(int lines, int col, int row, int width, int framed)
+{
+    if (lines < 1)
+        lines = 1;
+    if (lines > UI_MAX_LINES)
+        lines = UI_MAX_LINES;
+
+    /* Clear the area a box of another size or place used before. */
     clear_box_rows();
 
     box_lines = lines;
     box_framed = framed != 0;
     box_rows = lines + (box_framed ? 2 : 0);
-    if (position == UI_BOX_TOP)
-        box_top = 0;
-    else if (position == UI_BOX_MIDDLE)
-        box_top = (SCREEN_ROWS - box_rows) / 2;
-    else
-        box_top = SCREEN_ROWS - box_rows;
+
+    /* Fit on screen: at least one text tile, at most the canvas's 28. */
+    int min_w = box_framed ? 3 : 1;
+    if (width < min_w) width = min_w;
+    if (width > 30) width = 30;
+    if (col < 0) col = 0;
+    if (col + width > 30) col = 30 - width;
+    if (row < 0) row = 0;
+    if (row + box_rows > SCREEN_ROWS) row = SCREEN_ROWS - box_rows;
+    box_left = col;
+    box_cols = width;
+    box_top = row;
+
+    /* A full-width box keeps its text one tile in from each side, framed
+     * or not, as before; otherwise the text fills inside the frame. */
+    int text_left = box_framed ? col + 1 : (width == 30 ? 1 : col);
+    text_cols = box_framed ? width - 2 : (width == 30 ? BOX_COLS : width);
+    if (text_cols > BOX_COLS) text_cols = BOX_COLS;
     int text_top = box_top + (box_framed ? 1 : 0);
+    int right = col + width - 1;
 
     if (box_framed)
     {
         int bottom = box_top + box_rows - 1;
-        put(box_top, 0, FRAME_TILE + 0);
-        put(box_top, 29, FRAME_TILE + 2);
-        put(bottom, 0, FRAME_TILE + 6);
-        put(bottom, 29, FRAME_TILE + 8);
-        for (int c = 1; c < 29; c++)
+        put(box_top, col, FRAME_TILE + 0);
+        put(box_top, right, FRAME_TILE + 2);
+        put(bottom, col, FRAME_TILE + 6);
+        put(bottom, right, FRAME_TILE + 8);
+        for (int c = col + 1; c < right; c++)
         {
             put(box_top, c, FRAME_TILE + 1);
             put(bottom, c, FRAME_TILE + 7);
@@ -233,10 +265,13 @@ void ui_box_open_ex(int lines, int position, int framed)
     for (int l = 0; l < lines; l++)
     {
         int r = text_top + l;
-        put(r, 0, box_framed ? FRAME_TILE + 3 : 0);
-        put(r, 29, box_framed ? FRAME_TILE + 5 : 0);
-        for (int c = 0; c < BOX_COLS; c++)
-            put(r, 1 + c, BOX_TILE + l * BOX_COLS + c);
+        if (box_framed)
+        {
+            put(r, col, FRAME_TILE + 3);
+            put(r, right, FRAME_TILE + 5);
+        }
+        for (int c = 0; c < text_cols; c++)
+            put(r, text_left + c, BOX_TILE + l * BOX_COLS + c);
     }
 
     ui_box_clear();
@@ -249,6 +284,9 @@ void ui_box_close(void)
     clear_box_rows();
     box_top = -1;
     box_framed = 1;
+    box_left = 0;
+    box_cols = 30;
+    text_cols = BOX_COLS;
     /* The debug HUD shares BG1; keep the layer on while it's showing. */
     int hud = 0;
     for (int t = 0; t < UI_HUD_ROWS * HUD_COLS && !hud; t++)
