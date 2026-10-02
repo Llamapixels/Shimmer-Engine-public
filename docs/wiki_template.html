@@ -1,0 +1,763 @@
+<title>Shimmer Engine Wiki</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Silkscreen&display=swap">
+<style>
+/* Layout: a sticky left index (search + chapters) beside one ~68ch reading column; the index folds into a top drawer on phones. */
+:root {
+  --bg: #f3f3f1;          /* page */
+  --panel: #e8e8e5;       /* index, cards */
+  --ink: #1b1c1e;         /* text */
+  --muted: #5d6066;       /* secondary text */
+  --line: #cfd0cc;        /* rules */
+  --accent: #b88400;      /* links, highlight (deep cartridge yellow on light) */
+  --accent-soft: #fff1c4; /* highlight fill */
+  --code-bg: #e2e3df;
+  --font-display: "Silkscreen", "Courier New", monospace;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1f2022; --panel: #27282b; --ink: #ececea; --muted: #a6a8ad; --line: #3a3c40;
+    --accent: #ffd23f; --accent-soft: #3a3214; --code-bg: #2f3134; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1f2022; --panel: #27282b; --ink: #ececea; --muted: #a6a8ad; --line: #3a3c40;
+  --accent: #ffd23f; --accent-soft: #3a3214; --code-bg: #2f3134; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16.5px; line-height: 1.62; margin: 0; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.shell { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh; }
+
+/* ---- Index ---- */
+.index { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 22px 18px 40px; display: flex; flex-direction: column; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand-mark { width: 40px; height: auto; image-rendering: pixelated; flex: none; }
+.brand-name { font-family: var(--font-display); font-size: 17px; line-height: 1.1; letter-spacing: 0.02em; }
+.brand-sub { display: block; font-family: var(--font-body); font-size: 12.5px; color: var(--muted); letter-spacing: 0; }
+.search { width: 100%; padding: 9px 11px; font: inherit; font-size: 15px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.toc { display: flex; flex-direction: column; gap: 2px; }
+.toc-group { margin-top: 12px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 700; }
+.toc a { display: block; padding: 4px 8px; border-radius: 5px; color: var(--ink); text-decoration: none; font-size: 15px; }
+.toc a:hover { background: var(--bg); }
+.toc a.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.theme-row { margin-top: auto; display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.theme-row button { font: inherit; font-size: 13px; padding: 3px 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 5px; cursor: pointer; }
+.theme-row button[aria-pressed="true"] { border-color: var(--accent); }
+.drawer-toggle { display: none; }
+
+/* ---- Content ---- */
+main { padding: 34px clamp(16px, 4vw, 56px) 80px; min-width: 0; }
+.col { max-width: 72ch; }
+.hero { padding-block: 10px 26px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.eyebrow { font-family: var(--font-display); font-size: 13px; color: var(--accent); letter-spacing: 0.06em; }
+h1 { font-size: clamp(30px, 4.5vw, 42px); line-height: 1.12; margin: 8px 0 12px; text-wrap: balance; }
+.lede { font-size: 19px; color: var(--muted); margin: 0; max-width: 62ch; }
+section { padding-block: 26px 10px; scroll-margin-top: 16px; }
+section + section { border-top: 1px solid var(--line); }
+h2 { font-size: 27px; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; }
+h3 { font-size: 19.5px; margin: 24px 0 6px; }
+p, ul, ol { margin: 0 0 12px; }
+li { margin-bottom: 4px; }
+code, kbd { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; }
+pre { font-family: var(--font-mono); font-size: 13.5px; background: var(--code-bg); padding: 12px 14px; border-radius: 6px; overflow-x: auto; line-height: 1.5; }
+.note { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+.note p:last-child { margin: 0; }
+.table-wrap { overflow-x: auto; margin: 12px 0 16px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.steps { padding-left: 22px; }
+.steps li { margin-bottom: 8px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.tile h4 { margin: 0 0 4px; font-size: 16px; }
+.tile p { margin: 0; font-size: 15px; color: var(--muted); }
+
+/* Generated references */
+.ref-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
+.chip { font: inherit; font-size: 13.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.ev { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.ev-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.ev-name { font-weight: 700; font-size: 17px; }
+.ev-cat { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.ev p { margin: 4px 0; }
+.ev-fields { font-size: 14px; color: var(--muted); }
+.ev-fields b { color: var(--ink); font-weight: 700; }
+.setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.setting .s-name { font-weight: 700; }
+.setting .s-def { font-family: var(--font-mono); font-size: 13px; color: var(--muted); white-space: nowrap; }
+.setting .s-desc { grid-column: 1 / -1; font-size: 15px; color: var(--muted); }
+.gba-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; margin-left: 6px; vertical-align: 2px; }
+mark { background: var(--accent-soft); color: inherit; border-radius: 3px; }
+.no-hits { color: var(--muted); font-style: italic; }
+footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .index { position: relative; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 14px 16px; }
+  .drawer-toggle { display: inline-block; font: inherit; padding: 6px 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; cursor: pointer; }
+  .index:not(.open) .toc, .index:not(.open) .theme-row { display: none; }
+  .index-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="shell">
+  <nav class="index" id="index" aria-label="Wiki contents">
+    <div class="index-top">
+      <a class="brand" href="#welcome">
+        <img class="brand-mark" src="/*LOGO*/" alt="" width="40" height="34">
+        <span class="brand-name">Shimmer Engine<span class="brand-sub">Wiki · early alpha</span></span>
+      </a>
+      <button class="drawer-toggle" id="drawer" aria-expanded="false" aria-controls="index">Contents</button>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Search the wiki…" aria-label="Search the wiki" autocomplete="off">
+    <div class="toc" id="toc"></div>
+    <div class="theme-row" role="group" aria-label="Colour theme">
+      Theme
+      <button id="t-system" aria-pressed="true">Auto</button>
+      <button id="t-light" aria-pressed="false">Light</button>
+      <button id="t-dark" aria-pressed="false">Dark</button>
+    </div>
+  </nav>
+
+  <main>
+    <div class="col">
+      <header class="hero" id="welcome">
+        <div class="eyebrow">GAME BOY ADVANCE · NO CODE</div>
+        <h1>Shimmer Engine Wiki</h1>
+        <p class="lede">Everything about making Game Boy Advance games in Shimmer Engine: drawing maps and sprites, scripting with event blocks, music, cutscenes, and building a real <code>.gba</code> ROM.</p>
+      </header>
+
+<!-- ============================================================ GUIDE -->
+
+<section id="about" data-group="Start here" data-title="What is Shimmer Engine?">
+<h2>What is Shimmer Engine?</h2>
+<p>Shimmer Engine is a game maker for the Game Boy Advance, inspired by GB Studio. You draw your maps, place characters, script what happens with event blocks, write music, and press <b>Build ROM</b>. The result is a real <code>.gba</code> file that runs in emulators like mGBA, and should run on real hardware too.</p>
+<p>Everything a build needs is included in the installer. There's no compiler, Python or devkit to set up.</p>
+<div class="note"><p>Shimmer Engine is an early alpha. Things change from version to version, and your feedback decides what gets fixed and added first. Report problems on <a href="https://www.reddit.com/r/ShimmerEngine/" target="_blank" rel="noopener">r/ShimmerEngine</a>.</p></div>
+<p>Coming from GB Studio? Most ideas carry straight over: scenes, actors, triggers, event scripts, GB Studio fonts and <code>.uge</code> songs. The big differences come from the hardware: far more colors, bigger sprites, real background layers and 16 actors per scene.</p>
+</section>
+
+<section id="install" data-group="Start here" data-title="Installing">
+<h2>Installing</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>System</th><th>Download</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Windows</td><td><code>Shimmer-Engine-Setup-&lt;version&gt;.exe</code></td><td>Run it and Shimmer opens. Windows may ask you to confirm, since the installer isn't code-signed yet.</td></tr>
+<tr><td>Linux</td><td><code>.deb</code> or <code>.AppImage</code></td><td>The <code>.deb</code> installs with a double-click. On Ubuntu 22.04-based distros (Zorin 17, Mint 21), the AppImage first needs <code>sudo apt install libfuse2</code>. Runs natively, so no Wine needed.</td></tr>
+<tr><td>Mac</td><td><code>.dmg</code></td><td>Apple Silicon (M1 and newer). The first time, right-click the app and choose <b>Open</b>.</td></tr>
+</tbody></table></div>
+<p>To play your game you also need a GBA emulator. <a href="https://mgba.io" target="_blank" rel="noopener">mGBA</a> is a good choice. Set it as the program that opens <code>.gba</code> files, or pick it in <b>File → Emulator for Play</b>.</p>
+</section>
+
+<section id="quickstart" data-group="Start here" data-title="Your first game">
+<h2>Your first game</h2>
+<ol class="steps">
+<li><b>New Project.</b> On the start screen, type a name, press <b>New Project</b> and choose a folder. You get a project with one scene, a background and the default player.</li>
+<li><b>Look around the scene.</b> The middle is the scene canvas. The left sidebar lists scenes and project data; the right panel shows whatever you've selected.</li>
+<li><b>Add an actor.</b> Pick the actor tool in the canvas toolbar and click on the map. Give it a name in the right panel.</li>
+<li><b>Make it talk.</b> With the actor selected, open its <b>On Interact</b> tab, press <b>+ Add Event</b> and choose <b>Display Text</b>. Type a line.</li>
+<li><b>Paint some walls.</b> Turn on the collision layer and paint solid tiles so the player can't walk through buildings.</li>
+<li><b>Press Play.</b> Shimmer builds the ROM and opens it in your emulator. Walk up to the actor and press A.</li>
+</ol>
+<p>From here: draw your own backgrounds and sprites in the <a href="#art">Art Editor</a>, add more scenes and connect them with doors, and pick a <a href="#modes">game mode</a> if you're not making a top-down game.</p>
+</section>
+
+<section id="tour" data-group="The editor" data-title="Editor tour">
+<h2>Editor tour</h2>
+<p>The dropdown in the top-left switches between the editor's sections:</p>
+<div class="grid2">
+<div class="tile"><h4>Game World</h4><p>Scenes, actors, triggers and their scripts. Where most of the game gets made.</p></div>
+<div class="tile"><h4>Sprites</h4><p>Turn sprite sheets into animated characters: frames, states, directions and collision boxes.</p></div>
+<div class="tile"><h4>Backgrounds</h4><p>Your background images, with the numbers the GBA cares about: colors, tiles and size.</p></div>
+<div class="tile"><h4>Art Editor</h4><p>A built-in pixel art editor for every image in your project.</p></div>
+<div class="tile"><h4>Music</h4><p>A piano-roll editor for <code>.uge</code> songs, plus MIDI import.</p></div>
+<div class="tile"><h4>Cutscenes</h4><p>Turn a video into a full-screen GBA cutscene with sound.</p></div>
+<div class="tile"><h4>Settings</h4><p>Engine settings for each game mode, dialogue fonts and frames, controls and project options.</p></div>
+</div>
+<h3>Menus</h3>
+<ul>
+<li><b>File:</b> New Project, Open Project, Save (<kbd>Ctrl</kbd>+<kbd>S</kbd>), Save As (copies the project to a new folder), Reload Assets (<kbd>F5</kbd>), Emulator for Play.</li>
+<li><b>View → Theme:</b> Dark, Light, Midnight Blue or Classic Purple.</li>
+<li>The toolbar has <b>Asset Reload</b>, <b>Open Folder</b>, Undo/Redo, <b>Play</b> and <b>Build ROM</b>.</li>
+</ul>
+<div class="note"><p>Every change saves automatically. <b>Save</b> just writes everything immediately and confirms it in the status bar.</p></div>
+</section>
+
+<section id="files" data-group="The editor" data-title="Project files">
+<h2>Project files</h2>
+<p>A project is a normal folder, so you can keep it anywhere and edit its art in other programs too. Press <b>Asset Reload</b> after changing files outside Shimmer.</p>
+<pre>my_game/
+  project.json            flags, items, variables, settings, custom scripts
+  scenes/                 one .json file per scene (subfolders = folders in the list)
+  assets/
+    backgrounds/          scene background PNGs
+    sprites/              sprite sheet PNGs (+ .art.json layers from the Art Editor)
+    fonts/  frames/  ui/  dialogue fonts, box frames, menu cursor
+    music/                .uge songs
+    sounds/               .wav sound effects
+    cutscenes/            .cut video + .raw sound (made in the Cutscenes tab)
+  ROM/                    your built .gba</pre>
+<p>Put a <code>/</code> in a scene's name, like <code>Forest/Cave 1</code>, to put it in a folder. Scripts, palettes, prefabs and sprites can be organised in folders the same way.</p>
+</section>
+
+<section id="scenes" data-group="Making the world" data-title="Scenes">
+<h2>Scenes</h2>
+<p>A scene is one map, or one screen like a title or a menu. Each has a background image, collision, actors, triggers and scripts.</p>
+<h3>Backgrounds</h3>
+<p>Any PNG up to 2048×2048 pixels, sized in multiples of 8. Maps bigger than 512×512 stream in as you walk. Every 8×8 tile can use 15 colors plus a shared backdrop color, from up to 15 palettes per scene, with up to 1024 unique tiles.</p>
+<h3>Painting the map</h3>
+<ul>
+<li><b>Collision:</b> solid, water, damage, and one-way tiles that block from the top, bottom, left or right only.</li>
+<li><b>Brushes:</b> 8px, 16px, fill, magic (every matching tile) and area select with copy and paste.</li>
+<li><b>Tiles:</b> stamp tiles from the background onto the map without touching the original image.</li>
+<li><b>Colors:</b> assign palettes to tiles.</li>
+</ul>
+<h3>Layers and parallax</h3>
+<p>Each scene can have up to two extra background layers that scroll at their own speed, with optional drift for things like clouds. GB Studio-style parallax strips also work.</p>
+<h3>Things you place</h3>
+<ul>
+<li><b>Actors</b>: characters and objects with sprites and scripts. 16 per scene at most.</li>
+<li><b>Triggers</b>: areas that run a script when the player walks in, and optionally when they leave.</li>
+<li><b>Doors</b>: triggers that take the player to another scene.</li>
+<li><b>Notes</b>: editor-only reminders on the map.</li>
+<li><b>Prefabs</b>: saved actors and triggers you can place again.</li>
+</ul>
+<p>Right-click an actor, trigger or note on the canvas to delete it. Hovering shows the tile position as <b>X=</b> and <b>Y=</b>; an actor's position is its top-left tile.</p>
+</section>
+
+<section id="modes" data-group="Making the world" data-title="Game modes">
+<h2>Game modes</h2>
+<p>Every scene has a type that decides how the player moves:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Mode</th><th>What it plays like</th></tr></thead>
+<tbody>
+<tr><td>Top Down 2D</td><td>Classic RPG movement. Free or grid-based (a full 8 or 16 px per step), with running and optional diagonals.</td></tr>
+<tr><td>Platformer</td><td>Gravity, variable jump height, coyote time, jump buffering, double jumps, wall jumps and slides, ladders, one-way platforms, dashing, crouching, and moving platforms you can ride.</td></tr>
+<tr><td>Adventure</td><td>Free 8-way movement with momentum, running, dashing and pushing.</td></tr>
+<tr><td>Shoot 'Em Up</td><td>The screen scrolls by itself and the player stays on screen.</td></tr>
+<tr><td>Point and Click</td><td>The player is a cursor; hover over things and press A.</td></tr>
+<tr><td>Logo</td><td>No player at all, for title cards and splash screens.</td></tr>
+</tbody></table></div>
+<p>Each mode's settings are in <b>Settings → Engine</b>; see the <a href="#settings-ref">engine settings reference</a>. A scene can override settings just for itself, and <b>Set Engine Setting</b> changes them mid-game.</p>
+<p>Sprites with animation states named <code>jump</code>, <code>fall</code>, <code>run</code>, <code>climb</code> or <code>dash</code> are picked up by the modes automatically.</p>
+</section>
+
+<section id="actors" data-group="Making the world" data-title="Actors and the player">
+<h2>Actors and the player</h2>
+<p>Actors have a sprite, a movement and animation speed, a collision group, and four scripts:</p>
+<ul>
+<li><b>On Init</b>: runs when the scene starts.</li>
+<li><b>On Update</b>: loops in the background every frame.</li>
+<li><b>On Interact</b>: runs when the player presses A on it.</li>
+<li><b>On Hit</b>: runs when a projectile in its group hits it.</li>
+</ul>
+<p>Click the player's start position to give the player its own On Init, On Update and On Hit scripts, animation speed and collisions. Every actor event can target the <b>Player</b>, and <b>Self</b> means "this actor" inside its own scripts.</p>
+<p>Actors can be pinned to the screen for HUD elements, and in platformer scenes an actor can be a platform you stand on and ride.</p>
+</section>
+
+<section id="scripting" data-group="Scripting" data-title="Event scripting">
+<h2>Event scripting</h2>
+<p>Scripts are lists of event blocks that run top to bottom. Press <b>+ Add Event</b> and search, or browse by category. Drag blocks to reorder them, and hold <kbd>Alt</kbd> or <kbd>Ctrl</kbd> while dropping to copy instead.</p>
+<h3>Where scripts live</h3>
+<ul>
+<li>Scene <b>On Init</b>, <b>On Player Hit</b> and <b>Timers</b>.</li>
+<li>Actor and player scripts (see <a href="#actors">Actors</a>).</li>
+<li>Trigger <b>On Enter</b> and <b>On Leave</b>.</li>
+<li><b>Custom scripts</b>: reusable scripts you call from anywhere with Call Script.</li>
+<li><b>Attach Script To Button</b>: runs whenever a button is pressed. It runs alongside play by default, so the player keeps moving. Tick <b>Freeze player</b> to stop everything until it finishes.</li>
+</ul>
+<h3>Data</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Kind</th><th>Holds</th><th class="num">Limit</th></tr></thead>
+<tbody>
+<tr><td>Flags</td><td>On/off switches</td><td class="num">32</td></tr>
+<tr><td>Items</td><td>Inventory, have or don't have</td><td class="num">32</td></tr>
+<tr><td>Variables</td><td>Whole numbers from −32768 to 32767</td><td class="num">256</td></tr>
+<tr><td>Constants</td><td>Named fixed numbers for expressions</td><td class="num">—</td></tr>
+</tbody></table></div>
+<p>Flags, items and variables are what the three save slots store.</p>
+<h3>Handy tools</h3>
+<ul>
+<li><b>Disable event</b>: right-click a block to switch it off without deleting it. Blocks with an Else branch can also <b>Disable else</b>.</li>
+<li><b>Expressions</b>: If Expression and Set Variable To Expression take formulas using variables, flags, items, actors and math.</li>
+<li><b>Background scripts</b>: up to 8 scripts can run at once. Dialogue boxes wait their turn.</li>
+<li><b>Pause the world during dialogue</b> (an engine setting) freezes everything else while a box is open.</li>
+</ul>
+<p>The full list is in the <a href="#events-ref">events reference</a>.</p>
+</section>
+
+<section id="dialogue" data-group="Scripting" data-title="Dialogue">
+<h2>Dialogue</h2>
+<p><b>Display Text</b> shows a dialogue box. A new line starts a new page, and long text carries on to the next page automatically. The preview under the text shows exactly what the game will show.</p>
+<h3>Box options</h3>
+<ul>
+<li><b>Position:</b> bottom, middle, top, or custom (X, Y and width in tiles; the screen is 30×20 tiles).</li>
+<li><b>Rows:</b> 1 to 4 lines of text.</li>
+<li><b>Frame:</b> turn it off for just the text, handy for one-line HUD text.</li>
+</ul>
+<h3>Text codes</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Code</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td><code>{score}</code></td><td>Shows a variable's value.</td></tr>
+<tr><td><code>!F:fontname!</code></td><td>Switches font from here on.</td></tr>
+<tr><td><code>!C:#ff4040!</code></td><td>Colors the text from here on. <code>!C!</code> goes back to the font's own color.</td></tr>
+<tr><td><code>!S2!</code></td><td>Text speed in frames per letter. <code>!S0!</code> shows text instantly.</td></tr>
+</tbody></table></div>
+<p>The <b>Insert</b> bar under the text box adds these for you.</p>
+<h3>Fonts and frames</h3>
+<p>Fonts use GB Studio's PNG format, so GB Studio fonts work as they are. There are 15 built-in fonts too. Fonts, frames and text colors share one 15-color dialogue palette.</p>
+</section>
+
+<section id="sprites" data-group="Art and sound" data-title="Sprites">
+<h2>Sprites</h2>
+<ul>
+<li>Sprites can be almost any size up to 256×256; the engine packs them into the GBA's hardware sprites for you.</li>
+<li>Each sprite can use 15 colors plus transparency.</li>
+<li>Animation states for standing, walking and custom animations, in four directions. <b>Flip right to make left</b> saves drawing.</li>
+<li>Sheet slicing for GB Studio-style and RPG Maker-style sheets.</li>
+<li>A live preview of the character walking, and a meter for how much sprite memory each frame uses.</li>
+<li>Onion skin, frame copy and paste, mirroring and drag-to-reorder.</li>
+</ul>
+</section>
+
+<section id="art" data-group="Art and sound" data-title="Art Editor">
+<h2>Art Editor</h2>
+<p>A pixel art editor for your project's images. Pick an image on the left, or make one with <b>+ New</b>. Saving writes the PNG straight into your project.</p>
+<h3>Tools</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Tool</th><th>Key</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Pencil</td><td><kbd>B</kbd></td><td>Brush size, dither and pixel-perfect options. <kbd>Shift</kbd>+click draws a line from the last point.</td></tr>
+<tr><td>Eraser</td><td><kbd>E</kbd></td><td>Erases to transparent.</td></tr>
+<tr><td>Fill</td><td><kbd>G</kbd></td><td>Connected area, or every pixel of that color with Global.</td></tr>
+<tr><td>Line / Rectangle / Ellipse</td><td><kbd>L</kbd> <kbd>U</kbd> <kbd>O</kbd></td><td><kbd>Shift</kbd> for 45° lines, squares and circles.</td></tr>
+<tr><td>Gradient</td><td><kbd>D</kbd></td><td>Dithered, linear or radial, using only the colors you pick.</td></tr>
+<tr><td>Shading</td><td><kbd>S</kbd></td><td>Left click lightens, right click darkens, stepping through the image's own colors.</td></tr>
+<tr><td>Stamp</td><td><kbd>K</kbd></td><td>Draws a custom brush made with Image → Brush from selection.</td></tr>
+<tr><td>Color picker</td><td><kbd>I</kbd></td><td>Or <kbd>Alt</kbd>+click with any drawing tool.</td></tr>
+<tr><td>Select / Move</td><td><kbd>M</kbd> <kbd>V</kbd></td><td>Copy, cut, paste, flip, nudge with arrow keys.</td></tr>
+<tr><td>Hand</td><td><kbd>H</kbd></td><td>Or hold <kbd>Space</kbd> and drag.</td></tr>
+</tbody></table></div>
+<h3>Layers and animation</h3>
+<p>Layers can be hidden, locked, faded, reordered and merged; the game gets them flattened into one image. For sprite sheets, set a frame size in the Frames panel to get a timeline, a playing preview and onion skin.</p>
+<h3>GBA helpers</h3>
+<ul>
+<li>The palette bar warns when a sprite goes over 15 colors, or a background tile over 15 plus the backdrop.</li>
+<li><b>Image → Reduce colors</b> and <b>Snap to GBA colors</b> fix that for you.</li>
+<li><b>Tile mode</b> (<kbd>T</kbd>) repeats the image around itself for seamless tiles. <kbd>#</kbd> shows the 8×8 tile grid.</li>
+</ul>
+</section>
+
+<section id="music" data-group="Art and sound" data-title="Music and sound">
+<h2>Music and sound</h2>
+<ul>
+<li><b>Music</b> uses <code>.uge</code> songs, the same format as hUGETracker and GB Studio, played on the GBA's classic sound channels.</li>
+<li>The <b>Music</b> section is a piano-roll editor with instruments, waves and effects.</li>
+<li><b>MIDI import</b> turns a MIDI file into a playable song.</li>
+<li><b>Sound effects</b> are WAV files in <code>assets/sounds</code>, played on the GBA's two digital sound channels at 16384 Hz. Built-in sounds cover jumping, landing and more.</li>
+</ul>
+</section>
+
+<section id="cutscenes" data-group="Art and sound" data-title="Cutscenes">
+<h2>Cutscenes</h2>
+<p>Turn a video into a full-screen GBA cutscene with sound, for intros and story moments.</p>
+<ol class="steps">
+<li>Open <b>Cutscenes</b> and press <b>+ Import video</b>. MP4 (H.264) and WebM work best.</li>
+<li>Trim it with Start and End, and pick a size, frame rate, fit and quality. The dialog estimates the size before converting.</li>
+<li>Press <b>Convert</b>, then watch it in the preview player. It plays exactly as the GBA will show it.</li>
+<li>Add a <b>Play Cutscene</b> event where it should play. A or START can skip it, and the scene comes back as it was afterwards.</li>
+</ol>
+<div class="table-wrap"><table>
+<thead><tr><th>Size</th><th>Looks</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Full screen 240×160</td><td>Sharpest</td><td>Biggest</td></tr>
+<tr><td>Half 120×80, shown 2×</td><td>Chunkier pixels</td><td>About 4× smaller</td></tr>
+</tbody></table></div>
+<p>Sound takes about 16 KB per second. A cartridge holds 32 MB, so short cutscenes fit easily. Cartoon-style video compresses much better than live action.</p>
+</section>
+
+<section id="saving" data-group="Scripting" data-title="Saving and scene stack">
+<h2>Saving and the scene stack</h2>
+<ul>
+<li><b>Save Data</b>, <b>Load Data</b> and <b>Clear Data</b> use three save slots that hold flags, items, variables and where the player is.</li>
+<li><b>Store Current Scene</b> remembers the scene and player position; <b>Restore Previous Scene</b> goes back. Good for menus and houses.</li>
+<li>Tick <b>Remember everything</b> for a real pause. Actors, their states, running scripts and timers all come back exactly as they were, and the scene's On Init doesn't run again.</li>
+</ul>
+</section>
+
+<section id="building" data-group="Finishing" data-title="Building and playing">
+<h2>Building and playing</h2>
+<ul>
+<li><b>Play</b> builds the game and opens it in your emulator. Pressing Play again closes the emulator it opened last, so windows don't pile up.</li>
+<li><b>Build ROM</b> builds without playing. The ROM goes in your project's <code>ROM</code> folder.</li>
+<li>If something's wrong, the build window says which scene and event. <b>Copy Log</b> copies it for sharing.</li>
+</ul>
+<h3>Real hardware</h3>
+<p>The ROM is a standard GBA ROM with a fixed header, so it should run on flash carts. Please report how it goes on yours.</p>
+</section>
+
+<section id="limits" data-group="Finishing" data-title="GBA limits">
+<h2>GBA limits at a glance</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Thing</th><th class="num">Limit</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Screen</td><td class="num">240×160 px</td><td>30×20 tiles of 8×8.</td></tr>
+<tr><td>Background size</td><td class="num">2048×2048 px</td><td>Bigger maps stream in as you walk.</td></tr>
+<tr><td>Colors per background tile</td><td class="num">15 + backdrop</td><td>Each 8×8 tile uses one 16-color palette.</td></tr>
+<tr><td>Background palettes</td><td class="num">15</td><td>The 16th belongs to the dialogue box.</td></tr>
+<tr><td>Unique background tiles</td><td class="num">1024</td><td>Repeat tiles across big maps.</td></tr>
+<tr><td>Colors per sprite</td><td class="num">15 + transparent</td><td>One sprite palette each.</td></tr>
+<tr><td>Sprite size</td><td class="num">up to 256×256</td><td>Packed into hardware sprites.</td></tr>
+<tr><td>Actors per scene</td><td class="num">16</td><td>Plus the player.</td></tr>
+<tr><td>Dialogue palette</td><td class="num">15 colors</td><td>Shared by all fonts, frames and text colors.</td></tr>
+<tr><td>Running scripts</td><td class="num">1 + 8</td><td>One main script plus background scripts.</td></tr>
+<tr><td>Timers per scene</td><td class="num">8</td><td></td></tr>
+<tr><td>Flags / items / variables</td><td class="num">32 / 32 / 256</td><td>All saved with the game.</td></tr>
+<tr><td>Save slots</td><td class="num">3</td><td></td></tr>
+<tr><td>Cartridge</td><td class="num">32 MB</td><td>What everything has to fit in.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ============================================================ TECHNICAL -->
+
+<section id="arch" data-group="Technical" data-title="How it's built">
+<h2>How Shimmer Engine is built</h2>
+<p>Three parts work together. The editor writes plain files; the compiler turns them into C data; the engine is the GBA program that data is linked into.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Part</th><th>Language</th><th>Job</th></tr></thead>
+<tbody>
+<tr><td>Editor</td><td>TypeScript, React, Electron</td><td>Edits the project folder: JSON, PNG, UGE, WAV and cutscene files.</td></tr>
+<tr><td>Compiler</td><td>Python</td><td>Checks the project and writes C source: scenes, scripts, sprites, fonts, songs, sounds.</td></tr>
+<tr><td>Engine</td><td>C (devkitARM, libgba)</td><td>The runtime: game loop, game modes, script machine, graphics, sound, saves.</td></tr>
+</tbody></table></div>
+<p>The installer bundles a frozen copy of the compiler, the engine source and a trimmed devkitARM (GCC for the GBA's ARM7TDMI), which is why nothing else needs installing. The Linux version uses Arm's own GCC with devkitPro's GBA support files, because devkitPro's Linux compiler needs a newer glibc than Ubuntu 22.04-based distros have.</p>
+</section>
+
+<section id="formats" data-group="Technical" data-title="Project file format">
+<h2>Project file format</h2>
+<p>Everything is plain JSON, so projects diff well in Git and can be edited by hand or generated by tools.</p>
+<h3>project.json</h3>
+<pre>{
+  "name": "My Game",
+  "start_scene": "title",
+  "flags": ["met_elder", "door_open"],        // up to 32
+  "items": ["Old Key"],                       // up to 32
+  "variables": ["gold", "hp"],                // up to 256, int16
+  "constants": [{ "name": "MAX_HP", "value": 99 }],
+  "customScripts": [{ "id": "...", "name": "Heal", "script": [ ...events ] }],
+  "ui": { "font": "default", "frame": "default", "textSpeed": 1 },
+  "palettes": [ ... ], "prefabs": [ ... ],
+  "playerSprite": "player",
+  "spriteSheets": [ ...sprite definitions ],
+  "engine": { "pl_walk_vel": 2, ... }          // engine settings by key
+}</pre>
+<h3>scenes/&lt;name&gt;.json</h3>
+<pre>{
+  "name": "town",
+  "type": "topdown",                          // or platform, adventure, shmup, pointnclick, logo
+  "background": "../assets/backgrounds/town.png",
+  "music": "town",
+  "player_start": { "x": 14, "y": 9 },        // tiles
+  "collision": ["....####", "....#..."],      // one string per tile row
+  "npcs": [{ "name": "elder", "x": 4, "y": 4, "sprite": "elder",
+             "on_interact": [ ...events ], "on_update": [ ... ] }],
+  "doors": [{ "x": 10, "y": 0, "width": 2, "height": 1,
+              "target_scene": "forest", "target_x": 3, "target_y": 18 }],
+  "on_init": [ ...events ],
+  "layers": [ ...parallax layers ],
+  "tile_overrides": { "3,4": [12, 0] },       // map tile ← background tile
+  "engine": { ... }                           // this scene's own settings
+}</pre>
+<h3>Collision characters</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Char</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>.</code></td><td>Walkable</td></tr>
+<tr><td><code>#</code></td><td>Solid</td></tr>
+<tr><td><code>~</code></td><td>Water</td></tr>
+<tr><td><code>!</code></td><td>Damage</td></tr>
+<tr><td><code>^ v &lt; &gt;</code></td><td>One-way: solid only from the top, bottom, left or right edge</td></tr>
+<tr><td><code>H</code></td><td>Ladder (platformer)</td></tr>
+</tbody></table></div>
+<h3>Events</h3>
+<p>An event is an object with a <code>type</code> and its options, and branches are nested lists:</p>
+<pre>{ "type": "if_flag", "flag": "met_elder",
+  "then": [ { "type": "text", "text": "Welcome back!" } ],
+  "else": [ { "type": "text", "text": "Hello, stranger.", "position": "top" } ] }</pre>
+<p>Any event can carry <code>"__disabled": true</code>, and an event with an Else can carry <code>"__disableElse": true</code>; the compiler skips them.</p>
+</section>
+
+<section id="pipeline" data-group="Technical" data-title="The build pipeline">
+<h2>The build pipeline</h2>
+<ol class="steps">
+<li><b>Compile the project.</b> <code>build_project.py</code> validates everything and writes <code>scenes_data.c</code>, <code>ui_data.c</code>, <code>uge_songs.c</code>, <code>sounds_data.c</code>, <code>mode_settings.h</code> and the cutscene files into <code>&lt;project&gt;/build/rom/data/</code>. Errors name the scene, script and event.</li>
+<li><b>Compile C.</b> Each engine and data source is compiled with <code>arm-none-eabi-gcc -mthumb -mcpu=arm7tdmi -O2</code>, in parallel, skipping files whose sources haven't changed.</li>
+<li><b>Link</b> with <code>gba.specs</code> and libgba, <b>objcopy</b> to a raw ROM, and <b>gbafix</b> the header (title, checksum).</li>
+<li>Copy the ROM to <code>&lt;project&gt;/ROM/</code>.</li>
+</ol>
+<h3>Building from the command line</h3>
+<pre>python3 compiler/build_rom.py &lt;project folder&gt; [--engine DIR] [--devkitpro DIR] [--out FILE]</pre>
+<p>It needs devkitARM, taken from <code>$DEVKITPRO</code> or <code>/opt/devkitpro</code>. The installed app runs the same tool, frozen as <code>shimmer-build</code>, from its <code>resources/toolchain</code> folder.</p>
+<h3>Big data</h3>
+<p>Cutscene video and sound go into the ROM through the assembler's <code>.incbin</code> rather than giant C arrays, so even multi-megabyte cutscenes build quickly.</p>
+</section>
+
+<section id="vm" data-group="Technical" data-title="The script machine">
+<h2>The script machine</h2>
+<p>Event blocks compile to a flat list of instructions. Each one is a small struct:</p>
+<pre>typedef struct ScriptEvent {
+    uint8_t     op;          // what to do (SCRIPT_TEXT, SCRIPT_IF_FLAG, ...)
+    int16_t     a, b, c, d;  // operands: indices, numbers, jump targets
+    const void *ptr;         // an expression or a sub-script
+    const char *str;         // dialogue text
+} ScriptEvent;</pre>
+<ul>
+<li><b>Threads.</b> One main script plus up to 8 background threads. Each keeps its own position and whatever it's waiting on (a text box, a wait, a moving actor, a camera pan, a button).</li>
+<li><b>Running.</b> Every frame each thread runs instructions until one blocks, then picks up from there next frame. Branches and loops are jumps inside the list.</li>
+<li><b>Expressions</b> compile to reverse-Polish arrays the engine evaluates on a small stack: variables, flags, items, actor positions, math and comparisons.</li>
+<li><b>The player</b> stands still while the main script runs (talking to an actor, a trigger). Background threads, timers and button scripts run alongside play.</li>
+<li><b>Real pause.</b> Store Current Scene with Remember everything copies every thread, timer and button script plus each actor's state, and puts them back when the scene is restored.</li>
+</ul>
+</section>
+
+<section id="hardware" data-group="Technical" data-title="Graphics on the GBA">
+<h2>Graphics on the GBA</h2>
+<h3>Video memory layout</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Area</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>BG char blocks 0-1</td><td>Scene tiles (up to 1024, 4bpp)</td></tr>
+<tr><td>BG screen blocks 28-31</td><td>Scene map on BG0, up to 64×64 tiles</td></tr>
+<tr><td>BG screen blocks 24-27</td><td>Parallax layer maps on BG2 and BG3</td></tr>
+<tr><td>BG char block 2, screen block 23</td><td>Dialogue box and text on BG1</td></tr>
+<tr><td>BG palette banks 0-14 / 15</td><td>Scene colors / dialogue colors</td></tr>
+<tr><td>OBJ VRAM (0x06010000)</td><td>Sprite tiles, streamed in per animation frame</td></tr>
+<tr><td>OBJ palette banks</td><td>Assigned per scene; the player always gets bank 0</td></tr>
+</tbody></table></div>
+<h3>Big maps</h3>
+<p>Maps up to 64×64 tiles (512×512 px) sit in VRAM whole. Bigger ones, up to 256×256 tiles, stream: as the camera moves, the engine copies in the row or column that's about to appear.</p>
+<h3>Sprites</h3>
+<p>The GBA draws sprites from hardware objects (OBJs) of fixed sizes, 8×8 up to 64×64. The compiler covers each frame of a sprite with as few OBJs as it can, removes duplicate tiles, and makes "flip left" frames from flipped OBJs instead of new pixels. Each actor reserves OAM slots and VRAM for its largest frame and streams the current frame in.</p>
+<h3>Dialogue</h3>
+<p>Text isn't made of font tiles. It's drawn pixel by pixel into a RAM canvas the size of the box (variable-width fonts, colors and all) and copied to BG1 when it changes.</p>
+<h3>Cutscenes</h3>
+<p>Full-size cutscenes use BG0 with 256-color (8bpp) tiles; half-size ones use an affine BG2 scaled 2×. Each frame updates only the tiles that changed.</p>
+</section>
+
+<section id="audio-tech" data-group="Technical" data-title="Sound on the GBA">
+<h2>Sound on the GBA</h2>
+<ul>
+<li><b>Music</b> plays on the four classic PSG channels (two pulse, wave, noise) through a C port of hUGEDriver, so <code>.uge</code> songs sound as they do in GB Studio. The editor's player is a TypeScript port of the same driver feeding a PSG synth.</li>
+<li><b>WAV sounds</b> use the two Direct Sound channels. Samples are signed 8-bit mono at 16384 Hz, streamed from ROM by DMA 1 and 2 and clocked by timer 0, so they cost almost no CPU. They mix over the music.</li>
+<li><b>Cutscene sound</b> is a WAV on channel A, started with the first video frame; video timing comes from the same hardware clock, so they stay in sync.</li>
+</ul>
+</section>
+
+<section id="savedata" data-group="Technical" data-title="Save data">
+<h2>Save data</h2>
+<p>Saves go to the cartridge's battery-backed SRAM: 32 KB at <code>0x0E000000</code>, read and written a byte at a time. Each of the 3 slots gets a 1 KB stripe holding:</p>
+<pre>typedef struct {
+    uint32_t magic;            // marks a slot as written
+    uint32_t flags;            // one bit per flag
+    uint32_t inventory;        // one bit per item
+    uint8_t  scene_index;
+    int16_t  player_x, player_y;
+    uint8_t  player_direction;
+    int16_t  variables[256];
+    uint8_t  checksum;
+} SaveData;</pre>
+<p>The ROM carries the <code>SRAM_V113</code> marker so emulators and flash carts know which save type to give it.</p>
+</section>
+
+<section id="cutformat" data-group="Technical" data-title="Cutscene file format">
+<h2>Cutscene file format (.cut)</h2>
+<p>Little-endian. The editor writes it; <code>engine/source/cutscene.c</code> plays it.</p>
+<div class="table-wrap"><table>
+<thead><tr><th class="num">Offset</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td><code>"SHCV"</code></td></tr>
+<tr><td class="num">4</td><td>u16 version (1)</td></tr>
+<tr><td class="num">6</td><td>u8 mode: 0 = full 240×160, 1 = half 120×80 shown 2×</td></tr>
+<tr><td class="num">7</td><td>u8 frames per second</td></tr>
+<tr><td class="num">8</td><td>u16 frame count</td></tr>
+<tr><td class="num">10</td><td>u8 tiles across, u8 tiles down</td></tr>
+<tr><td class="num">12</td><td>u16 palette[256], GBA BGR555</td></tr>
+<tr><td class="num">524</td><td>u32 frame offsets[count + 1]</td></tr>
+<tr><td class="num">…</td><td>Frames: GBA LZ77 streams, 4-byte aligned</td></tr>
+</tbody></table></div>
+<p>Unpacked, a frame is a bitmap with one bit per tile (rounded up to 4 bytes) followed by 64 bytes of 8bpp pixels for each tile whose bit is set. Frame 0 sets every tile. The BIOS <code>LZ77UnCompWram</code> call unpacks each frame into work RAM before the changed tiles are copied to VRAM. The <code>.raw</code> file beside it is the sound: signed 8-bit mono at 16384 Hz.</p>
+</section>
+
+<section id="source" data-group="Technical" data-title="Building from source">
+<h2>Building from source</h2>
+<pre>cd editor
+npm ci
+npm run dev        # editor with hot reload
+npm run dist       # package an installer for this system</pre>
+<p>Development builds of ROMs run <code>compiler/build_rom.py</code> through bash (WSL on Windows) with your own devkitARM. The GitHub Actions workflow builds the Windows, Linux and Mac installers, and test-builds a ROM with each bundled toolchain.</p>
+<p>The source layout is described in <code>ARCHITECTURE.md</code> in the repository.</p>
+</section>
+
+
+<!-- ============================================================ REFERENCES (generated) -->
+
+<section id="events-ref" data-group="Reference" data-title="Events reference">
+<h2>Events reference</h2>
+<p>Every event block, generated from the editor's own list. Search above to filter, or pick a category.</p>
+<div class="ref-tools" id="ev-cats" role="group" aria-label="Event categories"></div>
+<div id="ev-list"></div>
+</section>
+
+<section id="settings-ref" data-group="Reference" data-title="Engine settings">
+<h2>Engine settings reference</h2>
+<p>From <b>Settings → Engine</b>. Settings marked <span class="gba-tag">GBA</span> are extras GB Studio doesn't have.</p>
+<div class="ref-tools" id="set-modes" role="group" aria-label="Game modes"></div>
+<div id="set-list"></div>
+</section>
+
+<section id="faq" data-group="Finishing" data-title="Troubleshooting">
+<h2>Troubleshooting</h2>
+<h3>Play does nothing, or says it can't open the ROM</h3>
+<p>Install an emulator like mGBA and set it to open <code>.gba</code> files, or choose it in <b>File → Emulator for Play</b>.</p>
+<h3>"Too many colors"</h3>
+<p>Open the image in the Art Editor. The palette bar shows how far over you are; use <b>Image → Reduce colors</b>.</p>
+<h3>An actor ends up a tile lower than expected</h3>
+<p>Positions are the actor's top-left tile, but a 16×16 actor covers four tiles. Use the <b>Pick</b> button, which shows the whole actor. In a platformer, gravity also pulls a player placed in mid-air down.</p>
+<h3>My button script freezes the player</h3>
+<p>Untick <b>Freeze player while it runs</b> on Attach Script To Button. Unticked, the script runs alongside the game.</p>
+<h3>A video won't import</h3>
+<p>Use MP4 (H.264) or WebM. Other formats can be converted with a free video converter first.</p>
+<h3>The Linux AppImage won't start</h3>
+<p>Run <code>sudo apt install libfuse2</code>, or use the <code>.deb</code> instead.</p>
+</section>
+
+      <footer>
+        Shimmer Engine is made by HoloCatt. Community: <a href="https://www.reddit.com/r/ShimmerEngine/" target="_blank" rel="noopener">r/ShimmerEngine</a> · Downloads: <a href="https://holocatt.itch.io/shimmerengine" target="_blank" rel="noopener">holocatt.itch.io/shimmerengine</a>
+      </footer>
+    </div>
+  </main>
+</div>
+
+<script>
+const EVENTS = /*EVENTS*/[];
+const SETTINGS = /*SETTINGS*/{};
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---- Events reference
+const cats = [...new Set(EVENTS.map((e) => e.category))];
+let evCat = "All";
+function renderEvents(q) {
+  const list = document.getElementById("ev-list");
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = EVENTS.filter((e) => (evCat === "All" || e.category === evCat) &&
+    words.every((w) => (e.label + " " + e.category + " " + e.description + " " + e.fields.join(" ")).toLowerCase().includes(w)));
+  list.innerHTML = hits.length ? hits.map((e) => `
+    <div class="ev">
+      <div class="ev-head"><span class="ev-name">${esc(e.label)}</span><span class="ev-cat">${esc(e.category)}</span></div>
+      <p>${esc(e.description)}</p>
+      ${e.fields.length ? `<div class="ev-fields"><b>Options:</b> ${e.fields.map(esc).join(" · ")}</div>` : ""}
+      ${e.branches.length ? `<div class="ev-fields"><b>Holds events in:</b> ${e.branches.map(esc).join(" · ")}</div>` : ""}
+    </div>`).join("") : `<p class="no-hits">No events match.</p>`;
+}
+const evCats = document.getElementById("ev-cats");
+["All", ...cats].forEach((c) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = c; b.setAttribute("aria-pressed", String(c === evCat));
+  b.onclick = () => { evCat = c; [...evCats.children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderEvents(document.getElementById("q").value); };
+  evCats.appendChild(b);
+});
+
+// ---- Settings reference
+const modeLabels = Object.fromEntries((SETTINGS.modes || []).map((m) => [m.id, m.label]));
+modeLabels.all = "Every mode";
+let setMode = "all";
+function fmtDefault(s) {
+  if (s.unit === "bool") return s.default ? "On" : "Off";
+  if (s.unit === "choice" && s.options) return s.options[s.default] ?? s.default;
+  return String(s.default) + (s.unit === "frames" ? " frames" : s.unit === "pixels" ? " px" : "");
+}
+function renderSettings(q) {
+  const list = document.getElementById("set-list");
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = (SETTINGS.settings || []).filter((s) => s.mode === setMode &&
+    words.every((w) => (s.label + " " + (s.group || "") + " " + (s.desc || "")).toLowerCase().includes(w)));
+  const groups = [...new Set(hits.map((s) => s.group || "General"))];
+  list.innerHTML = hits.length ? groups.map((g) => `<h3>${esc(g)}</h3>` + hits.filter((s) => (s.group || "General") === g).map((s) => `
+    <div class="setting"><span class="s-name">${esc(s.label)}${s.extra ? '<span class="gba-tag">GBA</span>' : ""}</span>
+    <span class="s-def">Default: ${esc(fmtDefault(s))}</span>${s.desc ? `<span class="s-desc">${esc(s.desc)}</span>` : ""}</div>`).join("")).join("")
+    : `<p class="no-hits">No settings match.</p>`;
+}
+const setModes = document.getElementById("set-modes");
+["all", ...(SETTINGS.modes || []).map((m) => m.id).filter((id) => (SETTINGS.settings || []).some((s) => s.mode === id))].forEach((id) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = modeLabels[id] || id; b.setAttribute("aria-pressed", String(id === setMode));
+  b.onclick = () => { setMode = id; [...setModes.children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderSettings(document.getElementById("q").value); };
+  setModes.appendChild(b);
+});
+
+// ---- Index + search
+const sections = [...document.querySelectorAll("main section[data-title]")];
+const toc = document.getElementById("toc");
+let lastGroup = "";
+sections.forEach((s) => {
+  if (s.dataset.group !== lastGroup) {
+    lastGroup = s.dataset.group;
+    const g = document.createElement("div"); g.className = "toc-group"; g.textContent = lastGroup; toc.appendChild(g);
+  }
+  const a = document.createElement("a"); a.href = "#" + s.id; a.textContent = s.dataset.title; a.dataset.id = s.id;
+  a.onclick = () => { document.getElementById("index").classList.remove("open"); document.getElementById("drawer").setAttribute("aria-expanded", "false"); };
+  toc.appendChild(a);
+});
+
+function search(q) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  sections.forEach((s) => {
+    const isRef = s.id === "events-ref" || s.id === "settings-ref";
+    const match = !words.length || isRef || words.every((w) => s.textContent.toLowerCase().includes(w));
+    s.hidden = !match;
+    toc.querySelector(`a[data-id="${s.id}"]`).hidden = !match;
+  });
+  renderEvents(q);
+  renderSettings(q);
+}
+const qInput = document.getElementById("q");
+qInput.addEventListener("input", () => search(qInput.value));
+
+// Highlight the chapter being read.
+const links = () => [...toc.querySelectorAll("a")];
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((en) => { if (en.isIntersecting) links().forEach((a) => a.classList.toggle("on", a.dataset.id === en.target.id)); });
+}, { rootMargin: "-20% 0px -70% 0px" });
+sections.forEach((s) => io.observe(s));
+
+document.getElementById("drawer").onclick = (e) => {
+  const idx = document.getElementById("index"); idx.classList.toggle("open");
+  e.currentTarget.setAttribute("aria-expanded", String(idx.classList.contains("open")));
+};
+
+// Theme buttons (remembered per browser when storage is available).
+function setTheme(t) {
+  if (t === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t;
+  ["system", "light", "dark"].forEach((k) => document.getElementById("t-" + k).setAttribute("aria-pressed", String(k === t)));
+  try { localStorage.setItem("shimmer-wiki-theme", t); } catch (e) {}
+}
+["system", "light", "dark"].forEach((k) => document.getElementById("t-" + k).onclick = () => setTheme(k));
+try { const t = localStorage.getItem("shimmer-wiki-theme"); if (t) setTheme(t); } catch (e) {}
+
+search("");
+</script>

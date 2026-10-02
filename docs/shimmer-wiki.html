@@ -1,0 +1,763 @@
+<title>Shimmer Engine Wiki</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Silkscreen&display=swap">
+<style>
+/* Layout: a sticky left index (search + chapters) beside one ~68ch reading column; the index folds into a top drawer on phones. */
+:root {
+  --bg: #f3f3f1;          /* page */
+  --panel: #e8e8e5;       /* index, cards */
+  --ink: #1b1c1e;         /* text */
+  --muted: #5d6066;       /* secondary text */
+  --line: #cfd0cc;        /* rules */
+  --accent: #b88400;      /* links, highlight (deep cartridge yellow on light) */
+  --accent-soft: #fff1c4; /* highlight fill */
+  --code-bg: #e2e3df;
+  --font-display: "Silkscreen", "Courier New", monospace;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1f2022; --panel: #27282b; --ink: #ececea; --muted: #a6a8ad; --line: #3a3c40;
+    --accent: #ffd23f; --accent-soft: #3a3214; --code-bg: #2f3134; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1f2022; --panel: #27282b; --ink: #ececea; --muted: #a6a8ad; --line: #3a3c40;
+  --accent: #ffd23f; --accent-soft: #3a3214; --code-bg: #2f3134; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16.5px; line-height: 1.62; margin: 0; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.shell { display: grid; grid-template-columns: 290px minmax(0, 1fr); min-height: 100vh; }
+
+/* ---- Index ---- */
+.index { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 22px 18px 40px; display: flex; flex-direction: column; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brand-mark { width: 40px; height: auto; image-rendering: pixelated; flex: none; }
+.brand-name { font-family: var(--font-display); font-size: 17px; line-height: 1.1; letter-spacing: 0.02em; }
+.brand-sub { display: block; font-family: var(--font-body); font-size: 12.5px; color: var(--muted); letter-spacing: 0; }
+.search { width: 100%; padding: 9px 11px; font: inherit; font-size: 15px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.toc { display: flex; flex-direction: column; gap: 2px; }
+.toc-group { margin-top: 12px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 700; }
+.toc a { display: block; padding: 4px 8px; border-radius: 5px; color: var(--ink); text-decoration: none; font-size: 15px; }
+.toc a:hover { background: var(--bg); }
+.toc a.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.theme-row { margin-top: auto; display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.theme-row button { font: inherit; font-size: 13px; padding: 3px 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 5px; cursor: pointer; }
+.theme-row button[aria-pressed="true"] { border-color: var(--accent); }
+.drawer-toggle { display: none; }
+
+/* ---- Content ---- */
+main { padding: 34px clamp(16px, 4vw, 56px) 80px; min-width: 0; }
+.col { max-width: 72ch; }
+.hero { padding-block: 10px 26px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.eyebrow { font-family: var(--font-display); font-size: 13px; color: var(--accent); letter-spacing: 0.06em; }
+h1 { font-size: clamp(30px, 4.5vw, 42px); line-height: 1.12; margin: 8px 0 12px; text-wrap: balance; }
+.lede { font-size: 19px; color: var(--muted); margin: 0; max-width: 62ch; }
+section { padding-block: 26px 10px; scroll-margin-top: 16px; }
+section + section { border-top: 1px solid var(--line); }
+h2 { font-size: 27px; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; }
+h3 { font-size: 19.5px; margin: 24px 0 6px; }
+p, ul, ol { margin: 0 0 12px; }
+li { margin-bottom: 4px; }
+code, kbd { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; }
+pre { font-family: var(--font-mono); font-size: 13.5px; background: var(--code-bg); padding: 12px 14px; border-radius: 6px; overflow-x: auto; line-height: 1.5; }
+.note { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+.note p:last-child { margin: 0; }
+.table-wrap { overflow-x: auto; margin: 12px 0 16px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.steps { padding-left: 22px; }
+.steps li { margin-bottom: 8px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.tile h4 { margin: 0 0 4px; font-size: 16px; }
+.tile p { margin: 0; font-size: 15px; color: var(--muted); }
+
+/* Generated references */
+.ref-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
+.chip { font: inherit; font-size: 13.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.ev { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.ev-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.ev-name { font-weight: 700; font-size: 17px; }
+.ev-cat { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.ev p { margin: 4px 0; }
+.ev-fields { font-size: 14px; color: var(--muted); }
+.ev-fields b { color: var(--ink); font-weight: 700; }
+.setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.setting .s-name { font-weight: 700; }
+.setting .s-def { font-family: var(--font-mono); font-size: 13px; color: var(--muted); white-space: nowrap; }
+.setting .s-desc { grid-column: 1 / -1; font-size: 15px; color: var(--muted); }
+.gba-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; margin-left: 6px; vertical-align: 2px; }
+mark { background: var(--accent-soft); color: inherit; border-radius: 3px; }
+.no-hits { color: var(--muted); font-style: italic; }
+footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .index { position: relative; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 14px 16px; }
+  .drawer-toggle { display: inline-block; font: inherit; padding: 6px 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; cursor: pointer; }
+  .index:not(.open) .toc, .index:not(.open) .theme-row { display: none; }
+  .index-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="shell">
+  <nav class="index" id="index" aria-label="Wiki contents">
+    <div class="index-top">
+      <a class="brand" href="#welcome">
+        <img class="brand-mark" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIIAAABvCAYAAAAg2RihAAAC2ElEQVR4nO3dXW6rMBRF4ZWojCbzH0pGw0P60MOVblWH2DHOAdb3VKmtgmHjHNv8XBhonudHy/9N03TpvS2jtbR9ZLuvoz6oNQTv/m8Grds/st1foz5ocbvdqv7+fr9vtCXj1bR9dLuH9QjKzSAIMAgKw2uEVn8VTtlGE3suanfdI2Ta8Zm2pUX6HqFUaWcdTdSOirLYdY+gfgyCgI2+GkZ+X36iiPx0+xY929m9R8hQNG25DRnat+i5Ld3PnGXjPlU0LUXkVr3Cp9u36N1OawQBBkHBIAjYwYRSqx6jiUyF4dZO1SPUHNgzhQAO2CP0npL+9OhglFP1CCozCAIMgsLhaoQ1ZysCX2WPIOBEPcJZqv9W9ggCDIKCQRBgEBQMggCDoGAQBBgEBYMgwCAoGAQBjWsNruDlUToWtddnVvcIhmAfao9T9V0yWe70UVnLXVDWCAIMgoJBEGAQFAyCAIOgYBAEGAQFgyBgZa3B6eR9+338ns00FnsEQ3A8z45pMSGuKRzL2vqDNYIAg6BgEAQYBAWDIMAgKKR/UEbtY/FGDXdbHteXeShujyDAICgYBAFRI7iucB6lh5VfDYHmeX78GzVkrmj1vrWHlVsjCDAICgZBgEFQMAgCDILCZW0ewWHlMawtkl23fqG28pum6fK1/PD7l844HpNXMespgyDA1cfTcfVRRfM8Py57vbWtNBwa9Urg2s/PytVH/ccgCDAICgZBgEFQWF10KslaHbeODmplbT+07QMXnfR80anECaj98DH9qmYQBLzxBpc1mYupI3ilINz0q8Hich9qj1PTgzKefYjF5Fi9TkxrBAEGQcEgCGgYNazxPok+Xp0mTlsjOKoYp+e+3uTxet4n0c+oE8saQYBBUDAIAgyCgkEQYBAUho35j3ZtZIuWawkPN3x0oqneyH029H0NXhv5I+NJYY0gwCAopOuiFn41jJW2R8i4s3rI2q5vHQgdHVQcvMIAAAAASUVORK5CYII=" alt="" width="40" height="34">
+        <span class="brand-name">Shimmer Engine<span class="brand-sub">Wiki · early alpha</span></span>
+      </a>
+      <button class="drawer-toggle" id="drawer" aria-expanded="false" aria-controls="index">Contents</button>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Search the wiki…" aria-label="Search the wiki" autocomplete="off">
+    <div class="toc" id="toc"></div>
+    <div class="theme-row" role="group" aria-label="Colour theme">
+      Theme
+      <button id="t-system" aria-pressed="true">Auto</button>
+      <button id="t-light" aria-pressed="false">Light</button>
+      <button id="t-dark" aria-pressed="false">Dark</button>
+    </div>
+  </nav>
+
+  <main>
+    <div class="col">
+      <header class="hero" id="welcome">
+        <div class="eyebrow">GAME BOY ADVANCE · NO CODE</div>
+        <h1>Shimmer Engine Wiki</h1>
+        <p class="lede">Everything about making Game Boy Advance games in Shimmer Engine: drawing maps and sprites, scripting with event blocks, music, cutscenes, and building a real <code>.gba</code> ROM.</p>
+      </header>
+
+<!-- ============================================================ GUIDE -->
+
+<section id="about" data-group="Start here" data-title="What is Shimmer Engine?">
+<h2>What is Shimmer Engine?</h2>
+<p>Shimmer Engine is a game maker for the Game Boy Advance, inspired by GB Studio. You draw your maps, place characters, script what happens with event blocks, write music, and press <b>Build ROM</b>. The result is a real <code>.gba</code> file that runs in emulators like mGBA, and should run on real hardware too.</p>
+<p>Everything a build needs is included in the installer. There's no compiler, Python or devkit to set up.</p>
+<div class="note"><p>Shimmer Engine is an early alpha. Things change from version to version, and your feedback decides what gets fixed and added first. Report problems on <a href="https://www.reddit.com/r/ShimmerEngine/" target="_blank" rel="noopener">r/ShimmerEngine</a>.</p></div>
+<p>Coming from GB Studio? Most ideas carry straight over: scenes, actors, triggers, event scripts, GB Studio fonts and <code>.uge</code> songs. The big differences come from the hardware: far more colors, bigger sprites, real background layers and 16 actors per scene.</p>
+</section>
+
+<section id="install" data-group="Start here" data-title="Installing">
+<h2>Installing</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>System</th><th>Download</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Windows</td><td><code>Shimmer-Engine-Setup-&lt;version&gt;.exe</code></td><td>Run it and Shimmer opens. Windows may ask you to confirm, since the installer isn't code-signed yet.</td></tr>
+<tr><td>Linux</td><td><code>.deb</code> or <code>.AppImage</code></td><td>The <code>.deb</code> installs with a double-click. On Ubuntu 22.04-based distros (Zorin 17, Mint 21), the AppImage first needs <code>sudo apt install libfuse2</code>. Runs natively, so no Wine needed.</td></tr>
+<tr><td>Mac</td><td><code>.dmg</code></td><td>Apple Silicon (M1 and newer). The first time, right-click the app and choose <b>Open</b>.</td></tr>
+</tbody></table></div>
+<p>To play your game you also need a GBA emulator. <a href="https://mgba.io" target="_blank" rel="noopener">mGBA</a> is a good choice. Set it as the program that opens <code>.gba</code> files, or pick it in <b>File → Emulator for Play</b>.</p>
+</section>
+
+<section id="quickstart" data-group="Start here" data-title="Your first game">
+<h2>Your first game</h2>
+<ol class="steps">
+<li><b>New Project.</b> On the start screen, type a name, press <b>New Project</b> and choose a folder. You get a project with one scene, a background and the default player.</li>
+<li><b>Look around the scene.</b> The middle is the scene canvas. The left sidebar lists scenes and project data; the right panel shows whatever you've selected.</li>
+<li><b>Add an actor.</b> Pick the actor tool in the canvas toolbar and click on the map. Give it a name in the right panel.</li>
+<li><b>Make it talk.</b> With the actor selected, open its <b>On Interact</b> tab, press <b>+ Add Event</b> and choose <b>Display Text</b>. Type a line.</li>
+<li><b>Paint some walls.</b> Turn on the collision layer and paint solid tiles so the player can't walk through buildings.</li>
+<li><b>Press Play.</b> Shimmer builds the ROM and opens it in your emulator. Walk up to the actor and press A.</li>
+</ol>
+<p>From here: draw your own backgrounds and sprites in the <a href="#art">Art Editor</a>, add more scenes and connect them with doors, and pick a <a href="#modes">game mode</a> if you're not making a top-down game.</p>
+</section>
+
+<section id="tour" data-group="The editor" data-title="Editor tour">
+<h2>Editor tour</h2>
+<p>The dropdown in the top-left switches between the editor's sections:</p>
+<div class="grid2">
+<div class="tile"><h4>Game World</h4><p>Scenes, actors, triggers and their scripts. Where most of the game gets made.</p></div>
+<div class="tile"><h4>Sprites</h4><p>Turn sprite sheets into animated characters: frames, states, directions and collision boxes.</p></div>
+<div class="tile"><h4>Backgrounds</h4><p>Your background images, with the numbers the GBA cares about: colors, tiles and size.</p></div>
+<div class="tile"><h4>Art Editor</h4><p>A built-in pixel art editor for every image in your project.</p></div>
+<div class="tile"><h4>Music</h4><p>A piano-roll editor for <code>.uge</code> songs, plus MIDI import.</p></div>
+<div class="tile"><h4>Cutscenes</h4><p>Turn a video into a full-screen GBA cutscene with sound.</p></div>
+<div class="tile"><h4>Settings</h4><p>Engine settings for each game mode, dialogue fonts and frames, controls and project options.</p></div>
+</div>
+<h3>Menus</h3>
+<ul>
+<li><b>File:</b> New Project, Open Project, Save (<kbd>Ctrl</kbd>+<kbd>S</kbd>), Save As (copies the project to a new folder), Reload Assets (<kbd>F5</kbd>), Emulator for Play.</li>
+<li><b>View → Theme:</b> Dark, Light, Midnight Blue or Classic Purple.</li>
+<li>The toolbar has <b>Asset Reload</b>, <b>Open Folder</b>, Undo/Redo, <b>Play</b> and <b>Build ROM</b>.</li>
+</ul>
+<div class="note"><p>Every change saves automatically. <b>Save</b> just writes everything immediately and confirms it in the status bar.</p></div>
+</section>
+
+<section id="files" data-group="The editor" data-title="Project files">
+<h2>Project files</h2>
+<p>A project is a normal folder, so you can keep it anywhere and edit its art in other programs too. Press <b>Asset Reload</b> after changing files outside Shimmer.</p>
+<pre>my_game/
+  project.json            flags, items, variables, settings, custom scripts
+  scenes/                 one .json file per scene (subfolders = folders in the list)
+  assets/
+    backgrounds/          scene background PNGs
+    sprites/              sprite sheet PNGs (+ .art.json layers from the Art Editor)
+    fonts/  frames/  ui/  dialogue fonts, box frames, menu cursor
+    music/                .uge songs
+    sounds/               .wav sound effects
+    cutscenes/            .cut video + .raw sound (made in the Cutscenes tab)
+  ROM/                    your built .gba</pre>
+<p>Put a <code>/</code> in a scene's name, like <code>Forest/Cave 1</code>, to put it in a folder. Scripts, palettes, prefabs and sprites can be organised in folders the same way.</p>
+</section>
+
+<section id="scenes" data-group="Making the world" data-title="Scenes">
+<h2>Scenes</h2>
+<p>A scene is one map, or one screen like a title or a menu. Each has a background image, collision, actors, triggers and scripts.</p>
+<h3>Backgrounds</h3>
+<p>Any PNG up to 2048×2048 pixels, sized in multiples of 8. Maps bigger than 512×512 stream in as you walk. Every 8×8 tile can use 15 colors plus a shared backdrop color, from up to 15 palettes per scene, with up to 1024 unique tiles.</p>
+<h3>Painting the map</h3>
+<ul>
+<li><b>Collision:</b> solid, water, damage, and one-way tiles that block from the top, bottom, left or right only.</li>
+<li><b>Brushes:</b> 8px, 16px, fill, magic (every matching tile) and area select with copy and paste.</li>
+<li><b>Tiles:</b> stamp tiles from the background onto the map without touching the original image.</li>
+<li><b>Colors:</b> assign palettes to tiles.</li>
+</ul>
+<h3>Layers and parallax</h3>
+<p>Each scene can have up to two extra background layers that scroll at their own speed, with optional drift for things like clouds. GB Studio-style parallax strips also work.</p>
+<h3>Things you place</h3>
+<ul>
+<li><b>Actors</b>: characters and objects with sprites and scripts. 16 per scene at most.</li>
+<li><b>Triggers</b>: areas that run a script when the player walks in, and optionally when they leave.</li>
+<li><b>Doors</b>: triggers that take the player to another scene.</li>
+<li><b>Notes</b>: editor-only reminders on the map.</li>
+<li><b>Prefabs</b>: saved actors and triggers you can place again.</li>
+</ul>
+<p>Right-click an actor, trigger or note on the canvas to delete it. Hovering shows the tile position as <b>X=</b> and <b>Y=</b>; an actor's position is its top-left tile.</p>
+</section>
+
+<section id="modes" data-group="Making the world" data-title="Game modes">
+<h2>Game modes</h2>
+<p>Every scene has a type that decides how the player moves:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Mode</th><th>What it plays like</th></tr></thead>
+<tbody>
+<tr><td>Top Down 2D</td><td>Classic RPG movement. Free or grid-based (a full 8 or 16 px per step), with running and optional diagonals.</td></tr>
+<tr><td>Platformer</td><td>Gravity, variable jump height, coyote time, jump buffering, double jumps, wall jumps and slides, ladders, one-way platforms, dashing, crouching, and moving platforms you can ride.</td></tr>
+<tr><td>Adventure</td><td>Free 8-way movement with momentum, running, dashing and pushing.</td></tr>
+<tr><td>Shoot 'Em Up</td><td>The screen scrolls by itself and the player stays on screen.</td></tr>
+<tr><td>Point and Click</td><td>The player is a cursor; hover over things and press A.</td></tr>
+<tr><td>Logo</td><td>No player at all, for title cards and splash screens.</td></tr>
+</tbody></table></div>
+<p>Each mode's settings are in <b>Settings → Engine</b>; see the <a href="#settings-ref">engine settings reference</a>. A scene can override settings just for itself, and <b>Set Engine Setting</b> changes them mid-game.</p>
+<p>Sprites with animation states named <code>jump</code>, <code>fall</code>, <code>run</code>, <code>climb</code> or <code>dash</code> are picked up by the modes automatically.</p>
+</section>
+
+<section id="actors" data-group="Making the world" data-title="Actors and the player">
+<h2>Actors and the player</h2>
+<p>Actors have a sprite, a movement and animation speed, a collision group, and four scripts:</p>
+<ul>
+<li><b>On Init</b>: runs when the scene starts.</li>
+<li><b>On Update</b>: loops in the background every frame.</li>
+<li><b>On Interact</b>: runs when the player presses A on it.</li>
+<li><b>On Hit</b>: runs when a projectile in its group hits it.</li>
+</ul>
+<p>Click the player's start position to give the player its own On Init, On Update and On Hit scripts, animation speed and collisions. Every actor event can target the <b>Player</b>, and <b>Self</b> means "this actor" inside its own scripts.</p>
+<p>Actors can be pinned to the screen for HUD elements, and in platformer scenes an actor can be a platform you stand on and ride.</p>
+</section>
+
+<section id="scripting" data-group="Scripting" data-title="Event scripting">
+<h2>Event scripting</h2>
+<p>Scripts are lists of event blocks that run top to bottom. Press <b>+ Add Event</b> and search, or browse by category. Drag blocks to reorder them, and hold <kbd>Alt</kbd> or <kbd>Ctrl</kbd> while dropping to copy instead.</p>
+<h3>Where scripts live</h3>
+<ul>
+<li>Scene <b>On Init</b>, <b>On Player Hit</b> and <b>Timers</b>.</li>
+<li>Actor and player scripts (see <a href="#actors">Actors</a>).</li>
+<li>Trigger <b>On Enter</b> and <b>On Leave</b>.</li>
+<li><b>Custom scripts</b>: reusable scripts you call from anywhere with Call Script.</li>
+<li><b>Attach Script To Button</b>: runs whenever a button is pressed. It runs alongside play by default, so the player keeps moving. Tick <b>Freeze player</b> to stop everything until it finishes.</li>
+</ul>
+<h3>Data</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Kind</th><th>Holds</th><th class="num">Limit</th></tr></thead>
+<tbody>
+<tr><td>Flags</td><td>On/off switches</td><td class="num">32</td></tr>
+<tr><td>Items</td><td>Inventory, have or don't have</td><td class="num">32</td></tr>
+<tr><td>Variables</td><td>Whole numbers from −32768 to 32767</td><td class="num">256</td></tr>
+<tr><td>Constants</td><td>Named fixed numbers for expressions</td><td class="num">—</td></tr>
+</tbody></table></div>
+<p>Flags, items and variables are what the three save slots store.</p>
+<h3>Handy tools</h3>
+<ul>
+<li><b>Disable event</b>: right-click a block to switch it off without deleting it. Blocks with an Else branch can also <b>Disable else</b>.</li>
+<li><b>Expressions</b>: If Expression and Set Variable To Expression take formulas using variables, flags, items, actors and math.</li>
+<li><b>Background scripts</b>: up to 8 scripts can run at once. Dialogue boxes wait their turn.</li>
+<li><b>Pause the world during dialogue</b> (an engine setting) freezes everything else while a box is open.</li>
+</ul>
+<p>The full list is in the <a href="#events-ref">events reference</a>.</p>
+</section>
+
+<section id="dialogue" data-group="Scripting" data-title="Dialogue">
+<h2>Dialogue</h2>
+<p><b>Display Text</b> shows a dialogue box. A new line starts a new page, and long text carries on to the next page automatically. The preview under the text shows exactly what the game will show.</p>
+<h3>Box options</h3>
+<ul>
+<li><b>Position:</b> bottom, middle, top, or custom (X, Y and width in tiles; the screen is 30×20 tiles).</li>
+<li><b>Rows:</b> 1 to 4 lines of text.</li>
+<li><b>Frame:</b> turn it off for just the text, handy for one-line HUD text.</li>
+</ul>
+<h3>Text codes</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Code</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td><code>{score}</code></td><td>Shows a variable's value.</td></tr>
+<tr><td><code>!F:fontname!</code></td><td>Switches font from here on.</td></tr>
+<tr><td><code>!C:#ff4040!</code></td><td>Colors the text from here on. <code>!C!</code> goes back to the font's own color.</td></tr>
+<tr><td><code>!S2!</code></td><td>Text speed in frames per letter. <code>!S0!</code> shows text instantly.</td></tr>
+</tbody></table></div>
+<p>The <b>Insert</b> bar under the text box adds these for you.</p>
+<h3>Fonts and frames</h3>
+<p>Fonts use GB Studio's PNG format, so GB Studio fonts work as they are. There are 15 built-in fonts too. Fonts, frames and text colors share one 15-color dialogue palette.</p>
+</section>
+
+<section id="sprites" data-group="Art and sound" data-title="Sprites">
+<h2>Sprites</h2>
+<ul>
+<li>Sprites can be almost any size up to 256×256; the engine packs them into the GBA's hardware sprites for you.</li>
+<li>Each sprite can use 15 colors plus transparency.</li>
+<li>Animation states for standing, walking and custom animations, in four directions. <b>Flip right to make left</b> saves drawing.</li>
+<li>Sheet slicing for GB Studio-style and RPG Maker-style sheets.</li>
+<li>A live preview of the character walking, and a meter for how much sprite memory each frame uses.</li>
+<li>Onion skin, frame copy and paste, mirroring and drag-to-reorder.</li>
+</ul>
+</section>
+
+<section id="art" data-group="Art and sound" data-title="Art Editor">
+<h2>Art Editor</h2>
+<p>A pixel art editor for your project's images. Pick an image on the left, or make one with <b>+ New</b>. Saving writes the PNG straight into your project.</p>
+<h3>Tools</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Tool</th><th>Key</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Pencil</td><td><kbd>B</kbd></td><td>Brush size, dither and pixel-perfect options. <kbd>Shift</kbd>+click draws a line from the last point.</td></tr>
+<tr><td>Eraser</td><td><kbd>E</kbd></td><td>Erases to transparent.</td></tr>
+<tr><td>Fill</td><td><kbd>G</kbd></td><td>Connected area, or every pixel of that color with Global.</td></tr>
+<tr><td>Line / Rectangle / Ellipse</td><td><kbd>L</kbd> <kbd>U</kbd> <kbd>O</kbd></td><td><kbd>Shift</kbd> for 45° lines, squares and circles.</td></tr>
+<tr><td>Gradient</td><td><kbd>D</kbd></td><td>Dithered, linear or radial, using only the colors you pick.</td></tr>
+<tr><td>Shading</td><td><kbd>S</kbd></td><td>Left click lightens, right click darkens, stepping through the image's own colors.</td></tr>
+<tr><td>Stamp</td><td><kbd>K</kbd></td><td>Draws a custom brush made with Image → Brush from selection.</td></tr>
+<tr><td>Color picker</td><td><kbd>I</kbd></td><td>Or <kbd>Alt</kbd>+click with any drawing tool.</td></tr>
+<tr><td>Select / Move</td><td><kbd>M</kbd> <kbd>V</kbd></td><td>Copy, cut, paste, flip, nudge with arrow keys.</td></tr>
+<tr><td>Hand</td><td><kbd>H</kbd></td><td>Or hold <kbd>Space</kbd> and drag.</td></tr>
+</tbody></table></div>
+<h3>Layers and animation</h3>
+<p>Layers can be hidden, locked, faded, reordered and merged; the game gets them flattened into one image. For sprite sheets, set a frame size in the Frames panel to get a timeline, a playing preview and onion skin.</p>
+<h3>GBA helpers</h3>
+<ul>
+<li>The palette bar warns when a sprite goes over 15 colors, or a background tile over 15 plus the backdrop.</li>
+<li><b>Image → Reduce colors</b> and <b>Snap to GBA colors</b> fix that for you.</li>
+<li><b>Tile mode</b> (<kbd>T</kbd>) repeats the image around itself for seamless tiles. <kbd>#</kbd> shows the 8×8 tile grid.</li>
+</ul>
+</section>
+
+<section id="music" data-group="Art and sound" data-title="Music and sound">
+<h2>Music and sound</h2>
+<ul>
+<li><b>Music</b> uses <code>.uge</code> songs, the same format as hUGETracker and GB Studio, played on the GBA's classic sound channels.</li>
+<li>The <b>Music</b> section is a piano-roll editor with instruments, waves and effects.</li>
+<li><b>MIDI import</b> turns a MIDI file into a playable song.</li>
+<li><b>Sound effects</b> are WAV files in <code>assets/sounds</code>, played on the GBA's two digital sound channels at 16384 Hz. Built-in sounds cover jumping, landing and more.</li>
+</ul>
+</section>
+
+<section id="cutscenes" data-group="Art and sound" data-title="Cutscenes">
+<h2>Cutscenes</h2>
+<p>Turn a video into a full-screen GBA cutscene with sound, for intros and story moments.</p>
+<ol class="steps">
+<li>Open <b>Cutscenes</b> and press <b>+ Import video</b>. MP4 (H.264) and WebM work best.</li>
+<li>Trim it with Start and End, and pick a size, frame rate, fit and quality. The dialog estimates the size before converting.</li>
+<li>Press <b>Convert</b>, then watch it in the preview player. It plays exactly as the GBA will show it.</li>
+<li>Add a <b>Play Cutscene</b> event where it should play. A or START can skip it, and the scene comes back as it was afterwards.</li>
+</ol>
+<div class="table-wrap"><table>
+<thead><tr><th>Size</th><th>Looks</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Full screen 240×160</td><td>Sharpest</td><td>Biggest</td></tr>
+<tr><td>Half 120×80, shown 2×</td><td>Chunkier pixels</td><td>About 4× smaller</td></tr>
+</tbody></table></div>
+<p>Sound takes about 16 KB per second. A cartridge holds 32 MB, so short cutscenes fit easily. Cartoon-style video compresses much better than live action.</p>
+</section>
+
+<section id="saving" data-group="Scripting" data-title="Saving and scene stack">
+<h2>Saving and the scene stack</h2>
+<ul>
+<li><b>Save Data</b>, <b>Load Data</b> and <b>Clear Data</b> use three save slots that hold flags, items, variables and where the player is.</li>
+<li><b>Store Current Scene</b> remembers the scene and player position; <b>Restore Previous Scene</b> goes back. Good for menus and houses.</li>
+<li>Tick <b>Remember everything</b> for a real pause. Actors, their states, running scripts and timers all come back exactly as they were, and the scene's On Init doesn't run again.</li>
+</ul>
+</section>
+
+<section id="building" data-group="Finishing" data-title="Building and playing">
+<h2>Building and playing</h2>
+<ul>
+<li><b>Play</b> builds the game and opens it in your emulator. Pressing Play again closes the emulator it opened last, so windows don't pile up.</li>
+<li><b>Build ROM</b> builds without playing. The ROM goes in your project's <code>ROM</code> folder.</li>
+<li>If something's wrong, the build window says which scene and event. <b>Copy Log</b> copies it for sharing.</li>
+</ul>
+<h3>Real hardware</h3>
+<p>The ROM is a standard GBA ROM with a fixed header, so it should run on flash carts. Please report how it goes on yours.</p>
+</section>
+
+<section id="limits" data-group="Finishing" data-title="GBA limits">
+<h2>GBA limits at a glance</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Thing</th><th class="num">Limit</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Screen</td><td class="num">240×160 px</td><td>30×20 tiles of 8×8.</td></tr>
+<tr><td>Background size</td><td class="num">2048×2048 px</td><td>Bigger maps stream in as you walk.</td></tr>
+<tr><td>Colors per background tile</td><td class="num">15 + backdrop</td><td>Each 8×8 tile uses one 16-color palette.</td></tr>
+<tr><td>Background palettes</td><td class="num">15</td><td>The 16th belongs to the dialogue box.</td></tr>
+<tr><td>Unique background tiles</td><td class="num">1024</td><td>Repeat tiles across big maps.</td></tr>
+<tr><td>Colors per sprite</td><td class="num">15 + transparent</td><td>One sprite palette each.</td></tr>
+<tr><td>Sprite size</td><td class="num">up to 256×256</td><td>Packed into hardware sprites.</td></tr>
+<tr><td>Actors per scene</td><td class="num">16</td><td>Plus the player.</td></tr>
+<tr><td>Dialogue palette</td><td class="num">15 colors</td><td>Shared by all fonts, frames and text colors.</td></tr>
+<tr><td>Running scripts</td><td class="num">1 + 8</td><td>One main script plus background scripts.</td></tr>
+<tr><td>Timers per scene</td><td class="num">8</td><td></td></tr>
+<tr><td>Flags / items / variables</td><td class="num">32 / 32 / 256</td><td>All saved with the game.</td></tr>
+<tr><td>Save slots</td><td class="num">3</td><td></td></tr>
+<tr><td>Cartridge</td><td class="num">32 MB</td><td>What everything has to fit in.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ============================================================ TECHNICAL -->
+
+<section id="arch" data-group="Technical" data-title="How it's built">
+<h2>How Shimmer Engine is built</h2>
+<p>Three parts work together. The editor writes plain files; the compiler turns them into C data; the engine is the GBA program that data is linked into.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Part</th><th>Language</th><th>Job</th></tr></thead>
+<tbody>
+<tr><td>Editor</td><td>TypeScript, React, Electron</td><td>Edits the project folder: JSON, PNG, UGE, WAV and cutscene files.</td></tr>
+<tr><td>Compiler</td><td>Python</td><td>Checks the project and writes C source: scenes, scripts, sprites, fonts, songs, sounds.</td></tr>
+<tr><td>Engine</td><td>C (devkitARM, libgba)</td><td>The runtime: game loop, game modes, script machine, graphics, sound, saves.</td></tr>
+</tbody></table></div>
+<p>The installer bundles a frozen copy of the compiler, the engine source and a trimmed devkitARM (GCC for the GBA's ARM7TDMI), which is why nothing else needs installing. The Linux version uses Arm's own GCC with devkitPro's GBA support files, because devkitPro's Linux compiler needs a newer glibc than Ubuntu 22.04-based distros have.</p>
+</section>
+
+<section id="formats" data-group="Technical" data-title="Project file format">
+<h2>Project file format</h2>
+<p>Everything is plain JSON, so projects diff well in Git and can be edited by hand or generated by tools.</p>
+<h3>project.json</h3>
+<pre>{
+  "name": "My Game",
+  "start_scene": "title",
+  "flags": ["met_elder", "door_open"],        // up to 32
+  "items": ["Old Key"],                       // up to 32
+  "variables": ["gold", "hp"],                // up to 256, int16
+  "constants": [{ "name": "MAX_HP", "value": 99 }],
+  "customScripts": [{ "id": "...", "name": "Heal", "script": [ ...events ] }],
+  "ui": { "font": "default", "frame": "default", "textSpeed": 1 },
+  "palettes": [ ... ], "prefabs": [ ... ],
+  "playerSprite": "player",
+  "spriteSheets": [ ...sprite definitions ],
+  "engine": { "pl_walk_vel": 2, ... }          // engine settings by key
+}</pre>
+<h3>scenes/&lt;name&gt;.json</h3>
+<pre>{
+  "name": "town",
+  "type": "topdown",                          // or platform, adventure, shmup, pointnclick, logo
+  "background": "../assets/backgrounds/town.png",
+  "music": "town",
+  "player_start": { "x": 14, "y": 9 },        // tiles
+  "collision": ["....####", "....#..."],      // one string per tile row
+  "npcs": [{ "name": "elder", "x": 4, "y": 4, "sprite": "elder",
+             "on_interact": [ ...events ], "on_update": [ ... ] }],
+  "doors": [{ "x": 10, "y": 0, "width": 2, "height": 1,
+              "target_scene": "forest", "target_x": 3, "target_y": 18 }],
+  "on_init": [ ...events ],
+  "layers": [ ...parallax layers ],
+  "tile_overrides": { "3,4": [12, 0] },       // map tile ← background tile
+  "engine": { ... }                           // this scene's own settings
+}</pre>
+<h3>Collision characters</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Char</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>.</code></td><td>Walkable</td></tr>
+<tr><td><code>#</code></td><td>Solid</td></tr>
+<tr><td><code>~</code></td><td>Water</td></tr>
+<tr><td><code>!</code></td><td>Damage</td></tr>
+<tr><td><code>^ v &lt; &gt;</code></td><td>One-way: solid only from the top, bottom, left or right edge</td></tr>
+<tr><td><code>H</code></td><td>Ladder (platformer)</td></tr>
+</tbody></table></div>
+<h3>Events</h3>
+<p>An event is an object with a <code>type</code> and its options, and branches are nested lists:</p>
+<pre>{ "type": "if_flag", "flag": "met_elder",
+  "then": [ { "type": "text", "text": "Welcome back!" } ],
+  "else": [ { "type": "text", "text": "Hello, stranger.", "position": "top" } ] }</pre>
+<p>Any event can carry <code>"__disabled": true</code>, and an event with an Else can carry <code>"__disableElse": true</code>; the compiler skips them.</p>
+</section>
+
+<section id="pipeline" data-group="Technical" data-title="The build pipeline">
+<h2>The build pipeline</h2>
+<ol class="steps">
+<li><b>Compile the project.</b> <code>build_project.py</code> validates everything and writes <code>scenes_data.c</code>, <code>ui_data.c</code>, <code>uge_songs.c</code>, <code>sounds_data.c</code>, <code>mode_settings.h</code> and the cutscene files into <code>&lt;project&gt;/build/rom/data/</code>. Errors name the scene, script and event.</li>
+<li><b>Compile C.</b> Each engine and data source is compiled with <code>arm-none-eabi-gcc -mthumb -mcpu=arm7tdmi -O2</code>, in parallel, skipping files whose sources haven't changed.</li>
+<li><b>Link</b> with <code>gba.specs</code> and libgba, <b>objcopy</b> to a raw ROM, and <b>gbafix</b> the header (title, checksum).</li>
+<li>Copy the ROM to <code>&lt;project&gt;/ROM/</code>.</li>
+</ol>
+<h3>Building from the command line</h3>
+<pre>python3 compiler/build_rom.py &lt;project folder&gt; [--engine DIR] [--devkitpro DIR] [--out FILE]</pre>
+<p>It needs devkitARM, taken from <code>$DEVKITPRO</code> or <code>/opt/devkitpro</code>. The installed app runs the same tool, frozen as <code>shimmer-build</code>, from its <code>resources/toolchain</code> folder.</p>
+<h3>Big data</h3>
+<p>Cutscene video and sound go into the ROM through the assembler's <code>.incbin</code> rather than giant C arrays, so even multi-megabyte cutscenes build quickly.</p>
+</section>
+
+<section id="vm" data-group="Technical" data-title="The script machine">
+<h2>The script machine</h2>
+<p>Event blocks compile to a flat list of instructions. Each one is a small struct:</p>
+<pre>typedef struct ScriptEvent {
+    uint8_t     op;          // what to do (SCRIPT_TEXT, SCRIPT_IF_FLAG, ...)
+    int16_t     a, b, c, d;  // operands: indices, numbers, jump targets
+    const void *ptr;         // an expression or a sub-script
+    const char *str;         // dialogue text
+} ScriptEvent;</pre>
+<ul>
+<li><b>Threads.</b> One main script plus up to 8 background threads. Each keeps its own position and whatever it's waiting on (a text box, a wait, a moving actor, a camera pan, a button).</li>
+<li><b>Running.</b> Every frame each thread runs instructions until one blocks, then picks up from there next frame. Branches and loops are jumps inside the list.</li>
+<li><b>Expressions</b> compile to reverse-Polish arrays the engine evaluates on a small stack: variables, flags, items, actor positions, math and comparisons.</li>
+<li><b>The player</b> stands still while the main script runs (talking to an actor, a trigger). Background threads, timers and button scripts run alongside play.</li>
+<li><b>Real pause.</b> Store Current Scene with Remember everything copies every thread, timer and button script plus each actor's state, and puts them back when the scene is restored.</li>
+</ul>
+</section>
+
+<section id="hardware" data-group="Technical" data-title="Graphics on the GBA">
+<h2>Graphics on the GBA</h2>
+<h3>Video memory layout</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Area</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>BG char blocks 0-1</td><td>Scene tiles (up to 1024, 4bpp)</td></tr>
+<tr><td>BG screen blocks 28-31</td><td>Scene map on BG0, up to 64×64 tiles</td></tr>
+<tr><td>BG screen blocks 24-27</td><td>Parallax layer maps on BG2 and BG3</td></tr>
+<tr><td>BG char block 2, screen block 23</td><td>Dialogue box and text on BG1</td></tr>
+<tr><td>BG palette banks 0-14 / 15</td><td>Scene colors / dialogue colors</td></tr>
+<tr><td>OBJ VRAM (0x06010000)</td><td>Sprite tiles, streamed in per animation frame</td></tr>
+<tr><td>OBJ palette banks</td><td>Assigned per scene; the player always gets bank 0</td></tr>
+</tbody></table></div>
+<h3>Big maps</h3>
+<p>Maps up to 64×64 tiles (512×512 px) sit in VRAM whole. Bigger ones, up to 256×256 tiles, stream: as the camera moves, the engine copies in the row or column that's about to appear.</p>
+<h3>Sprites</h3>
+<p>The GBA draws sprites from hardware objects (OBJs) of fixed sizes, 8×8 up to 64×64. The compiler covers each frame of a sprite with as few OBJs as it can, removes duplicate tiles, and makes "flip left" frames from flipped OBJs instead of new pixels. Each actor reserves OAM slots and VRAM for its largest frame and streams the current frame in.</p>
+<h3>Dialogue</h3>
+<p>Text isn't made of font tiles. It's drawn pixel by pixel into a RAM canvas the size of the box (variable-width fonts, colors and all) and copied to BG1 when it changes.</p>
+<h3>Cutscenes</h3>
+<p>Full-size cutscenes use BG0 with 256-color (8bpp) tiles; half-size ones use an affine BG2 scaled 2×. Each frame updates only the tiles that changed.</p>
+</section>
+
+<section id="audio-tech" data-group="Technical" data-title="Sound on the GBA">
+<h2>Sound on the GBA</h2>
+<ul>
+<li><b>Music</b> plays on the four classic PSG channels (two pulse, wave, noise) through a C port of hUGEDriver, so <code>.uge</code> songs sound as they do in GB Studio. The editor's player is a TypeScript port of the same driver feeding a PSG synth.</li>
+<li><b>WAV sounds</b> use the two Direct Sound channels. Samples are signed 8-bit mono at 16384 Hz, streamed from ROM by DMA 1 and 2 and clocked by timer 0, so they cost almost no CPU. They mix over the music.</li>
+<li><b>Cutscene sound</b> is a WAV on channel A, started with the first video frame; video timing comes from the same hardware clock, so they stay in sync.</li>
+</ul>
+</section>
+
+<section id="savedata" data-group="Technical" data-title="Save data">
+<h2>Save data</h2>
+<p>Saves go to the cartridge's battery-backed SRAM: 32 KB at <code>0x0E000000</code>, read and written a byte at a time. Each of the 3 slots gets a 1 KB stripe holding:</p>
+<pre>typedef struct {
+    uint32_t magic;            // marks a slot as written
+    uint32_t flags;            // one bit per flag
+    uint32_t inventory;        // one bit per item
+    uint8_t  scene_index;
+    int16_t  player_x, player_y;
+    uint8_t  player_direction;
+    int16_t  variables[256];
+    uint8_t  checksum;
+} SaveData;</pre>
+<p>The ROM carries the <code>SRAM_V113</code> marker so emulators and flash carts know which save type to give it.</p>
+</section>
+
+<section id="cutformat" data-group="Technical" data-title="Cutscene file format">
+<h2>Cutscene file format (.cut)</h2>
+<p>Little-endian. The editor writes it; <code>engine/source/cutscene.c</code> plays it.</p>
+<div class="table-wrap"><table>
+<thead><tr><th class="num">Offset</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td><code>"SHCV"</code></td></tr>
+<tr><td class="num">4</td><td>u16 version (1)</td></tr>
+<tr><td class="num">6</td><td>u8 mode: 0 = full 240×160, 1 = half 120×80 shown 2×</td></tr>
+<tr><td class="num">7</td><td>u8 frames per second</td></tr>
+<tr><td class="num">8</td><td>u16 frame count</td></tr>
+<tr><td class="num">10</td><td>u8 tiles across, u8 tiles down</td></tr>
+<tr><td class="num">12</td><td>u16 palette[256], GBA BGR555</td></tr>
+<tr><td class="num">524</td><td>u32 frame offsets[count + 1]</td></tr>
+<tr><td class="num">…</td><td>Frames: GBA LZ77 streams, 4-byte aligned</td></tr>
+</tbody></table></div>
+<p>Unpacked, a frame is a bitmap with one bit per tile (rounded up to 4 bytes) followed by 64 bytes of 8bpp pixels for each tile whose bit is set. Frame 0 sets every tile. The BIOS <code>LZ77UnCompWram</code> call unpacks each frame into work RAM before the changed tiles are copied to VRAM. The <code>.raw</code> file beside it is the sound: signed 8-bit mono at 16384 Hz.</p>
+</section>
+
+<section id="source" data-group="Technical" data-title="Building from source">
+<h2>Building from source</h2>
+<pre>cd editor
+npm ci
+npm run dev        # editor with hot reload
+npm run dist       # package an installer for this system</pre>
+<p>Development builds of ROMs run <code>compiler/build_rom.py</code> through bash (WSL on Windows) with your own devkitARM. The GitHub Actions workflow builds the Windows, Linux and Mac installers, and test-builds a ROM with each bundled toolchain.</p>
+<p>The source layout is described in <code>ARCHITECTURE.md</code> in the repository.</p>
+</section>
+
+
+<!-- ============================================================ REFERENCES (generated) -->
+
+<section id="events-ref" data-group="Reference" data-title="Events reference">
+<h2>Events reference</h2>
+<p>Every event block, generated from the editor's own list. Search above to filter, or pick a category.</p>
+<div class="ref-tools" id="ev-cats" role="group" aria-label="Event categories"></div>
+<div id="ev-list"></div>
+</section>
+
+<section id="settings-ref" data-group="Reference" data-title="Engine settings">
+<h2>Engine settings reference</h2>
+<p>From <b>Settings → Engine</b>. Settings marked <span class="gba-tag">GBA</span> are extras GB Studio doesn't have.</p>
+<div class="ref-tools" id="set-modes" role="group" aria-label="Game modes"></div>
+<div id="set-list"></div>
+</section>
+
+<section id="faq" data-group="Finishing" data-title="Troubleshooting">
+<h2>Troubleshooting</h2>
+<h3>Play does nothing, or says it can't open the ROM</h3>
+<p>Install an emulator like mGBA and set it to open <code>.gba</code> files, or choose it in <b>File → Emulator for Play</b>.</p>
+<h3>"Too many colors"</h3>
+<p>Open the image in the Art Editor. The palette bar shows how far over you are; use <b>Image → Reduce colors</b>.</p>
+<h3>An actor ends up a tile lower than expected</h3>
+<p>Positions are the actor's top-left tile, but a 16×16 actor covers four tiles. Use the <b>Pick</b> button, which shows the whole actor. In a platformer, gravity also pulls a player placed in mid-air down.</p>
+<h3>My button script freezes the player</h3>
+<p>Untick <b>Freeze player while it runs</b> on Attach Script To Button. Unticked, the script runs alongside the game.</p>
+<h3>A video won't import</h3>
+<p>Use MP4 (H.264) or WebM. Other formats can be converted with a free video converter first.</p>
+<h3>The Linux AppImage won't start</h3>
+<p>Run <code>sudo apt install libfuse2</code>, or use the <code>.deb</code> instead.</p>
+</section>
+
+      <footer>
+        Shimmer Engine is made by HoloCatt. Community: <a href="https://www.reddit.com/r/ShimmerEngine/" target="_blank" rel="noopener">r/ShimmerEngine</a> · Downloads: <a href="https://holocatt.itch.io/shimmerengine" target="_blank" rel="noopener">holocatt.itch.io/shimmerengine</a>
+      </footer>
+    </div>
+  </main>
+</div>
+
+<script>
+const EVENTS = [{"label": "Display Text", "category": "Dialogue", "description": "Show a dialogue box. A new line starts a new page; long text carries on to the next page. {varname} shows a variable, !F:name! switches font, !C:#ff4040! colours the text (!C! resets), !S2! sets the text speed (frames per letter, 0 = instant). Use the Insert buttons under the text to add these.", "fields": ["Text", "Position", "X (tiles)", "Y (tiles)", "Width (tiles)", "Rows", "Frame"], "branches": []}, {"label": "Yes/No Choice", "category": "Dialogue", "description": "Ask a two-option question. First option runs Then, second runs Else.", "fields": ["Prompt", "Options"], "branches": ["First option", "Second option"]}, {"label": "Menu", "category": "Dialogue", "description": "A 2-4 option menu; each option runs its own events. Put a Display Text before it for a question.", "fields": [], "branches": []}, {"label": "Set Engine Setting", "category": "Engine", "description": "Change one of the scene type's settings (Settings > Engine) for the rest of this scene - e.g. lower gravity underwater, or turn on double jump after a power-up.", "fields": ["Setting", "Value"], "branches": []}, {"label": "Launch Projectile", "category": "Engine", "description": "Fire a sprite in a straight line from an actor. It runs the On Hit script of the actor it hits (or the scene's On Player Hit when it hits the player). Attach it to a button with Attach Script To Button to shoot.", "fields": ["Sprite", "From", "Direction", "Angle (0 = right, 90 = up)", "Speed (px/frame)", "Lifetime (frames, 0 = until off screen)", "Hits", "Hits the player as group", "Keeps going after a hit", "Flies through walls", "Drawn in front of the player", "Start offset X (px)", "Start offset Y (px)"], "branches": []}, {"label": "Set Font", "category": "Dialogue", "description": "Font for dialogue from now on. Fonts are PNGs in assets/fonts (GB Studio fonts work as-is).", "fields": ["Font"], "branches": []}, {"label": "Set Dialogue Frame", "category": "Dialogue", "description": "Box frame for dialogue from now on. Frames are 24x24 PNGs in assets/frames.", "fields": ["Frame"], "branches": []}, {"label": "Set Text Speed", "category": "Dialogue", "description": "How fast dialogue letters appear: frames per letter, 0 = the whole page at once.", "fields": ["Frames per letter"], "branches": []}, {"label": "Set Flag", "category": "Flags", "description": "Turn a flag on.", "fields": ["Flag"], "branches": []}, {"label": "Clear Flag", "category": "Flags", "description": "Turn a flag off.", "fields": ["Flag"], "branches": []}, {"label": "If Flag Is Set", "category": "Flags", "description": "Run Then if the flag is on, otherwise Else.", "fields": ["Flag"], "branches": ["Then", "Else"]}, {"label": "Give Item", "category": "Items", "description": "Add an item to the player's inventory.", "fields": ["Item"], "branches": []}, {"label": "If Has Item", "category": "Items", "description": "Run Then if the player holds the item, otherwise Else.", "fields": ["Item"], "branches": ["Then", "Else"]}, {"label": "Set Variable", "category": "Variables", "description": "Set a variable to a number or to another variable's value.", "fields": ["Variable", "Value"], "branches": []}, {"label": "Add To Variable", "category": "Variables", "description": "Add a number (negative to subtract) or another variable.", "fields": ["Variable", "Add"], "branches": []}, {"label": "Random Number", "category": "Variables", "description": "Set a variable to a random whole number between min and max (inclusive).", "fields": ["Variable", "Min", "Max"], "branches": []}, {"label": "If Variable Compare", "category": "Variables", "description": "Compare a variable to a number or another variable.", "fields": ["Variable", "Is", "Value"], "branches": ["Then", "Else"]}, {"label": "Show Actor", "category": "Actors", "description": "Make a hidden NPC visible (and solid/talkable) again.", "fields": ["Actor"], "branches": []}, {"label": "Hide Actor", "category": "Actors", "description": "Hide an NPC. Hidden NPCs don't block movement or respond to talking.", "fields": ["Actor"], "branches": []}, {"label": "Set Actor Position", "category": "Actors", "description": "Teleport an actor (or the player) to a position: numbers, variables, or where another actor is. Relative adds to where it is now.", "fields": ["Actor", "To", "Position", "X variable", "Y variable", "Actor to go to", "Units", "Relative to where it is"], "branches": []}, {"label": "Move Actor To", "category": "Actors", "description": "Walk an actor (or the player) to a position: numbers, variables, or another actor. Waits until it arrives. With Collisions on it stops at solid tiles. Position is the actor's top-left tile (the Pick button shows its whole 16x16 box).", "fields": ["Actor", "To", "Position", "X variable", "Y variable", "Actor to go to", "Units", "Relative to where it is", "Collisions", "Move"], "branches": []}, {"label": "Set Actor Direction", "category": "Actors", "description": "Turn an NPC to face a direction.", "fields": ["Actor", "Facing"], "branches": []}, {"label": "Set Actor State", "category": "Actors", "description": "Switch the player or an NPC to one of its sprite's animation states (define states in the Sprites view). On the player the state sticks - the movement mode's own run/jump states won't replace it - until you set Default again.", "fields": ["Actor", "State"], "branches": []}, {"label": "Set Actor Animate", "category": "Actors", "description": "Turn per-frame animation stepping on or off for the player or an NPC. Off holds the current frame.", "fields": ["Actor", "Animate"], "branches": []}, {"label": "Set Actor Frame", "category": "Actors", "description": "Show a specific frame directly, by index into the actor's sprite sheet. Also pauses animation until re-enabled.", "fields": ["Actor", "Frame"], "branches": []}, {"label": "Set Actor Collision Box", "category": "Actors", "description": "Override an NPC's collision box: offset + size in pixels within its sprite's 16×16 canvas.", "fields": ["Actor", "Box"], "branches": []}, {"label": "Camera Move To", "category": "Camera", "description": "Pan the camera so this tile is in the middle of the screen, and wait. The camera stays there until Camera Release.", "fields": ["Tile", "Speed (px/frame)"], "branches": []}, {"label": "Camera Follow Actor", "category": "Camera", "description": "Keep the camera centered on an NPC until Camera Release.", "fields": ["Actor"], "branches": []}, {"label": "Camera Lock To Tile", "category": "Camera", "description": "Hold the camera on a fixed tile until Camera Release.", "fields": ["Tile"], "branches": []}, {"label": "Camera Release", "category": "Camera", "description": "Go back to following the player.", "fields": [], "branches": []}, {"label": "Change Scene", "category": "Scene", "description": "Fade to another scene and place the player on a tile. Ends the script.", "fields": ["Scene", "Player tile"], "branches": []}, {"label": "Fade Out", "category": "Scene", "description": "Fade the screen to black or white. \"Wait\" pauses the script until the fade finishes.", "fields": ["To", "Frames", "Wait"], "branches": []}, {"label": "Fade In", "category": "Scene", "description": "Fade the screen back in from black or white. \"Wait\" pauses the script until the fade finishes.", "fields": ["From", "Frames", "Wait"], "branches": []}, {"label": "Wait", "category": "Timing & Input", "description": "Pause the script. 60 frames = 1 second.", "fields": ["Frames"], "branches": []}, {"label": "Wait For Button", "category": "Timing & Input", "description": "Pause until one of the chosen buttons is pressed.", "fields": ["Buttons"], "branches": []}, {"label": "Start Timer", "category": "Timing & Input", "description": "Start one of this scene's background timers.", "fields": ["Timer"], "branches": []}, {"label": "Play Sound", "category": "Sound", "description": "Play a sound: a built-in beep, or a WAV from assets/sounds (add them in the Music section). WAVs play on the GBA's two digital channels, over the music; the options below are for WAVs.", "fields": ["Sound", "Channel (WAV)", "Loop (WAV)", "Volume (WAV)"], "branches": []}, {"label": "Stop Sound", "category": "Sound", "description": "Stop a WAV sound that's playing (e.g. a looping one).", "fields": ["Channel"], "branches": []}, {"label": "Play Music", "category": "Sound", "description": "Start (or restart) a music track, from an On Init/door/NPC/timer script - not just a scene's own Music property. Already-playing the same track is a no-op (won't restart it). \"Loop\" (default on) repeats it forever until Stop Music or another Play Music.", "fields": ["Track", "Loop"], "branches": []}, {"label": "Stop Music", "category": "Sound", "description": "Silence whatever music is currently playing.", "fields": [], "branches": []}, {"label": "Call Script", "category": "Scripts", "description": "Run one of this project's Custom Scripts here. Inline-expanded at compile time (a copy, not a live link) - editing the custom script later changes every place that calls it, but a cycle (a script calling itself, directly or through another script) is a compile error.", "fields": ["Script"], "branches": []}, {"label": "Math", "category": "Math", "description": "Add, subtract, multiply, divide, or modulo a variable by a number or another variable. Divide/modulo by 0 sets it to 0.", "fields": ["Variable", "Op", "Value"], "branches": []}, {"label": "Array Variable Math", "category": "Math", "description": "Treats a run of variables as a list: \"Array\" is its first slot, \"Index\" is a variable holding how far into it to reach. Get reads that slot into Output; every other op applies Math's operation to that slot in place, using Value. Use this only when Index is chosen at runtime - a fixed slot is just Set Variable/Math.", "fields": ["Array (first variable)", "Index (variable)", "Op", "Value", "Output (for Get)"], "branches": []}, {"label": "Loop", "category": "Control Flow", "description": "Repeat Events forever. Use Stop Script (or a scene change) to exit - an empty loop runs forever doing nothing.", "fields": [], "branches": ["Events"]}, {"label": "Stop Script", "category": "Control Flow", "description": "Immediately halt this script, wherever it appears.", "fields": [], "branches": []}, {"label": "Store Actor Position", "category": "Actors", "description": "Store an NPC's current position (in pixels) into two variables.", "fields": ["Actor", "X Variable", "Y Variable"], "branches": []}, {"label": "Store Actor Direction", "category": "Actors", "description": "Store an NPC's current facing direction into a variable (0=down, 1=up, 2=right, 3=left).", "fields": ["Actor", "Variable"], "branches": []}, {"label": "Camera Shake", "category": "Camera", "description": "Shake the camera (background and every on-screen sprite together) for a number of frames. Doesn't pause the script.", "fields": ["Frames", "Strength (px)"], "branches": []}, {"label": "Comment", "category": "Misc", "description": "A note in the script for yourself/others - no effect on the game.", "fields": ["Comment"], "branches": []}, {"label": "Group", "category": "Misc", "description": "Visually group a block of events under a label - purely organizational, no effect on the game.", "fields": ["Label"], "branches": ["Events"]}, {"label": "If Expression", "category": "Control Flow", "description": "Run Then if a math expression is true (not 0). Use variable names (or $name$), + - * / %, == != < <= > >=, && || !, and functions like min, max, abs, rnd(n), actor_x(player), held(a), flag(name).", "fields": ["Expression"], "branches": ["Then", "Else"]}, {"label": "Loop While", "category": "Control Flow", "description": "Repeat Events while an expression is true, checking before each run.", "fields": ["While"], "branches": ["Events"]}, {"label": "Loop For", "category": "Control Flow", "description": "Set a variable to From, then repeat Events while it compares true to To, stepping it after each run.", "fields": ["Variable", "From", "While", "To", "Step", "By"], "branches": ["Events"]}, {"label": "Switch", "category": "Control Flow", "description": "Run the case whose value matches a variable, or Else if none does.", "fields": ["Variable"], "branches": ["Else"]}, {"label": "Label", "category": "Control Flow", "description": "Marks a place in this script for Go To Label to jump to.", "fields": ["Label"], "branches": []}, {"label": "Go To Label", "category": "Control Flow", "description": "Jump to a Label in this same script (not into or out of a thread, timer or button script).", "fields": ["Label"], "branches": []}, {"label": "Rate Limit", "category": "Control Flow", "description": "Skip Events if they ran less than this many frames ago. The variable stores when they last ran.", "fields": ["Variable", "Frames"], "branches": ["Events"]}, {"label": "Evaluate Expression", "category": "Math", "description": "Set a variable to the result of a math expression, e.g. (score + 5) * 2 or max(hp, 0).", "fields": ["Variable", "Expression"], "branches": []}, {"label": "Increment Variable", "category": "Variables", "description": "Add 1 to a variable.", "fields": ["Variable"], "branches": []}, {"label": "Decrement Variable", "category": "Variables", "description": "Subtract 1 from a variable.", "fields": ["Variable"], "branches": []}, {"label": "Set Variable To True", "category": "Variables", "description": "Set a variable to 1.", "fields": ["Variable"], "branches": []}, {"label": "Set Variable To False", "category": "Variables", "description": "Set a variable to 0.", "fields": ["Variable"], "branches": []}, {"label": "If Variable Is True", "category": "Variables", "description": "Run Then if the variable isn't 0.", "fields": ["Variable"], "branches": ["Then", "Else"]}, {"label": "If Variable Is False", "category": "Variables", "description": "Run Then if the variable is 0.", "fields": ["Variable"], "branches": ["Then", "Else"]}, {"label": "Set Variable Flags", "category": "Variables", "description": "Treat a variable as 16 on/off flags: set it to exactly the chosen flags (all others off).", "fields": ["Variable", "Flags"], "branches": []}, {"label": "Add Variable Flags", "category": "Variables", "description": "Turn the chosen flags of a variable on, leaving the others as they are.", "fields": ["Variable", "Flags"], "branches": []}, {"label": "Clear Variable Flags", "category": "Variables", "description": "Turn the chosen flags of a variable off, leaving the others as they are.", "fields": ["Variable", "Flags"], "branches": []}, {"label": "If Variable Has Flags", "category": "Variables", "description": "Run Then if every chosen flag of the variable is on.", "fields": ["Variable", "Flags"], "branches": ["Then", "Else"]}, {"label": "Reset All Variables", "category": "Variables", "description": "Set every variable back to 0.", "fields": [], "branches": []}, {"label": "Seed Random Numbers", "category": "Variables", "description": "Reseed the random number generator from the frame counter and held buttons.", "fields": [], "branches": []}, {"label": "Invoke Actor Script", "category": "Actors", "description": "Run an NPC's On Interact script here, as if the player had talked to it.", "fields": ["Actor"], "branches": []}, {"label": "Set Actor Position To Variables", "category": "Actors", "description": "Teleport an actor to the position held in two variables.", "fields": ["Actor", "X Variable", "Y Variable", "Units"], "branches": []}, {"label": "Move Actor To Variables", "category": "Actors", "description": "Walk an actor to the position held in two variables. Waits until it arrives.", "fields": ["Actor", "X Variable", "Y Variable", "Units"], "branches": []}, {"label": "Set Actor Position Relative", "category": "Actors", "description": "Teleport an actor by an offset from where it is now.", "fields": ["Actor", "Offset", "Units"], "branches": []}, {"label": "Move Actor Relative", "category": "Actors", "description": "Walk an actor by an offset from where it is now. Waits until it arrives.", "fields": ["Actor", "Offset", "Units"], "branches": []}, {"label": "Set Actor Frame To Variable", "category": "Actors", "description": "Show the sprite frame whose index is held in a variable.", "fields": ["Actor", "Variable"], "branches": []}, {"label": "Set Actor Movement Speed", "category": "Actors", "description": "How fast scripted moves walk the actor, in pixels per frame.", "fields": ["Actor", "Speed (px/frame)"], "branches": []}, {"label": "Set Actor Animation Speed", "category": "Actors", "description": "Frames each animation frame is shown for. 0 uses the sprite's own speed.", "fields": ["Actor", "Frames"], "branches": []}, {"label": "Set Actor Collisions", "category": "Actors", "description": "Turn collisions off to let an actor walk through walls and other actors.", "fields": ["Actor", "Collisions"], "branches": []}, {"label": "Push Actor Away From Player", "category": "Actors", "description": "Push an actor one step in the direction the player faces. \"Slide\" keeps it going until it hits something.", "fields": ["Actor", "Slide"], "branches": []}, {"label": "If Actor At Position", "category": "Actors", "description": "Run Then if an actor is exactly at a position.", "fields": ["Actor", "Position", "Units"], "branches": ["Then", "Else"]}, {"label": "If Actor Facing Direction", "category": "Actors", "description": "Run Then if an actor faces a direction.", "fields": ["Actor", "Facing"], "branches": ["Then", "Else"]}, {"label": "If Actor Distance From Actor", "category": "Actors", "description": "Compare the distance between two actors, in whole tiles.", "fields": ["Actor", "Distance is", "Tiles", "From"], "branches": ["Then", "Else"]}, {"label": "If Actor Relative To Actor", "category": "Actors", "description": "Run Then if an actor is above, below, left of or right of another.", "fields": ["Actor", "Is", "Other actor"], "branches": ["Then", "Else"]}, {"label": "If Current Scene Is", "category": "Scene", "description": "Run Then if the game is in a scene. Useful in custom scripts.", "fields": ["Scene"], "branches": ["Then", "Else"]}, {"label": "Store Current Scene", "category": "Scene", "description": "Remember this scene and the player's position, to return to with Restore Previous Scene. \"Remember everything\" also keeps every actor's position, direction and state, running scripts and timers - a real pause: coming back carries on exactly where it left off (the scene's On Init doesn't run again).", "fields": ["Remember everything (real pause)"], "branches": []}, {"label": "Play Cutscene", "category": "Scene", "description": "Play a video cutscene full-screen (make them in the Cutscenes tab), with its sound. Everything waits until it ends; then the scene comes back as it was.", "fields": ["Cutscene", "A / START skips it", "Stop the music first"], "branches": []}, {"label": "Restore Previous Scene", "category": "Scene", "description": "Go back to the last stored scene and position. Ends the script.", "fields": [], "branches": []}, {"label": "Restore First Scene", "category": "Scene", "description": "Go back to the first stored scene and forget the rest. Ends the script.", "fields": [], "branches": []}, {"label": "Clear Stored Scenes", "category": "Scene", "description": "Forget every stored scene.", "fields": [], "branches": []}, {"label": "Idle", "category": "Timing & Input", "description": "Wait for one frame.", "fields": [], "branches": []}, {"label": "If Button Held", "category": "Timing & Input", "description": "Run Then if any of the chosen buttons is held down right now.", "fields": ["Buttons"], "branches": ["Then", "Else"]}, {"label": "Attach Script To Button", "category": "Timing & Input", "description": "Run a script whenever a button is pressed, until removed or the scene changes. \"Override\" replaces the button's normal action (e.g. A = talk). Like GB Studio the script runs alongside play, so the player keeps moving (mid-jump attacks work); tick \"Freeze player\" to stop everything until it finishes.", "fields": ["Buttons", "Override", "Freeze player while it runs"], "branches": ["On press"]}, {"label": "Line Of Sight", "category": "Actors", "description": "Run a script when the player steps into an actor's view: the tiles straight in front of it, up to the range. The view follows the actor as it moves and turns (like Pokémon trainers). Runs again only after the player leaves the view. Lasts until the scene changes.", "fields": ["Actor", "Range (tiles)", "Solid tiles block the view"], "branches": ["On sight"]}, {"label": "Remove Line Of Sight", "category": "Actors", "description": "Stop watching for the player with this actor's Line Of Sight script.", "fields": ["Actor"], "branches": []}, {"label": "Remove Button Script", "category": "Timing & Input", "description": "Stop running the script attached to these buttons.", "fields": ["Buttons"], "branches": []}, {"label": "Attach Timer Script", "category": "Timing & Input", "description": "Run a script every so many frames, in the background, until disabled or the scene changes.", "fields": ["Timer", "Every (frames)"], "branches": ["On tick"]}, {"label": "Restart Timer", "category": "Timing & Input", "description": "Start a timer's countdown over from the beginning.", "fields": ["Timer"], "branches": []}, {"label": "Disable Timer", "category": "Timing & Input", "description": "Stop a timer's script from running.", "fields": ["Timer"], "branches": []}, {"label": "Start Thread", "category": "Scripts", "description": "Run events in the background while this script carries on. Store the handle in a variable to stop it later. Threads end when the scene changes.", "fields": ["Handle variable"], "branches": ["Thread"]}, {"label": "Stop Thread", "category": "Scripts", "description": "Stop the thread whose handle is stored in a variable.", "fields": ["Handle variable"], "branches": []}, {"label": "Hide All Sprites", "category": "Screen", "description": "Hide every sprite (actors and the player) until Show All Sprites.", "fields": [], "branches": []}, {"label": "Show All Sprites", "category": "Screen", "description": "Show sprites again after Hide All Sprites.", "fields": [], "branches": []}, {"label": "Set Palette Color", "category": "Screen", "description": "Change one color of a background or sprite palette bank until the next scene load.", "fields": ["Palette", "Bank", "Color #", "Color"], "branches": []}, {"label": "Replace Tile", "category": "Screen", "description": "Copy the tile at the source position onto another tile of this scene's map (until the scene reloads).", "fields": ["Tile", "Copy from"], "branches": []}, {"label": "Save Data", "category": "Save Data", "description": "Save the game (variables, flags, items, scene and position) to a slot.", "fields": ["Slot"], "branches": []}, {"label": "Load Data", "category": "Save Data", "description": "Load a save slot and go to its scene. Ends the script if the slot has a save; otherwise carries on.", "fields": ["Slot"], "branches": []}, {"label": "Clear Data", "category": "Save Data", "description": "Delete the save in a slot.", "fields": ["Slot"], "branches": []}, {"label": "If Data Saved", "category": "Save Data", "description": "Run Then if a save slot holds a save.", "fields": ["Slot"], "branches": ["Then", "Else"]}, {"label": "Read Variable From Save", "category": "Save Data", "description": "Copy a variable's value out of a save slot without loading it (0 if the slot is empty).", "fields": ["Slot", "Saved variable", "Store in"], "branches": []}, {"label": "Play Tone", "category": "Sound", "description": "Play a square-wave tone on sound channel 1.", "fields": ["Frequency (Hz)", "Frames"], "branches": []}, {"label": "Play Beep", "category": "Sound", "description": "Play a short noise-channel beep (pitch 1-8).", "fields": ["Pitch", "Frames"], "branches": []}, {"label": "Play Crash", "category": "Sound", "description": "Play a noise burst on sound channel 4.", "fields": ["Frames"], "branches": []}, {"label": "Mute Music Channel", "category": "Sound", "description": "Keep a .uge song off one of the four sound channels (e.g. to free it for sound effects).", "fields": ["Channel", "Muted"], "branches": []}, {"label": "Set Music Routine", "category": "Sound", "description": "Run a script whenever the playing .uge song hits effect 6xx with x = this routine number.", "fields": ["Routine"], "branches": ["On effect"]}];
+const SETTINGS = {"modes": [{"id": "topdown", "label": "Top Down 2D", "engine": 0}, {"id": "platform", "label": "Platformer", "engine": 1}, {"id": "adventure", "label": "Adventure", "engine": 2}, {"id": "shmup", "label": "Shoot 'Em Up", "engine": 3}, {"id": "pointnclick", "label": "Point and Click", "engine": 4}, {"id": "logo", "label": "Logo", "engine": 5}], "settings": [{"key": "td_speed", "mode": "topdown", "group": "Movement", "label": "Walk speed", "unit": "speed", "default": 1, "min": 0.25, "max": 4}, {"key": "td_grid", "mode": "topdown", "group": "Movement", "label": "Movement grid", "unit": "choice", "options": ["Free (pixel by pixel)", "8px tiles", "16px tiles"], "default": 0, "desc": "Grid movement walks a whole tile per press, like classic RPGs."}, {"key": "td_diagonal", "mode": "topdown", "group": "Movement", "label": "Diagonal movement", "unit": "bool", "default": 0, "extra": true, "desc": "Walk diagonally when two directions are held (free movement only)."}, {"key": "td_run", "mode": "topdown", "group": "Run", "label": "Enable running", "unit": "bool", "default": 0, "extra": true}, {"key": "td_run_button", "mode": "topdown", "group": "Run", "label": "Run button", "unit": "button", "default": "b", "if": "td_run"}, {"key": "td_run_speed", "mode": "topdown", "group": "Run", "label": "Run speed", "unit": "speed", "default": 2, "min": 0.25, "max": 6, "if": "td_run"}, {"key": "td_interact", "mode": "topdown", "group": "Buttons", "label": "Interact button", "unit": "button", "default": "a"}, {"key": "pl_walk_vel", "mode": "platform", "group": "Walking", "label": "Walk speed", "unit": "speed", "default": 1.5625, "min": 0, "max": 4}, {"key": "pl_walk_acc", "mode": "platform", "group": "Walking", "label": "Walk acceleration", "unit": "accel", "default": 0.0625, "min": 0, "max": 1}, {"key": "pl_turn_acc", "mode": "platform", "group": "Walking", "label": "Turn acceleration", "unit": "accel", "default": 0.1719, "min": 0, "max": 1}, {"key": "pl_dec", "mode": "platform", "group": "Walking", "label": "Deceleration", "unit": "accel", "default": 0.0781, "min": 0, "max": 1}, {"key": "pl_air_control", "mode": "platform", "group": "Walking", "label": "Air control", "unit": "bool", "default": 1, "desc": "Steer while in the air."}, {"key": "pl_air_dec", "mode": "platform", "group": "Walking", "label": "Air deceleration", "unit": "accel", "default": 0.0508, "min": 0, "max": 1}, {"key": "pl_crouch", "mode": "platform", "group": "Walking", "label": "Crouch (hold Down)", "unit": "bool", "default": 0, "extra": true, "desc": "Holding Down on the ground stops you and shows the sprite's \"crouch\" state."}, {"key": "pl_run", "mode": "platform", "group": "Running", "label": "Enable running", "unit": "bool", "default": 1}, {"key": "pl_run_button", "mode": "platform", "group": "Running", "label": "Run button", "unit": "button", "default": "b", "if": "pl_run"}, {"key": "pl_run_vel", "mode": "platform", "group": "Running", "label": "Run speed", "unit": "speed", "default": 2.5625, "min": 0, "max": 6, "if": "pl_run"}, {"key": "pl_run_acc", "mode": "platform", "group": "Running", "label": "Run acceleration", "unit": "accel", "default": 0.0557, "min": 0, "max": 1, "if": "pl_run"}, {"key": "pl_grav", "mode": "platform", "group": "Gravity", "label": "Gravity", "unit": "accel", "default": 0.4375, "min": 0, "max": 2}, {"key": "pl_max_fall", "mode": "platform", "group": "Gravity", "label": "Max fall speed", "unit": "speed", "default": 4.875, "min": 0, "max": 8}, {"key": "pl_jump", "mode": "platform", "group": "Jumping", "label": "Enable jumping", "unit": "bool", "default": 1}, {"key": "pl_jump_button", "mode": "platform", "group": "Jumping", "label": "Jump button", "unit": "button", "default": "a", "if": "pl_jump"}, {"key": "pl_jump_vel", "mode": "platform", "group": "Jumping", "label": "Jump speed", "unit": "speed", "default": 3.25, "min": 0, "max": 8, "if": "pl_jump"}, {"key": "pl_hold_grav", "mode": "platform", "group": "Jumping", "label": "Gravity while holding jump", "unit": "accel", "default": 0.1875, "min": 0, "max": 2, "if": "pl_jump", "desc": "Lower than Gravity = holding the button jumps higher."}, {"key": "pl_hold_frames", "mode": "platform", "group": "Jumping", "label": "Hold frames", "unit": "frames", "default": 12, "min": 0, "max": 60, "if": "pl_jump", "desc": "How long holding the button keeps the lighter gravity."}, {"key": "pl_coyote", "mode": "platform", "group": "Jumping", "label": "Coyote time (frames)", "unit": "frames", "default": 4, "min": 0, "max": 15, "if": "pl_jump", "desc": "Can still jump this long after walking off a ledge."}, {"key": "pl_jump_buffer", "mode": "platform", "group": "Jumping", "label": "Jump buffer (frames)", "unit": "frames", "default": 4, "min": 0, "max": 15, "if": "pl_jump", "desc": "A jump pressed this long before landing still happens."}, {"key": "pl_double_jump", "mode": "platform", "group": "Jumping", "label": "Double jump", "unit": "bool", "default": 0, "if": "pl_jump", "desc": "Press Jump again in mid-air to jump once more."}, {"key": "pl_extra_jumps", "mode": "platform", "group": "Jumping", "label": "Air jumps (more than a double jump)", "unit": "count", "default": 0, "min": 0, "max": 10, "if": "pl_jump", "desc": "How many jumps in mid-air before landing again. Double jump counts as at least 1."}, {"key": "pl_extra_jump_vel", "mode": "platform", "group": "Jumping", "label": "Air jump speed", "unit": "speed", "default": 3, "min": 0, "max": 8, "if": "pl_jump"}, {"key": "pl_wall_jump", "mode": "platform", "group": "Walls", "label": "Wall jump", "unit": "bool", "default": 0, "if": "pl_jump"}, {"key": "pl_wall_jumps_max", "mode": "platform", "group": "Walls", "label": "Wall jumps before landing (0 = no limit)", "unit": "count", "default": 0, "min": 0, "max": 255, "if": "pl_wall_jump"}, {"key": "pl_wall_kick", "mode": "platform", "group": "Walls", "label": "Wall kick speed", "unit": "speed", "default": 2, "min": 0, "max": 6, "if": "pl_wall_jump"}, {"key": "pl_wall_kick_frames", "mode": "platform", "group": "Walls", "label": "Wall kick push (frames)", "unit": "frames", "default": 0, "min": 0, "max": 60, "if": "pl_wall_jump", "desc": "For this many frames after a wall jump, gravity and left/right are ignored, so the kick carries the player up and away from the wall."}, {"key": "pl_wall_slide", "mode": "platform", "group": "Walls", "label": "Wall slide", "unit": "bool", "default": 0, "desc": "Slide down slowly while pushing against a wall in the air."}, {"key": "pl_wall_slide_vel", "mode": "platform", "group": "Walls", "label": "Wall slide speed", "unit": "speed", "default": 0.75, "min": 0, "max": 4, "if": "pl_wall_slide"}, {"key": "pl_sound_jump", "mode": "platform", "group": "Sounds", "label": "Jump sound", "unit": "sound", "default": "", "extra": true, "desc": "A WAV from assets/sounds, played on every jump (and air jump)."}, {"key": "pl_sound_land", "mode": "platform", "group": "Sounds", "label": "Land sound", "unit": "sound", "default": "", "extra": true}, {"key": "pl_sound_wall_slide", "mode": "platform", "group": "Sounds", "label": "Wall slide sound", "unit": "sound", "default": "", "extra": true, "desc": "Played when a wall slide starts."}, {"key": "pl_sound_wall_kick", "mode": "platform", "group": "Sounds", "label": "Wall kick sound", "unit": "sound", "default": "", "extra": true}, {"key": "pl_drop_through", "mode": "platform", "group": "Platforms", "label": "Drop through platforms", "unit": "bool", "default": 1, "desc": "Down + Jump drops through one-way (Top) tiles."}, {"key": "pl_ladders", "mode": "platform", "group": "Ladders", "label": "Ladders", "unit": "bool", "default": 1, "desc": "Up/Down on Ladder tiles climbs."}, {"key": "pl_climb_vel", "mode": "platform", "group": "Ladders", "label": "Climb speed", "unit": "speed", "default": 1, "min": 0, "max": 4, "if": "pl_ladders"}, {"key": "pl_dash", "mode": "platform", "group": "Dash", "label": "Dash", "unit": "bool", "default": 0}, {"key": "pl_dash_input", "mode": "platform", "group": "Dash", "label": "Dash input", "unit": "choice", "options": ["Double tap a direction", "A", "B", "L", "R"], "default": 4, "if": "pl_dash"}, {"key": "pl_dash_dist", "mode": "platform", "group": "Dash", "label": "Dash distance (px)", "unit": "pixels", "default": 48, "min": 8, "max": 160, "if": "pl_dash"}, {"key": "pl_dash_frames", "mode": "platform", "group": "Dash", "label": "Dash time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "pl_dash"}, {"key": "pl_dash_ready", "mode": "platform", "group": "Dash", "label": "Cooldown (frames)", "unit": "frames", "default": 20, "min": 0, "max": 120, "if": "pl_dash"}, {"key": "pl_dash_air", "mode": "platform", "group": "Dash", "label": "Dash in the air", "unit": "bool", "default": 1, "if": "pl_dash"}, {"key": "pl_float", "mode": "platform", "group": "Float", "label": "Float (hold Jump while falling)", "unit": "bool", "default": 0}, {"key": "pl_float_vel", "mode": "platform", "group": "Float", "label": "Float fall speed", "unit": "speed", "default": 0.375, "min": 0, "max": 4, "if": "pl_float"}, {"key": "pl_knockback", "mode": "platform", "group": "Getting hit", "label": "Knockback", "unit": "bool", "default": 1, "desc": "Getting hit knocks the player away from what hit them."}, {"key": "pl_kb_vel_x", "mode": "platform", "group": "Getting hit", "label": "Knockback speed X", "unit": "speed", "default": 2, "min": 0, "max": 8, "if": "pl_knockback"}, {"key": "pl_kb_vel_y", "mode": "platform", "group": "Getting hit", "label": "Knockback speed Y", "unit": "speed", "default": 3, "min": 0, "max": 8, "if": "pl_knockback"}, {"key": "pl_kb_frames", "mode": "platform", "group": "Getting hit", "label": "Knockback time (frames)", "unit": "frames", "default": 16, "min": 1, "max": 60, "if": "pl_knockback"}, {"key": "pl_look_ahead", "mode": "platform", "group": "Camera", "label": "Camera look-ahead (px)", "unit": "pixels", "default": 0, "min": 0, "max": 64, "extra": true, "desc": "Camera leads the way the player is facing."}, {"key": "pl_interact", "mode": "platform", "group": "Buttons", "label": "Interact button", "unit": "button", "default": "up", "desc": "Talk to actors you're touching."}, {"key": "ad_eight_way", "mode": "adventure", "group": "Movement", "label": "8-way movement", "unit": "bool", "default": 1}, {"key": "ad_face_horizontal", "mode": "adventure", "group": "Movement", "label": "Only face left/right", "unit": "bool", "default": 0}, {"key": "ad_walk_vel", "mode": "adventure", "group": "Movement", "label": "Walk speed", "unit": "speed", "default": 1, "min": 0, "max": 4}, {"key": "ad_walk_acc", "mode": "adventure", "group": "Movement", "label": "Acceleration", "unit": "accel", "default": 0.25, "min": 0, "max": 2}, {"key": "ad_dec", "mode": "adventure", "group": "Movement", "label": "Deceleration", "unit": "accel", "default": 0.25, "min": 0, "max": 2}, {"key": "ad_run", "mode": "adventure", "group": "Run", "label": "Enable running", "unit": "bool", "default": 0}, {"key": "ad_run_button", "mode": "adventure", "group": "Run", "label": "Run button", "unit": "button", "default": "b", "if": "ad_run"}, {"key": "ad_run_vel", "mode": "adventure", "group": "Run", "label": "Run speed", "unit": "speed", "default": 1.5, "min": 0, "max": 6, "if": "ad_run"}, {"key": "ad_dash", "mode": "adventure", "group": "Dash", "label": "Dash", "unit": "bool", "default": 0}, {"key": "ad_dash_input", "mode": "adventure", "group": "Dash", "label": "Dash input", "unit": "choice", "options": ["Double tap a direction", "A", "B", "L", "R"], "default": 4, "if": "ad_dash"}, {"key": "ad_dash_dist", "mode": "adventure", "group": "Dash", "label": "Dash distance (px)", "unit": "pixels", "default": 48, "min": 8, "max": 160, "if": "ad_dash"}, {"key": "ad_dash_frames", "mode": "adventure", "group": "Dash", "label": "Dash time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "ad_dash"}, {"key": "ad_dash_ready", "mode": "adventure", "group": "Dash", "label": "Cooldown (frames)", "unit": "frames", "default": 20, "min": 0, "max": 120, "if": "ad_dash"}, {"key": "ad_push", "mode": "adventure", "group": "Pushing", "label": "Push actors", "unit": "bool", "default": 0, "desc": "Walking into an actor for a moment pushes it (if it has room)."}, {"key": "ad_push_delay", "mode": "adventure", "group": "Pushing", "label": "Push delay (frames)", "unit": "frames", "default": 8, "min": 0, "max": 60, "if": "ad_push"}, {"key": "ad_knockback", "mode": "adventure", "group": "Getting hit", "label": "Knockback", "unit": "bool", "default": 1}, {"key": "ad_kb_vel", "mode": "adventure", "group": "Getting hit", "label": "Knockback speed", "unit": "speed", "default": 2, "min": 0, "max": 8, "if": "ad_knockback"}, {"key": "ad_kb_frames", "mode": "adventure", "group": "Getting hit", "label": "Knockback time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "ad_knockback"}, {"key": "ad_interact", "mode": "adventure", "group": "Buttons", "label": "Interact button", "unit": "button", "default": "a"}, {"key": "sh_scroll_speed", "mode": "shmup", "group": "Scrolling", "label": "Scroll speed", "unit": "speed", "default": 0.5, "min": 0, "max": 4, "desc": "The screen scrolls the way the player faces at the start of the scene."}, {"key": "sh_player_speed", "mode": "shmup", "group": "Player", "label": "Player speed", "unit": "speed", "default": 1.5, "min": 0.25, "max": 6}, {"key": "sh_lock_perpendicular", "mode": "shmup", "group": "Player", "label": "Only move across the scroll", "unit": "bool", "default": 0, "desc": "e.g. only up/down in a side-scroller."}, {"key": "sh_triggers_on_screen", "mode": "shmup", "group": "Triggers", "label": "Triggers fire when they scroll on screen", "unit": "bool", "default": 0, "desc": "Otherwise they fire when the player touches them."}, {"key": "sh_wall_hit_group", "mode": "shmup", "group": "Player", "label": "Hitting a wall counts as a hit from group", "unit": "choice", "options": ["None", "1", "2", "3"], "default": 0}, {"key": "pc_speed", "mode": "pointnclick", "group": "Cursor", "label": "Cursor speed", "unit": "speed", "default": 1.5, "min": 0.25, "max": 6}, {"key": "pc_interact", "mode": "pointnclick", "group": "Cursor", "label": "Click button", "unit": "button", "default": "a"}, {"key": "hit_invincible", "mode": "all", "group": "Getting hit", "label": "Invincible after a hit (frames)", "unit": "frames", "default": 60, "min": 0, "max": 255, "extra": true, "desc": "The player blinks and can't be hit again for this long."}, {"key": "damage_tile_group", "mode": "all", "group": "Getting hit", "label": "Damage tiles hit as group", "unit": "choice", "options": ["None", "1", "2", "3"], "default": 1, "extra": true, "desc": "Touching a Damage collision tile runs the scene's On Player Hit for this group."}, {"key": "dialogue_pauses_world", "mode": "all", "group": "Dialogue", "label": "Pause the world during dialogue", "unit": "bool", "default": 0, "extra": true, "desc": "While a dialogue box is open, other scripts (actors walking about, background and timer scripts) wait until it closes. Off: the world keeps moving, so you're never truly safe."}]};
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---- Events reference
+const cats = [...new Set(EVENTS.map((e) => e.category))];
+let evCat = "All";
+function renderEvents(q) {
+  const list = document.getElementById("ev-list");
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = EVENTS.filter((e) => (evCat === "All" || e.category === evCat) &&
+    words.every((w) => (e.label + " " + e.category + " " + e.description + " " + e.fields.join(" ")).toLowerCase().includes(w)));
+  list.innerHTML = hits.length ? hits.map((e) => `
+    <div class="ev">
+      <div class="ev-head"><span class="ev-name">${esc(e.label)}</span><span class="ev-cat">${esc(e.category)}</span></div>
+      <p>${esc(e.description)}</p>
+      ${e.fields.length ? `<div class="ev-fields"><b>Options:</b> ${e.fields.map(esc).join(" · ")}</div>` : ""}
+      ${e.branches.length ? `<div class="ev-fields"><b>Holds events in:</b> ${e.branches.map(esc).join(" · ")}</div>` : ""}
+    </div>`).join("") : `<p class="no-hits">No events match.</p>`;
+}
+const evCats = document.getElementById("ev-cats");
+["All", ...cats].forEach((c) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = c; b.setAttribute("aria-pressed", String(c === evCat));
+  b.onclick = () => { evCat = c; [...evCats.children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderEvents(document.getElementById("q").value); };
+  evCats.appendChild(b);
+});
+
+// ---- Settings reference
+const modeLabels = Object.fromEntries((SETTINGS.modes || []).map((m) => [m.id, m.label]));
+modeLabels.all = "Every mode";
+let setMode = "all";
+function fmtDefault(s) {
+  if (s.unit === "bool") return s.default ? "On" : "Off";
+  if (s.unit === "choice" && s.options) return s.options[s.default] ?? s.default;
+  return String(s.default) + (s.unit === "frames" ? " frames" : s.unit === "pixels" ? " px" : "");
+}
+function renderSettings(q) {
+  const list = document.getElementById("set-list");
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = (SETTINGS.settings || []).filter((s) => s.mode === setMode &&
+    words.every((w) => (s.label + " " + (s.group || "") + " " + (s.desc || "")).toLowerCase().includes(w)));
+  const groups = [...new Set(hits.map((s) => s.group || "General"))];
+  list.innerHTML = hits.length ? groups.map((g) => `<h3>${esc(g)}</h3>` + hits.filter((s) => (s.group || "General") === g).map((s) => `
+    <div class="setting"><span class="s-name">${esc(s.label)}${s.extra ? '<span class="gba-tag">GBA</span>' : ""}</span>
+    <span class="s-def">Default: ${esc(fmtDefault(s))}</span>${s.desc ? `<span class="s-desc">${esc(s.desc)}</span>` : ""}</div>`).join("")).join("")
+    : `<p class="no-hits">No settings match.</p>`;
+}
+const setModes = document.getElementById("set-modes");
+["all", ...(SETTINGS.modes || []).map((m) => m.id).filter((id) => (SETTINGS.settings || []).some((s) => s.mode === id))].forEach((id) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = modeLabels[id] || id; b.setAttribute("aria-pressed", String(id === setMode));
+  b.onclick = () => { setMode = id; [...setModes.children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); renderSettings(document.getElementById("q").value); };
+  setModes.appendChild(b);
+});
+
+// ---- Index + search
+const sections = [...document.querySelectorAll("main section[data-title]")];
+const toc = document.getElementById("toc");
+let lastGroup = "";
+sections.forEach((s) => {
+  if (s.dataset.group !== lastGroup) {
+    lastGroup = s.dataset.group;
+    const g = document.createElement("div"); g.className = "toc-group"; g.textContent = lastGroup; toc.appendChild(g);
+  }
+  const a = document.createElement("a"); a.href = "#" + s.id; a.textContent = s.dataset.title; a.dataset.id = s.id;
+  a.onclick = () => { document.getElementById("index").classList.remove("open"); document.getElementById("drawer").setAttribute("aria-expanded", "false"); };
+  toc.appendChild(a);
+});
+
+function search(q) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  sections.forEach((s) => {
+    const isRef = s.id === "events-ref" || s.id === "settings-ref";
+    const match = !words.length || isRef || words.every((w) => s.textContent.toLowerCase().includes(w));
+    s.hidden = !match;
+    toc.querySelector(`a[data-id="${s.id}"]`).hidden = !match;
+  });
+  renderEvents(q);
+  renderSettings(q);
+}
+const qInput = document.getElementById("q");
+qInput.addEventListener("input", () => search(qInput.value));
+
+// Highlight the chapter being read.
+const links = () => [...toc.querySelectorAll("a")];
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((en) => { if (en.isIntersecting) links().forEach((a) => a.classList.toggle("on", a.dataset.id === en.target.id)); });
+}, { rootMargin: "-20% 0px -70% 0px" });
+sections.forEach((s) => io.observe(s));
+
+document.getElementById("drawer").onclick = (e) => {
+  const idx = document.getElementById("index"); idx.classList.toggle("open");
+  e.currentTarget.setAttribute("aria-expanded", String(idx.classList.contains("open")));
+};
+
+// Theme buttons (remembered per browser when storage is available).
+function setTheme(t) {
+  if (t === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t;
+  ["system", "light", "dark"].forEach((k) => document.getElementById("t-" + k).setAttribute("aria-pressed", String(k === t)));
+  try { localStorage.setItem("shimmer-wiki-theme", t); } catch (e) {}
+}
+["system", "light", "dark"].forEach((k) => document.getElementById("t-" + k).onclick = () => setTheme(k));
+try { const t = localStorage.getItem("shimmer-wiki-theme"); if (t) setTheme(t); } catch (e) {}
+
+search("");
+</script>

@@ -1,3 +1,99 @@
+# Shimmer Engine Devlog #5: Your feedback, fixed
+
+This one is straight from your comments. Someone sent a great list of things that felt off or were missing compared to GB Studio, and every one of them is in.
+
+## Scripts
+
+- **Button scripts don't freeze the player any more.** Scripts attached to a button used to stop everything while they ran, so an attack animation would leave you hanging in mid-air. Now they run alongside the game, like in GB Studio: you keep moving and jumping while the script plays. If you want the old behaviour (a pause menu, say), tick **Freeze player while it runs** on Attach Script To Button. If you already have button scripts, check them: by default they now run in the background.
+- **Move Actor To got all the GB Studio options:**
+  - Move to a position, to a position stored in **variables**, or to **another actor or the player**.
+  - **Relative** moves ("2 tiles left of where it is").
+  - **Tiles or pixels.**
+  - **Collisions**: stop at solid tiles instead of walking through walls.
+  - **Horizontal first, vertical first, or diagonal.**
+- **Set Actor Position** gets the same targets, plus relative and pixel options.
+- **Every actor event works on the player.** Pick **Player** in any actor event, and **Self** works in all of an actor's own scripts (On Init, On Update, On Hit and On Interact).
+
+## A real pause
+
+**Store Current Scene** has a new **Remember everything** option. Go to your pause menu scene, come back, and the game carries on exactly where it left off: every actor's position, direction, animation state and visibility, all running scripts and timers. The scene's On Init doesn't run again, so nothing resets.
+
+## Dialogue
+
+- **Put the box anywhere.** Display Text has a new **Custom** position with X, Y and width in tiles. Make a small box in a corner, a narrow panel down one side, or a single line of HUD text, wherever you want it. The preview shows the box at its real size.
+- **Pause the world during dialogue** is a new engine setting. Turn it on and actors and background scripts stop while a box is open. Leave it off and the world keeps moving, so you're never truly safe. You can switch it mid-game with Set Engine Setting.
+
+## Editor
+
+- **Picking an actor's position shows the whole actor.** Positions are the actor's top-left tile, but a 16x16 actor covers four tiles, so reading the cursor at its feet put it a tile too low. When you press Pick for an actor event, the canvas now shows the actor's full box, so you can see exactly where it'll stand.
+- **Play opens one emulator.** Pressing Play again closes the emulator it opened last time, instead of piling up windows. This also fixes builds failing because the old emulator still had the ROM open.
+- **Choose your emulator** under **File > Emulator for Play**, or keep using whatever program your .gba files open with.
+
+As always, it's an early alpha, so tell me what breaks: https://www.reddit.com/r/ShimmerEngine/
+
+---
+
+# Shimmer Engine Devlog #4: An art editor, Mac and Linux, and a fresh look
+
+This is the biggest update yet. Shimmer now has its own pixel art editor, runs natively on Mac and Linux, and the whole editor got a new, easier-to-read look. A lot of this came straight from your comments, so keep them coming.
+
+## Art Editor
+
+There's a new **Art Editor** in the section dropdown, next to Game World, Sprites and Music. It's a full pixel art editor for your project's own images, inspired by Pixelorama.
+
+- **Your art, ready to edit.** The left side lists your backgrounds, sprites, fonts and dialogue frames with thumbnails. Click one to open it, or make a new one with **+ New**. Saving writes straight back into your project, so your scenes and builds use it right away.
+- **Tools:** pencil, eraser, fill, line, rectangle, ellipse, gradient, shading, stamp, colour picker, select, move and hand. Left click draws with your main colour, right click with your second one.
+- **Pencil extras:** brush sizes, dithering, "pixel perfect" lines, and mirror drawing left/right and up/down.
+- **Shading tool:** click to lighten or darken a pixel, using only colours already in the image, so you never add colours by accident.
+- **Gradients** use only the colours you pick, with retro dithering in between.
+- **Custom brushes:** select part of an image and turn it into a stamp.
+- **Layers:** add, duplicate, reorder, merge, hide, lock, set opacity and rename. Your layers are kept for next time, and the game still gets one finished image.
+- **Animation:** cut a sprite sheet into frames, flip through them on a timeline, play the animation at any speed, and turn on onion skin to see the frames before and after the one you're drawing.
+- **Tile mode** shows your image repeated all around it, and drawing wraps across the edges, so seamless tiles are easy.
+- **GBA-aware palette bar.** The bottom shows every colour in the image and warns you when a sprite goes over 15 colours, or an 8x8 background tile does. **Reduce colours** fixes it for you, and **Snap to GBA colours** rounds colours to what the GBA can actually show.
+- **Image menu:** resize the image or the canvas, flip, rotate, add an outline, swap colours, import an image as a layer, and export a PNG or an animated GIF.
+- **Keyboard shortcuts** for every tool, and you can change them all.
+
+## Mac and Linux
+
+Shimmer now comes for **Windows, Mac and Linux**, built fresh every update.
+
+- **Linux:** a `.deb` (double-click to install) and an AppImage. These run natively, so no more Wine (which made it very slow). They work on Ubuntu 22.04-based distros like Zorin 17 and Mint 21, and newer.
+- **Mac:** a `.dmg` for Apple Silicon Macs (M1 and newer). The first time you open it, right-click the app and choose **Open**.
+- Every version includes everything a ROM build needs, so you just install and press Build ROM.
+
+## A new look
+
+- **High-contrast theme.** Clean greys with light text, slightly bolder and bigger text everywhere, and much bigger dropdown arrows.
+- **Themes** under **View > Theme**: Dark, Light, Midnight Blue, and Classic Purple if you miss the old look.
+- **Tooltips** now appear just above your mouse, in the editor's style.
+- The tile position above a scene now reads clearly as **X= Y=**.
+- The Game World / Sprites / Music switcher moved to the top left, above the sidebar.
+
+## Dialogue
+
+- **Box position:** Display Text can show its box at the bottom, middle or top of the screen.
+- **Rows:** pick 1 to 4 lines of text per box.
+- **No frame:** turn the box off for just text on screen. With 1 row, that's a single line you can use for UI like "HP 10/10".
+- **Coloured text:** type `!C:#ff4040!` to colour the text from there on, and `!C!` to go back. Shadows and outlines in your font stay as they are.
+- **Insert bar:** buttons under the text box add the codes for you: change font, colour, text speed, or show a variable. Changing fonts mid-text with `!F` already worked; now it's easy to find.
+- **15 built-in fonts**, clean and coloured, ready to use in any project.
+
+## New stuff
+
+- **Disable events**, just like GB Studio. Right-click any event and choose **Disable event**. It stays in your script, greyed out, but is skipped when you build. Events with an Else branch can also **Disable else**.
+- **Right-click to delete** actors, triggers and notes right on the scene.
+- **File menu:** New Project, Open Project, Save, Save As (copies your whole project somewhere new) and Reload Assets.
+
+## Bug fixes
+
+- **Set Actor State now works on the player.** Pick Player as the actor. In modes like platformer, the state you set now stays until you set Default again, instead of being replaced straight away. The state list also shows the right sprite when a scene uses its own player sprite.
+- **More than 16 actors in a scene** now gives a clear error when you build, instead of the extra actors quietly not showing up.
+
+As always, it's an early alpha, so tell me what breaks: https://www.reddit.com/r/ShimmerEngine/
+
+---
+
 # Shimmer Engine Devlog #3: Bug fixes and your wishlist
 
 Quick one this time. I went through the list of bugs and requests you sent in and knocked out all of it.
