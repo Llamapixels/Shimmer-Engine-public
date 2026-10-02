@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Build a Shimmer Engine project into a .gba
 #
-#   ./build.sh                 builds examples/demo
 #   ./build.sh path/to/project
 #
 # Run from ~/advance-build (the space-free mount of this folder).
@@ -9,7 +8,11 @@
 set -e
 cd "$(dirname "$0")"
 
-PROJECT="${1:-examples/demo}"
+if [ -z "$1" ]; then
+    echo "Usage: ./build.sh path/to/project" >&2
+    exit 1
+fi
+PROJECT="$1"
 
 if [ -x .venv/bin/python ]; then
     PY=.venv/bin/python

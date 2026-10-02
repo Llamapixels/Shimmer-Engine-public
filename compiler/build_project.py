@@ -1,7 +1,7 @@
 """
 Shimmer Engine project compiler.
 
-    python compiler/build_project.py examples/demo
+    python compiler/build_project.py path/to/project
 
 Reads a Shimmer Engine project folder:
 

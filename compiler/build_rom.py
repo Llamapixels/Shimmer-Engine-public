@@ -1,7 +1,7 @@
 """
 Build a Shimmer Engine project into a .gba, start to finish, without make:
 
-    python compiler/build_rom.py examples/demo
+    python compiler/build_rom.py path/to/project
 
 1. Runs the project compiler (build_project.py) into a work folder.
 2. Compiles the engine's C sources and the generated data with devkitARM's
