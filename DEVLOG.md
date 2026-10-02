@@ -1,3 +1,45 @@
+# Shimmer Engine Devlog #6: Video cutscenes
+
+Version 0.4.0-alpha. The big one this time is video. You can now turn an MP4 into a cutscene and play it in your game, with sound, on real GBA hardware. This build also has everything from devlog #5: background button scripts, the full Move Actor To, a real pause, and dialogue boxes you can put anywhere.
+
+## Cutscenes
+
+There's a new **Cutscenes** tab. Press **+ Import video**, pick a video, and Shimmer converts it right in the app. Nothing else to install.
+
+- **Trim it** with a start and end time.
+- **Size:** full screen (240×160) or half size (120×80, shown at 2×). Half size is about a quarter of the space.
+- **Frame rate** from 6 to 30 fps.
+- **Fit, Fill or Stretch** for videos that aren't GBA-shaped.
+- **Quality:** Best, Good or Small. Good usually looks the same as Best and is a lot smaller.
+- **Dither colours** for smoother gradients.
+- **Include the sound** to keep the audio track.
+
+Before you convert, it tells you roughly how big the cutscene will be and how much of the cartridge that is. About 1 MB per 10 seconds of full-screen video is typical, and a cartridge holds 32 MB, so short clips are best. Afterwards you can play it back in the editor to check it before building.
+
+MP4 (H.264) and WebM work best. If a video won't open, convert it to MP4 first (VLC can do this).
+
+## Play Cutscene
+
+The new **Play Cutscene** event (in Scene) plays a cutscene full screen. The game waits until it ends, then the scene comes back exactly as it was. Options:
+
+- **A / START skips it** (on by default).
+- **Stop the music first** (on by default).
+
+Use it for intros, story moments, endings, or a logo before your title screen.
+
+## Dialogue
+
+In case you missed #5, Display Text has a **Custom** position, so the box can go anywhere at any size, and there's a **Pause the world during dialogue** engine setting. See devlog #5 for the rest.
+
+## Also new
+
+- Shimmer Engine is now open source under GPL-3.0. The code is at https://github.com/Llamapixels/Shimmer-Engine-public
+- There's a wiki: https://llamapixels.github.io/Shimmer-Engine-public/
+
+As always, it's an early alpha, so tell me what breaks: https://www.reddit.com/r/ShimmerEngine/
+
+---
+
 # Shimmer Engine Devlog #5: Your feedback, fixed
 
 This one is straight from your comments. Someone sent a great list of things that felt off or were missing compared to GB Studio, and every one of them is in.
