@@ -108,10 +108,14 @@ function isTypingTarget(t: EventTarget | null) {
 }
 
 function useImage(rootPath: string | null, relPath: string | null, base: "project" | "engine" = "project") {
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  // Remember which file the image is for: right after the path changes
+  // (another scene opened) the old image is still in state for a render,
+  // and code that sizes the collision grid from it must not see it.
+  const key = `${base}:${rootPath}:${relPath}`;
+  const [loaded, setLoaded] = useState<{ key: string; img: HTMLImageElement } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    setImg(null);
+    setLoaded(null);
     setError(null);
     if (!rootPath || !relPath) return;
     let cancelled = false;
@@ -124,7 +128,7 @@ function useImage(rootPath: string | null, relPath: string | null, base: "projec
           return;
         }
         const im = new Image();
-        im.onload = () => !cancelled && setImg(im);
+        im.onload = () => !cancelled && setLoaded({ key, img: im });
         im.onerror = () => !cancelled && setError("Couldn't decode image.");
         im.src = r.value.dataUrl;
       })
@@ -132,8 +136,9 @@ function useImage(rootPath: string | null, relPath: string | null, base: "projec
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rootPath, relPath, base]);
-  return { img, error };
+  return { img: loaded?.key === key ? loaded.img : null, error };
 }
 
 /** Loads every sprite the scene shows (keyed by sprite name). */
