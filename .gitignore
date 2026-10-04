@@ -33,3 +33,6 @@ editor/release/
 
 # Private: the AI game-making API docs (never published)
 /api/
+
+# Devlogs are posted on itch.io, not kept in the repo
+DEVLOG.md

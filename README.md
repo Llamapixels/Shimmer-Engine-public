@@ -10,7 +10,7 @@ Inspired by GB Studio. Early alpha.
 - Community: https://www.reddit.com/r/ShimmerEngine/
 - Wiki: https://llamapixels.github.io/Shimmer-Engine-public/
 - How it's put together: [ARCHITECTURE.md](ARCHITECTURE.md)
-- What's new: [DEVLOG.md](DEVLOG.md)
+- What's new: devlogs on https://holocatt.itch.io/shimmerengine
 
 ## Building from source
 
