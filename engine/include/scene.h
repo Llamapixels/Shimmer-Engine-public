@@ -74,6 +74,7 @@ typedef struct
     const ScriptEvent *on_update;   /* looping background thread, 0 = none */
     uint8_t platform;        /* Platformer: stand on it (only blocks from
                               * above) and ride it when it moves */
+    uint8_t above_player;    /* 1 = drawn in front of the player */
 } NpcDef;
 
 /*

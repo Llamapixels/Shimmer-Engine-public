@@ -47,7 +47,35 @@
 
 /* OAM entries 0..FRONT_OAM-1 are kept for sprites drawn in front of all
  * others (the GBA draws lower OAM entries on top): see sprite_use_front(). */
-#define FRONT_OAM 16
+#define FRONT_OAM 32
+
+/* Attribute 0: bit 8 = affine (rotation/scaling), bit 9 with it =
+ * double-size box. Attribute 1 bits 9-13 = affine matrix. */
+#define ADV_ATTR0_AFFINE_DOUBLE 0x0300
+#define ADV_MATRIX_MAX 32
+
+/* sin() for whole degrees 0-90, scaled by 4096. */
+static const int16_t SIN_Q12[91] =
+{
+    0, 71, 143, 214, 286, 357, 428, 499, 570, 641, 711, 782,
+    852, 921, 991, 1060, 1129, 1198, 1266, 1334, 1401, 1468, 1534, 1600,
+    1666, 1731, 1796, 1860, 1923, 1986, 2048, 2110, 2171, 2231, 2290, 2349,
+    2408, 2465, 2522, 2578, 2633, 2687, 2741, 2793, 2845, 2896, 2946, 2996,
+    3044, 3091, 3138, 3183, 3228, 3271, 3314, 3355, 3396, 3435, 3474, 3511,
+    3547, 3582, 3617, 3650, 3681, 3712, 3742, 3770, 3798, 3824, 3849, 3873,
+    3896, 3917, 3937, 3956, 3974, 3991, 4006, 4021, 4034, 4046, 4056, 4065,
+    4074, 4080, 4086, 4090, 4094, 4095, 4096,
+};
+
+static int sin_deg(int a)
+{
+    a %= 360;
+    if (a < 0) a += 360;
+    if (a <= 90)  return SIN_Q12[a];
+    if (a <= 180) return SIN_Q12[180 - a];
+    if (a <= 270) return -SIN_Q12[a - 180];
+    return -SIN_Q12[360 - a];
+}
 
 static uint16_t next_oam = FRONT_OAM;
 static uint16_t next_tile = 0;
@@ -157,6 +185,12 @@ void sprite_init(
     sprite->oam_count = 0;
     sprite->tile_index = 0;
     sprite->vram_count = 0;
+    sprite->matrix = -1;
+    sprite->angle = 0;
+    sprite->scale_x = 100;
+    sprite->scale_y = 100;
+    sprite->pivot_x = 8;
+    sprite->pivot_y = 8;
 
     if (max_objs > ASPRITE_MAX_OBJS)
         max_objs = ASPRITE_MAX_OBJS;
@@ -201,6 +235,26 @@ void sprite_show_frame(ASprite *sprite, int frame)
 }
 
 
+void sprite_set_transform(ASprite *sprite, int matrix, int angle, int scale_x, int scale_y,
+                          int pivot_x, int pivot_y)
+{
+    angle %= 360;
+    if (angle < 0) angle += 360;
+    if (scale_x < 25) scale_x = 25;
+    if (scale_x > 200) scale_x = 200;
+    if (scale_y < 25) scale_y = 25;
+    if (scale_y > 200) scale_y = 200;
+
+    sprite->angle = (int16_t)angle;
+    sprite->scale_x = (uint8_t)scale_x;
+    sprite->scale_y = (uint8_t)scale_y;
+    sprite->pivot_x = (int16_t)pivot_x;
+    sprite->pivot_y = (int16_t)pivot_y;
+    sprite->matrix = (angle == 0 && scale_x == 100 && scale_y == 100) ||
+                     matrix < 0 || matrix >= ADV_MATRIX_MAX ? -1 : (int8_t)matrix;
+}
+
+
 void sprite_set_position(ASprite *sprite, int x, int y)
 {
     sprite->x = x;
@@ -221,6 +275,67 @@ void sprite_hide(ASprite *sprite)
 }
 
 
+/* write_objs() for a rotated/scaled sprite. */
+static void write_affine_objs(ASprite *sprite, const ASpriteFrame *f, uint8_t count,
+                              int screen_x, int screen_y)
+{
+    int m = sprite->matrix;
+    int sn = sin_deg(sprite->angle);
+    int cs = sin_deg(sprite->angle + 90);
+    int sx = sprite->scale_x;
+    int sy = sprite->scale_y;
+
+    /* The hardware maps screen to texture, so it takes the inverse of
+     * "scale, then rotate": rows of the inverse rotation divided by the
+     * scale, in 8.8 fixed point. A mirrored frame (its OBJs are all
+     * flipped) has the flip folded in, since affine OBJs ignore the
+     * flip bits. */
+    int pa = (cs * 25600 / sx) >> 12;
+    int pb = (sn * 25600 / sx) >> 12;
+    int pc = (-sn * 25600 / sy) >> 12;
+    int pd = (cs * 25600 / sy) >> 12;
+    uint16_t flip = f->objs[0].attr1;
+    if (flip & 0x1000) { pa = -pa; pb = -pb; }
+    if (flip & 0x2000) { pc = -pc; pd = -pd; }
+    ADV_OAM[m * 16 + 3] = (uint16_t)pa;
+    ADV_OAM[m * 16 + 7] = (uint16_t)pb;
+    ADV_OAM[m * 16 + 11] = (uint16_t)pc;
+    ADV_OAM[m * 16 + 15] = (uint16_t)pd;
+
+    int px = sprite->pivot_x;
+    int py = sprite->pivot_y;
+    for (uint8_t i = 0; i < count; i++)
+    {
+        const ASpriteObj *o = &f->objs[i];
+        uint16_t oam = sprite->oam[i];
+        uint32_t tiles = (uint32_t)(o->w / 8) * (o->h / 8);
+
+        /* Move the OBJ's centre the same way the pixels move. */
+        int ox = (o->dx + o->w / 2 - px) * sx;
+        int oy = (o->dy + o->h / 2 - py) * sy;
+        int cx = screen_x + px + (ox * cs - oy * sn) / (100 * 4096);
+        int cy = screen_y + py + (ox * sn + oy * cs) / (100 * 4096);
+
+        /* Double-size: the OBJ's box is 2w x 2h around its centre. */
+        int x = cx - o->w;
+        int y = cy - o->h;
+        if (x + o->w * 2 <= 0 || x >= SCREEN_W || y + o->h * 2 <= 0 || y >= SCREEN_H ||
+            o->tile_offset + tiles > sprite->vram_count)
+        {
+            write_hidden(oam);
+            continue;
+        }
+
+        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | (o->attr0 & 0xC000) | ADV_ATTR0_AFFINE_DOUBLE;
+        ADV_OAM[oam * 4 + 1] = (uint16_t)(x & 0x1FF) | (o->attr1 & 0xC000) | (uint16_t)(m << 9);
+        ADV_OAM[oam * 4 + 2] =
+            (uint16_t)((sprite->tile_index + o->tile_offset) & 0x3FF) |
+            (o->behind ? ADV_ATTR2_PRIORITY_BEHIND : ADV_ATTR2_PRIORITY_NORMAL) |
+            ((uint16_t)sprite->palette_bank << 12);
+    }
+}
+
+
 static void write_objs(ASprite *sprite, int screen_x, int screen_y)
 {
     if (!sprite->visible ||
@@ -235,6 +350,13 @@ static void write_objs(ASprite *sprite, int screen_x, int screen_y)
     uint8_t count = f->objs ? f->obj_count : 0;
     if (count > sprite->oam_count)
         count = sprite->oam_count;   /* shouldn't happen if compiled correctly */
+
+    if (sprite->matrix >= 0 && count > 0)
+    {
+        write_affine_objs(sprite, f, count, screen_x, screen_y);
+        hide_from(sprite, count);
+        return;
+    }
 
     for (uint8_t i = 0; i < count; i++)
     {

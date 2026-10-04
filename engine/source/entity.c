@@ -47,6 +47,9 @@ Entity *entity_create(EntityType type, int x, int y, int width, int height)
         e->anim_speed = 0;
         e->collide = 1;
         e->pinned = 0;
+        e->angle = 0;
+        e->scale_x = 100;
+        e->scale_y = 100;
         sprite_init(&e->sprite, x, y, 0, 0, 0, 0, 0);
         return e;
     }
@@ -98,7 +101,20 @@ void entity_set_sprite(Entity *entity, const SpriteDef *def, int palette_bank)
     sprite_init(&entity->sprite, entity->x, entity->y, def->frames, def->frame_count,
                 def->max_objs, def->max_vram_tiles, palette_bank);
     entity_set_collision_box(entity, def->col_ox, def->col_oy, def->col_w, def->col_h);
+    entity_set_transform(entity, entity->angle, entity->scale_x, entity->scale_y);
     apply_state_map(entity);
+}
+
+void entity_set_transform(Entity *entity, int angle, int scale_x, int scale_y)
+{
+    if (entity == 0)
+        return;
+    sprite_set_transform(&entity->sprite, (int)(entity - entities), angle, scale_x, scale_y,
+                         entity->def ? entity->def->pivot_x : 8,
+                         entity->def ? entity->def->pivot_y : 8);
+    entity->angle = entity->sprite.angle;
+    entity->scale_x = entity->sprite.scale_x;
+    entity->scale_y = entity->sprite.scale_y;
 }
 
 void entity_animate(Entity *entity, Direction direction, int moving)

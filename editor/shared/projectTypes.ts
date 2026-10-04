@@ -224,6 +224,8 @@ export interface NpcJSON {
   /** Platformer scenes: the player can stand on it (it only blocks from
    * above) and rides along when it moves. */
   platform?: boolean;
+  /** Drawn in front of the player instead of behind it. */
+  above_player?: boolean;
 }
 
 /** One parallax band; the last one runs to the bottom of the screen and

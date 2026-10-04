@@ -214,7 +214,10 @@ static void scene_entities_load(const SceneDef *scene)
         e->pinned = def->pinned;
         e->move_speed = def->move_speed ? def->move_speed : 1;
         e->anim_speed = def->anim_speed;
+        /* "Draw above the player": OAM entries from the front block. */
+        sprite_use_front(def->above_player);
         entity_set_sprite(e, spr, def->palette_bank);
+        sprite_use_front(0);
 
         npc_entities[npc_count_active] = e;
         npc_defs[npc_count_active] = def;
@@ -673,6 +676,20 @@ void actor_set_anim_speed(int index, int speed)
     Entity *e = entity_for_actor(index);
     if (e)
         e->anim_speed = (uint8_t)(speed < 0 ? 0 : speed > 255 ? 255 : speed);
+}
+
+void actor_set_transform(int index, int angle, int scale_x, int scale_y)
+{
+    Entity *e = entity_for_actor(index);
+    if (e)
+        entity_set_transform(e, angle, scale_x ? scale_x : e->scale_x, scale_y ? scale_y : e->scale_y);
+}
+
+void actor_rotate_by(int index, int degrees)
+{
+    Entity *e = entity_for_actor(index);
+    if (e)
+        entity_set_transform(e, e->angle + degrees, e->scale_x, e->scale_y);
 }
 
 void actor_set_collisions(int index, int enabled)

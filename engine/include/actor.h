@@ -100,6 +100,13 @@ void actor_set_move_speed(int index, int speed);
  * sprite's own speed; see Entity.anim_speed). */
 void actor_set_anim_speed(int index, int speed);
 
+/* Rotate (degrees clockwise) and scale (percent, 25-200; 0 = keep the
+ * current scale) the actor's sprite. See entity_set_transform(). */
+void actor_set_transform(int index, int angle, int scale_x, int scale_y);
+
+/* Turn the actor's sprite a further `degrees` (negative = anticlockwise). */
+void actor_rotate_by(int index, int degrees);
+
 /* Collisions on/off (see Entity.collide): off = walks through walls
  * and doesn't block, or get blocked by, other actors. */
 void actor_set_collisions(int index, int enabled);

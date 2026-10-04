@@ -61,6 +61,12 @@ typedef struct
     uint8_t oam_count;
     uint16_t tile_index;        /* first reserved OBJ VRAM tile */
     uint16_t vram_count;        /* reserved VRAM tiles */
+
+    /* Rotation/scaling (see sprite_set_transform()). */
+    int8_t matrix;              /* affine matrix 0-31, -1 = drawn normally */
+    int16_t angle;              /* degrees clockwise */
+    uint8_t scale_x, scale_y;   /* percent */
+    int16_t pivot_x, pivot_y;   /* rotation centre, relative to x/y */
 } ASprite;
 
 void sprite_system_init(void);
@@ -101,6 +107,16 @@ void sprite_init(
 
 /* Show a frame. Only copies to VRAM if the frame actually changed. */
 void sprite_show_frame(ASprite *sprite, int frame);
+
+/*
+ * Rotate and scale the sprite around (pivot_x, pivot_y) using affine
+ * matrix `matrix` (0-31; each rotated sprite needs its own). Each OBJ is
+ * drawn double-size so it isn't clipped, and moved so a sprite made of
+ * several OBJs turns as one piece. angle 0 at 100% x 100% goes back to
+ * normal drawing.
+ */
+void sprite_set_transform(ASprite *sprite, int matrix, int angle, int scale_x, int scale_y,
+                          int pivot_x, int pivot_y);
 
 void sprite_set_position(ASprite *sprite, int x, int y);
 void sprite_show(ASprite *sprite);

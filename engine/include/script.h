@@ -387,8 +387,13 @@ typedef enum
     SCRIPT_ACTOR_MOVE_EX,
     SCRIPT_ACTOR_SET_POSITION_EX,
 
-    SCRIPT_PLAY_CUTSCENE       /* a = cutscenes[] index, b = CUTSCENE_*
+    SCRIPT_PLAY_CUTSCENE,      /* a = cutscenes[] index, b = CUTSCENE_*
                                  * flags (cutscene.h); blocks until done */
+
+    SCRIPT_ACTOR_TRANSFORM,    /* a = actor, b = angle (degrees clockwise),
+                                 * c = scale x %, d = scale y %; a scale
+                                 * of 0 keeps the current one */
+    SCRIPT_ACTOR_ROTATE_BY     /* a = actor, b = degrees to add */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

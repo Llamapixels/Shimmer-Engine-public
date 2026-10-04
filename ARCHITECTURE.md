@@ -51,7 +51,11 @@ Generated files land in `engine/data/` during development builds; restore them w
 - `background.c` - BG0 maps up to 64x64 tiles load directly; bigger maps stream rows and
   columns as the camera moves. BG2/BG3 hold up to two parallax layers.
 - `entity.c`, `sprite.c` - actors and their sprites. Each actor reserves OAM and VRAM for
-  its largest frame and streams frames in.
+  its largest frame and streams frames in. OAM entries 0-31 are a front block for
+  sprites drawn over everything else (projectiles marked "in front", actors marked
+  "above the player"). Rotate / Scale Actor uses affine OBJs: each actor slot owns
+  one of the 32 matrices, every OBJ is drawn double-size, and each OBJ's centre is
+  moved around the canvas centre so multi-OBJ sprites turn as one piece.
 - `ui.c`, `dialogue.c` - text is drawn pixel by pixel into a RAM canvas of tiles on BG1,
   word-wrapped and paged.
 - `huge.c` - a C port of hUGEDriver on the PSG channels. `wav.c` plays WAVs on Direct

@@ -737,6 +737,22 @@ export interface ActorSetAnimSpeedEvent extends EventBase {
   speed: number;
 }
 
+/** Rotates (degrees clockwise) and scales (percent) the actor's sprite. */
+export interface ActorTransformEvent extends EventBase {
+  type: "actor_transform";
+  actor: ActorRef;
+  angle: number;
+  scale_x: number;
+  scale_y: number;
+}
+
+/** Turns the actor's sprite a further number of degrees. */
+export interface ActorRotateByEvent extends EventBase {
+  type: "actor_rotate_by";
+  actor: ActorRef;
+  degrees: number;
+}
+
 export interface ActorSetCollisionsEvent extends EventBase {
   type: "actor_set_collisions";
   actor: ActorRef;
@@ -1011,6 +1027,8 @@ export type ScriptEventJSON =
   | ActorSetFrameVarEvent
   | ActorSetMoveSpeedEvent
   | ActorSetAnimSpeedEvent
+  | ActorTransformEvent
+  | ActorRotateByEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent
   | IfActorAtPositionEvent

@@ -85,6 +85,8 @@ Scene JSON NPC format:
                                            and scripted moves; default 1)
             "anim_speed": 8,           <- optional frames per animation
                                            frame (0 = the sprite's own)
+            "above_player": true,      <- optional: drawn in front of the
+                                           player instead of behind it
             "collision_group": 1,      <- optional 1-3: touching the player
                                            runs "on_hit", or else the
                                            scene's "on_player_hit" for it
@@ -415,6 +417,9 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
     { "type": "actor_set_anim_speed", "actor": ..., "speed": 0-255 }
         Frames per animation frame; 0 = the sprite's own speed.
     { "type": "actor_set_collisions", "actor": ..., "enabled": true }
+    { "type": "actor_transform", "actor": ..., "angle": 0-359,
+      "scale_x": 25-200, "scale_y": 25-200 }   degrees clockwise, percent
+    { "type": "actor_rotate_by", "actor": ..., "degrees": -359-359 }
     { "type": "actor_push", "actor": ..., "continue": false }
     { "type": "if_actor_at_position", "actor": ..., "x": 5, "y": 8, ... }
     { "type": "if_actor_direction", "actor": ..., "direction": "up", ... }
@@ -2035,6 +2040,7 @@ PARITY_EVENT_TYPES = [
     "actor_move_to_vars", "actor_set_position_relative",
     "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
+    "actor_transform", "actor_rotate_by",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2279,6 +2285,18 @@ def compile_parity_event(etype, ev, out, ctx, where):
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
         speed = resolve_small_int(_require(ev, "speed", where), "speed", where, 0, 255)
         out.append(_instr("SCRIPT_ACTOR_SET_ANIM_SPEED", a=idx, b=speed))
+
+    elif etype == "actor_transform":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        angle = resolve_small_int(ev.get("angle", 0), "angle", where, 0, 359)
+        sx = resolve_small_int(ev.get("scale_x", 100), "scale_x", where, 25, 200)
+        sy = resolve_small_int(ev.get("scale_y", 100), "scale_y", where, 25, 200)
+        out.append(_instr("SCRIPT_ACTOR_TRANSFORM", a=idx, b=angle, c=sx, d=sy))
+
+    elif etype == "actor_rotate_by":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        deg = resolve_small_int(_require(ev, "degrees", where), "degrees", where, -359, 359)
+        out.append(_instr("SCRIPT_ACTOR_ROTATE_BY", a=idx, b=deg))
 
     elif etype == "actor_set_collisions":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
@@ -3380,7 +3398,7 @@ def build(project_dir, out_dir):
                     f"    {{ {nx}, {ny}, {dir_val}, {sprite_idx}, "
                     f"{scene_banks[sname]}, {movement_val}, {script_ref}, "
                     f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref}, "
-                    f"{1 if npc.get('platform') else 0} }},")
+                    f"{1 if npc.get('platform') else 0}, {1 if npc.get('above_player') else 0} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")

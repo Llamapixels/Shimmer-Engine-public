@@ -1377,6 +1377,35 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => `${actorLabel(ev.actor)} ${ev.speed === 0 ? "default speed" : `${ev.speed} frames/frame`}`,
   }),
   def({
+    type: "actor_transform",
+    label: "Rotate / Scale Actor",
+    category: "Actors",
+    description:
+      "Turn the actor's sprite (degrees clockwise) and make it bigger or smaller (percent, 25-200). 0 degrees at 100% puts it back to normal. Only the picture changes: collisions stay the same. Up to 32 actors can be rotated at once.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "angle", label: "Angle (degrees)", kind: "int", min: 0, max: 359 },
+      { key: "scale_x", label: "Width %", kind: "int", min: 25, max: 200 },
+      { key: "scale_y", label: "Height %", kind: "int", min: 25, max: 200 },
+    ],
+    create: (c) => ({ type: "actor_transform", actor: c.firstActor ?? "self", angle: 0, scale_x: 100, scale_y: 100 }),
+    summary: (ev) =>
+      `${actorLabel(ev.actor)} ${ev.angle}°` + (ev.scale_x !== 100 || ev.scale_y !== 100 ? ` at ${ev.scale_x}% × ${ev.scale_y}%` : ""),
+  }),
+  def({
+    type: "actor_rotate_by",
+    label: "Rotate Actor By",
+    category: "Actors",
+    description:
+      "Turn the actor's sprite a further number of degrees (negative turns it the other way). Put it in On Update to keep it spinning.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "degrees", label: "Degrees", kind: "int", min: -359, max: 359 },
+    ],
+    create: (c) => ({ type: "actor_rotate_by", actor: c.firstActor ?? "self", degrees: 15 }),
+    summary: (ev) => `${actorLabel(ev.actor)} ${ev.degrees > 0 ? "+" : ""}${ev.degrees}°`,
+  }),
+  def({
     type: "actor_set_collisions",
     label: "Set Actor Collisions",
     category: "Actors",

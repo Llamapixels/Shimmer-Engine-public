@@ -71,6 +71,10 @@ typedef struct
     const uint8_t *mode_states;
     uint32_t platform_mask;     /* bit s: state s is a platform_player sprite */
     uint32_t cursor_mask;       /* bit s: state s is a cursor sprite */
+
+    /* Centre of the canvas relative to the footprint: the point the
+     * sprite rotates and scales around. */
+    int16_t pivot_x, pivot_y;
 } SpriteDef;
 
 typedef struct
@@ -129,6 +133,12 @@ typedef struct
      * so the actor stays put on screen whatever the camera does. */
     uint8_t pinned;
 
+    /* "Rotate / Scale Actor": degrees clockwise (0-359) and size in
+     * percent. Kept across sprite changes; see entity_set_transform(). */
+    int16_t angle;
+    uint8_t scale_x;
+    uint8_t scale_y;
+
     ASprite sprite;
 } Entity;
 
@@ -167,6 +177,10 @@ void entity_set_animate(Entity *entity, int enabled);
  * animation and stop animating, until animation is re-enabled or the
  * direction or moving flag next changes. */
 void entity_set_frame(Entity *entity, int frame);
+
+/* Rotate (degrees clockwise) and scale (percent, 25-200) the sprite
+ * with the GBA's affine sprites. 0 / 100 / 100 = drawn normally. */
+void entity_set_transform(Entity *entity, int angle, int scale_x, int scale_y);
 
 void entity_set_collision_box(Entity *entity, int ox, int oy, int w, int h);
 

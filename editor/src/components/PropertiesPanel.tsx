@@ -1181,6 +1181,13 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
           </select>
         </FieldRow>
 
+        <FieldRow label="Draw above player" hint="The player is normally drawn on top of every actor. Turn this on to draw this actor over the player instead.">
+          <label className="script-field-bool">
+            <input type="checkbox" checked={!!npc.above_player} onChange={(e) => patchNpc({ above_player: e.target.checked || undefined })} />
+            {npc.above_player ? "On" : "Off"}
+          </label>
+        </FieldRow>
+
         {scene.data.type === "platform" && (
           <FieldRow label="Platform" hint="The player can stand on it (it only blocks from above) and rides along when it moves.">
             <label className="script-field-bool">

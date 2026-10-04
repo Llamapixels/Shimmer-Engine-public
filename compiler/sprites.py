@@ -415,6 +415,7 @@ class CompiledSprite:
         self.state_names = {}   # name -> state index
         self.state_types = []   # animationType per state
         self.bounds = (0, 0, 16, 16)
+        self.pivot = (8, 8)     # canvas centre, for rotating and scaling
         self.palette = []
         self.max_objs = 0
         self.max_vram = 0
@@ -428,6 +429,7 @@ def compile_sprite(sheet, image, where):
     cs.bounds = (b["x"], b["y"], b["width"], b["height"])
     cw, ch = sheet["canvasWidth"], sheet["canvasHeight"]
     anchor = ((16 - cw) // 2 + sheet["canvasOriginX"], 16 - ch + sheet["canvasOriginY"])
+    cs.pivot = (anchor[0] + cw // 2, anchor[1] + ch // 2)
     tile_h = SPRITE_MODES[sheet["spriteMode"]]
 
     packed = {}       # frame content key -> (objs, data index)
@@ -576,5 +578,6 @@ def emit_sprite(cs, ident, source_name):
     bx, by, bw, bh = cs.bounds
     init = (f"{{ {ident + '_frames' if frames else '0'}, {len(cs.frames)}, {cs.max_objs}, {cs.max_vram}, "
             f"{ident}_anims, {len(cs.anims)}, {ident}_maps, {len(cs.state_maps)}, "
-            f"{bx}, {by}, {bw}, {bh}, {ident}_palette, {states_ref}, 0x{platform_mask:X}u, 0x{cursor_mask:X}u }}")
+            f"{bx}, {by}, {bw}, {bh}, {ident}_palette, {states_ref}, 0x{platform_mask:X}u, 0x{cursor_mask:X}u, "
+            f"{cs.pivot[0]}, {cs.pivot[1]} }}")
     return "\n\n".join(out), init

@@ -979,6 +979,14 @@ static void thread_step(ScriptThread *t, int is_main)
             actor_set_anim_speed(ev->a, ev->b);
             break;
 
+        case SCRIPT_ACTOR_TRANSFORM:
+            actor_set_transform(ev->a, ev->b, ev->c, ev->d);
+            break;
+
+        case SCRIPT_ACTOR_ROTATE_BY:
+            actor_rotate_by(ev->a, ev->b);
+            break;
+
         case SCRIPT_ACTOR_SET_COLLISIONS:
             actor_set_collisions(ev->a, ev->b);
             break;
