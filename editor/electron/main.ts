@@ -30,6 +30,7 @@ import type {
   SaveScenePayload,
 } from "../shared/ipc.js";
 import * as buildRunner from "./buildRunner.js";
+import { chooserOptions, emulatorCommand, findMgba, installHint } from "./emulator.js";
 import * as projectIO from "./projectIO.js";
 
 // __dirname is a CommonJS global (see electron/tsconfig.json's doc
@@ -257,20 +258,22 @@ async function closeEmulatorsUnder(rootPath: string): Promise<void> {
 async function openInEmulator(rom: string): Promise<void> {
   await closeEmulatorsFor(rom);
   const before = new Set((await processesFor(rom)).map((p) => p.pid));
-  const exe = emulatorPath && existsSync(emulatorPath) ? emulatorPath : null;
+  let exe = emulatorPath && existsSync(emulatorPath) ? emulatorPath : null;
   if (!exe) {
-    // Whatever program .gba files open with.
+    // Whatever program .gba files open with; failing that, mGBA if it's
+    // installed somewhere usual.
     const err = await shell.openPath(rom);
     if (err) {
-      throw new Error(
-        `Couldn't open the ROM (${err}). Install a GBA emulator such as mGBA and set it as the program for .gba files, or pick one with File > Emulator for Play.`,
-      );
+      exe = findMgba();
+      if (!exe) throw new Error(`Couldn't open the ROM (${err}). ${installHint()}`);
     }
-  } else {
-    const isMacApp = process.platform === "darwin" && exe.endsWith(".app");
-    const child = isMacApp ? spawn("open", ["-n", "-a", exe, "--args", rom], { stdio: "ignore" }) : spawn(exe, [rom], { stdio: "ignore" });
+  }
+  if (exe) {
+    const command = emulatorCommand(exe, rom);
+    if (!command) throw new Error(`Couldn't read how to start ${path.basename(exe)}. ${installHint()}`);
+    const child = spawn(command.cmd, command.args, { stdio: "ignore" });
     child.on("error", () => {});
-    if (!isMacApp) emulatorProcess = child;
+    if (command.cmd !== "open") emulatorProcess = child;
   }
   void recordEmulatorFor(rom, before);
 }
@@ -279,18 +282,26 @@ async function chooseEmulator(): Promise<void> {
   if (!mainWindow) return;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Emulator for Play",
-    properties: ["openFile"],
-    filters:
-      process.platform === "win32"
-        ? [{ name: "Programs", extensions: ["exe"] }]
-        : process.platform === "darwin"
-          ? [{ name: "Applications", extensions: ["app"] }]
-          : [{ name: "All files", extensions: ["*"] }],
+    properties: ["openFile", "showHiddenFiles"],
+    ...chooserOptions(),
   });
   if (result.canceled || !result.filePaths[0]) return;
   emulatorPath = result.filePaths[0];
   saveSettings();
   Menu.setApplicationMenu(buildMenu());
+}
+
+/** File > Emulator for Play > Find mGBA. */
+async function useFoundMgba(): Promise<void> {
+  const found = findMgba();
+  if (!found) {
+    if (mainWindow) await dialog.showMessageBox(mainWindow, { type: "info", message: "mGBA wasn't found.", detail: installHint() });
+    return;
+  }
+  emulatorPath = found;
+  saveSettings();
+  Menu.setApplicationMenu(buildMenu());
+  if (mainWindow) await dialog.showMessageBox(mainWindow, { type: "info", message: "Play will use mGBA.", detail: found });
 }
 
 function sendMenuCommand(command: MenuCommand): void {
@@ -614,6 +625,7 @@ function buildMenu(): Menu {
               enabled: false,
             },
             { label: "Choose Emulator…", click: () => void chooseEmulator() },
+            { label: "Find mGBA", click: () => void useFoundMgba() },
             {
               label: "Use the program .gba files open with",
               enabled: !!emulatorPath,
