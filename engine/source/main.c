@@ -150,10 +150,25 @@ static int timer_running[MAX_TIMERS];   /* 0 = not armed */
 
 /* The player's sprite in `scene`: its own "player_sprite", or the
  * project's default. */
+/* "Set Player Sprite" with "Keep it in later scenes": replaces the
+ * project's default player sprite (sprite_defs index), -1 = not set. */
+static int player_sprite_default = -1;
+
 static const SpriteDef *player_sprite_for(const SceneDef *scene)
 {
-    int i = scene && scene->player_sprite != 0xFF ? scene->player_sprite : player_sprite_index;
+    int i = scene && scene->player_sprite != 0xFF ? scene->player_sprite
+          : player_sprite_default >= 0 ? player_sprite_default : player_sprite_index;
     return &sprite_defs[i];
+}
+
+void player_set_sprite(int sprite_index, int keep)
+{
+    if (sprite_index < 0 || sprite_index >= SPRITE_COUNT || !g_player)
+        return;
+    if (keep)
+        player_sprite_default = sprite_index;
+    sprite_load_palette(PLAYER_PALETTE, sprite_defs[sprite_index].palette);
+    entity_change_sprite(g_player, &sprite_defs[sprite_index], PLAYER_PALETTE);
 }
 
 static void setup_player_palette(const SceneDef *scene)

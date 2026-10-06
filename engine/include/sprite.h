@@ -105,6 +105,20 @@ void sprite_init(
     int palette_bank
 );
 
+/*
+ * Switch an already set up sprite to other frames: reuses its OAM/VRAM
+ * reservation when the new sheet fits in it (otherwise reserves anew,
+ * like sprite_init()). Keeps position, visibility and rotation.
+ */
+void sprite_change(
+    ASprite *sprite,
+    const ASpriteFrame *frames,
+    uint16_t frame_count,
+    uint8_t max_objs,
+    uint16_t max_vram_tiles,
+    int palette_bank
+);
+
 /* Show a frame. Only copies to VRAM if the frame actually changed. */
 void sprite_show_frame(ASprite *sprite, int frame);
 

@@ -400,9 +400,11 @@ typedef enum
     SCRIPT_SCENE_TRANSITION,   /* a = TransitionColor (transition.h),
                                  * b = frames: how the next scene switch
                                  * fades out and in */
-    SCRIPT_ACTOR_SCALE_BY      /* a = actor, b/c = % to add to the width/
+    SCRIPT_ACTOR_SCALE_BY,     /* a = actor, b/c = % to add to the width/
                                  * height scale; d bit 0/1: b/c is a
                                  * variable */
+    SCRIPT_PLAYER_SET_SPRITE   /* a = sprite_defs[] index, b = 1: keep it
+                                 * in later scenes */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

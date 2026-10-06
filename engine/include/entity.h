@@ -153,6 +153,11 @@ void entity_destroy(Entity *entity);
  * the animation for its current direction. */
 void entity_set_sprite(Entity *entity, const SpriteDef *def, int palette_bank);
 
+/* Like entity_set_sprite(), for an entity that already has a sprite:
+ * reuses its sprite memory when the new sheet fits ("Set Player
+ * Sprite" mid-scene). */
+void entity_change_sprite(Entity *entity, const SpriteDef *def, int palette_bank);
+
 /* Set facing and whether the entity is walking; picks the matching
  * animation of its current state. */
 void entity_animate(Entity *entity, Direction direction, int moving);

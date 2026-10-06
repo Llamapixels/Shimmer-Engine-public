@@ -1430,6 +1430,19 @@ export const EVENT_DEFS: EventDef[] = [
       `${actorLabel(ev.actor)} ${typeof ev.degrees === "number" && ev.degrees > 0 ? "+" : ""}${valLabel(ev.degrees)}°`,
   }),
   def({
+    type: "player_set_sprite",
+    label: "Set Player Sprite",
+    category: "Actors",
+    description:
+      "Give the player another sprite sheet, for switching characters or outfits. Its animation states and collision box come with it. Scenes that pick their own player sprite still use theirs.",
+    fields: [
+      { key: "sprite", label: "Sprite", kind: "sprite" },
+      { key: "keep", label: "Keep it in later scenes", kind: "bool", defaultValue: true },
+    ],
+    create: () => ({ type: "player_set_sprite", sprite: "player", keep: true }),
+    summary: (ev) => `${ev.sprite || "?"}${ev.keep === false ? " (this scene)" : ""}`,
+  }),
+  def({
     type: "actor_scale_by",
     label: "Scale Actor By",
     category: "Actors",

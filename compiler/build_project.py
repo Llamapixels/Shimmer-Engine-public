@@ -427,6 +427,10 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
     { "type": "actor_transform", "actor": ..., "angle": 0-359,
       "scale_x": 25-200, "scale_y": 25-200 }   degrees clockwise, percent
     { "type": "actor_rotate_by", "actor": ..., "degrees": -359-359 }
+    { "type": "player_set_sprite", "sprite": "<name>", "keep": true }
+        Give the player another sprite (and its collision box). "keep"
+        (default true) also uses it in later scenes that don't set their
+        own player sprite.
     { "type": "actor_scale_by", "actor": ..., "x": -175-175, "y": -175-175 }
         Percentage points added to the scale (it stays within 25-200).
         These three take {"var": "<name>"} in place of any number.
@@ -1296,6 +1300,20 @@ def projectile_sprites(obj):
     return found
 
 
+def player_sprite_events(obj):
+    """Sprite names of every "player_set_sprite" event anywhere in obj."""
+    found = []
+    if isinstance(obj, dict):
+        if obj.get("type") == "player_set_sprite" and isinstance(obj.get("sprite"), str):
+            found.append(obj["sprite"])
+        for v in obj.values():
+            found += player_sprite_events(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            found += player_sprite_events(v)
+    return found
+
+
 def resolve_actor(ref, ctx, where):
     """Resolve an "actor" event field (a name, an index, "self", or
     "player") to the NPC's 0-based index within its scene's npcs[]
@@ -2059,7 +2077,7 @@ PARITY_EVENT_TYPES = [
     "actor_move_to_vars", "actor_set_position_relative",
     "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
-    "actor_transform", "actor_rotate_by", "actor_scale_by",
+    "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2325,6 +2343,13 @@ def compile_parity_event(etype, ev, out, ctx, where):
         else:
             out.append(_instr("SCRIPT_ACTOR_ROTATE_BY", a=idx,
                               b=resolve_small_int(deg, "degrees", where, -359, 359)))
+
+    elif etype == "player_set_sprite":
+        sname = _require(ev, "sprite", where)
+        if sname not in ctx["sprite_index"]:
+            raise BuildError(f"{where}: unknown sprite '{sname}'.")
+        out.append(_instr("SCRIPT_PLAYER_SET_SPRITE", a=ctx["sprite_index"][sname],
+                          b=1 if ev.get("keep", True) else 0))
 
     elif etype == "actor_scale_by":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
@@ -2772,11 +2797,11 @@ def compile_project_sprites(project, project_dir, names):
     return compiled
 
 
-def assign_palette_banks(sprites, player_sprite, compiled, scene_name):
+def assign_palette_banks(sprites, player_sprite, compiled, scene_name, player_only=False):
     """OBJ palette bank for each sprite a scene's NPCs use. Bank 0 is the
-    player's; sprites with identical palettes share a bank. Returns
-    {sprite name: bank}."""
-    bank_of_palette = {tuple(compiled[player_sprite].palette): 0}
+    player's; sprites with identical palettes share a bank (with
+    player_only, none share the player's). Returns {sprite name: bank}."""
+    bank_of_palette = {("player only",) if player_only else tuple(compiled[player_sprite].palette): 0}
     banks = {}
     for name in sprites:
         key = tuple(compiled[name].palette)
@@ -3064,9 +3089,15 @@ def build(project_dir, out_dir):
     player_sprite = project.get("playerSprite") or "player"
     sprite_names = [player_sprite]
     custom_projectiles = projectile_sprites(project.get("customScripts") or [])
+    # "Set Player Sprite" targets: compiled too, and while a project uses
+    # the event, OBJ palette bank 0 is the player's alone (the player's
+    # colors can change at any time).
+    player_swaps = player_sprite_events(project.get("customScripts") or [])
+    for _, scene in scene_data_list:
+        player_swaps += player_sprite_events(scene)
     for _, scene in scene_data_list:
         for sname in ([scene.get("player_sprite")] + [npc.get("sprite") or player_sprite for npc in scene.get("npcs", [])]
-                      + projectile_sprites(scene) + custom_projectiles):
+                      + projectile_sprites(scene) + custom_projectiles + player_swaps):
             if sname and sname not in sprite_names:
                 sprite_names.append(sname)
     if len(sprite_names) > 255:
@@ -3229,7 +3260,7 @@ def build(project_dir, out_dir):
         ctx["npc_sprite_of"] = npc_sprite_of
         scene_banks = assign_palette_banks(
             [npc.get("sprite") or player_sprite for npc in npcs] + projectile_sprites(scene) + custom_projectiles,
-            scene_player_sprite, compiled_sprites, name)
+            scene_player_sprite, compiled_sprites, name, player_only=bool(player_swaps))
         ctx["scene_banks"] = scene_banks
 
         # Scene type and its engine settings (compiler/modes.py).

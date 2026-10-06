@@ -994,6 +994,10 @@ static void thread_step(ScriptThread *t, int is_main)
             actor_rotate_by(ev->a, ev->c ? var_get(ev->b) : ev->b);
             break;
 
+        case SCRIPT_PLAYER_SET_SPRITE:
+            player_set_sprite(ev->a, ev->b);
+            break;
+
         case SCRIPT_ACTOR_SCALE_BY:
             actor_scale_by(ev->a, (ev->d & 1) ? var_get(ev->b) : ev->b,
                            (ev->d & 2) ? var_get(ev->c) : ev->c);

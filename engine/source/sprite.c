@@ -214,6 +214,40 @@ void sprite_init(
 }
 
 
+void sprite_change(
+    ASprite *sprite,
+    const ASpriteFrame *frames,
+    uint16_t frame_count,
+    uint8_t max_objs,
+    uint16_t max_vram_tiles,
+    int palette_bank)
+{
+    if (max_objs > ASPRITE_MAX_OBJS)
+        max_objs = ASPRITE_MAX_OBJS;
+    if (sprite->oam_count == 0 || max_objs > sprite->oam_count || max_vram_tiles > sprite->vram_count)
+    {
+        int visible = sprite->visible;
+        int8_t matrix = sprite->matrix;
+        int16_t angle = sprite->angle;
+        uint8_t sx = sprite->scale_x, sy = sprite->scale_y;
+        hide_from(sprite, 0);
+        sprite_init(sprite, sprite->x, sprite->y, frames, frame_count, max_objs, max_vram_tiles, palette_bank);
+        sprite->visible = visible;
+        sprite->matrix = matrix;
+        sprite->angle = angle;
+        sprite->scale_x = sx;
+        sprite->scale_y = sy;
+        return;
+    }
+    hide_from(sprite, 0);
+    sprite->frames = frames;
+    sprite->frame_count = frame_count;
+    sprite->palette_bank = (uint8_t)(palette_bank & 0xF);
+    sprite->current_frame = -1;
+    sprite_show_frame(sprite, 0);
+}
+
+
 void sprite_show_frame(ASprite *sprite, int frame)
 {
     if (sprite->frames == 0 ||

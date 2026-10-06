@@ -117,6 +117,23 @@ void entity_set_transform(Entity *entity, int angle, int scale_x, int scale_y)
     entity->scale_y = entity->sprite.scale_y;
 }
 
+void entity_change_sprite(Entity *entity, const SpriteDef *def, int palette_bank)
+{
+    if (entity == 0 || def == 0)
+        return;
+    entity->def = def;
+    entity->anim_state = 0;
+    entity->anim_index = -1;
+    entity->anim_hold = 0;
+    entity->script_state = 0;
+    entity->extra_slot = 0;
+    sprite_change(&entity->sprite, def->frames, def->frame_count,
+                  def->max_objs, def->max_vram_tiles, palette_bank);
+    entity_set_collision_box(entity, def->col_ox, def->col_oy, def->col_w, def->col_h);
+    entity_set_transform(entity, entity->angle, entity->scale_x, entity->scale_y);
+    apply_state_map(entity);
+}
+
 void entity_animate(Entity *entity, Direction direction, int moving)
 {
     if (entity == 0)

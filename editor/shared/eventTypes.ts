@@ -757,6 +757,14 @@ export interface ActorRotateByEvent extends EventBase {
   degrees: VarOrLiteral;
 }
 
+/** Gives the player another sprite. */
+export interface PlayerSetSpriteEvent extends EventBase {
+  type: "player_set_sprite";
+  sprite: string;
+  /** Also in later scenes (default true). */
+  keep?: boolean;
+}
+
 /** Adds percentage points to the actor's width/height scale. */
 export interface ActorScaleByEvent extends EventBase {
   type: "actor_scale_by";
@@ -1042,6 +1050,7 @@ export type ScriptEventJSON =
   | ActorTransformEvent
   | ActorRotateByEvent
   | ActorScaleByEvent
+  | PlayerSetSpriteEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent
   | IfActorAtPositionEvent

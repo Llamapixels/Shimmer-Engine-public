@@ -107,6 +107,10 @@ void actor_set_transform(int index, int angle, int scale_x, int scale_y);
 /* Turn the actor's sprite a further `degrees` (negative = anticlockwise). */
 void actor_rotate_by(int index, int degrees);
 
+/* "Set Player Sprite": sprite_defs[sprite_index] for the player, now;
+ * keep = 1 also uses it in later scenes that don't pick their own. */
+void player_set_sprite(int sprite_index, int keep);
+
 /* Add percentage points to the actor's width/height scale (25-200). */
 void actor_scale_by(int index, int dx, int dy);
 
