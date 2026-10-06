@@ -118,25 +118,39 @@ static void sync_position(Entity *p)
 /* ------------------------------------------------------------------ */
 /* Collision                                                           */
 
+/* Overlap (in px squared) of the player's box at (x, y) and NPC n's. */
+static int npc_overlap(Entity *p, int x, int y, Entity *n)
+{
+    int ax = x + p->col_ox, ay = y + p->col_oy;
+    int bx = n->x + n->col_ox, by = n->y + n->col_oy;
+    int w = (ax + p->col_w < bx + n->col_w ? ax + p->col_w : bx + n->col_w) - (ax > bx ? ax : bx);
+    int h = (ay + p->col_h < by + n->col_h ? ay + p->col_h : by + n->col_h) - (ay > by ? ay : by);
+    return w > 0 && h > 0 ? w * h : 0;
+}
+
 /* 1 + the index of an NPC in the way of the player at (nx, ny), else
- * 0. Platform NPCs (Platformer) only block landing on them from above. */
+ * 0. Platform NPCs (Platformer) only block landing on them from above.
+ * An NPC the player is already inside (it walked into the player) only
+ * blocks moving further in, so the player can always walk back out. */
 static int npc_in_way(Entity *p, int nx, int ny)
 {
-    int px = nx + p->col_ox, py = ny + p->col_oy;
     for (int i = 0; i < world_npc_count(); i++)
     {
         if (!world_npc_solid(i))
             continue;
         Entity *n = world_npc(i);
-        int x0 = n->x + n->col_ox, y0 = n->y + n->col_oy;
-        if (!(px < x0 + n->col_w && px + p->col_w > x0 && py < y0 + n->col_h && py + p->col_h > y0))
+        int area = npc_overlap(p, nx, ny, n);
+        if (!area)
             continue;
         if (mode == SCENE_MODE_PLATFORM && world_npc_def(i)->platform)
         {
             int old_bottom = p->y + p->col_oy + p->col_h;
-            if (!(ny > p->y && old_bottom <= y0))
+            if (!(ny > p->y && old_bottom <= n->y + n->col_oy))
                 continue;
         }
+        int now = npc_overlap(p, p->x, p->y, n);
+        if (now && area <= now)
+            continue;
         return i + 1;
     }
     return 0;

@@ -87,6 +87,10 @@ Scene JSON NPC format:
                                            frame (0 = the sprite's own)
             "above_player": true,      <- optional: drawn in front of the
                                            player instead of behind it
+            "push_player": true,       <- optional: walking into the player
+                                           shoves it along (else it just
+                                           overlaps, and the player can walk
+                                           out)
             "collision_group": 1,      <- optional 1-3: touching the player
                                            runs "on_hit", or else the
                                            scene's "on_player_hit" for it
@@ -3410,7 +3414,8 @@ def build(project_dir, out_dir):
                     f"    {{ {nx}, {ny}, {dir_val}, {sprite_idx}, "
                     f"{scene_banks[sname]}, {movement_val}, {script_ref}, "
                     f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref}, "
-                    f"{1 if npc.get('platform') else 0}, {1 if npc.get('above_player') else 0} }},")
+                    f"{1 if npc.get('platform') else 0}, {1 if npc.get('above_player') else 0}, "
+                    f"{1 if npc.get('push_player') else 0} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")

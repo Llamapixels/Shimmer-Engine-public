@@ -75,6 +75,7 @@ typedef struct
     uint8_t platform;        /* Platformer: stand on it (only blocks from
                               * above) and ride it when it moves */
     uint8_t above_player;    /* 1 = drawn in front of the player */
+    uint8_t push_player;     /* 1 = moving into the player shoves it along */
 } NpcDef;
 
 /*

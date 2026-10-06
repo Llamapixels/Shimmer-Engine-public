@@ -117,6 +117,8 @@ static int           scene_sprite_marked = 0;
 /* Was the player touching NPC i last frame? Hit scripts (collision
  * groups) fire on the first frame of a touch, not every frame of it. */
 static uint8_t npc_touching[NPC_MAX];
+/* Each NPC's position last frame, for "Pushes the player". */
+static int npc_prev_x[NPC_MAX], npc_prev_y[NPC_MAX];
 
 static uint16_t npc_wander_timer[NPC_MAX];
 static uint8_t  npc_wander_dir[NPC_MAX];     /* Direction */
@@ -223,6 +225,8 @@ static void scene_entities_load(const SceneDef *scene)
         npc_defs[npc_count_active] = def;
         npc_wander_timer[npc_count_active] = 0;
         npc_wander_moving[npc_count_active] = 0;
+        npc_prev_x[npc_count_active] = e->x;
+        npc_prev_y[npc_count_active] = e->y;
         npc_touching[npc_count_active] = 0;
         npc_count_active++;
     }
@@ -310,6 +314,37 @@ static const ScriptEvent *check_npc_interact(Entity *player)
     }
 
     return 0;
+}
+
+/*
+ * "Pushes the player": an NPC that moved into the player this frame
+ * carries it along by the same amount (stopped by walls), like a moving
+ * platform pushing from the side. A jump of more than 8 px (a teleport)
+ * doesn't push.
+ */
+static void npcs_push_player(Entity *player)
+{
+    for (int i = 0; i < npc_count_active; i++)
+    {
+        Entity *n = npc_entities[i];
+        if (!n)
+            continue;
+        int dx = n->x - npc_prev_x[i];
+        int dy = n->y - npc_prev_y[i];
+        npc_prev_x[i] = n->x;
+        npc_prev_y[i] = n->y;
+        if (!npc_defs[i]->push_player || (!dx && !dy) || !world_npc_solid(i) || !player->collide ||
+            dx > 8 || dx < -8 || dy > 8 || dy < -8)
+            continue;
+        int px = player->x + player->col_ox, py = player->y + player->col_oy;
+        int nx = n->x + n->col_ox, ny = n->y + n->col_oy;
+        if (!(px < nx + n->col_w && px + player->col_w > nx && py < ny + n->col_h && py + player->col_h > ny))
+            continue;
+        if (dx && entity_can_move(player, player->x + dx, player->y))
+            player->x += dx;
+        if (dy && entity_can_move(player, player->x, player->y + dy))
+            player->y += dy;
+    }
 }
 
 /*
@@ -1191,6 +1226,7 @@ int main(void)
             if (script_active())
             {
                 script_update();
+                npcs_push_player(player);
                 sync_camera(player);
                 projectiles_update(1, camera_get_display_x(), camera_get_display_y());
 
@@ -1229,6 +1265,7 @@ int main(void)
              * talking to an actor, clicking a trigger...). There's no
              * built-in pause menu: games attach one to START themselves
              * (Attach Script To Button). */
+            npcs_push_player(player);
             const ScriptEvent *action = modes_update(player);
 
             /* Wander, then sync the camera (follows the player by

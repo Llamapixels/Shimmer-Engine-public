@@ -1188,6 +1188,16 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
           </label>
         </FieldRow>
 
+        <FieldRow
+          label="Pushes the player"
+          hint="When this actor moves into the player, it shoves the player along (walls stop it). Off: it walks over the player, who can step out of the way. To let the player walk through it, turn its collisions off with Set Actor Collisions."
+        >
+          <label className="script-field-bool">
+            <input type="checkbox" checked={!!npc.push_player} onChange={(e) => patchNpc({ push_player: e.target.checked || undefined })} />
+            {npc.push_player ? "On" : "Off"}
+          </label>
+        </FieldRow>
+
         {scene.data.type === "platform" && (
           <FieldRow label="Platform" hint="The player can stand on it (it only blocks from above) and rides along when it moves.">
             <label className="script-field-bool">

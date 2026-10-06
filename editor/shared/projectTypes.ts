@@ -226,6 +226,8 @@ export interface NpcJSON {
   platform?: boolean;
   /** Drawn in front of the player instead of behind it. */
   above_player?: boolean;
+  /** Moving into the player shoves it along. */
+  push_player?: boolean;
 }
 
 /** One parallax band; the last one runs to the bottom of the screen and
