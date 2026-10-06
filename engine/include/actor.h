@@ -107,6 +107,9 @@ void actor_set_transform(int index, int angle, int scale_x, int scale_y);
 /* Turn the actor's sprite a further `degrees` (negative = anticlockwise). */
 void actor_rotate_by(int index, int degrees);
 
+/* Add percentage points to the actor's width/height scale (25-200). */
+void actor_scale_by(int index, int dx, int dy);
+
 /* Collisions on/off (see Entity.collide): off = walks through walls
  * and doesn't block, or get blocked by, other actors. */
 void actor_set_collisions(int index, int enabled);

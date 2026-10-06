@@ -745,16 +745,24 @@ export interface ActorSetAnimSpeedEvent extends EventBase {
 export interface ActorTransformEvent extends EventBase {
   type: "actor_transform";
   actor: ActorRef;
-  angle: number;
-  scale_x: number;
-  scale_y: number;
+  angle: VarOrLiteral;
+  scale_x: VarOrLiteral;
+  scale_y: VarOrLiteral;
 }
 
 /** Turns the actor's sprite a further number of degrees. */
 export interface ActorRotateByEvent extends EventBase {
   type: "actor_rotate_by";
   actor: ActorRef;
-  degrees: number;
+  degrees: VarOrLiteral;
+}
+
+/** Adds percentage points to the actor's width/height scale. */
+export interface ActorScaleByEvent extends EventBase {
+  type: "actor_scale_by";
+  actor: ActorRef;
+  x: VarOrLiteral;
+  y: VarOrLiteral;
 }
 
 export interface ActorSetCollisionsEvent extends EventBase {
@@ -1033,6 +1041,7 @@ export type ScriptEventJSON =
   | ActorSetAnimSpeedEvent
   | ActorTransformEvent
   | ActorRotateByEvent
+  | ActorScaleByEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent
   | IfActorAtPositionEvent

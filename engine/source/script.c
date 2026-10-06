@@ -984,11 +984,19 @@ static void thread_step(ScriptThread *t, int is_main)
             break;
 
         case SCRIPT_ACTOR_TRANSFORM:
-            actor_set_transform(ev->a, ev->b, ev->c, ev->d);
+            actor_set_transform(ev->a,
+                                ev->b < 0 ? var_get(-ev->b - 1) : ev->b,
+                                ev->c < 0 ? var_get(-ev->c - 1) : ev->c,
+                                ev->d < 0 ? var_get(-ev->d - 1) : ev->d);
             break;
 
         case SCRIPT_ACTOR_ROTATE_BY:
-            actor_rotate_by(ev->a, ev->b);
+            actor_rotate_by(ev->a, ev->c ? var_get(ev->b) : ev->b);
+            break;
+
+        case SCRIPT_ACTOR_SCALE_BY:
+            actor_scale_by(ev->a, (ev->d & 1) ? var_get(ev->b) : ev->b,
+                           (ev->d & 2) ? var_get(ev->c) : ev->c);
             break;
 
         case SCRIPT_ACTOR_SET_COLLISIONS:

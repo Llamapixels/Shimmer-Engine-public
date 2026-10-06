@@ -727,6 +727,13 @@ void actor_rotate_by(int index, int degrees)
         entity_set_transform(e, e->angle + degrees, e->scale_x, e->scale_y);
 }
 
+void actor_scale_by(int index, int dx, int dy)
+{
+    Entity *e = entity_for_actor(index);
+    if (e)
+        entity_set_transform(e, e->angle, e->scale_x + dx, e->scale_y + dy);
+}
+
 void actor_set_collisions(int index, int enabled)
 {
     Entity *e = entity_for_actor(index);

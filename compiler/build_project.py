@@ -427,6 +427,9 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
     { "type": "actor_transform", "actor": ..., "angle": 0-359,
       "scale_x": 25-200, "scale_y": 25-200 }   degrees clockwise, percent
     { "type": "actor_rotate_by", "actor": ..., "degrees": -359-359 }
+    { "type": "actor_scale_by", "actor": ..., "x": -175-175, "y": -175-175 }
+        Percentage points added to the scale (it stays within 25-200).
+        These three take {"var": "<name>"} in place of any number.
     { "type": "actor_push", "actor": ..., "continue": false }
     { "type": "if_actor_at_position", "actor": ..., "x": 5, "y": 8, ... }
     { "type": "if_actor_direction", "actor": ..., "direction": "up", ... }
@@ -2056,7 +2059,7 @@ PARITY_EVENT_TYPES = [
     "actor_move_to_vars", "actor_set_position_relative",
     "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
-    "actor_transform", "actor_rotate_by",
+    "actor_transform", "actor_rotate_by", "actor_scale_by",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2303,16 +2306,38 @@ def compile_parity_event(etype, ev, out, ctx, where):
         out.append(_instr("SCRIPT_ACTOR_SET_ANIM_SPEED", a=idx, b=speed))
 
     elif etype == "actor_transform":
+        # A variable is passed as -(index + 1) (literals are never negative).
+        def arg(key, default, lo, hi):
+            v = ev.get(key, default)
+            if isinstance(v, dict):
+                return -(resolve_var(_require(v, "var", where), ctx, where) + 1)
+            return resolve_small_int(v, key, where, lo, hi)
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
-        angle = resolve_small_int(ev.get("angle", 0), "angle", where, 0, 359)
-        sx = resolve_small_int(ev.get("scale_x", 100), "scale_x", where, 25, 200)
-        sy = resolve_small_int(ev.get("scale_y", 100), "scale_y", where, 25, 200)
-        out.append(_instr("SCRIPT_ACTOR_TRANSFORM", a=idx, b=angle, c=sx, d=sy))
+        out.append(_instr("SCRIPT_ACTOR_TRANSFORM", a=idx, b=arg("angle", 0, 0, 359),
+                          c=arg("scale_x", 100, 25, 200), d=arg("scale_y", 100, 25, 200)))
 
     elif etype == "actor_rotate_by":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
-        deg = resolve_small_int(_require(ev, "degrees", where), "degrees", where, -359, 359)
-        out.append(_instr("SCRIPT_ACTOR_ROTATE_BY", a=idx, b=deg))
+        deg = _require(ev, "degrees", where)
+        if isinstance(deg, dict):
+            out.append(_instr("SCRIPT_ACTOR_ROTATE_BY", a=idx,
+                              b=resolve_var(_require(deg, "var", where), ctx, where), c=1))
+        else:
+            out.append(_instr("SCRIPT_ACTOR_ROTATE_BY", a=idx,
+                              b=resolve_small_int(deg, "degrees", where, -359, 359)))
+
+    elif etype == "actor_scale_by":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        flags = 0
+        vals = []
+        for bit, key in ((1, "x"), (2, "y")):
+            v = ev.get(key, 0)
+            if isinstance(v, dict):
+                flags |= bit
+                vals.append(resolve_var(_require(v, "var", where), ctx, where))
+            else:
+                vals.append(resolve_small_int(v, key, where, -175, 175))
+        out.append(_instr("SCRIPT_ACTOR_SCALE_BY", a=idx, b=vals[0], c=vals[1], d=flags))
 
     elif etype == "actor_set_collisions":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
