@@ -195,6 +195,10 @@ typedef struct
 
     uint8_t mode;               /* SCENE_MODE_* (mode_settings.h) */
     const int16_t *settings;    /* MS_COUNT engine settings - see modes.h */
+
+    /* Custom scripts "script" engine settings name (On dash...): a
+     * setting's value - 1 indexes this. 0 = the scene uses none. */
+    const ScriptEvent *const *ability_scripts;
 } SceneDef;
 
 /* Load background, palettes, collision and camera bounds. */

@@ -7,7 +7,18 @@
  */
 import table from "../../../compiler/engine_settings.json";
 
-export type SettingUnit = "speed" | "accel" | "frames" | "pixels" | "count" | "bool" | "button" | "choice" | "sound";
+export type SettingUnit =
+  | "speed"
+  | "accel"
+  | "frames"
+  | "pixels"
+  | "count"
+  | "bool"
+  | "button"
+  | "choice"
+  | "sound"
+  | "state"
+  | "script";
 export type EngineValue = number | boolean | string;
 
 export interface EngineSettingDef {
@@ -25,6 +36,8 @@ export interface EngineSettingDef {
   if?: string;
   /** Not in GB Studio - added for Shimmer Engine. */
   extra?: boolean;
+  /** "state" settings: the state name Auto looks for ("crouch"...). */
+  anim?: string;
 }
 
 export interface EngineModeDef {

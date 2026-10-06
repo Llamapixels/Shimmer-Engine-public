@@ -1,5 +1,6 @@
 import CommitInput from "../components/common/CommitInput";
 import NumberInput from "../components/common/NumberInput";
+import { playerSpriteName } from "../sprites/model";
 import { useProjectStore } from "../state/projectStore";
 import { ENGINE_BUTTONS, type EngineSettingDef, type EngineValue } from "./engineSettings";
 
@@ -30,6 +31,42 @@ function SoundSelect({ value, onChange }: { value: string; onChange: (v: EngineV
   );
 }
 
+/** One of the (project's default) player sprite's animation states, or
+ * Auto: the state named after the ability. */
+function StateSelect({ anim, value, onChange }: { anim: string; value: string; onChange: (v: EngineValue) => void }) {
+  const project = useProjectStore((s) => s.project?.project);
+  const sprite = project ? playerSpriteName(project) : "player";
+  const sheet = project?.spriteSheets?.find((s) => s.name === sprite);
+  const names = (sheet?.states ?? [{ name: "" }]).map((st) => st.name || "Default");
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} title={`States of the player sprite "${sprite}"`}>
+      <option value="">Auto ({anim})</option>
+      {value && !names.some((n) => n.toLowerCase() === value.toLowerCase()) && <option value={value}>{value} (missing)</option>}
+      {names.map((n) => (
+        <option key={n} value={n}>
+          {n}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** A custom script from the Scripts list, or none. */
+function ScriptSelect({ value, onChange }: { value: string; onChange: (v: EngineValue) => void }) {
+  const scripts = useProjectStore((s) => s.project?.project.customScripts ?? []);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">(none)</option>
+      {value && !scripts.some((s) => s.id === value) && <option value={value}>(missing script)</option>}
+      {scripts.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.name || s.id}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 /** The input for one engine setting, by its unit. */
 export default function EngineValueInput({
   def,
@@ -43,6 +80,10 @@ export default function EngineValueInput({
   switch (def.unit) {
     case "sound":
       return <SoundSelect value={String(value || "")} onChange={onChange} />;
+    case "state":
+      return <StateSelect anim={def.anim ?? ""} value={String(value || "")} onChange={onChange} />;
+    case "script":
+      return <ScriptSelect value={String(value || "")} onChange={onChange} />;
     case "bool":
       return (
         <label className="engine-bool">

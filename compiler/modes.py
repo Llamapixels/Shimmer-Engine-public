@@ -43,6 +43,23 @@ def set_sound_names(names):
     SOUND_NAMES[:] = list(names)
 
 
+# "state" settings: the scene's player sprite's state names (lowercase ->
+# index), stored as index + 1, 0 = Auto (the state named after the
+# ability). "script" settings: project customScripts ids, stored as
+# index + 1, 0 = none. Set by build_project.py.
+STATE_NAMES = {}
+SCRIPT_IDS = []
+
+
+def set_state_names(names):
+    STATE_NAMES.clear()
+    STATE_NAMES.update(names)
+
+
+def set_script_ids(ids):
+    SCRIPT_IDS[:] = list(ids)
+
+
 def scene_mode(scene, where):
     t = scene.get("type") or "topdown"
     t = {"platformer": "platform", "top_down": "topdown"}.get(t, t)
@@ -69,6 +86,22 @@ def setting_value(key, value, where):
             return SOUND_NAMES.index(value) + 1
         known = ", ".join(SOUND_NAMES) or "none - add .wav files to assets/sounds"
         raise ModeError(f"{label}: no sound '{value}'. Sounds: {known}.")
+    if unit == "state":
+        if value in (None, "", 0, False):
+            return 0
+        name = str(value).strip().lower()
+        if name == "default":
+            return 1
+        if name in STATE_NAMES:
+            return STATE_NAMES[name] + 1
+        known = ", ".join(["Default"] + [n for n in STATE_NAMES if n]) or "Default"
+        raise ModeError(f"{label}: the player sprite has no state '{value}'. States: {known}.")
+    if unit == "script":
+        if value in (None, "", 0, False):
+            return 0
+        if isinstance(value, str) and value in SCRIPT_IDS:
+            return SCRIPT_IDS.index(value) + 1
+        raise ModeError(f"{label}: no custom script '{value}'.")
     if unit == "bool":
         if isinstance(value, bool) or value in (0, 1):
             return 1 if value else 0

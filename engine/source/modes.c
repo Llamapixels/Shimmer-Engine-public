@@ -6,6 +6,7 @@
 #include "collision.h"
 #include "camera.h"
 #include "wav.h"
+#include "script.h"
 
 /*
  * The scene types. Each one's update function moves the player for a
@@ -21,6 +22,14 @@ int16_t mode_settings[MS_COUNT];
 
 static int mode = SCENE_MODE_TOPDOWN;
 static const SceneDef *cur_scene = 0;
+/* The player's sprite when the scene started: "state" engine settings
+ * name its states (after Set Player Sprite they fall back to names). */
+static const SpriteDef *scene_sprite = 0;
+/* Platformer: an air jump / wall jump is showing its animation. */
+static int air_jumped, kick_show;
+/* "Crouch height": the standing collision box while crouched low. */
+static int crouch_low, crouch_oy, crouch_h, crouch_stuck;
+static const SpriteDef *crouch_def;
 
 static int32_t pos_x, pos_y;          /* 1/256 px */
 static int vel_x, vel_y;               /* 1/256 px per frame */
@@ -74,6 +83,8 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
 {
     cur_scene = scene;
     mode = scene->mode;
+    scene_sprite = player->def;
+    air_jumped = kick_show = crouch_low = crouch_stuck = 0;
     for (int i = 0; i < MS_COUNT; i++)
         mode_settings[i] = scene->settings ? scene->settings[i] : 0;
 
@@ -264,6 +275,56 @@ static const ScriptEvent *touching_actor_script(Entity *p)
 
 /* Switch to the sprite's state named for `kind` ("jump", "run"...), or
  * back to its first state when it has none. Returns 1 if it had one. */
+/* The engine setting that picks the animation state for `kind` in
+ * this scene type, or -1. */
+static int state_setting(int kind)
+{
+    if (mode == SCENE_MODE_PLATFORM)
+    {
+        switch (kind)
+        {
+        case MODE_ANIM_CROUCH:      return MS_PL_STATE_CROUCH;
+        case MODE_ANIM_RUN:         return MS_PL_STATE_RUN;
+        case MODE_ANIM_JUMP:        return MS_PL_STATE_JUMP;
+        case MODE_ANIM_FALL:        return MS_PL_STATE_FALL;
+        case MODE_ANIM_DOUBLE_JUMP: return MS_PL_STATE_DOUBLE_JUMP;
+        case MODE_ANIM_WALL:        return MS_PL_STATE_WALL_SLIDE;
+        case MODE_ANIM_WALL_KICK:   return MS_PL_STATE_WALL_KICK;
+        case MODE_ANIM_CLIMB:       return MS_PL_STATE_CLIMB;
+        case MODE_ANIM_DASH:        return MS_PL_STATE_DASH;
+        case MODE_ANIM_FLOAT:       return MS_PL_STATE_FLOAT;
+        case MODE_ANIM_KNOCKBACK:   return MS_PL_STATE_KNOCKBACK;
+        }
+    }
+    else if (mode == SCENE_MODE_ADVENTURE)
+    {
+        switch (kind)
+        {
+        case MODE_ANIM_RUN:       return MS_AD_STATE_RUN;
+        case MODE_ANIM_DASH:      return MS_AD_STATE_DASH;
+        case MODE_ANIM_PUSH:      return MS_AD_STATE_PUSH;
+        case MODE_ANIM_KNOCKBACK: return MS_AD_STATE_KNOCKBACK;
+        }
+    }
+    else if (mode == SCENE_MODE_TOPDOWN && kind == MODE_ANIM_RUN)
+        return MS_TD_STATE_RUN;
+    return -1;
+}
+
+/* The state the player's sprite shows for `kind`: the one an engine
+ * setting picked, else the state named after it. -1 = none. */
+static int named_state(Entity *p, int kind)
+{
+    if (kind < 0 || !p->def)
+        return -1;
+    int s = state_setting(kind);
+    if (s >= 0 && mode_settings[s] > 0 && p->def == scene_sprite && mode_settings[s] - 1 < p->def->state_count)
+        return mode_settings[s] - 1;
+    if (p->def->mode_states && p->def->mode_states[kind])
+        return p->def->mode_states[kind] - 1;
+    return -1;
+}
+
 static int use_named_state(Entity *p, int kind)
 {
     if (p->script_state)
@@ -274,12 +335,60 @@ static int use_named_state(Entity *p, int kind)
             entity_set_anim_state(p, p->script_state - 1);
         return 1;
     }
-    int want = 0;
-    if (kind >= 0 && p->def && p->def->mode_states && p->def->mode_states[kind])
-        want = p->def->mode_states[kind] - 1;
+    int want = named_state(p, kind);
+    /* Falling, an air jump and a wall jump use the jump state if they
+     * have none of their own (decided before switching, so the jump
+     * animation doesn't restart every frame). */
+    if (want < 0 && (kind == MODE_ANIM_FALL || kind == MODE_ANIM_DOUBLE_JUMP || kind == MODE_ANIM_WALL_KICK))
+        want = named_state(p, MODE_ANIM_JUMP);
+    if (want < 0)
+        want = 0;
     if (p->anim_state != want)
         entity_set_anim_state(p, want);
     return want != 0;
+}
+
+/* A "script" engine setting's custom script, started in the background. */
+static void run_ability_script(int setting)
+{
+    int v = mode_settings[setting];
+    if (v > 0 && cur_scene && cur_scene->ability_scripts && cur_scene->ability_scripts[v - 1])
+        script_thread_start(cur_scene->ability_scripts[v - 1]);
+}
+
+/* "Crouch height": while crouching the collision box is shorter (the
+ * feet stay put); standing back up waits for room overhead. */
+static void crouch_box(Entity *p, int *crouching)
+{
+    int h = MSET(PL_CROUCH_HEIGHT);
+    if (crouch_low && p->def != crouch_def)
+        crouch_low = 0;   /* another sprite: its own box */
+    if (*crouching && !crouch_low && h > 0 && h < p->col_h)
+    {
+        crouch_low = 1;
+        crouch_def = p->def;
+        crouch_oy = p->col_oy;
+        crouch_h = p->col_h;
+        p->col_oy = crouch_oy + crouch_h - h;
+        p->col_h = h;
+    }
+    else if (!*crouching && crouch_low)
+    {
+        int oy = p->col_oy, ch = p->col_h;
+        p->col_oy = crouch_oy;
+        p->col_h = crouch_h;
+        if (!entity_can_move(p, p->x, p->y))
+        {
+            /* No room to stand: stay down, but crawl so it can't trap. */
+            p->col_oy = oy;
+            p->col_h = ch;
+            *crouching = 1;
+            crouch_stuck = 1;
+            return;
+        }
+        crouch_low = 0;
+    }
+    crouch_stuck = 0;
 }
 
 static int is_platform_sprite(Entity *p)
@@ -520,6 +629,7 @@ static const ScriptEvent *platform_update(Entity *p)
     else
     {
         crouching = MSET(PL_CROUCH) && grounded && input_held(INPUT_DOWN);
+        crouch_box(p, &crouching);
         running = MSET(PL_RUN) && input_held(MSET(PL_RUN_BUTTON));
         int max = running ? MSET(PL_RUN_VEL) : MSET(PL_WALK_VEL);
         int acc = running ? MSET(PL_RUN_ACC) : MSET(PL_WALK_ACC);
@@ -530,7 +640,7 @@ static const ScriptEvent *platform_update(Entity *p)
         {
             /* keep momentum */
         }
-        else if (dir_x && !crouching)
+        else if (dir_x && (!crouching || crouch_stuck))
         {
             if ((vel_x > 0 && dir_x < 0) || (vel_x < 0 && dir_x > 0))
                 vel_x += dir_x * MSET(PL_TURN_ACC);
@@ -544,6 +654,13 @@ static const ScriptEvent *platform_update(Entity *p)
         {
             vel_x = approach(vel_x, 0, grounded ? MSET(PL_DEC) : MSET(PL_AIR_DEC));
         }
+
+        /* Dash input "Down + Jump" (not where Down + Jump drops through
+         * a platform): the jump becomes the dash. */
+        int down_jump = MSET(PL_DASH) && MSET(PL_DASH_INPUT) == 5 && input_held(INPUT_DOWN) && jump_pressed &&
+                        !(MSET(PL_DROP_THROUGH) && on_top_tile);
+        if (down_jump)
+            jump_buffer = 0;
 
         /* Drop through a one-way platform: Down + Jump. */
         if (MSET(PL_DROP_THROUGH) && on_top_tile && input_held(INPUT_DOWN) && jump_pressed)
@@ -576,6 +693,8 @@ static const ScriptEvent *platform_update(Entity *p)
                 kick_timer = MSET(PL_WALL_KICK_FRAMES);
                 play_setting_sound(MSET(PL_SOUND_WALL_KICK) ? MS_PL_SOUND_WALL_KICK : MS_PL_SOUND_JUMP);
                 kick_anim = kick_timer > 12 ? kick_timer : 12;
+                kick_show = 12;
+                air_jumped = 0;
                 wall_jumps++;
                 jump_buffer = 0;
             }
@@ -585,6 +704,8 @@ static const ScriptEvent *platform_update(Entity *p)
                 vel_y = -MSET(PL_EXTRA_JUMP_VEL);
                 hold_timer = MSET(PL_HOLD_FRAMES);
                 air_jumps--;
+                air_jumped = 1;
+                kick_show = 0;
                 jump_buffer = 0;
             }
         }
@@ -639,12 +760,13 @@ static const ScriptEvent *platform_update(Entity *p)
 
         /* Dash. */
         if (MSET(PL_DASH) && dash_cooldown == 0 && (grounded || MSET(PL_DASH_AIR)) &&
-            dash_pressed(MSET(PL_DASH_INPUT), dir_x))
+            (MSET(PL_DASH_INPUT) == 5 ? down_jump : dash_pressed(MSET(PL_DASH_INPUT), dir_x)))
         {
             int frames = MSET(PL_DASH_FRAMES) ? MSET(PL_DASH_FRAMES) : 1;
             dash_timer = frames;
             dash_vx = (facing_left ? -1 : 1) * (MSET(PL_DASH_DIST) * 256 / frames);
             dash_cooldown = frames + MSET(PL_DASH_READY);
+            run_ability_script(MS_PL_ON_DASH);
         }
     }
 
@@ -708,6 +830,11 @@ static const ScriptEvent *platform_update(Entity *p)
     was_sliding = wall_sliding;
     was_grounded = grounded;
 
+    if (grounded)
+        air_jumped = kick_show = 0;
+    else if (kick_show > 0)
+        kick_show--;
+
     /* Animation. */
     int moving = vel_x != 0;
     int kind = -1, slot;
@@ -722,6 +849,10 @@ static const ScriptEvent *platform_update(Entity *p)
         kind = MODE_ANIM_WALL;
     else if (!grounded && floating)
         kind = MODE_ANIM_FLOAT;
+    else if (!grounded && vel_y < 0 && kick_show > 0)
+        kind = MODE_ANIM_WALL_KICK;
+    else if (!grounded && vel_y < 0 && air_jumped)
+        kind = MODE_ANIM_DOUBLE_JUMP;
     else if (!grounded)
         kind = vel_y < 0 ? MODE_ANIM_JUMP : MODE_ANIM_FALL;
     else if (crouching)
@@ -729,8 +860,6 @@ static const ScriptEvent *platform_update(Entity *p)
     else if (running && moving)
         kind = MODE_ANIM_RUN;
     int named = use_named_state(p, kind);
-    if (!named && kind == MODE_ANIM_FALL)
-        named = use_named_state(p, MODE_ANIM_JUMP);
     platform_sprite = is_platform_sprite(p);
 
     if (named || !platform_sprite)
@@ -815,6 +944,7 @@ static const ScriptEvent *adventure_update(Entity *p)
         {
             int frames = MSET(AD_DASH_FRAMES) ? MSET(AD_DASH_FRAMES) : 1;
             int speed = MSET(AD_DASH_DIST) * 256 / frames;
+            run_ability_script(MS_AD_ON_DASH);
             int fx = dx, fy = dy;
             if (!fx && !fy)
             {
@@ -1087,6 +1217,7 @@ void modes_player_hit(Entity *p, int from_x, int from_y)
         vel_y = -MSET(PL_KB_VEL_Y);
         climbing = dash_timer = 0;
         facing_left = away_x > 0;
+        run_ability_script(MS_PL_ON_KNOCKBACK);
     }
     else if (mode == SCENE_MODE_ADVENTURE && MSET(AD_KNOCKBACK))
     {
@@ -1098,5 +1229,6 @@ void modes_player_hit(Entity *p, int from_x, int from_y)
         vel_x = dxs >= dys / 2 ? away_x * MSET(AD_KB_VEL) : 0;
         vel_y = dys >= dxs / 2 ? away_y * MSET(AD_KB_VEL) : 0;
         dash_timer = 0;
+        run_ability_script(MS_AD_ON_KNOCKBACK);
     }
 }

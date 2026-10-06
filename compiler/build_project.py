@@ -1300,6 +1300,20 @@ def projectile_sprites(obj):
     return found
 
 
+def _events_of_type(obj, etype):
+    """Every event dict of type `etype` anywhere in obj."""
+    found = []
+    if isinstance(obj, dict):
+        if obj.get("type") == etype:
+            found.append(obj)
+        for v in obj.values():
+            found += _events_of_type(v, etype)
+    elif isinstance(obj, list):
+        for v in obj:
+            found += _events_of_type(v, etype)
+    return found
+
+
 def player_sprite_events(obj):
     """Sprite names of every "player_set_sprite" event anywhere in obj."""
     found = []
@@ -3072,6 +3086,7 @@ def build(project_dir, out_dir):
         "cutscene_names": [n for n, _, _ in cutscene_files(project_dir / PROJECT_CUTSCENES_DIR)],
     }
     M.set_sound_names(ctx["wav_names"])
+    M.set_script_ids(list(custom_scripts))
 
     # Dialogue fonts, frames and cursor (compiler/ui.py) - needed before any
     # text is compiled, for "!F:font!" codes and character mapping.
@@ -3266,6 +3281,9 @@ def build(project_dir, out_dir):
         # Scene type and its engine settings (compiler/modes.py).
         try:
             scene_mode = M.scene_mode(scene, name)
+            # "state" settings name states of this scene's player sprite.
+            M.set_state_names({n.strip().lower(): i for n, i in
+                               compiled_sprites[scene_player_sprite].state_names.items() if n})
             settings = M.resolve(project.get("engine"), scene.get("engine"), f"{name}: \"engine\"")
         except M.ModeError as e:
             raise BuildError(str(e)) from None
@@ -3341,6 +3359,35 @@ def build(project_dir, out_dir):
             on_init_ref = on_init_ident
         else:
             on_init_ref = "0"
+
+        # Custom scripts named by "script" engine settings (On dash, On
+        # knockback...), as this scene's ability_scripts[] (index = the
+        # setting's value - 1), run as the player.
+        ability_ids = set()
+        for i, sdef in enumerate(M.SETTINGS):
+            if sdef["unit"] == "script" and settings[i]:
+                ability_ids.add(M.SCRIPT_IDS[settings[i] - 1])
+        for ev in _events_of_type(scene, "set_engine_setting"):
+            sdef = M.SETTING_BY_KEY.get(ev.get("setting"))
+            if sdef and sdef["unit"] == "script" and ev.get("value") in custom_scripts:
+                ability_ids.add(ev["value"])
+        ability_ref = "0"
+        if ability_ids:
+            refs = []
+            for k, sid in enumerate(M.SCRIPT_IDS):
+                if sid not in ability_ids:
+                    refs.append("0")
+                    continue
+                sident = f"{ident}_ability{k}_script"
+                ctx["self_actor_index"] = PLAYER_ACTOR_INDEX
+                instructions = compile_script(_script_list(custom_scripts[sid], f"{name}: script '{sid}'"),
+                                              ctx, f"{name}: custom script '{sid}'")
+                ctx["self_actor_index"] = None
+                emit_script(c_parts, sident, instructions)
+                refs.append(sident)
+            ability_ref = f"{ident}_ability_scripts"
+            c_parts.append(f"static const ScriptEvent *const {ability_ref}[{len(refs)}] = {{ {', '.join(refs)} }};")
+            c_parts.append("")
 
         # "On Player Hit" per collision group.
         player_hit = scene.get("on_player_hit") or {}
@@ -3564,6 +3611,8 @@ def build(project_dir, out_dir):
         c_parts.append(f"    .layer_count   = {len(layer_data)},")
         c_parts.append(f"    .mode          = {scene_mode},")
         c_parts.append(f"    .settings      = {settings_idents[settings_key]},")
+        if ability_ref != "0":
+            c_parts.append(f"    .ability_scripts = {ability_ref},")
         c_parts.append("};")
         c_parts.append("")
 

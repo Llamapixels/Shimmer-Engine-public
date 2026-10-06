@@ -26,6 +26,7 @@ export default function MetaspriteCanvas() {
   const { img, sheet, state, animIndex, frames, frameIndex, frame } = cur;
   const ed = useSpriteEditor();
   const section = useProjectStore((s) => s.section);
+  const engine = useProjectStore((s) => s.project?.project.engine);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [wrapSize, setWrapSize] = useState({ w: 600, h: 400 });
@@ -202,6 +203,19 @@ export default function MetaspriteCanvas() {
       ctx.fillRect(bx, by, b.width * Z, b.height * Z);
       ctx.strokeStyle = "rgba(255,70,90,0.85)";
       ctx.strokeRect(bx + 0.5, by + 0.5, b.width * Z - 1, b.height * Z - 1);
+      // Platformer "Crouch height": the shorter box on the crouch state.
+      const ch = Number(engine?.pl_crouch_height ?? 0);
+      const crouchState = String(engine?.pl_state_crouch || "crouch").toLowerCase();
+      const stateName = (state?.name || "Default").toLowerCase();
+      if (engine?.pl_crouch && ch > 0 && ch < b.height && stateName === crouchState) {
+        const cy2 = by + (b.height - ch) * Z;
+        ctx.fillStyle = "rgba(255,200,60,0.18)";
+        ctx.fillRect(bx, cy2, b.width * Z, ch * Z);
+        ctx.strokeStyle = "rgba(255,200,60,0.95)";
+        ctx.setLineDash([4, 2]);
+        ctx.strokeRect(bx + 0.5, cy2 + 0.5, b.width * Z - 1, ch * Z - 1);
+        ctx.setLineDash([]);
+      }
     }
     if (ed.showObjs && cost) {
       ctx.lineWidth = 1;
@@ -245,6 +259,8 @@ export default function MetaspriteCanvas() {
     ghost,
     ed.showGrid,
     ed.showBounds,
+    engine,
+    state,
     ed.showObjs,
     ed.onionSkin,
     ed.playing,
