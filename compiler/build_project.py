@@ -265,9 +265,12 @@ Event script types (used in "on_interact" and door "events" lists):
         Silence whatever music is currently playing.
     { "type": "wait", "frames": 30 }
         Pause the script for a number of frames (60 = 1 second).
-    { "type": "switch_scene", "scene": "<name>", "x": 5, "y": 8 }
+    { "type": "switch_scene", "scene": "<name>", "x": 5, "y": 8,
+      "transition": "fade_black" | "fade_white" | "none",
+      "transition_frames": 8 }
         Fade out, load another scene, and place the player at tile (x, y)
-        there. Ends the script.
+        there. Ends the script. "transition" (default fade_black) and
+        "transition_frames" (1-255, default 8) set how it fades out and in.
     { "type": "set_var", "var": "<name>", "value": 0 }
         Set a named variable from project.json's "variables" list to a
         literal 16-bit value.
@@ -598,6 +601,9 @@ ARRAY_OP_TO_SCRIPT = {
 # "fade_out"/"fade_in" events' "color" -> TransitionColor (see
 # engine/include/transition.h).
 FADE_COLOR_TO_SCRIPT = {"black": 0, "white": 1}
+
+# "switch_scene" events' "transition" -> TransitionColor.
+SCENE_TRANSITIONS = {"fade_black": 0, "fade_white": 1, "none": 2}
 
 # Matches a "{varname}" reference inside text/prompt/option/label
 # strings - see interpolate_vars().
@@ -1653,6 +1659,12 @@ def compile_events(events, out, ctx, where):
                     f"{ev_where}: unknown scene '{scene_name}'. Known scenes: {known}")
             tx = int(ev.get("x", 0)) * TILE
             ty = int(ev.get("y", 0)) * TILE
+            trans = str(ev.get("transition", "fade_black"))
+            if trans not in SCENE_TRANSITIONS:
+                raise BuildError(f"{ev_where}: \"transition\" must be one of: {', '.join(SCENE_TRANSITIONS)}.")
+            speed = resolve_small_int(ev.get("transition_frames", 8), "transition_frames", ev_where, 1, 255)
+            if trans != "fade_black" or speed != 8:
+                out.append(_instr("SCRIPT_SCENE_TRANSITION", a=SCENE_TRANSITIONS[trans], b=speed))
             out.append(_instr("SCRIPT_SWITCH_SCENE",
                               a=ctx["name_to_index"][scene_name], b=tx, c=ty, d=-1))
 

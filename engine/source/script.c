@@ -512,6 +512,10 @@ static void thread_step(ScriptThread *t, int is_main)
             play_sound_effect(ev->a);
             break;
 
+        case SCRIPT_SCENE_TRANSITION:
+            transition_set_next_scene((TransitionColor)ev->a, ev->b);
+            break;
+
         case SCRIPT_SWITCH_SCENE:
             script_request_scene_switch(ev->a, ev->b, ev->c, ev->d);
             t->ip = 0;

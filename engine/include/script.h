@@ -393,7 +393,11 @@ typedef enum
     SCRIPT_ACTOR_TRANSFORM,    /* a = actor, b = angle (degrees clockwise),
                                  * c = scale x %, d = scale y %; a scale
                                  * of 0 keeps the current one */
-    SCRIPT_ACTOR_ROTATE_BY     /* a = actor, b = degrees to add */
+    SCRIPT_ACTOR_ROTATE_BY,    /* a = actor, b = degrees to add */
+
+    SCRIPT_SCENE_TRANSITION    /* a = TransitionColor (transition.h),
+                                 * b = frames: how the next scene switch
+                                 * fades out and in */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

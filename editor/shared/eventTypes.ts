@@ -163,6 +163,10 @@ export interface SwitchSceneEvent extends EventBase {
   scene: string;
   x?: number;
   y?: number;
+  /** Default "fade_black". */
+  transition?: "fade_black" | "fade_white" | "none";
+  /** Length of the fade out (and of the fade in), default 8. */
+  transition_frames?: number;
 }
 
 export interface SetVarEvent extends EventBase {

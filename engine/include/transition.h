@@ -19,8 +19,14 @@
 typedef enum
 {
     TRANSITION_BLACK = 0,
-    TRANSITION_WHITE = 1
+    TRANSITION_WHITE = 1,
+    TRANSITION_NONE = 2      /* scene switches only: cut straight over */
 } TransitionColor;
+
+/* The color and length (frames) of the next scene switch's fade out and
+ * fade in ("Change Scene"'s Transition option). Back to the default
+ * (black, 8 frames) once that switch's fade in starts. */
+void transition_set_next_scene(TransitionColor color, int frames);
 
 /* Start a fade to black, over the engine's own fixed ~8-frame scene-
  * switch duration. */

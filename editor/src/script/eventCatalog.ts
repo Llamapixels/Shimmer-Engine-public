@@ -738,9 +738,31 @@ export const EVENT_DEFS: EventDef[] = [
     fields: [
       { key: "scene", label: "Scene", kind: "scene" },
       { key: "pos", label: "Player tile", kind: "tilePos" },
+      {
+        key: "transition",
+        label: "Transition",
+        kind: "select",
+        defaultValue: "fade_black",
+        options: [
+          { value: "fade_black", label: "Fade to black" },
+          { value: "fade_white", label: "Fade to white" },
+          { value: "none", label: "None (cut)" },
+        ],
+      },
+      {
+        key: "transition_frames",
+        label: "Fade length (frames)",
+        kind: "int",
+        min: 1,
+        max: 255,
+        defaultValue: 8,
+        showIf: (e) => e.transition !== "none",
+      },
     ],
     create: (c) => ({ type: "switch_scene", scene: c.sceneNames[0] ?? "", x: 0, y: 0 }),
-    summary: (ev) => `${ev.scene || "?"} at (${ev.x ?? 0}, ${ev.y ?? 0})`,
+    summary: (ev) =>
+      `${ev.scene || "?"} at (${ev.x ?? 0}, ${ev.y ?? 0})` +
+      (ev.transition === "fade_white" ? ", white fade" : ev.transition === "none" ? ", no fade" : ""),
   }),
   def({
     type: "fade_out",
