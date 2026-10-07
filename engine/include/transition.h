@@ -20,7 +20,13 @@ typedef enum
 {
     TRANSITION_BLACK = 0,
     TRANSITION_WHITE = 1,
-    TRANSITION_NONE = 2      /* scene switches only: cut straight over */
+    TRANSITION_NONE = 2,     /* scene switches only: cut straight over */
+    /* Scene switch effects (out, then in reversed); all end on black. */
+    TRANSITION_FLASH = 3,    /* white flashes, then a fade to black */
+    TRANSITION_MOSAIC = 4,   /* pixelates while it darkens */
+    TRANSITION_BOX = 5,      /* a shrinking rectangle */
+    TRANSITION_BARS = 6,     /* bars close in from the top and bottom */
+    TRANSITION_WIPE = 7      /* black sweeps in from the left */
 } TransitionColor;
 
 /* The color and length (frames) of the next scene switch's fade out and

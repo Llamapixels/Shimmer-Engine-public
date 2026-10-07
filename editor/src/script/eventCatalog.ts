@@ -828,11 +828,16 @@ export const EVENT_DEFS: EventDef[] = [
           { value: "fade_black", label: "Fade to black" },
           { value: "fade_white", label: "Fade to white" },
           { value: "none", label: "None (cut)" },
+          { value: "flash", label: "Battle flash" },
+          { value: "mosaic", label: "Pixelate" },
+          { value: "box", label: "Box in" },
+          { value: "bars", label: "Bars (top and bottom)" },
+          { value: "wipe", label: "Wipe" },
         ],
       },
       {
         key: "transition_frames",
-        label: "Fade length (frames)",
+        label: "Length (frames; effects look best at 30+)",
         kind: "int",
         min: 1,
         max: 255,
@@ -843,7 +848,7 @@ export const EVENT_DEFS: EventDef[] = [
     create: (c) => ({ type: "switch_scene", scene: c.sceneNames[0] ?? "", x: 0, y: 0 }),
     summary: (ev) =>
       `${ev.scene || "?"} at (${ev.x ?? 0}, ${ev.y ?? 0})` +
-      (ev.transition === "fade_white" ? ", white fade" : ev.transition === "none" ? ", no fade" : ""),
+      (ev.transition && ev.transition !== "fade_black" ? `, ${ev.transition.replace("_", " ")}` : ""),
   }),
   def({
     type: "fade_out",

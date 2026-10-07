@@ -272,7 +272,8 @@ Event script types (used in "on_interact" and door "events" lists):
     { "type": "wait", "frames": 30 }
         Pause the script for a number of frames (60 = 1 second).
     { "type": "switch_scene", "scene": "<name>", "x": 5, "y": 8,
-      "transition": "fade_black" | "fade_white" | "none",
+      "transition": "fade_black" | "fade_white" | "none" | "flash" | "mosaic"
+                    | "box" | "bars" | "wipe",
       "transition_frames": 8 }
         Fade out, load another scene, and place the player at tile (x, y)
         there. Ends the script. "transition" (default fade_black) and
@@ -623,7 +624,8 @@ ARRAY_OP_TO_SCRIPT = {
 FADE_COLOR_TO_SCRIPT = {"black": 0, "white": 1}
 
 # "switch_scene" events' "transition" -> TransitionColor.
-SCENE_TRANSITIONS = {"fade_black": 0, "fade_white": 1, "none": 2}
+SCENE_TRANSITIONS = {"fade_black": 0, "fade_white": 1, "none": 2, "flash": 3, "mosaic": 4,
+                     "box": 5, "bars": 6, "wipe": 7}
 
 # Matches a "{varname}" reference inside text/prompt/option/label
 # strings - see interpolate_vars().
