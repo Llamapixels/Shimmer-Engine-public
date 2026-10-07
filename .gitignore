@@ -31,7 +31,7 @@ editor/toolchain-bundle/
 editor/release/
 **/build/rom/
 
-# Private: the AI game-making API docs (never published)
+# Private API docs, kept local (never published)
 /api/
 
 # Devlogs are posted on itch.io, not kept in the repo
