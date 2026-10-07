@@ -85,6 +85,9 @@ void sprite_use_front(int on);
 uint32_t sprite_alloc_mark(void);
 void sprite_alloc_reset(uint32_t mark);
 
+/* sin(degrees) scaled by 4096. */
+int sprite_sin(int degrees);
+
 /* Draw every sprite with the mosaic effect (REG_MOSAIC's OBJ size). */
 void sprite_set_mosaic(int on);
 

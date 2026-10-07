@@ -404,7 +404,11 @@ export const EVENT_DEFS: EventDef[] = [
     type: "launch_projectile",
     label: "Launch Projectile",
     category: "Engine",
-    description: "Fire a sprite in a straight line from an actor. It runs the On Hit script of the actor it hits (or the scene's On Player Hit when it hits the player). Attach it to a button with Attach Script To Button to shoot.",
+    description:
+      "Fire a sprite from an actor: straight, in a wave, in an arc (axes, spears, bombs) or as a boomerang. It runs the On Hit " +
+      "script of the actor it hits (or the scene's On Player Hit when it hits the player). It can bounce off walls (pool balls), " +
+      "stick where it lands until recalled (Recall Projectiles), or linger there a while (a fire on the ground). Speed 0 with " +
+      "\"Follows the thrower\" makes a melee hitbox. Attach it to a button with Attach Script To Button to shoot.",
     fields: [
       { key: "sprite", label: "Sprite", kind: "sprite" },
       { key: "actor", label: "From", kind: "actor" },
@@ -422,7 +426,56 @@ export const EVENT_DEFS: EventDef[] = [
         ],
       },
       { key: "angle", label: "Angle (0 = right, 90 = up)", kind: "int", min: -360, max: 360 },
-      { key: "speed", label: "Speed (px/frame)", kind: "float", min: 0.25, max: 8 },
+      { key: "speed", label: "Speed (px/frame)", kind: "float", min: 0, max: 8 },
+      {
+        key: "path",
+        label: "Path",
+        kind: "select",
+        defaultValue: "straight",
+        options: [
+          { value: "straight", label: "Straight" },
+          { value: "wave", label: "Wave" },
+          { value: "arc_high", label: "High arc (axe)" },
+          { value: "arc_low", label: "Low arc (spear)" },
+          { value: "boomerang", label: "Boomerang" },
+        ],
+      },
+      { key: "wave_size", label: "Wave size (px)", kind: "int", min: 0, max: 64, defaultValue: 8, showIf: (e) => e.path === "wave" },
+      { key: "wave_length", label: "Wave length (frames)", kind: "int", min: 2, max: 600, defaultValue: 30, showIf: (e) => e.path === "wave" },
+      {
+        key: "gravity",
+        label: "Gravity (px/frame²)",
+        kind: "float",
+        min: 0,
+        max: 2,
+        showIf: (e) => e.path === "arc_high" || e.path === "arc_low" || e.gravity !== undefined,
+      },
+      {
+        key: "lift",
+        label: "Thrown up at (px/frame)",
+        kind: "float",
+        min: 0,
+        max: 8,
+        showIf: (e) => e.path === "arc_high" || e.path === "arc_low" || e.lift !== undefined,
+      },
+      { key: "return_after", label: "Comes back after (frames)", kind: "int", min: 1, max: 600, defaultValue: 30, showIf: (e) => e.path === "boomerang" },
+      { key: "bounces", label: "Wall bounces (255 = forever)", kind: "int", min: 0, max: 255, defaultValue: 0 },
+      { key: "bounce_actors", label: "Bounces off actors", kind: "bool", defaultValue: false },
+      {
+        key: "on_land",
+        label: "When it hits a wall or the ground",
+        kind: "select",
+        defaultValue: "vanish",
+        options: [
+          { value: "vanish", label: "Disappears" },
+          { value: "stick", label: "Sticks there (until recalled)" },
+          { value: "linger", label: "Lingers a while, still hurting" },
+        ],
+      },
+      { key: "linger_frames", label: "Lingers for (frames)", kind: "int", min: 1, max: MAX_I16, defaultValue: 60, showIf: (e) => e.on_land === "linger" },
+      { key: "land_state", label: "Animation state once landed", kind: "text", placeholder: "state name", showIf: (e) => e.on_land === "stick" || e.on_land === "linger" },
+      { key: "follow", label: "Follows the thrower (melee hitbox)", kind: "bool", defaultValue: false },
+      { key: "mirror_offset", label: "Flip offset X when facing left", kind: "bool", defaultValue: false },
       { key: "lifetime", label: "Lifetime (frames, 0 = until off screen)", kind: "int", min: 0, max: MAX_I16 },
       {
         key: "hits",
@@ -452,8 +505,29 @@ export const EVENT_DEFS: EventDef[] = [
       lifetime: 0,
       hits: ["group1", "group2", "group3"],
       group: 1,
+      mirror_offset: true,
     }),
-    summary: (ev) => `${ev.sprite} from ${actorLabel(ev.actor ?? "player")}, ${ev.direction === "angle" ? `${ev.angle ?? 0}°` : ev.direction ?? "facing"}`,
+    summary: (ev) =>
+      `${ev.sprite} from ${actorLabel(ev.actor ?? "player")}, ${ev.direction === "angle" ? `${ev.angle ?? 0}°` : ev.direction ?? "facing"}` +
+      (ev.path && ev.path !== "straight" ? `, ${ev.path.replace("_", " ")}` : ""),
+  }),
+  def({
+    type: "projectile_recall",
+    label: "Recall Projectiles",
+    category: "Engine",
+    description: "Send projectiles flying back to whoever threw them, through walls; stuck ones come loose. They vanish when they get back.",
+    fields: [{ key: "sprite", label: "Sprite", kind: "text", placeholder: "all, or a sprite name" }],
+    create: () => ({ type: "projectile_recall", sprite: "all" }),
+    summary: (ev) => ev.sprite || "all",
+  }),
+  def({
+    type: "projectile_remove",
+    label: "Remove Projectiles",
+    category: "Engine",
+    description: "Make projectiles vanish at once (all of them, or one sprite's), e.g. to set off bombs sitting on the ground.",
+    fields: [{ key: "sprite", label: "Sprite", kind: "text", placeholder: "all, or a sprite name" }],
+    create: () => ({ type: "projectile_remove", sprite: "all" }),
+    summary: (ev) => ev.sprite || "all",
   }),
   def({
     type: "text_set_font",

@@ -245,6 +245,16 @@ Event script types (used in "on_interact" and door "events" lists):
         with a collision group), "group1".."group3", or "player" (runs the
         scene's on_player_hit for "group") - or a list of them. front: drawn
         in front of the player and actors.
+        More options: "path": "straight" | "wave" | "arc_high" | "arc_low" |
+        "boomerang" ("wave_size" px, "wave_length" frames; "gravity" and
+        "lift" in px per frame; "return_after" frames); "bounces": 0-254
+        or "forever" (off walls; "bounce_actors": true for actors too);
+        "on_land": "vanish" | "stick" | "linger" ("linger_frames", and
+        "land_state" to switch animation state); "follow": true keeps it
+        at its offset from the thrower (melee, with speed 0);
+        "mirror_offset": true flips offset_x when fired to the left.
+    { "type": "projectile_recall" | "projectile_remove", "sprite": "<name>" | "all" }
+        Send projectiles back to their thrower (stuck ones too), or remove them.
     { "type": "text_set_font", "font": "<name>" }
     { "type": "text_set_frame", "frame": "<name>" }
     { "type": "text_set_speed", "speed": 0-30 }
@@ -1332,6 +1342,10 @@ PLAYER_ACTOR_INDEX = -2
 # "hits" names -> projectile.h's PROJ_P_TARGET bits (bit 0 player, bit g group g).
 PROJECTILE_TARGETS = {"player": 1, "group1": 2, "group2": 4, "group3": 8, "actors": 14}
 PROJECTILE_DIRECTIONS = {"right": (1, 0), "left": (-1, 0), "up": (0, -1), "down": (0, 1)}
+# "path" -> (PROJ_PATH_*, default gravity, default lift) in px per frame.
+PROJECTILE_PATHS = {"straight": (0, 0, 0), "wave": (1, 0, 0), "arc_high": (2, 0.2, 4),
+                    "arc_low": (2, 0.1, 1.5), "boomerang": (3, 0, 0)}
+PROJECTILE_LAND = {"vanish": 0, "stick": 1, "linger": 2}
 
 
 def compile_projectile(ev, ctx, where):
@@ -1346,8 +1360,8 @@ def compile_projectile(ev, ctx, where):
         raise BuildError(f"{where}: sprite '{sprite}' has no palette in this scene.")
     source = resolve_actor(ev.get("actor", "player"), ctx, where)
     speed = ev.get("speed", 2)
-    if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 < speed <= 8:
-        raise BuildError(f"{where}: \"speed\" must be a number of pixels per frame, above 0 and up to 8.")
+    if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 <= speed <= 8:
+        raise BuildError(f"{where}: \"speed\" must be a number of pixels per frame, 0 to 8.")
     speed_fx = int(round(speed * 256))
     direction = ev.get("direction", "facing")
     facing, vx, vy = 0, 0, 0
@@ -1373,11 +1387,45 @@ def compile_projectile(ev, ctx, where):
             raise BuildError(f"{where}: \"hits\" must be one or a list of: {', '.join(PROJECTILE_TARGETS)}.")
         target |= PROJECTILE_TARGETS[h]
     group = resolve_small_int(ev.get("group", 1), "group", where, 1, 3)
-    flags = (1 if ev.get("pierce") else 0) | (2 if ev.get("through_walls") else 0) | (4 if ev.get("front") else 0)
+    flags = ((1 if ev.get("pierce") else 0) | (2 if ev.get("through_walls") else 0) | (4 if ev.get("front") else 0)
+             | (8 if ev.get("follow") else 0) | (16 if ev.get("bounce_actors") else 0)
+             | (32 if ev.get("mirror_offset") else 0))
     off_x = resolve_small_int(ev.get("offset_x", 0), "offset_x", where, -128, 128)
     off_y = resolve_small_int(ev.get("offset_y", 0), "offset_y", where, -128, 128)
+
+    def px_number(key, default, lo, hi):
+        v = ev.get(key, default)
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not lo <= v <= hi:
+            raise BuildError(f"{where}: \"{key}\" must be a number from {lo} to {hi}.")
+        return int(round(v * 256))
+
+    path = str(ev.get("path", "straight"))
+    if path not in PROJECTILE_PATHS:
+        raise BuildError(f"{where}: \"path\" must be one of: {', '.join(PROJECTILE_PATHS)}.")
+    path_id, arc_gravity, arc_lift = PROJECTILE_PATHS[path]
+    gravity = px_number("gravity", arc_gravity, 0, 2)
+    lift = px_number("lift", arc_lift, 0, 8)
+    amp = resolve_small_int(ev.get("wave_size", 8), "wave_size", where, 0, 64) if path == "wave" else 0
+    period = resolve_small_int(ev.get("wave_length", 30), "wave_length", where, 2, 600) if path == "wave" else 0
+    ret = resolve_small_int(ev.get("return_after", 30), "return_after", where, 1, 600) if path == "boomerang" else 0
+    bounces = ev.get("bounces", 0)
+    bounces = 255 if bounces in ("forever", 255) else resolve_small_int(bounces, "bounces", where, 0, 254)
+    on_land = str(ev.get("on_land", "vanish"))
+    if on_land not in PROJECTILE_LAND:
+        raise BuildError(f"{where}: \"on_land\" must be one of: {', '.join(PROJECTILE_LAND)}.")
+    linger = resolve_small_int(ev.get("linger_frames", 60), "linger_frames", where, 1, 32767) if on_land == "linger" else 0
+    land_state = 0
+    if ev.get("land_state"):
+        names = {str(n).strip().lower(): i for n, i in ctx["sprite_state_names"].get(sprite, {}).items()}
+        key = str(ev["land_state"]).strip().lower()
+        if key == "default":
+            key = ""
+        if key not in names:
+            raise BuildError(f"{where}: sprite '{sprite}' has no state '{ev['land_state']}'.")
+        land_state = names[key] + 1
     data = [ctx["sprite_index"][sprite], bank, source, facing, vx, vy, speed_fx, life, group,
-            target, flags, off_x, off_y]
+            target, flags, off_x, off_y,
+            path_id, amp, period, gravity, lift, ret, bounces, PROJECTILE_LAND[on_land], linger, land_state]
     ident = _aux_ident(ctx, "projectile")
     ctx["_aux"].append(("expr", ident, data))
     return ident
@@ -2199,7 +2247,7 @@ PARITY_EVENT_TYPES = [
     "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
-    "text_draw", "text_clear",
+    "text_draw", "text_clear", "projectile_recall", "projectile_remove",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2488,6 +2536,16 @@ def compile_parity_event(etype, ev, out, ctx, where):
         else:
             out.append(_instr("SCRIPT_ACTOR_ROTATE_BY", a=idx,
                               b=resolve_small_int(deg, "degrees", where, -359, 359)))
+
+    elif etype in ("projectile_recall", "projectile_remove"):
+        sname = ev.get("sprite", "all")
+        if sname in (None, "", "all"):
+            idx = -1
+        elif sname in ctx["sprite_index"]:
+            idx = ctx["sprite_index"][sname]
+        else:
+            raise BuildError(f"{where}: unknown sprite '{sname}'.")
+        out.append(_instr("SCRIPT_PROJECTILES", a=0 if etype == "projectile_recall" else 1, b=idx))
 
     elif etype == "text_draw":
         slot = resolve_small_int(ev.get("slot", 0), "slot", where, 0, 7)

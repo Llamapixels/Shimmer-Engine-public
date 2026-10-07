@@ -110,6 +110,26 @@ export interface LaunchProjectileEvent extends EventBase {
   front?: boolean;
   offset_x?: number;
   offset_y?: number;
+  path?: "straight" | "wave" | "arc_high" | "arc_low" | "boomerang";
+  /** wave: px either side, frames per wave */
+  wave_size?: number;
+  wave_length?: number;
+  /** px per frame per frame / px per frame (arcs set their own) */
+  gravity?: number;
+  lift?: number;
+  /** boomerang: frames before it comes back */
+  return_after?: number;
+  /** wall bounces, or "forever" */
+  bounces?: number | "forever";
+  bounce_actors?: boolean;
+  on_land?: "vanish" | "stick" | "linger";
+  linger_frames?: number;
+  /** Animation state to switch to when it lands. */
+  land_state?: string;
+  /** Stays at its offset from the thrower (melee). */
+  follow?: boolean;
+  /** Offset X flips when fired to the left. */
+  mirror_offset?: boolean;
 }
 
 export interface SetFlagEvent extends EventBase {
@@ -770,6 +790,19 @@ export interface ActorRotateByEvent extends EventBase {
   degrees: VarOrLiteral;
 }
 
+/** Recall (fly back to the thrower) or remove projectiles. */
+export interface ProjectileRecallEvent extends EventBase {
+  type: "projectile_recall";
+  /** A sprite name, or "all". */
+  sprite: string;
+}
+
+export interface ProjectileRemoveEvent extends EventBase {
+  type: "projectile_remove";
+  /** A sprite name, or "all". */
+  sprite: string;
+}
+
 /** Text on screen, apart from the dialogue box. */
 export interface TextDrawEvent extends EventBase {
   type: "text_draw";
@@ -1086,6 +1119,8 @@ export type ScriptEventJSON =
   | ActorScaleByEvent
   | PlayerSetSpriteEvent
   | TextDrawEvent
+  | ProjectileRecallEvent
+  | ProjectileRemoveEvent
   | TextClearEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

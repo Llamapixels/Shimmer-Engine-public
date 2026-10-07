@@ -111,6 +111,11 @@ static void hide_from(ASprite *sprite, uint8_t from)
 }
 
 
+int sprite_sin(int degrees)
+{
+    return sin_deg(degrees);
+}
+
 void sprite_set_mosaic(int on)
 {
     obj_mosaic = on ? 0x1000 : 0;
