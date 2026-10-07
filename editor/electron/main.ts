@@ -31,6 +31,7 @@ import type {
 } from "../shared/ipc.js";
 import * as buildRunner from "./buildRunner.js";
 import { chooserOptions, emulatorCommand, installHint } from "./emulator.js";
+import { checkForUpdates } from "./updater.js";
 import * as projectIO from "./projectIO.js";
 
 // __dirname is a CommonJS global (see electron/tsconfig.json's doc
@@ -604,11 +605,35 @@ const REDDIT_URL = "https://www.reddit.com/r/ShimmerEngine/";
 
 /** The app menu: Electron's standard File/Edit/View/Window menus, then
  * Help (just About - no documentation links) and Community. */
+/** Check for Updates: saves the open project before an install quits. */
+function updateNow(): void {
+  void checkForUpdates(mainWindow, async () => {
+    sendMenuCommand({ kind: "save" });
+    await new Promise((r) => setTimeout(r, 1500));
+  });
+}
+
 function buildMenu(): Menu {
   const isMac = process.platform === "darwin";
   const showAbout = () => mainWindow?.webContents.send(IPC_CHANNELS.showAbout);
   const template: MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: "appMenu" as const }] : []),
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: "about" as const },
+              { label: "Check for Updates…", click: updateNow },
+              { type: "separator" as const },
+              { role: "hide" as const },
+              { role: "hideOthers" as const },
+              { role: "unhide" as const },
+              { type: "separator" as const },
+              { role: "quit" as const },
+            ],
+          },
+        ]
+      : []),
     {
       label: "File",
       submenu: [
@@ -677,9 +702,11 @@ function buildMenu(): Menu {
       label: "Community",
       submenu: [
         { label: "Shimmer Engine on Reddit", click: () => void shell.openExternal(REDDIT_URL) },
-        { label: "Check for Updates", click: () => void shell.openExternal(ITCH_URL) },
+        { label: "Shimmer Engine on itch.io", click: () => void shell.openExternal(ITCH_URL) },
       ],
     },
+    // A plain top-level item (macOS menus only allow these in the app menu).
+    ...(isMac ? [] : [{ label: "Check for Updates", click: updateNow }]),
   ];
   return Menu.buildFromTemplate(template);
 }

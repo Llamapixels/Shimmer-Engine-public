@@ -211,3 +211,27 @@ jobs:
           name: mac-installer
           path: editor/release/*.dmg
           if-no-files-found: error
+
+  # A version tag (v0.5.0-alpha...) publishes a GitHub release with the
+  # three installers; the editor's Check for Updates reads these.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-installer"
+          path: installers
+          merge-multiple: true
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" installers/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Shimmer Engine ${GITHUB_REF_NAME#v}" \
+            --generate-notes
