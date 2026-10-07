@@ -953,6 +953,8 @@ def convert_background(path, name, palette_map=None, tile_overrides=None, see_th
         "palette_count": len(banks),
         "map": screen,
         "colors": 1 + len(set().union(*[set(b) for b in banks])),
+        "banks": banks,
+        "backdrop": backdrop,
     }
 
 
@@ -1064,6 +1066,76 @@ def fit_collision(rows, w, h, scene_name):
           f"{w}x{h}; built with the extra cut off / the gap walkable. Open the scene in the "
           "editor to repaint it.")
     return [(rows[y] if y < len(rows) else "")[:w].ljust(w, ".") for y in range(h)]
+
+
+MAX_TILE_ANIM_TILES = 64
+
+
+def compile_tile_animations(anims, bg, scene_file, scene_name):
+    """Scene "tile_animations": [{"x", "y" (tile on the map), "width",
+    "height" (tiles, default 1), "image" (frames side by side, relative to
+    the scene file), "speed" (frames each is shown, default 8)}] ->
+    [(scene tile index, frame count, speed, 4bpp bytes frame by frame)],
+    one per animated 8x8 tile. Frames use the tile's own palette."""
+    if not anims:
+        return []
+    if not isinstance(anims, list):
+        raise BuildError(f"{scene_name}: \"tile_animations\" must be a list.")
+    out = {}
+    w, h = bg["width"], bg["height"]
+    for n, a in enumerate(anims):
+        where = f"{scene_name}: animated tiles {n + 1}"
+        if not isinstance(a, dict) or not a.get("image"):
+            raise BuildError(f"{where}: pick an image of frames.")
+        x = resolve_small_int(a.get("x", 0), "x", where, 0, w - 1)
+        y = resolve_small_int(a.get("y", 0), "y", where, 0, h - 1)
+        tw = resolve_small_int(a.get("width", 1), "width", where, 1, 8)
+        th = resolve_small_int(a.get("height", 1), "height", where, 1, 8)
+        speed = resolve_small_int(a.get("speed", 8), "speed", where, 1, 255)
+        if x + tw > w or y + th > h:
+            raise BuildError(f"{where}: the area goes past the edge of the map.")
+        path = scene_file.parent / a["image"]
+        if not path.exists():
+            raise BuildError(f"{where}: image not found: {a['image']}")
+        img = Image.open(path).convert("RGBA")
+        fw, fh = tw * TILE, th * TILE
+        if img.height != fh or img.width < fw * 2 or img.width % fw:
+            raise BuildError(f"{where}: the image must be {fh} px tall with at least 2 frames of {fw} px "
+                             f"side by side (it's {img.width}x{img.height}).")
+        frames = img.width // fw
+        px = img.load()
+        for j in range(th):
+            for i in range(tw):
+                entry = bg["map"][(y + j) * w + (x + i)]
+                tile, hf, vf, bank_i = entry & 0x3FF, (entry >> 10) & 1, (entry >> 11) & 1, entry >> 12
+                if tile == 0:
+                    raise BuildError(f"{where}: tile ({x + i}, {y + j}) is the plain backdrop colour, which "
+                                     "can't animate (it fills every empty spot). Pick tiles with some detail.")
+                bank = bg["banks"][bank_i]
+                data = []
+                for f in range(frames):
+                    idx = []
+                    for yy in range(8):
+                        for xx in range(8):
+                            sx = 7 - xx if hf else xx
+                            sy = 7 - yy if vf else yy
+                            r, g, b, al = px[f * fw + i * 8 + sx, j * 8 + sy]
+                            c = (r, g, b)
+                            if al == 0 or c == bg["backdrop"]:
+                                idx.append(0)
+                            elif c in bank:
+                                idx.append(1 + bank.index(c))
+                            else:
+                                raise BuildError(
+                                    f"{where}: frame {f + 1} uses #{r:02x}{g:02x}{b:02x}, which isn't in the "
+                                    f"palette of the map tile at ({x + i}, {y + j}). Animation frames can only "
+                                    "use that tile's colours.")
+                    for k in range(0, 64, 2):
+                        data.append(idx[k] | (idx[k + 1] << 4))
+                out[tile] = (tile, frames, speed, data)
+    if len(out) > MAX_TILE_ANIM_TILES:
+        raise BuildError(f"{scene_name}: {len(out)} animated tiles; the most is {MAX_TILE_ANIM_TILES}.")
+    return list(out.values())
 
 
 def parse_front(rows, w, h, scene_name):
@@ -3391,6 +3463,18 @@ def build(project_dir, out_dir):
                                grid, "{}", w if w <= 64 else 64))
         c_parts.append("")
 
+        # Animated tiles ("tile_animations").
+        anims = compile_tile_animations(scene.get("tile_animations"), bg, scene_file, name)
+        if anims:
+            for k, (tile, frames, speed, data) in enumerate(anims):
+                c_parts.append(c_array("uint8_t", f"{ident}_anim{k}", data, "0x{:02X}", 16))
+            c_parts.append(f"static const TileAnim {ident}_tile_anims[{len(anims)}] =")
+            c_parts.append("{")
+            for k, (tile, frames, speed, data) in enumerate(anims):
+                c_parts.append(f"    {{ {tile}, {frames}, {speed}, {ident}_anim{k} }},")
+            c_parts.append("};")
+            c_parts.append("")
+
         # Tiles in front of actors ("front_tiles": rows, "#" = in front).
         front_ref = "0"
         if scene.get("front_tiles") is not None:
@@ -3681,6 +3765,9 @@ def build(project_dir, out_dir):
             c_parts.append(f"    .ability_scripts = {ability_ref},")
         if front_ref != "0":
             c_parts.append(f"    .front_map     = {front_ref},")
+        if anims:
+            c_parts.append(f"    .tile_anims    = {ident}_tile_anims,")
+            c_parts.append(f"    .tile_anim_count = {len(anims)},")
         c_parts.append("};")
         c_parts.append("")
 

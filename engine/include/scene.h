@@ -79,6 +79,19 @@ typedef struct
 } NpcDef;
 
 /*
+ * An animated background tile: every `speed` frames the next of its
+ * `frames` frames (32 bytes of 4bpp pixels each, one after another) is
+ * copied over scene tile `tile`, so every copy of it on the map animates.
+ */
+typedef struct
+{
+    uint16_t tile;
+    uint8_t frames;
+    uint8_t speed;
+    const uint8_t *data;
+} TileAnim;
+
+/*
  * One parallax band (GB Studio's "Parallax" scene setting): `rows` screen
  * tile rows (the last band runs to the bottom of the screen) scrolling
  * horizontally at camera_x >> speed. speed 0 = normal, 1-8 = 1/2..1/256,
@@ -205,6 +218,10 @@ typedef struct
      * (the blank tile) elsewhere. Shown on BG2 above the sprites. 0 =
      * none. */
     const uint16_t *front_map;
+
+    /* Animated tiles (scene JSON "tile_animations"). */
+    const TileAnim *tile_anims;
+    uint8_t tile_anim_count;
 } SceneDef;
 
 /* Load background, palettes, collision and camera bounds. */

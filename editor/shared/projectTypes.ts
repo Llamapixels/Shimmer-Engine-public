@@ -239,6 +239,20 @@ export interface ParallaxLayerJSON {
 
 /** A full GBA background layer (BG2/BG3) behind or in front of the map.
  * The image is up to 512x256 or 256x512 and repeats. */
+/** Animated tiles: frames side by side in `image` (relative to the scene
+ * file, like "background"), each the size of the area. Every copy of
+ * those tiles on the map animates. */
+export interface TileAnimationJSON {
+  x: number;
+  y: number;
+  /** Area size in tiles (default 1). */
+  width?: number;
+  height?: number;
+  image: string;
+  /** Frames each frame is shown (default 8). */
+  speed?: number;
+}
+
 export interface BgLayerJSON {
   /** Relative to the scene file, like "background". */
   image: string;
@@ -306,6 +320,8 @@ export interface SceneJSON {
    * Omitted for a brand-new scene - the compiler fills in an all-walkable
    * grid and writes it back the first time it builds. */
   collision?: string[];
+  /** Animated tiles: a map area whose tiles cycle through frames. */
+  tile_animations?: TileAnimationJSON[];
   /** Tiles drawn in front of actors: rows like `collision`, "#" = in front. */
   front_tiles?: string[];
   /** Per-tile BG palette assignment: palette_map[y][x] is a PaletteJSON

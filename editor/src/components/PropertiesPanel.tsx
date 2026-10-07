@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import type { Direction, EventScript, ScriptEventJSON } from "../../shared/eventTypes";
 import type {
   BgLayerJSON,
+  TileAnimationJSON,
   DoorJSON,
   NpcJSON,
   PlayerJSON,
@@ -227,6 +228,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
         </FieldRow>
 
         <LayersEditor scene={scene} />
+        <TileAnimationsEditor scene={scene} />
 
         <ParallaxEditor scene={scene} />
 
@@ -670,6 +672,72 @@ function LayersEditor({ scene }: { scene: SceneRecord }) {
           + Add layer
         </button>
       )}
+    </FieldRow>
+  );
+}
+
+const TILE_ANIM_SPEEDS = [2, 4, 6, 8, 10, 12, 16, 20, 30, 45, 60];
+
+/** Animated tiles: map areas whose tiles cycle through frames from an image. */
+function TileAnimationsEditor({ scene }: { scene: SceneRecord }) {
+  const updateScene = useProjectStore((s) => s.updateScene);
+  const anims = scene.data.tile_animations ?? [];
+  const set = (next: TileAnimationJSON[], key?: string) =>
+    updateScene(scene.fileId, (s) => ({ ...s, tile_animations: next.length ? next : undefined }), key);
+  const patch = (i: number, p: Partial<TileAnimationJSON>, key?: string) =>
+    set(
+      anims.map((a, j) => (j === i ? { ...a, ...p } : a)),
+      key ? `anim${i}:${key}` : undefined,
+    );
+  return (
+    <FieldRow
+      label={`Animated tiles (${anims.length})`}
+      hint="Make tiles cycle through frames, like water or flowers. Pick the top-left tile of the area on the map, its size, and an image with the frames side by side (each frame the size of the area). Every copy of those tiles anywhere on the map animates. Frames can only use the colours those tiles already use."
+    >
+      {anims.map((a, i) => (
+        <div key={i} className="layer-card">
+          <div className="layer-card-head">
+            <span className="parallax-index">{i + 1}</span>
+            <span>
+              Tile {a.x}, {a.y}
+            </span>
+            <PickButton label="animated tiles" onPick={(x, y) => patch(i, { x, y })} />
+            <button
+              className="link-btn link-btn-danger"
+              onClick={(e) => {
+                e.preventDefault();
+                set(anims.filter((_, j) => j !== i));
+              }}
+            >
+              Remove
+            </button>
+          </div>
+          <BackgroundSelect value={a.image} onChange={(image) => patch(i, { image })} />
+          <div className="layer-grid">
+            <span>Width (tiles)</span>
+            <NumberInput value={a.width ?? 1} min={1} max={8} onChange={(width) => patch(i, { width }, "w")} />
+            <span>Height (tiles)</span>
+            <NumberInput value={a.height ?? 1} min={1} max={8} onChange={(height) => patch(i, { height }, "h")} />
+            <span title="How many frames (1/60 s) each animation frame is shown">Speed</span>
+            <select value={a.speed ?? 8} onChange={(e) => patch(i, { speed: Number(e.target.value) })}>
+              {TILE_ANIM_SPEEDS.map((v) => (
+                <option key={v} value={v}>
+                  {v} frames
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ))}
+      <button
+        className="btn btn-small"
+        onClick={(e) => {
+          e.preventDefault();
+          set([...anims, { x: 0, y: 0, width: 1, height: 1, image: "", speed: 8 }]);
+        }}
+      >
+        + Add animated tiles
+      </button>
     </FieldRow>
   );
 }

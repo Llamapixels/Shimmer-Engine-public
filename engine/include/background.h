@@ -70,7 +70,10 @@ void background_set_layers(const BgLayer *layers, int count);
 /* Tiles in front of actors (SceneDef.front_map, 0 = none): call after the
  * map is loaded or streaming has begun. Uses BG2 and the layers' screen
  * blocks, so a scene with it has no BG layers (the compiler checks). */
-void background_set_front(const uint16_t *map);   /* call right after each VBlankIntrWait() */
+void background_set_front(const uint16_t *map);
+
+/* Animated tiles (SceneDef.tile_anims), stepped by background_vblank(). */
+void background_set_tile_anims(const TileAnim *anims, int count);   /* call right after each VBlankIntrWait() */
 
 void background_set_scroll(
     int x,

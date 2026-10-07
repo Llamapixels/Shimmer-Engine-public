@@ -83,6 +83,11 @@ static int layer_cam_x = 0, layer_cam_y = 0;
 #define FRONT_MAP ((volatile uint16_t *)(0x06000000 + FRONT_SB * 0x800))
 static const uint16_t *front_map = 0;
 
+/* background_set_tile_anims(). */
+static const TileAnim *tile_anims = 0;
+static int tile_anim_count = 0;
+static uint32_t tile_anim_clock = 0;
+
 static const uint16_t *loaded_map = 0;
 static uint32_t loaded_width = 0;
 static uint32_t loaded_height = 0;
@@ -479,8 +484,35 @@ void background_set_front(const uint16_t *map)
     REG_DISPCNT |= BG2_ENABLE;
 }
 
+void background_set_tile_anims(const TileAnim *anims, int count)
+{
+    tile_anims = anims;
+    tile_anim_count = anims ? count : 0;
+    tile_anim_clock = 0;
+}
+
+/* Copy each animated tile's current frame into VRAM when it changes. */
+static void tile_anims_step(void)
+{
+    for (int i = 0; i < tile_anim_count; i++)
+    {
+        const TileAnim *a = &tile_anims[i];
+        int speed = a->speed ? a->speed : 1;
+        if (a->frames < 2 || tile_anim_clock % (uint32_t)speed)
+            continue;
+        const uint8_t *src = a->data + ((tile_anim_clock / (uint32_t)speed) % a->frames) * 32;
+        volatile uint16_t *dst = BG_TILES + a->tile * 16;
+        for (int j = 0; j < 16; j++)
+            dst[j] = src[j * 2] | ((uint16_t)src[j * 2 + 1] << 8);
+    }
+    tile_anim_clock++;
+}
+
 void background_vblank(void)
 {
+    if (tile_anim_count > 0)
+        tile_anims_step();
+
     if (layer_count > 0)
     {
         for (int i = 0; i < layer_count; i++)

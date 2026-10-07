@@ -52,6 +52,7 @@ void scene_load(const SceneDef *scene)
     }
 
     background_set_front(scene->front_map);
+    background_set_tile_anims(scene->tile_anims, scene->tile_anim_count);
 
     collision_set_map(
         scene->collision,
