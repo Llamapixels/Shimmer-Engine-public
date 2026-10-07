@@ -320,6 +320,8 @@ export interface SceneJSON {
    * Omitted for a brand-new scene - the compiler fills in an all-walkable
    * grid and writes it back the first time it builds. */
   collision?: string[];
+  /** Where the scene sits on the editor's world map (px). Editor only. */
+  world_pos?: { x: number; y: number };
   /** Animated tiles: a map area whose tiles cycle through frames. */
   tile_animations?: TileAnimationJSON[];
   /** Tiles drawn in front of actors: rows like `collision`, "#" = in front. */

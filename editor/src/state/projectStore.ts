@@ -170,6 +170,8 @@ interface ProjectState {
   /** id of the prefab armed for placement with the "placePrefab" tool. */
   placingPrefabId: string | null;
   tilePick: TilePick | null;
+  /** Game World shows the world map (every scene) instead of one scene. */
+  worldMap: boolean;
   loading: boolean;
   error: string | null;
   saveError: string | null;
@@ -205,6 +207,7 @@ interface ProjectState {
   setPaletteBrush: (id: string | null) => void;
   setPlacingPrefab: (id: string | null) => void;
   setTilePick: (pick: TilePick | null) => void;
+  setWorldMap: (on: boolean) => void;
   setScriptClipboard: (events: EventScript | null) => void;
   setHoverTile: (tile: { x: number; y: number } | null) => void;
 
@@ -303,6 +306,7 @@ function loadedState(data: ProjectData) {
     section: "world" as Section,
     tool: "select" as Tool,
     tilePick: null,
+    worldMap: false,
     loading: false,
     error: null,
     saveError: null,
@@ -437,6 +441,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     paletteBrush: null,
     placingPrefabId: null,
     tilePick: null,
+    worldMap: false,
     loading: false,
     error: null,
     saveError: null,
@@ -519,7 +524,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setTileStamp: (tileStamp) => set({ tileStamp, tool: "tiles", tilePick: null }),
     setPaletteBrush: (paletteBrush) => set({ paletteBrush, tool: "palette", tilePick: null }),
     setPlacingPrefab: (placingPrefabId) => set({ placingPrefabId, tool: placingPrefabId ? "placePrefab" : "select", tilePick: null }),
-    setTilePick: (tilePick) => set({ tilePick, section: tilePick ? "world" : get().section }),
+    setTilePick: (tilePick) => set({ tilePick, section: tilePick ? "world" : get().section, worldMap: tilePick ? false : get().worldMap }),
+    setWorldMap: (worldMap) => set({ worldMap }),
     setScriptClipboard: (scriptClipboard) => set({ scriptClipboard }),
     setHoverTile: (hoverTile) => set({ hoverTile }),
 

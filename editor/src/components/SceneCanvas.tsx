@@ -232,6 +232,7 @@ export default function SceneCanvas() {
    * put (cursor-centered zoom). */
   const zoomAnchorRef = useRef<{ pointX: number; pointY: number; offsetX: number; offsetY: number; scale: number } | null>(null);
   const setHoverTile = useProjectStore((s) => s.setHoverTile);
+  const setWorldMap = useProjectStore((s) => s.setWorldMap);
 
   useEffect(() => {
     setHoverTile(hover);
@@ -1159,6 +1160,9 @@ export default function SceneCanvas() {
   return (
     <div className="scene-canvas-wrap">
       <div className="scene-canvas-toolbar">
+        <button className="btn btn-small" title="See every scene and how they connect" onClick={() => setWorldMap(true)}>
+          World map
+        </button>
         <div className="tool-group" role="toolbar" aria-label="Canvas tools">
           {TOOLS.map((t, i) => (
             <span key={t.id} className="tool-slot">

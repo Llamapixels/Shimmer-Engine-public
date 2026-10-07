@@ -8,6 +8,7 @@ import BuildRomPanel from "./components/BuildRomPanel";
 import Toolbar from "./components/Toolbar";
 import Navigator from "./components/Navigator";
 import SceneCanvas from "./components/SceneCanvas";
+import WorldMap from "./components/WorldMap";
 import PropertiesPanel from "./components/PropertiesPanel";
 import StatusBar from "./components/StatusBar";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -49,6 +50,7 @@ export default function App() {
   const project = useProjectStore((s) => s.project);
   const loading = useProjectStore((s) => s.loading);
   const section = useProjectStore((s) => s.section);
+  const worldMap = useProjectStore((s) => s.worldMap);
   const [panelWidth, setPanelWidth] = useState(loadPanelWidth);
   const resizing = useRef(false);
   const panelWidthRef = useRef(panelWidth);
@@ -158,7 +160,7 @@ export default function App() {
       {section === "world" ? (
         <div className="app-body" style={{ gridTemplateColumns: `240px 1fr 5px ${panelWidth}px` }}>
           <Navigator />
-          <SceneCanvas />
+          {worldMap ? <WorldMap /> : <SceneCanvas />}
           <div
             className="col-resizer"
             onMouseDown={(e) => {

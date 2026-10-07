@@ -1,0 +1,89 @@
+.world-map {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-canvas, #1b1b1f);
+}
+.world-map-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border, #333);
+}
+.world-map-zoom {
+  min-width: 42px;
+  text-align: center;
+  opacity: 0.8;
+}
+.world-map-hint {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 11px;
+}
+.world-map-area {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+}
+.world-map-panning {
+  cursor: grabbing;
+}
+.world-map-plane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.world-map-scene {
+  position: absolute;
+  cursor: move;
+  outline: 2px solid rgba(255, 255, 255, 0.15);
+}
+.world-map-scene img {
+  display: block;
+  image-rendering: pixelated;
+  width: 100%;
+  height: 100%;
+}
+.world-map-scene-active {
+  outline: 3px solid var(--accent, #a36bff);
+}
+.world-map-label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  white-space: nowrap;
+  padding-bottom: 2px;
+  color: var(--text, #ddd);
+}
+.world-map-missing {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim, #888);
+}
+.world-map-links {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+.world-map-link {
+  fill: none;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+.world-map-link-door {
+  stroke: #ffcc4d;
+}
+.world-map-link-actor {
+  stroke: #6fd3ff;
+}
+.world-map-link-scene {
+  stroke: #ff7ab8;
+}
