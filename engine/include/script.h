@@ -29,8 +29,10 @@ typedef enum
 {
     SCRIPT_END = 0,        /* stop - no operands */
     SCRIPT_TEXT,             /* str = dialogue text, a = box options (dialogue.h
-                              * DIALOGUE_OPT_*), b = custom box place
-                              * (DIALOGUE_PLACE); pauses until dismissed */
+                              * DIALOGUE_OPT_*; bits 6-7 = DIALOGUE_FOCUS_*),
+                              * b = custom box place (DIALOGUE_PLACE);
+                              * pauses until dismissed. SCRIPT_CHOICE's a
+                              * and SCRIPT_MENU's c are its focus too. */
     SCRIPT_SET_FLAG,          /* a = flag index */
     SCRIPT_CLEAR_FLAG,        /* a = flag index */
     SCRIPT_IF_FLAG,           /* a = flag index, b = instruction index to

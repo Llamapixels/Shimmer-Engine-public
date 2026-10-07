@@ -34,6 +34,13 @@ void dialogue_show(const char *text);
 #define DIALOGUE_PLACE_W(p)      (((p) >> 10) & 31)
 void dialogue_show_ex(const char *text, int options, int place);
 
+/* "Focus" for the next box (text, choice or menu) until it closes:
+ * DIALOGUE_FOCUS_DIM darkens and DIALOGUE_FOCUS_BLUR pixelates
+ * (mosaic) everything but the box. 0 = off. */
+#define DIALOGUE_FOCUS_DIM   1
+#define DIALOGUE_FOCUS_BLUR  2
+void dialogue_set_focus(int focus);
+
 /* Is a dialogue box currently on screen? */
 int dialogue_active(void);
 

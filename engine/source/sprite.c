@@ -77,6 +77,9 @@ static int sin_deg(int a)
     return -SIN_Q12[360 - a];
 }
 
+/* sprite_set_mosaic(): attribute 0 bit 12 on every OBJ written. */
+static uint16_t obj_mosaic = 0;
+
 static uint16_t next_oam = FRONT_OAM;
 static uint16_t next_tile = 0;
 static uint16_t next_front = 0;
@@ -107,6 +110,11 @@ static void hide_from(ASprite *sprite, uint8_t from)
         write_hidden(sprite->oam[i]);
 }
 
+
+void sprite_set_mosaic(int on)
+{
+    obj_mosaic = on ? 0x1000 : 0;
+}
 
 void sprite_use_front(int on)
 {
@@ -360,7 +368,7 @@ static void write_affine_objs(ASprite *sprite, const ASpriteFrame *f, uint8_t co
             continue;
         }
 
-        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | (o->attr0 & 0xC000) | ADV_ATTR0_AFFINE_DOUBLE;
+        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | (o->attr0 & 0xC000) | ADV_ATTR0_AFFINE_DOUBLE | obj_mosaic;
         ADV_OAM[oam * 4 + 1] = (uint16_t)(x & 0x1FF) | (o->attr1 & 0xC000) | (uint16_t)(m << 9);
         ADV_OAM[oam * 4 + 2] =
             (uint16_t)((sprite->tile_index + o->tile_offset) & 0x3FF) |
@@ -407,7 +415,7 @@ static void write_objs(ASprite *sprite, int screen_x, int screen_y)
             continue;
         }
 
-        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | o->attr0;   /* 4bpp, normal mode */
+        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | o->attr0 | obj_mosaic;   /* 4bpp, normal mode */
         ADV_OAM[oam * 4 + 1] = (uint16_t)(x & 0x1FF) | o->attr1;
         ADV_OAM[oam * 4 + 2] =
             (uint16_t)((sprite->tile_index + o->tile_offset) & 0x3FF) |

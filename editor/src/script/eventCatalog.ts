@@ -271,6 +271,18 @@ export const EVENT_DEFS: EventDef[] = [
       { key: "box_width", label: "Width (tiles)", kind: "int", min: 1, max: 30, defaultValue: 30, showIf: (e) => e.position === "custom" },
       { key: "rows", label: "Rows", kind: "int", min: 1, max: 4, defaultValue: 2 },
       { key: "frame", label: "Frame", kind: "bool", defaultValue: true },
+      {
+        key: "focus",
+        label: "Focus",
+        kind: "select",
+        defaultValue: "none",
+        options: [
+          { value: "none", label: "Off" },
+          { value: "dim", label: "Dim the rest" },
+          { value: "blur", label: "Blur the rest" },
+          { value: "dim_blur", label: "Dim and blur the rest" },
+        ],
+      },
     ],
     create: () => ({ type: "text", text: "" }),
     summary: (ev) => `"${short(ev.text)}"`,
@@ -283,6 +295,18 @@ export const EVENT_DEFS: EventDef[] = [
     fields: [
       { key: "prompt", label: "Prompt", kind: "text" },
       { key: "options", label: "Options", kind: "choiceOptions" },
+      {
+        key: "focus",
+        label: "Focus",
+        kind: "select",
+        defaultValue: "none",
+        options: [
+          { value: "none", label: "Off" },
+          { value: "dim", label: "Dim the rest" },
+          { value: "blur", label: "Blur the rest" },
+          { value: "dim_blur", label: "Dim and blur the rest" },
+        ],
+      },
     ],
     branches: [
       { key: "then", label: "First option" },
@@ -296,7 +320,20 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Menu",
     category: "Dialogue",
     description: "A 2-4 option menu; each option runs its own events. Put a Display Text before it for a question.",
-    fields: [],
+    fields: [
+      {
+        key: "focus",
+        label: "Focus",
+        kind: "select",
+        defaultValue: "none",
+        options: [
+          { value: "none", label: "Off" },
+          { value: "dim", label: "Dim the rest" },
+          { value: "blur", label: "Blur the rest" },
+          { value: "dim_blur", label: "Dim and blur the rest" },
+        ],
+      },
+    ],
     menuOptions: true,
     create: () => ({
       type: "menu",

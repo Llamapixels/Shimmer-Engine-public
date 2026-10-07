@@ -553,14 +553,21 @@ static void thread_step(ScriptThread *t, int is_main)
                 return;
             }
             if (ev->op == SCRIPT_TEXT)
+            {
+                dialogue_set_focus((ev->a >> 6) & 3);
                 dialogue_show_ex(ev->str, ev->a, ev->b);
+            }
             else if (ev->op == SCRIPT_CHOICE)
             {
+                dialogue_set_focus(ev->a & 3);
                 dialogue_show_choice(ev->str);
                 t->pending_choice_jump = ev->b;
             }
             else
+            {
+                dialogue_set_focus(ev->c & 3);
                 dialogue_show_menu(ev->str, ev->a);
+            }
             audio_play_blip();
             t->owns_dialogue = 1;
             return;

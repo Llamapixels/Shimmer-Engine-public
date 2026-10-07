@@ -5,6 +5,11 @@
 #include "input.h"
 #include "state.h"   /* var_get() - variable interpolation */
 #include "ui.h"
+#include "sprite.h"       /* sprite_set_mosaic() - focus blur */
+#include "transition.h"   /* transition_active() - focus vs fades */
+
+static void focus_start(void);
+static void focus_end(void);
 
 /*
  * Text boxes, choices and menus, drawn with ui.c's fonts and frames.
@@ -325,8 +330,67 @@ static void open_options(const char *packed, int count, int prompt)
     cursor = 0;
     text_lines = TEXT_LINES;
     ui_box_open(count + (prompt ? 1 : 0));
+    focus_start();
     draw_options();
     input_block_presses(DIALOGUE_INPUT_DELAY);
+}
+
+/* ------------------------------------------------------------------ */
+/* Focus: dim and/or blur everything but the box (BG1) while it's open.  */
+
+#define FOCUS_BLEND  ((1 << 0) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (3 << 6))
+#define FOCUS_LEVEL  9           /* of 16: how dark */
+#define FOCUS_MOSAIC 0x3333      /* 4x4 blocks, BGs and sprites */
+
+static int focus_next;           /* dialogue_set_focus(), for the next box */
+static int focus_on;             /* what the open box turned on */
+
+void dialogue_set_focus(int focus)
+{
+    focus_next = focus & 3;
+}
+
+static void focus_start(void)
+{
+    focus_on = 0;
+    int f = focus_next;
+    focus_next = 0;
+    if (!f)
+        return;
+    if ((f & DIALOGUE_FOCUS_DIM) && !transition_active() && REG_BLDCNT == 0)
+    {
+        REG_BLDCNT = FOCUS_BLEND;
+        REG_BLDY = FOCUS_LEVEL;
+        focus_on |= DIALOGUE_FOCUS_DIM;
+    }
+    if (f & DIALOGUE_FOCUS_BLUR)
+    {
+        REG_MOSAIC = FOCUS_MOSAIC;
+        REG_BG0CNT |= 1 << 6;
+        REG_BG2CNT |= 1 << 6;
+        REG_BG3CNT |= 1 << 6;
+        sprite_set_mosaic(1);
+        focus_on |= DIALOGUE_FOCUS_BLUR;
+    }
+}
+
+static void focus_end(void)
+{
+    /* Undo only what's still ours (a fade may have taken the blend). */
+    if ((focus_on & DIALOGUE_FOCUS_DIM) && REG_BLDCNT == FOCUS_BLEND && !transition_active())
+    {
+        REG_BLDCNT = 0;
+        REG_BLDY = 0;
+    }
+    if (focus_on & DIALOGUE_FOCUS_BLUR)
+    {
+        REG_BG0CNT &= (uint16_t)~(1 << 6);
+        REG_BG2CNT &= (uint16_t)~(1 << 6);
+        REG_BG3CNT &= (uint16_t)~(1 << 6);
+        REG_MOSAIC = 0;
+        sprite_set_mosaic(0);
+    }
+    focus_on = 0;
 }
 
 void dialogue_init(void)
@@ -353,6 +417,7 @@ void dialogue_show_ex(const char *text, int options, int place)
         ui_box_open_at(text_lines, DIALOGUE_PLACE_X(place), DIALOGUE_PLACE_Y(place), DIALOGUE_PLACE_W(place), framed);
     else
         ui_box_open_ex(text_lines, DIALOGUE_OPT_POSITION(options), framed);
+    focus_start();
     start_page(text, st);
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
@@ -387,6 +452,7 @@ static void close_box(void)
 {
     mode = MODE_NONE;
     ui_box_close();
+    focus_end();
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 

@@ -215,6 +215,8 @@ Event script types (used in "on_interact" and door "events" lists):
     { "type": "text", "text": "..." }
         Show a dialogue box. "\n" in the text starts a new page. Pauses the
         script until the player dismisses it.
+        "focus": "none" | "dim" | "blur" | "dim_blur" dims and/or blurs
+        everything but the box while it's open (choice and menu too).
         Optional box options: "position": "bottom" | "top" | "middle",
         "rows": 1-4 (text lines, default 2), "frame": false (text only,
         no box).
@@ -627,6 +629,8 @@ TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!
 
 # Display Text "position" -> engine/include/ui.h UI_BOX_*.
 TEXT_POSITIONS = {"bottom": 0, "top": 1, "middle": 2, "custom": 3}
+# Text/choice/menu "focus": dim and/or blur everything but the box.
+TEXT_FOCUS = {"none": 0, "dim": 1, "blur": 2, "dim_blur": 3}
 
 # Move Actor To / Set Actor Position options -> engine/include/script.h
 # MOVE_F_* flags.
@@ -1467,6 +1471,14 @@ def resolve_text_color(value, ctx, where):
     return idx
 
 
+def text_focus(ev, where):
+    """A text/choice/menu event's "focus" -> DIALOGUE_FOCUS_* bits."""
+    focus = str(ev.get("focus", "none")).lower()
+    if focus not in TEXT_FOCUS:
+        raise BuildError(f"{where}: \"focus\" must be one of: {', '.join(TEXT_FOCUS)}.")
+    return TEXT_FOCUS[focus]
+
+
 def text_options(ev, where):
     """Display Text's box options -> SCRIPT_TEXT's `a` and `b` (see
     engine/include/dialogue.h DIALOGUE_OPT_* / DIALOGUE_PLACE_*)."""
@@ -1477,7 +1489,8 @@ def text_options(ev, where):
     if isinstance(rows, bool) or not isinstance(rows, int) or not 1 <= rows <= 4:
         raise BuildError(f"{where}: \"rows\" must be 1 to 4.")
     framed = ev.get("frame", True) is not False
-    a = TEXT_POSITIONS[pos] | ((0 if rows == 2 else rows) << 2) | (0 if framed else 0x20)
+    a = (TEXT_POSITIONS[pos] | ((0 if rows == 2 else rows) << 2) | (0 if framed else 0x20)
+         | (text_focus(ev, where) << 6))
     b = 0
     if pos == "custom":
         bx = resolve_small_int(ev.get("box_x", 0), "box_x", where, 0, 29)
@@ -1826,7 +1839,7 @@ def compile_events(events, out, ctx, where):
             options = [interpolate_vars(o, ctx, ev_where) for o in options]
             packed = f"{prompt}\x01{options[0]}\x01{options[1]}"
             _compile_branch(
-                out, "SCRIPT_CHOICE", {"text": c_string_literal(packed)}, "b",
+                out, "SCRIPT_CHOICE", {"text": c_string_literal(packed), "a": text_focus(ev, ev_where)}, "b",
                 ev, ctx, ev_where)
 
         elif etype == "menu":
@@ -1845,7 +1858,8 @@ def compile_events(events, out, ctx, where):
 
             labels = [interpolate_vars(opt["label"], ctx, ev_where) for opt in options]
             packed = "\x01".join(labels)
-            out.append(_instr("SCRIPT_MENU", a=len(options), text=c_string_literal(packed)))
+            out.append(_instr("SCRIPT_MENU", a=len(options), c=text_focus(ev, ev_where),
+                              text=c_string_literal(packed)))
             _compile_menu_chain(out, options, 0, ctx, ev_where)
 
         elif etype == "start_timer":

@@ -85,6 +85,9 @@ void sprite_use_front(int on);
 uint32_t sprite_alloc_mark(void);
 void sprite_alloc_reset(uint32_t mark);
 
+/* Draw every sprite with the mosaic effect (REG_MOSAIC's OBJ size). */
+void sprite_set_mosaic(int on);
+
 /* Load a 16-color palette into OBJ palette bank 0-15. */
 void sprite_load_palette(int bank, const uint16_t *palette);
 

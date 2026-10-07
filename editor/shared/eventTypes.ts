@@ -58,7 +58,11 @@ export interface TextEvent extends EventBase {
   rows?: number;
   /** false = no frame: just the text, on a see-through background. */
   frame?: boolean;
+  focus?: TextFocus;
 }
+
+/** Text/choice/menu: dim and/or blur everything but the box while it's open. */
+export type TextFocus = "none" | "dim" | "blur" | "dim_blur";
 
 /** Dialogue look from here on (compiler/ui.py): a font/frame name
  * (assets/fonts, assets/frames, or "default"), or frames per character. */
@@ -269,6 +273,7 @@ export interface ChoiceEvent extends EventBase {
   type: "choice";
   prompt: string;
   options: [string, string];
+  focus?: TextFocus;
   then?: EventScript;
   else?: EventScript;
 }
@@ -281,6 +286,7 @@ export interface MenuOption {
 export interface MenuEvent extends EventBase {
   type: "menu";
   options: MenuOption[];
+  focus?: TextFocus;
 }
 
 export interface StartTimerEvent extends EventBase {
