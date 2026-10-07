@@ -54,7 +54,8 @@ export type FieldKind =
   | "float"
   | "engineSetting"
   | "engineValue"
-  | "cutscene";
+  | "cutscene"
+  | "scriptArgs";
 
 export interface FieldDef {
   /** JSON key. For "tilePos"/"offset" this is a prefix-less pair: the
@@ -1067,9 +1068,17 @@ export const EVENT_DEFS: EventDef[] = [
       "Run one of this project's Custom Scripts here. Inline-expanded at compile time (a copy, not a live link) - " +
       "editing the custom script later changes every place that calls it, but a cycle (a script calling itself, " +
       "directly or through another script) is a compile error.",
-    fields: [{ key: "script", label: "Script", kind: "customScript" }],
+    fields: [
+      { key: "script", label: "Script", kind: "customScript" },
+      { key: "args", label: "", kind: "scriptArgs" },
+    ],
     create: (c) => ({ type: "call_script", script: c.firstCustomScript ?? "" }),
-    summary: (ev) => ev.script || "(no script)",
+    summary: (ev) => {
+      const args = Object.entries(ev.args ?? {}).map(
+        ([k, a]) => `${k}: ${typeof a === "number" ? a : "actor" in a ? actorLabel(a.actor) : a.var}`,
+      );
+      return (ev.script || "(no script)") + (args.length ? ` (${args.join(", ")})` : "");
+    },
   }),
 
   // ---- Math ----

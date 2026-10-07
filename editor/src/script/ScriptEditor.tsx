@@ -90,7 +90,13 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
       items: project?.project.items ?? [],
       variables: project?.project.variables ?? [],
       sceneNames: (project?.scenes ?? []).map(sceneName),
-      firstActor: env.allowSelf ? "self" : npcs.length ? npcs[0].name || 0 : null,
+      firstActor: env.allowSelf
+        ? "self"
+        : env.params?.some((p) => p.kind === "actor")
+          ? `@${env.params.find((p) => p.kind === "actor")!.name}`
+          : npcs.length
+            ? npcs[0].name || 0
+            : null,
       firstTimer: timers.length ? timers[0].name || 0 : null,
       firstCustomScript: project?.project.customScripts?.[0]?.id ?? null,
       firstMusicTrack: assets?.music?.[0]?.name ?? null,
@@ -417,7 +423,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
   );
 });
 
-const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits"]);
+const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits", "scriptArgs"]);
 
 const MAX_MENU_OPTIONS = 4;
 const MIN_MENU_OPTIONS = 2;

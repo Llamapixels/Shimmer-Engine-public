@@ -44,6 +44,8 @@ interface Props {
   kind: NamedListKind;
   value: string;
   onChange: (name: string) => void;
+  /** A custom script's inputs ("@name"), offered first. */
+  extra?: string[];
 }
 
 const NEW = "\u0000new";
@@ -51,14 +53,14 @@ const NEW = "\u0000new";
 /** Pick a project-wide flag/item/variable, or create a new one inline
  * (it's added to project.json straight away, like GB Studio's own
  * "add variable" from inside an event). */
-export default function NamedListSelect({ kind, value, onChange }: Props) {
+export default function NamedListSelect({ kind, value, onChange, extra = [] }: Props) {
   const list = useProjectStore((s) => s.project?.project[kind]) ?? [];
   const updateProject = useProjectStore((s) => s.updateProject);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const missing = value !== "" && !list.includes(value);
+  const missing = value !== "" && !list.includes(value) && !extra.includes(value);
 
   const create = () => {
     const err = validateName(kind, draft, list);
@@ -120,6 +122,11 @@ export default function NamedListSelect({ kind, value, onChange }: Props) {
     >
       {value === "" && <option value="">Choose a {NOUN[kind]}…</option>}
       {missing && <option value={value}>{value} (not in project!)</option>}
+      {extra.map((n) => (
+        <option key={n} value={n}>
+          {n} (input)
+        </option>
+      ))}
       {list.map((n) => (
         <option key={n} value={n}>
           {n}

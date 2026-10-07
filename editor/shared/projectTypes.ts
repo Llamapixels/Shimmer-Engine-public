@@ -28,6 +28,14 @@ export interface CustomScriptJSON {
   id: string;
   name: string;
   script: EventScript;
+  /** Inputs, written "@name" in the script in place of an actor, a
+   * variable or a number; each Call Script fills them in. */
+  params?: ScriptParam[];
+}
+
+export interface ScriptParam {
+  name: string;
+  kind: "actor" | "variable" | "number";
 }
 
 /** A named BG palette bank: up to COLORS_PER_BANK (15) hex colors,

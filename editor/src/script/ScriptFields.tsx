@@ -13,10 +13,11 @@ import type {
   MathOp,
   PaletteTarget,
   PositionUnits,
+  ScriptArg,
   ScriptEventJSON,
   SoundEffect,
 } from "../../shared/eventTypes";
-import type { SceneJSON, SceneRecord } from "../../shared/projectTypes";
+import type { SceneJSON, SceneRecord, ScriptParam } from "../../shared/projectTypes";
 import CommitInput from "../components/common/CommitInput";
 import NamedListSelect from "../components/common/NamedListSelect";
 import NumberInput from "../components/common/NumberInput";
@@ -35,7 +36,12 @@ export interface ScriptEnv {
   scenes: SceneRecord[];
   /** Only an NPC's own on_interact may use "self". */
   allowSelf: boolean;
+  /** A custom script's inputs, usable as "@name". */
+  params?: ScriptParam[];
 }
+
+const paramRefs = (env: ScriptEnv, ...kinds: ScriptParam["kind"][]) =>
+  (env.params ?? []).filter((p) => kinds.includes(p.kind)).map((p) => `@${p.name}`);
 
 const DIRECTIONS: Direction[] = ["down", "up", "left", "right"];
 const SOUNDS: SoundEffect[] = ["blip", "door", "save", "item"];
@@ -167,6 +173,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           kind={field.kind === "flag" ? "flags" : field.kind === "item" ? "items" : "variables"}
           value={String(value ?? "")}
           onChange={(name) => patch({ [field.key]: name })}
+          extra={field.kind === "variable" ? paramRefs(env, "variable") : undefined}
         />
       );
 
@@ -194,6 +201,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
               kind="variables"
               value={(value as { var: string }).var}
               onChange={(name) => patch({ [field.key]: { var: name } })}
+              extra={paramRefs(env, "variable", "number")}
             />
           ) : (
             <>
@@ -232,6 +240,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       const encode = (v: unknown) => JSON.stringify(v ?? null);
       const choices: { value: string | number; label: string }[] = [{ value: "player", label: "Player" }];
       if (env.allowSelf) choices.push({ value: "self", label: "Self (this NPC)" });
+      for (const p of paramRefs(env, "actor")) choices.push({ value: p, label: `${p} (input)` });
       npcs.forEach((n, i) => {
         choices.push({
           value: n.name ? n.name : i,
@@ -323,6 +332,40 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             </option>
           ))}
         </select>
+      );
+    }
+
+    case "scriptArgs": {
+      const params = customScripts.find((s) => s.id === rec.script)?.params ?? [];
+      if (!params.length) return null;
+      const args = (value && typeof value === "object" ? value : {}) as Record<string, ScriptArg>;
+      const set = (name: string, a: ScriptArg) => patch({ [field.key]: { ...args, [name]: a } });
+      return (
+        <div className="script-args">
+          {params.map((p) => {
+            const a = args[p.name];
+            const sub = (kind: FieldDef["kind"], v: unknown, wrap: (x: unknown) => ScriptArg) => (
+              <FieldControl
+                field={{ key: "v", label: p.name, kind }}
+                ev={{ type: "call_script", script: "", v } as unknown as ScriptEventJSON}
+                env={env}
+                patch={(c) => set(p.name, wrap(c.v))}
+              />
+            );
+            return (
+              <div key={p.name} className="script-arg">
+                <span className="script-arg-name">{p.name}</span>
+                {p.kind === "actor"
+                  ? sub("actor", a && typeof a === "object" && "actor" in a ? a.actor : undefined, (x) => ({
+                      actor: x as string | number,
+                    }))
+                  : p.kind === "variable"
+                    ? sub("variable", a && typeof a === "object" && "var" in a ? a.var : "", (x) => ({ var: String(x) }))
+                    : sub("varOrLiteral", a ?? 0, (x) => x as ScriptArg)}
+              </div>
+            );
+          })}
+        </div>
       );
     }
 

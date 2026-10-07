@@ -253,6 +253,11 @@ Event script types (used in "on_interact" and door "events" lists):
         "land_state" to switch animation state); "follow": true keeps it
         at its offset from the thrower (melee, with speed 0);
         "mirror_offset": true flips offset_x when fired to the left.
+    { "type": "call_script", "script": "<id>", "args": { "<input>": value } }
+        Inlines a custom script. Scripts with "params" ([{ "name", "kind":
+        "actor" | "variable" | "number" }]) use "@name" in place of an actor,
+        a variable or a number; "args" gives each one: {"actor": <actor>},
+        {"var": "<variable>"}, or a plain number.
     { "type": "projectile_recall" | "projectile_remove", "sprite": "<name>" | "all" }
         Send projectiles back to their thrower (stuck ones too), or remove them.
     { "type": "text_set_font", "font": "<name>" }
@@ -1341,6 +1346,67 @@ PLAYER_ACTOR_INDEX = -2
 
 # "hits" names -> projectile.h's PROJ_P_TARGET bits (bit 0 player, bit g group g).
 PROJECTILE_TARGETS = {"player": 1, "group1": 2, "group2": 4, "group3": 8, "actors": 14}
+# Custom script inputs ("params"), written "@name" inside the script.
+PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+PARAM_KINDS = ("actor", "variable", "number")
+PARAM_TOKEN = re.compile(r"(?<![\w@])@([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _bind_script_args(script, params, args, where, script_id):
+    """A copy of a custom script's events with each "@input" filled in from
+    a call_script's "args" ({name: {"actor": a} | {"var": v} | number})."""
+    if args is not None and not isinstance(args, dict):
+        raise BuildError(f"{where}: \"args\" must be an object of input values.")
+    args = args or {}
+    values = {}
+    for p in params:
+        name, kind = p["name"], p.get("kind", "variable")
+        a = args.get(name)
+        if a is None and kind == "number":
+            a = 0
+        missing = BuildError(f"{where}: custom script '{script_id}' needs a value for its input '{name}'.")
+        if a is None or a == "":
+            raise missing
+        if kind == "actor":
+            v = a.get("actor") if isinstance(a, dict) else a
+            if v is None or v == "" or isinstance(v, bool):
+                raise missing
+            values[name] = ("actor", v)
+        elif isinstance(a, dict):
+            v = a.get("var")
+            if not isinstance(v, str) or not v:
+                raise missing
+            values[name] = ("variable", v)
+        elif kind == "variable" and isinstance(a, str):
+            values[name] = ("variable", a)
+        elif kind == "number" and isinstance(a, (int, float)) and not isinstance(a, bool):
+            values[name] = ("number", a)
+        else:
+            raise BuildError(f"{where}: input '{name}' of custom script '{script_id}' must be a "
+                             f"{'variable' if kind == 'variable' else 'number or a variable'}.")
+
+    def in_text(m):
+        hit = values.get(m.group(1))
+        return str(hit[1]) if hit and hit[0] != "actor" else m.group(0)
+
+    def sub(node):
+        if isinstance(node, str):
+            if node.startswith("@") and node[1:] in values:
+                return values[node[1:]][1]
+            return PARAM_TOKEN.sub(in_text, node) if "@" in node else node
+        if isinstance(node, dict):
+            v = node.get("var")
+            if len(node) == 1 and isinstance(v, str) and v.startswith("@") and v[1:] in values:
+                kind, val = values[v[1:]]
+                return val if kind == "number" else {"var": val}
+            return {k: sub(x) for k, x in node.items()}
+        if isinstance(node, list):
+            return [sub(x) for x in node]
+        return node
+
+    return sub(script)
+
+
 PROJECTILE_DIRECTIONS = {"right": (1, 0), "left": (-1, 0), "up": (0, -1), "down": (0, 1)}
 # "path" -> (PROJ_PATH_*, default gravity, default lift) in px per frame.
 PROJECTILE_PATHS = {"straight": (0, 0, 0), "wave": (1, 0, 0), "arc_high": (2, 0.2, 4),
@@ -2038,13 +2104,17 @@ def compile_events(events, out, ctx, where):
                     f"{ev_where}: custom script call cycle: {chain}. "
                     "A custom script can't call itself, directly or "
                     "through another custom script.")
+            body = custom_scripts[script_id]
+            params = ctx.get("custom_script_params", {}).get(script_id)
+            if params:
+                body = _bind_script_args(body, params, ev.get("args"), ev_where, script_id)
             call_stack.append(script_id)
             try:
                 # Inline-expand: splice a compiled copy of the target
                 # script's events in place, like a macro/include - no new
                 # VM opcode or call stack needed in the C engine.
                 compile_events(
-                    custom_scripts[script_id], out, ctx,
+                    body, out, ctx,
                     f"{ev_where} -> custom script '{script_id}'")
             finally:
                 call_stack.pop()
@@ -3247,6 +3317,7 @@ def build(project_dir, out_dir):
     # event references their id - see compile_events().
     custom_script_list = project.get("customScripts", [])
     custom_scripts = {}
+    custom_script_params = {}
     for i, cs in enumerate(custom_script_list):
         if not isinstance(cs, dict) or "id" not in cs or "script" not in cs:
             raise BuildError(
@@ -3256,6 +3327,21 @@ def build(project_dir, out_dir):
             raise BuildError(
                 f"project.json customScripts has duplicate id '{cs['id']}'.")
         custom_scripts[cs["id"]] = cs["script"]
+        params = cs.get("params") or []
+        seen = set()
+        for p in params:
+            pname = p.get("name") if isinstance(p, dict) else None
+            if not isinstance(pname, str) or not PARAM_NAME.match(pname) or pname in seen:
+                raise BuildError(
+                    f"project.json customScripts '{cs['id']}': input names must be unique and use "
+                    "only letters, digits and _.")
+            if p.get("kind", "variable") not in PARAM_KINDS:
+                raise BuildError(
+                    f"project.json customScripts '{cs['id']}': input '{pname}' kind must be one of: "
+                    f"{', '.join(PARAM_KINDS)}.")
+            seen.add(pname)
+        if params:
+            custom_script_params[cs["id"]] = params
 
     # Scenes can sit in subfolders (a "/" in a scene's name, like GB Studio).
     scene_files = sorted((project_dir / "scenes").rglob("*.json"))
@@ -3294,6 +3380,7 @@ def build(project_dir, out_dir):
         "timer_name_to_index": {},
         "scene_timer_count": 0,
         "custom_scripts": custom_scripts,
+        "custom_script_params": custom_script_params,
         "music_names": {p.stem for p in (project_dir / PROJECT_MUSIC_DIR).glob("*.uge")},
         "wav_names": [p.stem for p in sound_files(project_dir / PROJECT_SOUNDS_DIR)],
         "cutscene_names": [n for n, _, _ in cutscene_files(project_dir / PROJECT_CUTSCENES_DIR)],

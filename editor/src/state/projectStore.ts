@@ -2,11 +2,22 @@ import { create } from "zustand";
 
 import { migrateProjectSprites } from "../sprites/model";
 import type { AssetListing } from "../../shared/ipc";
-import type { EventScript } from "../../shared/eventTypes";
-import type { DoorJSON, NpcJSON, ProjectData, ProjectJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
+import type { EventScript, ScriptArg } from "../../shared/eventTypes";
+import type {
+  DoorJSON,
+  NpcJSON,
+  ProjectData,
+  ProjectJSON,
+  SceneJSON,
+  SceneRecord,
+  ScriptParam,
+} from "../../shared/projectTypes";
 import {
+  mapCallArgsInScene,
+  mapCallArgsInScript,
   markDeletedCustomScript,
   markDeletedCustomScriptInScript,
+  renameParamInScript,
   renameRefsInScene,
   shiftIndexRefs,
   type RefKind,
@@ -264,6 +275,14 @@ interface ProjectState {
   renameCustomScript: (id: string, name: string) => void;
   removeCustomScript: (id: string) => void;
   updateCustomScript: (id: string, updater: (script: EventScript) => EventScript, coalesceKey?: string) => void;
+  /** Set a custom script's inputs. `rename` also renames "@from" in its
+   * events and in every call's args; `drop` clears that input from every
+   * call (removed, or its kind changed). */
+  setCustomScriptParams: (
+    id: string,
+    params: ScriptParam[],
+    change?: { rename?: { from: string; to: string }; drop?: string },
+  ) => void;
 
   addPalette: (name: string) => void;
   renamePalette: (id: string, name: string) => void;
@@ -904,6 +923,41 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         next[idx] = { ...next[idx], script: nextScript };
         return { ...p, customScripts: next };
       }, coalesceKey ? `customScript:${id}:${coalesceKey}` : `customScript:${id}`);
+    },
+
+    setCustomScriptParams: (id, params, change) => {
+      const { project } = get();
+      if (!project) return;
+      recordHistory();
+      const rename = change?.rename;
+      const drop = change?.drop;
+      const fixArgs = (args: Record<string, ScriptArg>) => {
+        const out: Record<string, ScriptArg> = {};
+        for (const [k, a] of Object.entries(args)) {
+          if (k === drop) continue;
+          out[rename && k === rename.from ? rename.to : k] = a;
+        }
+        return out;
+      };
+      const touches = rename || drop;
+      const scenes = touches
+        ? project.scenes.map((rec) => {
+            const data = mapCallArgsInScene(rec.data, id, fixArgs);
+            return data === rec.data ? rec : { ...rec, data };
+          })
+        : project.scenes;
+      const customScripts = (project.project.customScripts ?? []).map((s) => {
+        let script = touches ? mapCallArgsInScript(s.script, id, fixArgs) : s.script;
+        if (s.id !== id) return script === s.script ? s : { ...s, script };
+        if (rename) script = renameParamInScript(script, rename.from, rename.to);
+        return { ...s, script, params };
+      });
+      const pj = { ...project.project, customScripts };
+      scenes.forEach((rec, i) => {
+        if (rec !== project.scenes[i]) persistScene(project.rootPath, rec.fileId, rec.data);
+      });
+      persistProject(project.rootPath, pj);
+      set({ project: { ...project, project: pj, scenes } });
     },
 
     addPalette: (name) => {

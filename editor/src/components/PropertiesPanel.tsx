@@ -12,6 +12,7 @@ import type {
   SceneJSON,
   SceneRecord,
   SceneType,
+  ScriptParam,
   TimerJSON,
 } from "../../shared/projectTypes";
 import ScriptEditor, { type ScriptUpdater } from "../script/ScriptEditor";
@@ -1376,8 +1377,9 @@ function CustomScriptProps({ id }: { id: string }) {
       scene: { background: "" },
       scenes: project.scenes,
       allowSelf: false,
+      params: entry?.params,
     }),
-    [id, project.scenes],
+    [id, project.scenes, entry?.params],
   );
 
   if (!entry) {
@@ -1422,6 +1424,10 @@ function CustomScriptProps({ id }: { id: string }) {
           through another script, is a compile error.
         </p>
       </div>
+      <div className="panel-section-title">Inputs</div>
+      <div className="properties-body">
+        <ScriptParamsEditor id={id} params={entry.params ?? []} />
+      </div>
       <div className="panel-section-title">Used in</div>
       <div className="properties-body">
         <UsedInList kind="customScript" name={id} />
@@ -1435,6 +1441,78 @@ function CustomScriptProps({ id }: { id: string }) {
           emptyHint="Build a reusable sequence of events here."
         />
       </div>
+    </>
+  );
+}
+
+const PARAM_KINDS: { kind: ScriptParam["kind"]; label: string }[] = [
+  { kind: "actor", label: "Actor" },
+  { kind: "variable", label: "Variable" },
+  { kind: "number", label: "Number" },
+];
+
+/** A custom script's inputs: each is picked as "@name" inside the script
+ * (actor and variable lists), and filled in by every Call Script. */
+function ScriptParamsEditor({ id, params }: { id: string; params: ScriptParam[] }) {
+  const setParams = useProjectStore((s) => s.setCustomScriptParams);
+  const add = () => {
+    let n = params.length + 1;
+    while (params.some((p) => p.name === `input${n}`)) n += 1;
+    setParams(id, [...params, { name: `input${n}`, kind: "actor" }]);
+  };
+  return (
+    <>
+      {params.length === 0 && (
+        <p className="view-note">
+          Inputs let one script work on different actors or variables: pick "@input" in its events, and each Call
+          Script chooses what it stands for.
+        </p>
+      )}
+      {params.map((p, i) => (
+        <div key={p.name} className="script-param-row">
+          <span className="script-param-at">@</span>
+          <CommitInput
+            value={p.name}
+            onCommit={(v) => {
+              const name = v.trim();
+              if (name === p.name) return;
+              if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return "Letters, digits and _ only (not starting with a digit).";
+              if (params.some((q) => q.name === name)) return `There's already an input called "${name}".`;
+              setParams(
+                id,
+                params.map((q, j) => (j === i ? { ...q, name } : q)),
+                { rename: { from: p.name, to: name } },
+              );
+            }}
+          />
+          <select
+            value={p.kind}
+            onChange={(e) =>
+              setParams(
+                id,
+                params.map((q, j) => (j === i ? { ...q, kind: e.target.value as ScriptParam["kind"] } : q)),
+                { drop: p.name },
+              )
+            }
+          >
+            {PARAM_KINDS.map((k) => (
+              <option key={k.kind} value={k.kind}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+          <button
+            className="link-btn link-btn-danger"
+            title="Remove this input"
+            onClick={() => setParams(id, params.filter((_, j) => j !== i), { drop: p.name })}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button className="btn btn-small" onClick={add}>
+        + Add input
+      </button>
     </>
   );
 }

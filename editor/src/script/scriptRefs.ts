@@ -7,7 +7,7 @@
  * automatically.
  */
 
-import type { EventScript, ScriptEventJSON } from "../../shared/eventTypes";
+import type { EventScript, ScriptArg, ScriptEventJSON } from "../../shared/eventTypes";
 import type { CustomScriptJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import { getEventDef } from "./eventCatalog";
 import { mapEvents, walkEvents } from "./scriptTree";
@@ -131,6 +131,11 @@ function eventRefs(ev: ScriptEventJSON, kind: RefKind): string[] {
   if (kind === "variable") {
     for (const t of textFields(ev)) for (const m of t.matchAll(VAR_IN_TEXT)) out.push(m[1]);
   }
+  if (ev.type === "call_script")
+    for (const a of Object.values(ev.args ?? {})) {
+      if (kind === "variable" && typeof a === "object" && "var" in a) out.push(a.var);
+      if (kind === "actor" && typeof a === "object" && "actor" in a && typeof a.actor === "string") out.push(a.actor);
+    }
   return out;
 }
 
@@ -152,6 +157,17 @@ export function countRefs(scenes: SceneJSON[], kind: RefKind, name: string): num
 function renameInEvent(ev: ScriptEventJSON, kind: RefKind, from: string, to: string | number): ScriptEventJSON {
   const def = getEventDef(ev.type);
   if (!def) return ev;
+  if (ev.type === "call_script" && ev.args && (kind === "variable" || kind === "actor")) {
+    const key = kind === "variable" ? "var" : "actor";
+    const hit = (a: ScriptArg) => typeof a === "object" && key in a && (a as Record<string, unknown>)[key] === from;
+    if (Object.values(ev.args).some(hit))
+      return {
+        ...ev,
+        args: Object.fromEntries(
+          Object.entries(ev.args).map(([k, a]) => [k, hit(a) ? ({ [key]: to } as ScriptArg) : a]),
+        ),
+      };
+  }
   const rec = { ...(ev as unknown as Record<string, unknown>) };
   let changed = false;
   for (const f of def.fields) {
@@ -231,6 +247,16 @@ export function shiftIndexRefs(scene: SceneJSON, kind: "actor" | "timer", delete
         if (v === deleted) (out ??= { ...rec })[f.key] = DELETED_REF;
         else if (v > deleted) (out ??= { ...rec })[f.key] = v - 1;
       }
+      if (kind === "actor" && ev.type === "call_script" && ev.args) {
+        const args: Record<string, ScriptArg> = {};
+        let moved = false;
+        for (const [k, a] of Object.entries(ev.args)) {
+          const n = typeof a === "object" && "actor" in a && typeof a.actor === "number" ? a.actor : null;
+          args[k] = n === null || n < deleted ? a : { actor: n === deleted ? DELETED_REF : n - 1 };
+          if (args[k] !== a) moved = true;
+        }
+        if (moved) (out ??= { ...rec }).args = args;
+      }
       return out ? (out as unknown as ScriptEventJSON) : ev;
     },
     null,
@@ -257,6 +283,43 @@ export function markDeletedCustomScriptInScript(script: EventScript, deletedId: 
       ev.type === "call_script" && ev.script === deletedId ? { ...ev, script: DELETED_REF } : ev,
     ) ?? script
   );
+}
+
+/** A custom script's input renamed inside its own events ("@from"
+ * becomes "@to", in text too). */
+export function renameParamInScript(script: EventScript, from: string, to: string): EventScript {
+  const re = new RegExp(`(?<![\\w@])@${from}(?!\\w)`, "g");
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") return v.includes("@") ? v.replace(re, `@${to}`) : v;
+    if (Array.isArray(v)) {
+      const r = v.map(walk);
+      return r.some((x, i) => x !== v[i]) ? r : v;
+    }
+    if (v && typeof v === "object") {
+      let changed = false;
+      const o: Record<string, unknown> = {};
+      for (const [k, x] of Object.entries(v)) {
+        o[k] = walk(x);
+        if (o[k] !== x) changed = true;
+      }
+      return changed ? o : v;
+    }
+    return v;
+  };
+  return walk(script) as EventScript;
+}
+
+type ArgsFn = (args: Record<string, ScriptArg>) => Record<string, ScriptArg>;
+const callArgsFn = (id: string, fn: ArgsFn) => (ev: ScriptEventJSON) =>
+  ev.type === "call_script" && ev.script === id && ev.args ? { ...ev, args: fn(ev.args) } : ev;
+
+/** Rewrite the args of every Call Script of custom script `id`. */
+export function mapCallArgsInScene(scene: SceneJSON, id: string, fn: ArgsFn): SceneJSON {
+  return mapSceneEvents(scene, callArgsFn(id, fn), null);
+}
+
+export function mapCallArgsInScript(script: EventScript, id: string, fn: ArgsFn): EventScript {
+  return mapEvents(script, callArgsFn(id, fn)) ?? script;
 }
 
 function mapSceneEvents(

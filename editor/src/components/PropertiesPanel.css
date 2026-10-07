@@ -341,3 +341,41 @@
 .scene-engine .engine-row {
   grid-template-columns: 1fr 120px 36px;
 }
+
+/* Custom script inputs. */
+.script-param-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.script-param-row > :nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.script-param-at {
+  opacity: 0.6;
+  font-family: var(--font-mono, monospace);
+}
+
+.script-param-row input,
+.script-param-row select {
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 4px 6px;
+  outline: none;
+  min-width: 0;
+}
+
+.script-param-row input {
+  width: 100%;
+}
+
+.script-param-row input:focus,
+.script-param-row select:focus {
+  border-color: var(--accent);
+}

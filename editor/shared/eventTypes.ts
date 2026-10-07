@@ -347,7 +347,11 @@ export interface CameraReleaseEvent extends EventBase {
 export interface CallScriptEvent extends EventBase {
   type: "call_script";
   script: string;
+  /** The script's inputs: {actor} / {var} / a number, by input name. */
+  args?: Record<string, ScriptArg>;
 }
+
+export type ScriptArg = { actor: string | number } | { var: string } | number;
 
 /** Pure editor organization, no runtime effect - the compiler inline-
  * splices its children (if any survive - "comment" has none) straight
