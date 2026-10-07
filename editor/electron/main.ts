@@ -30,7 +30,7 @@ import type {
   SaveScenePayload,
 } from "../shared/ipc.js";
 import * as buildRunner from "./buildRunner.js";
-import { chooserOptions, emulatorCommand, findMgba, installHint } from "./emulator.js";
+import { chooserOptions, emulatorCommand, installHint } from "./emulator.js";
 import * as projectIO from "./projectIO.js";
 
 // __dirname is a CommonJS global (see electron/tsconfig.json's doc
@@ -260,12 +260,11 @@ async function openInEmulator(rom: string): Promise<void> {
   const before = new Set((await processesFor(rom)).map((p) => p.pid));
   let exe = emulatorPath && existsSync(emulatorPath) ? emulatorPath : null;
   if (!exe) {
-    // Whatever program .gba files open with; failing that, mGBA if it's
-    // installed somewhere usual.
+    // Whatever program .gba files open with; failing that, ask for one.
     const err = await shell.openPath(rom);
     if (err) {
-      exe = findMgba();
-      if (!exe) throw new Error(`Couldn't open the ROM (${err}). ${installHint()}`);
+      exe = await askForEmulator();
+      if (!exe) throw new Error(`No emulator selected. ${installHint()}`);
     }
   }
   if (exe) {
@@ -278,30 +277,34 @@ async function openInEmulator(rom: string): Promise<void> {
   void recordEmulatorFor(rom, before);
 }
 
-async function chooseEmulator(): Promise<void> {
-  if (!mainWindow) return;
+/** File > Emulator for Play > Select Emulator: any emulator program.
+ * Returns the path picked, or null. */
+async function chooseEmulator(): Promise<string | null> {
+  if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: "Emulator for Play",
+    title: "Select Emulator",
     properties: ["openFile", "showHiddenFiles"],
     ...chooserOptions(),
   });
-  if (result.canceled || !result.filePaths[0]) return;
+  if (result.canceled || !result.filePaths[0]) return null;
   emulatorPath = result.filePaths[0];
   saveSettings();
   Menu.setApplicationMenu(buildMenu());
+  return emulatorPath;
 }
 
-/** File > Emulator for Play > Find mGBA. */
-async function useFoundMgba(): Promise<void> {
-  const found = findMgba();
-  if (!found) {
-    if (mainWindow) await dialog.showMessageBox(mainWindow, { type: "info", message: "mGBA wasn't found.", detail: installHint() });
-    return;
-  }
-  emulatorPath = found;
-  saveSettings();
-  Menu.setApplicationMenu(buildMenu());
-  if (mainWindow) await dialog.showMessageBox(mainWindow, { type: "info", message: "Play will use mGBA.", detail: found });
+/** Play with no emulator to use: offer to select one. */
+async function askForEmulator(): Promise<string | null> {
+  if (!mainWindow) return null;
+  const r = await dialog.showMessageBox(mainWindow, {
+    type: "question",
+    message: "Which emulator should Play use?",
+    detail: "Select any GBA emulator program. You can change it later in File > Emulator for Play.",
+    buttons: ["Select Emulator…", "Cancel"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  return r.response === 0 ? chooseEmulator() : null;
 }
 
 function sendMenuCommand(command: MenuCommand): void {
@@ -624,8 +627,7 @@ function buildMenu(): Menu {
               label: emulatorPath ? `Using ${path.basename(emulatorPath)}` : "Using the program .gba files open with",
               enabled: false,
             },
-            { label: "Choose Emulator…", click: () => void chooseEmulator() },
-            { label: "Find mGBA", click: () => void useFoundMgba() },
+            { label: "Select Emulator…", click: () => void chooseEmulator() },
             {
               label: "Use the program .gba files open with",
               enabled: !!emulatorPath,

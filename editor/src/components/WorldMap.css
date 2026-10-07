@@ -67,6 +67,30 @@
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-dim, #888);
 }
+.world-map-thing {
+  position: absolute;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.world-map-sprite {
+  position: absolute;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+.world-map-door {
+  background: rgba(255, 204, 77, 0.35);
+  border: 2px solid #ffcc4d;
+}
+.world-map-npc {
+  border: 1px dashed rgba(111, 211, 255, 0.8);
+}
+.world-map-thing:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+.world-map-thing-on {
+  border: 2px solid var(--accent, #a36bff);
+  background: rgba(163, 107, 255, 0.3);
+}
 .world-map-links {
   position: absolute;
   left: 0;

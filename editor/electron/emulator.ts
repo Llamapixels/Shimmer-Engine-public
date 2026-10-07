@@ -1,5 +1,5 @@
 /**
- * Finding and starting the emulator for Play, per OS.
+ * Starting the emulator for Play, per OS.
  *
  * What the user picks with File > Emulator for Play can be:
  *   - Windows: a program (.exe)
@@ -8,9 +8,7 @@
  *              exported launcher) or an app shortcut (.desktop file, as
  *              found in /usr/share/applications), whose Exec= line is run
  */
-import { existsSync, readFileSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { readFileSync } from "node:fs";
 
 export interface EmulatorCommand {
   cmd: string;
@@ -93,47 +91,7 @@ export function emulatorCommand(emulator: string, rom: string): EmulatorCommand 
   return { cmd: emulator, args: [rom] };
 }
 
-function onPath(name: string): string | null {
-  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
-    if (!dir) continue;
-    const p = path.join(dir, name);
-    if (existsSync(p)) return p;
-  }
-  return null;
-}
-
-/** mGBA wherever it's usually installed on this OS, or null. */
-export function findMgba(): string | null {
-  const home = os.homedir();
-  const candidates: (string | null)[] = [];
-  if (process.platform === "win32") {
-    const pf = process.env.ProgramFiles ?? "C:\\Program Files";
-    const pf86 = process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)";
-    const local = process.env.LOCALAPPDATA ?? path.join(home, "AppData", "Local");
-    candidates.push(
-      path.join(pf, "mGBA", "mGBA.exe"),
-      path.join(pf86, "mGBA", "mGBA.exe"),
-      path.join(local, "Programs", "mGBA", "mGBA.exe"),
-      onPath("mGBA.exe"),
-    );
-  } else if (process.platform === "darwin") {
-    candidates.push("/Applications/mGBA.app", path.join(home, "Applications", "mGBA.app"));
-  } else {
-    candidates.push(
-      onPath("mgba-qt"),
-      onPath("mgba"),
-      // Flatpak (what Linux Mint's Software Manager often installs).
-      "/var/lib/flatpak/exports/bin/io.mgba.mGBA",
-      path.join(home, ".local", "share", "flatpak", "exports", "bin", "io.mgba.mGBA"),
-      // Snap.
-      "/snap/bin/mgba",
-    );
-  }
-  for (const c of candidates) if (c && existsSync(c)) return c;
-  return null;
-}
-
-/** Where the Choose Emulator dialog starts, and what it lists. */
+/** Where the Select Emulator dialog starts, and what it lists. */
 export function chooserOptions(): { defaultPath?: string; filters: { name: string; extensions: string[] }[] } {
   if (process.platform === "win32") return { filters: [{ name: "Programs", extensions: ["exe"] }] };
   if (process.platform === "darwin") return { defaultPath: "/Applications", filters: [{ name: "Applications", extensions: ["app"] }] };
@@ -143,10 +101,10 @@ export function chooserOptions(): { defaultPath?: string; filters: { name: strin
 /** Advice when no emulator could be started. */
 export function installHint(): string {
   if (process.platform === "linux") {
-    return "Install mGBA (for example from your Software Manager), then pick it with File > Emulator for Play: the program is usually /usr/bin/mgba-qt, or /var/lib/flatpak/exports/bin/io.mgba.mGBA for the Flatpak. Its shortcut in /usr/share/applications works too. Or use File > Emulator for Play > Find mGBA.";
+    return "Install a GBA emulator (for example from your Software Manager), then pick it with File > Emulator for Play > Select Emulator: a program (like those in /usr/bin), or its shortcut in /usr/share/applications.";
   }
   if (process.platform === "darwin") {
-    return "Install mGBA (mgba.io) into Applications, then pick mGBA.app with File > Emulator for Play, or use Find mGBA.";
+    return "Install a GBA emulator into Applications, then pick its .app with File > Emulator for Play > Select Emulator.";
   }
-  return "Install a GBA emulator such as mGBA and set it as the program for .gba files, or pick its .exe with File > Emulator for Play.";
+  return "Install a GBA emulator, then pick its .exe with File > Emulator for Play > Select Emulator.";
 }

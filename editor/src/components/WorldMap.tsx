@@ -2,12 +2,16 @@
  * Game World > World map: every scene laid out on one big canvas, like
  * GB Studio's world view. Drag scenes to arrange them (saved as each
  * scene's "world_pos"), drag empty space or use the wheel to pan and
- * zoom, double-click a scene to open it. Lines show where Change Scene
- * events and doors lead (toggle with "Connections").
+ * zoom, double-click a scene to open it. Click an actor or trigger to
+ * select it (its properties show on the right). Lines show where Change
+ * Scene events and doors lead (toggle with "Connections").
  */
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
-import type { SceneJSON, SceneRecord } from "../../shared/projectTypes";
+import type { NpcJSON, ProjectJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
+import { loadSpriteImage, type SpriteImage } from "../sprites/image";
+import { playerSpriteName, type Facing } from "../sprites/model";
+import { drawActor, sheetFor } from "../sprites/render";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import "./WorldMap.css";
 
@@ -92,6 +96,53 @@ function useSceneImages(rootPath: string | null, scenes: SceneRecord[]) {
   return imgs;
 }
 
+/** Every sprite sheet the scenes' actors use, keyed by sprite name. */
+function useSpriteSheets(rootPath: string | null, names: string[]) {
+  const [images, setImages] = useState<Record<string, SpriteImage>>({});
+  const key = names.join("|");
+  useEffect(() => {
+    if (!rootPath) return;
+    let cancelled = false;
+    for (const name of names) {
+      window.api
+        .readAsset({ rootPath, relPath: `assets/sprites/${name}.png`, base: "project" })
+        .then((r) => (r.ok ? loadSpriteImage(r.value.dataUrl) : null))
+        .then((img) => {
+          if (!cancelled && img) setImages((s) => ({ ...s, [name]: img }));
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rootPath, key]);
+  return images;
+}
+
+/** An actor's first frame, drawn as in the scene view (sprites larger
+ * than 16 px spill over the box, so the canvas has a margin). */
+function ActorSprite({ npc, img, project, sprite }: { npc: NpcJSON; img?: SpriteImage; project: ProjectJSON; sprite: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const ctx = ref.current?.getContext("2d");
+    if (!ctx || !img) return;
+    ctx.clearRect(0, 0, 48, 48);
+    ctx.imageSmoothingEnabled = false;
+    const sheet = sheetFor(project, sprite, img);
+    if (sheet) drawActor(ctx, img, sheet, (npc.direction ?? "down") as Facing, 16, 16, 1);
+  }, [img, project, sprite, npc.direction]);
+  return (
+    <canvas
+      ref={ref}
+      className="world-map-sprite"
+      width={48}
+      height={48}
+      style={{ left: npc.x * TILE - 16, top: npc.y * TILE - 16 }}
+    />
+  );
+}
+
 function readPref(key: string, fallback: boolean): boolean {
   try {
     const v = localStorage.getItem(key);
@@ -107,8 +158,16 @@ export default function WorldMap() {
   const setActiveScene = useProjectStore((s) => s.setActiveScene);
   const setWorldMap = useProjectStore((s) => s.setWorldMap);
   const updateScene = useProjectStore((s) => s.updateScene);
+  const selection = useProjectStore((s) => s.selection);
+  const setSelection = useProjectStore((s) => s.setSelection);
   const scenes = useMemo(() => project?.scenes ?? [], [project]);
   const imgs = useSceneImages(project?.rootPath ?? null, scenes);
+  const playerSprite = project ? playerSpriteName(project.project) : "player";
+  const spriteNames = useMemo(
+    () => Array.from(new Set(scenes.flatMap((s) => (s.data.npcs ?? []).map((n) => n.sprite || playerSprite)))).sort(),
+    [scenes, playerSprite],
+  );
+  const sheets = useSpriteSheets(project?.rootPath ?? null, spriteNames);
 
   const [zoom, setZoom] = useState(0.5);
   const [pan, setPan] = useState({ x: 40, y: 40 });
@@ -282,6 +341,46 @@ export default function WorldMap() {
                   {sceneName(rec)}
                 </div>
                 {im ? <img src={im.url} alt="" draggable={false} /> : <div className="world-map-missing">no background</div>}
+                {(rec.data.doors ?? []).map((d, k) => (
+                  <div
+                    key={`d${k}`}
+                    className={`world-map-thing world-map-door${
+                      selection.kind === "door" && selection.sceneId === rec.fileId && selection.index === k ? " world-map-thing-on" : ""
+                    }`}
+                    style={{ left: d.x * TILE, top: d.y * TILE, width: (d.width ?? 1) * TILE, height: (d.height ?? 1) * TILE }}
+                    title={`Trigger ${k + 1}`}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setActiveScene(rec.fileId);
+                      setSelection({ kind: "door", sceneId: rec.fileId, index: k });
+                    }}
+                  />
+                ))}
+                {project &&
+                  (rec.data.npcs ?? []).map((n, k) => (
+                    <ActorSprite
+                      key={`s${k}`}
+                      npc={n}
+                      img={sheets[n.sprite || playerSprite]}
+                      project={project.project}
+                      sprite={n.sprite || playerSprite}
+                    />
+                  ))}
+                {(rec.data.npcs ?? []).map((n, k) => (
+                  <div
+                    key={`n${k}`}
+                    className={`world-map-thing world-map-npc${
+                      selection.kind === "npc" && selection.sceneId === rec.fileId && selection.index === k ? " world-map-thing-on" : ""
+                    }`}
+                    style={{ left: n.x * TILE, top: n.y * TILE, width: 2 * TILE, height: 2 * TILE }}
+                    title={n.name || `Actor ${k + 1}`}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setActiveScene(rec.fileId);
+                      setSelection({ kind: "npc", sceneId: rec.fileId, index: k });
+                    }}
+                  />
+                ))}
               </div>
             );
           })}
