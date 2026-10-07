@@ -8,7 +8,7 @@
  */
 
 import type { EventScript, ScriptEventJSON } from "../../shared/eventTypes";
-import type { SceneJSON } from "../../shared/projectTypes";
+import type { CustomScriptJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import { getEventDef } from "./eventCatalog";
 import { mapEvents, walkEvents } from "./scriptTree";
 
@@ -35,6 +35,7 @@ function textFields(ev: ScriptEventJSON): string[] {
   if (ev.type === "text") return [ev.text];
   if (ev.type === "choice") return [ev.prompt, ...ev.options];
   if (ev.type === "menu") return ev.options.map((o) => o.label);
+  if (ev.type === "text_draw") return [ev.text];
   return [];
 }
 
@@ -318,4 +319,77 @@ function mapSceneEvents(
     });
   }
   return changed ? next : scene;
+}
+
+/** Where a reference sits: a scene's script (and what owns it), or a
+ * custom script. `target` is what to select to get there. */
+export interface RefPlace {
+  label: string;
+  sceneId: string | null;
+  target: { kind: "scene" } | { kind: "npc"; index: number } | { kind: "door"; index: number } | { kind: "customScript"; id: string };
+  count: number;
+}
+
+/** Every script list a scene owns, with a label and where it lives. */
+function labeledScripts(scene: SceneJSON): { label: string; script: EventScript | undefined; target: RefPlace["target"] }[] {
+  const out: { label: string; script: EventScript | undefined; target: RefPlace["target"] }[] = [
+    { label: "On Init", script: scene.on_init, target: { kind: "scene" } },
+  ];
+  for (const g of ["1", "2", "3"] as const)
+    out.push({ label: `On Player Hit (group ${g})`, script: scene.on_player_hit?.[g], target: { kind: "scene" } });
+  (scene.timers ?? []).forEach((t, i) => out.push({ label: `Timer ${t.name || i + 1}`, script: t.script, target: { kind: "scene" } }));
+  (scene.doors ?? []).forEach((d, i) => {
+    out.push({ label: `Trigger ${i + 1} On Enter`, script: d.events, target: { kind: "door", index: i } });
+    out.push({ label: `Trigger ${i + 1} On Leave`, script: d.on_leave, target: { kind: "door", index: i } });
+  });
+  (scene.npcs ?? []).forEach((n, i) => {
+    const who = n.name ? `Actor "${n.name}"` : `Actor ${i + 1}`;
+    out.push({ label: `${who} On Interact`, script: n.on_interact, target: { kind: "npc", index: i } });
+    out.push({ label: `${who} On Init`, script: n.on_init, target: { kind: "npc", index: i } });
+    out.push({ label: `${who} On Update`, script: n.on_update, target: { kind: "npc", index: i } });
+    out.push({ label: `${who} On Hit`, script: n.on_hit, target: { kind: "npc", index: i } });
+  });
+  return out;
+}
+
+function refsIn(ev: ScriptEventJSON, kind: RefKind | "customScript"): string[] {
+  if (kind !== "customScript") return eventRefs(ev, kind);
+  const def = getEventDef(ev.type);
+  const rec = ev as unknown as Record<string, unknown>;
+  return (def?.fields ?? []).filter((f) => f.kind === "customScript" && typeof rec[f.key] === "string").map((f) => rec[f.key] as string);
+}
+
+/** Every place `name` (a flag/item/variable/scene name, or a custom
+ * script's id for "customScript") is used, for "Used in" lists. */
+export function findRefs(
+  scenes: SceneRecord[],
+  customScripts: CustomScriptJSON[],
+  kind: RefKind | "customScript",
+  name: string,
+): RefPlace[] {
+  const out: RefPlace[] = [];
+  const count = (script: EventScript | undefined) => {
+    let n = 0;
+    walkEvents(script, (ev) => {
+      for (const r of refsIn(ev, kind)) if (r === name) n += 1;
+    });
+    return n;
+  };
+  for (const rec of scenes) {
+    const sceneLabel = rec.data.name || rec.fileId;
+    for (const s of labeledScripts(rec.data)) {
+      const n = count(s.script);
+      if (n) out.push({ label: `${sceneLabel} › ${s.label}`, sceneId: rec.fileId, target: s.target, count: n });
+    }
+    if (kind === "scene")
+      (rec.data.doors ?? []).forEach((d, i) => {
+        if (d.target_scene === name)
+          out.push({ label: `${sceneLabel} › Trigger ${i + 1} (warp)`, sceneId: rec.fileId, target: { kind: "door", index: i }, count: 1 });
+      });
+  }
+  for (const cs of customScripts) {
+    const n = count(cs.script);
+    if (n) out.push({ label: `Script "${cs.name}"`, sceneId: null, target: { kind: "customScript", id: cs.id }, count: n });
+  }
+  return out;
 }

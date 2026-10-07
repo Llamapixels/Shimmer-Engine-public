@@ -7,6 +7,7 @@ import { sceneName, useProjectStore } from "../state/projectStore";
 import "./Navigator.css";
 import Icon from "./common/Icon";
 import Chevron from "./common/Chevron";
+import UsedIn from "./UsedIn";
 
 const COLLAPSE_KEY = "shimmer-engine.sidebar-collapsed";
 /** Pre-rename key, still read (never written) so an existing user's
@@ -296,32 +297,35 @@ function NamedListSection({
     <div className="navigator-list navigator-named-list">
       {list.length === 0 && <div className="navigator-empty">No {kind} yet.</div>}
       {list.map((name) => (
-        <div key={name} className="navigator-named-row">
-          <input
-            className="navigator-named-input"
-            defaultValue={name}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              if (!v || v === name) {
-                e.target.value = name;
-                return;
-              }
-              const err = validateName(kind, v, list.filter((n) => n !== name));
-              if (err) {
-                e.target.value = name;
-                return;
-              }
-              renameRef(refKind, name, v);
-            }}
-            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          />
-          <button
-            className="navigator-item-delete navigator-named-delete"
-            title={`Remove ${noun}`}
-            onClick={() => updateProject((p) => ({ ...p, [kind]: (p[kind] ?? []).filter((n) => n !== name) }))}
-          >
-            ×
-          </button>
+        <div key={name} className="navigator-named-item">
+          <div className="navigator-named-row">
+            <input
+              className="navigator-named-input"
+              defaultValue={name}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (!v || v === name) {
+                  e.target.value = name;
+                  return;
+                }
+                const err = validateName(kind, v, list.filter((n) => n !== name));
+                if (err) {
+                  e.target.value = name;
+                  return;
+                }
+                renameRef(refKind, name, v);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            />
+            <button
+              className="navigator-item-delete navigator-named-delete"
+              title={`Remove ${noun}`}
+              onClick={() => updateProject((p) => ({ ...p, [kind]: (p[kind] ?? []).filter((n) => n !== name) }))}
+            >
+              ×
+            </button>
+          </div>
+          <UsedIn kind={refKind} name={name} />
         </div>
       ))}
       <div className="navigator-named-row">

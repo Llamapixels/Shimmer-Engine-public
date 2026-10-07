@@ -22,6 +22,7 @@ import { BackgroundSelect, backgroundRefFor, MusicSelect, SpriteSelect } from ".
 import CommitInput from "./common/CommitInput";
 import NumberInput from "./common/NumberInput";
 import FieldRow from "./inspector/FieldRow";
+import { UsedInList } from "./UsedIn";
 import { EngineFields } from "../engine/EngineSettingsCard";
 import { type EngineValue, modeLabel, settingsForMode } from "../engine/engineSettings";
 import "./PropertiesPanel.css";
@@ -1420,6 +1421,10 @@ function CustomScriptProps({ id }: { id: string }) {
           time, so editing it here updates every place that calls it - but a script that calls itself, directly or
           through another script, is a compile error.
         </p>
+      </div>
+      <div className="panel-section-title">Used in</div>
+      <div className="properties-body">
+        <UsedInList kind="customScript" name={id} />
       </div>
       <div className="panel-section-title">Events</div>
       <div className="properties-body properties-script">
