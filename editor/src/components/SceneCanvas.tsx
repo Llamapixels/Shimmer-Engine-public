@@ -233,6 +233,7 @@ export default function SceneCanvas() {
   const zoomAnchorRef = useRef<{ pointX: number; pointY: number; offsetX: number; offsetY: number; scale: number } | null>(null);
   const setHoverTile = useProjectStore((s) => s.setHoverTile);
   const setWorldMap = useProjectStore((s) => s.setWorldMap);
+  const setDialogueView = useProjectStore((s) => s.setDialogueView);
 
   useEffect(() => {
     setHoverTile(hover);
@@ -1162,6 +1163,13 @@ export default function SceneCanvas() {
       <div className="scene-canvas-toolbar">
         <button className="btn btn-small" title="See every scene and how they connect" onClick={() => setWorldMap(true)}>
           World map
+        </button>
+        <button
+          className="btn btn-small"
+          title="Every line of text in the game, to proofread or export for translation"
+          onClick={() => setDialogueView(true)}
+        >
+          Dialogue
         </button>
         <div className="tool-group" role="toolbar" aria-label="Canvas tools">
           {TOOLS.map((t, i) => (

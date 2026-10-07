@@ -22,6 +22,7 @@ import {
   shiftIndexRefs,
   type RefKind,
 } from "../script/scriptRefs";
+import { applyTranslations, type Translation } from "../script/dialogueText";
 
 /** What's selected in the world view / properties panel right now.
  * "scene" selects the scene itself (its own properties, not a door/npc
@@ -183,6 +184,8 @@ interface ProjectState {
   tilePick: TilePick | null;
   /** Game World shows the world map (every scene) instead of one scene. */
   worldMap: boolean;
+  /** ...or the Dialogue list (every line of text). */
+  dialogueView: boolean;
   loading: boolean;
   error: string | null;
   saveError: string | null;
@@ -218,7 +221,11 @@ interface ProjectState {
   setPaletteBrush: (id: string | null) => void;
   setPlacingPrefab: (id: string | null) => void;
   setTilePick: (pick: TilePick | null) => void;
+  /** Also closes the Dialogue list. */
   setWorldMap: (on: boolean) => void;
+  setDialogueView: (on: boolean) => void;
+  /** Swap texts for their translations (see dialogueText.ts). */
+  applyDialogueTranslations: (rows: Translation[]) => { applied: number; unmatched: number };
   setScriptClipboard: (events: EventScript | null) => void;
   setHoverTile: (tile: { x: number; y: number } | null) => void;
 
@@ -326,6 +333,7 @@ function loadedState(data: ProjectData) {
     tool: "select" as Tool,
     tilePick: null,
     worldMap: false,
+    dialogueView: false,
     loading: false,
     error: null,
     saveError: null,
@@ -461,6 +469,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     placingPrefabId: null,
     tilePick: null,
     worldMap: false,
+    dialogueView: false,
     loading: false,
     error: null,
     saveError: null,
@@ -543,8 +552,31 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setTileStamp: (tileStamp) => set({ tileStamp, tool: "tiles", tilePick: null }),
     setPaletteBrush: (paletteBrush) => set({ paletteBrush, tool: "palette", tilePick: null }),
     setPlacingPrefab: (placingPrefabId) => set({ placingPrefabId, tool: placingPrefabId ? "placePrefab" : "select", tilePick: null }),
-    setTilePick: (tilePick) => set({ tilePick, section: tilePick ? "world" : get().section, worldMap: tilePick ? false : get().worldMap }),
-    setWorldMap: (worldMap) => set({ worldMap }),
+    setTilePick: (tilePick) =>
+      set({
+        tilePick,
+        section: tilePick ? "world" : get().section,
+        worldMap: tilePick ? false : get().worldMap,
+        dialogueView: tilePick ? false : get().dialogueView,
+      }),
+    setWorldMap: (worldMap) => set({ worldMap, dialogueView: false }),
+    setDialogueView: (dialogueView) => set({ dialogueView, worldMap: false }),
+    applyDialogueTranslations: (rows) => {
+      const { project } = get();
+      if (!project) return { applied: 0, unmatched: rows.length };
+      const r = applyTranslations(project.scenes, project.project.customScripts ?? [], rows);
+      if (!r.applied) return r;
+      recordHistory();
+      const pj = r.customScripts.some((s, i) => s !== project.project.customScripts?.[i])
+        ? { ...project.project, customScripts: r.customScripts }
+        : project.project;
+      r.scenes.forEach((rec, i) => {
+        if (rec !== project.scenes[i]) persistScene(project.rootPath, rec.fileId, rec.data);
+      });
+      if (pj !== project.project) persistProject(project.rootPath, pj);
+      set({ project: { ...project, project: pj, scenes: r.scenes } });
+      return r;
+    },
     setScriptClipboard: (scriptClipboard) => set({ scriptClipboard }),
     setHoverTile: (hoverTile) => set({ hoverTile }),
 

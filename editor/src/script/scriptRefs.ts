@@ -322,6 +322,11 @@ export function mapCallArgsInScript(script: EventScript, id: string, fn: ArgsFn)
   return mapEvents(script, callArgsFn(id, fn)) ?? script;
 }
 
+/** Every event in every script of a scene passed through fn. */
+export function mapAllSceneEvents(scene: SceneJSON, fn: (ev: ScriptEventJSON) => ScriptEventJSON): SceneJSON {
+  return mapSceneEvents(scene, fn, null);
+}
+
 function mapSceneEvents(
   scene: SceneJSON,
   fn: (ev: ScriptEventJSON) => ScriptEventJSON,
@@ -394,7 +399,7 @@ export interface RefPlace {
 }
 
 /** Every script list a scene owns, with a label and where it lives. */
-function labeledScripts(scene: SceneJSON): { label: string; script: EventScript | undefined; target: RefPlace["target"] }[] {
+export function labeledScripts(scene: SceneJSON): { label: string; script: EventScript | undefined; target: RefPlace["target"] }[] {
   const out: { label: string; script: EventScript | undefined; target: RefPlace["target"] }[] = [
     { label: "On Init", script: scene.on_init, target: { kind: "scene" } },
   ];

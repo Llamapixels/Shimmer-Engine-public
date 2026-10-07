@@ -9,6 +9,7 @@ import Toolbar from "./components/Toolbar";
 import Navigator from "./components/Navigator";
 import SceneCanvas from "./components/SceneCanvas";
 import WorldMap from "./components/WorldMap";
+import DialogueReview from "./components/DialogueReview";
 import PropertiesPanel from "./components/PropertiesPanel";
 import StatusBar from "./components/StatusBar";
 import WelcomeScreen from "./components/WelcomeScreen";
@@ -51,6 +52,7 @@ export default function App() {
   const loading = useProjectStore((s) => s.loading);
   const section = useProjectStore((s) => s.section);
   const worldMap = useProjectStore((s) => s.worldMap);
+  const dialogueView = useProjectStore((s) => s.dialogueView);
   const [panelWidth, setPanelWidth] = useState(loadPanelWidth);
   const resizing = useRef(false);
   const panelWidthRef = useRef(panelWidth);
@@ -160,7 +162,7 @@ export default function App() {
       {section === "world" ? (
         <div className="app-body" style={{ gridTemplateColumns: `240px 1fr 5px ${panelWidth}px` }}>
           <Navigator />
-          {worldMap ? <WorldMap /> : <SceneCanvas />}
+          {worldMap ? <WorldMap /> : dialogueView ? <DialogueReview /> : <SceneCanvas />}
           <div
             className="col-resizer"
             onMouseDown={(e) => {
