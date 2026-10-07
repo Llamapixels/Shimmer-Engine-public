@@ -10,6 +10,7 @@
 #include "scene.h"
 #include "transition.h"
 #include "dialogue.h"
+#include "ui.h"
 #include "audio.h"
 #include "music.h"
 #include "save.h"
@@ -1205,6 +1206,7 @@ int main(void)
     {
         VBlankIntrWait();
         background_vblank();
+        ui_labels_tick();
         wav_vblank();
 
         music_update();
@@ -1363,6 +1365,7 @@ int main(void)
             /* Load the target scene. */
             const SceneDef *next = scenes[pending_switch_scene];
             scene_load(next);
+            ui_label_clear(-1);   /* screen text belongs to the scene left */
             scene_entities_load(next);
             play_scene_music(next);
 

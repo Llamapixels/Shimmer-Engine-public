@@ -407,8 +407,13 @@ typedef enum
     SCRIPT_ACTOR_SCALE_BY,     /* a = actor, b/c = % to add to the width/
                                  * height scale; d bit 0/1: b/c is a
                                  * variable */
-    SCRIPT_PLAYER_SET_SPRITE   /* a = sprite_defs[] index, b = 1: keep it
+    SCRIPT_PLAYER_SET_SPRITE,  /* a = sprite_defs[] index, b = 1: keep it
                                  * in later scenes */
+    SCRIPT_TEXT_DRAW,          /* a = slot | framed << 3, b = col | row << 5,
+                                 * c = frames until cleared (0 = stays),
+                                 * str = text (ui.h ui_label_draw()) */
+    SCRIPT_TEXT_CLEAR          /* a = slot 0-7, 8 = all, 9 = the area
+                                 * b = col | row << 5, c = width | height << 5 */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

@@ -429,6 +429,13 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
     { "type": "actor_transform", "actor": ..., "angle": 0-359,
       "scale_x": 25-200, "scale_y": 25-200 }   degrees clockwise, percent
     { "type": "actor_rotate_by", "actor": ..., "degrees": -359-359 }
+    { "type": "text_draw", "slot": 0-7, "x": 0-29, "y": 0-19, "text": "...",
+      "frame": false, "frames": 0 }
+        Text on screen, outside the dialogue box (item names, HUDs). It
+        stays until cleared, or for "frames" frames. Slots let several
+        show at once; drawing into a slot replaces it. Up to 4 lines.
+    { "type": "text_clear", "slot": 0-7 | "all" | "area", "x", "y",
+      "width", "height" }   ("area": clears every text it overlaps)
     { "type": "player_set_sprite", "sprite": "<name>", "keep": true }
         Give the player another sprite (and its collision box). "keep"
         (default true) also uses it in later scenes that don't set their
@@ -2190,6 +2197,7 @@ PARITY_EVENT_TYPES = [
     "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
+    "text_draw", "text_clear",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2478,6 +2486,30 @@ def compile_parity_event(etype, ev, out, ctx, where):
         else:
             out.append(_instr("SCRIPT_ACTOR_ROTATE_BY", a=idx,
                               b=resolve_small_int(deg, "degrees", where, -359, 359)))
+
+    elif etype == "text_draw":
+        slot = resolve_small_int(ev.get("slot", 0), "slot", where, 0, 7)
+        x = resolve_small_int(ev.get("x", 0), "x", where, 0, 29)
+        y = resolve_small_int(ev.get("y", 0), "y", where, 0, 19)
+        frames = resolve_small_int(ev.get("frames", 0), "frames", where, 0, 32767)
+        text = interpolate_vars(_require(ev, "text", where), ctx, where)
+        out.append(_instr("SCRIPT_TEXT_DRAW", a=slot | ((1 if ev.get("frame") else 0) << 3),
+                          b=x | (y << 5), c=frames, text=c_string_literal(text)))
+
+    elif etype == "text_clear":
+        what = ev.get("slot", "all")
+        if what == "all":
+            out.append(_instr("SCRIPT_TEXT_CLEAR", a=8))
+        elif what == "area":
+            x = resolve_small_int(ev.get("x", 0), "x", where, 0, 29)
+            y = resolve_small_int(ev.get("y", 0), "y", where, 0, 19)
+            w = resolve_small_int(ev.get("width", 30), "width", where, 1, 30)
+            h = resolve_small_int(ev.get("height", 20), "height", where, 1, 20)
+            out.append(_instr("SCRIPT_TEXT_CLEAR", a=9, b=x | (y << 5), c=w | (h << 5)))
+        else:
+            if isinstance(what, str) and what.isdigit():
+                what = int(what)
+            out.append(_instr("SCRIPT_TEXT_CLEAR", a=resolve_small_int(what, "slot", where, 0, 7)))
 
     elif etype == "player_set_sprite":
         sname = _require(ev, "sprite", where)

@@ -770,6 +770,27 @@ export interface ActorRotateByEvent extends EventBase {
   degrees: VarOrLiteral;
 }
 
+/** Text on screen, apart from the dialogue box. */
+export interface TextDrawEvent extends EventBase {
+  type: "text_draw";
+  slot: number;
+  x: number;
+  y: number;
+  text: string;
+  frame?: boolean;
+  /** Cleared after this many frames; 0 = stays. */
+  frames?: number;
+}
+
+export interface TextClearEvent extends EventBase {
+  type: "text_clear";
+  slot: number | "all" | "area";
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
 /** Gives the player another sprite. */
 export interface PlayerSetSpriteEvent extends EventBase {
   type: "player_set_sprite";
@@ -1064,6 +1085,8 @@ export type ScriptEventJSON =
   | ActorRotateByEvent
   | ActorScaleByEvent
   | PlayerSetSpriteEvent
+  | TextDrawEvent
+  | TextClearEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent
   | IfActorAtPositionEvent

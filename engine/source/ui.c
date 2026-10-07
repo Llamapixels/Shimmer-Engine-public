@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "ui.h"
+#include "state.h"   /* var_get() - variables in screen text */
 
 /*
  * BG1 VRAM layout (deliberately far from BG0's char blocks 0-1 and
@@ -11,7 +12,7 @@
  *     tile 0             transparent (all zero)
  *     tiles 1-9          current frame, 3x3
  *     tiles 16-127       dialogue canvas, 4 lines x 28 tiles
- *     tiles 128-247      debug HUD canvas, 4 rows x 30 tiles
+ *     tiles 128-447      screen text ("Draw Text"), 40 per slot
  *   screen base block 23 0x0600B800 (= tile 448 of block 2, so tiles
  *                        must stay below that)
  *
@@ -27,13 +28,23 @@
 
 #define FRAME_TILE     1
 #define BOX_TILE       16
-#define HUD_TILE       128
+#define LABEL_TILE     128
+#define LABEL_TILES    40     /* text tiles per screen-text slot */
 #define BOX_COLS       28
-#define HUD_COLS       30
 #define SCREEN_ROWS    20
 
 static uint32_t box_canvas[UI_MAX_LINES * BOX_COLS][8] EWRAM_BSS;
-static uint32_t hud_canvas[UI_HUD_ROWS * HUD_COLS][8] EWRAM_BSS;
+
+typedef struct
+{
+    uint8_t active, framed, col, row, cols, lines;
+    uint16_t frames_left;   /* 0 = stays until cleared */
+} Label;
+static Label labels[UI_LABEL_MAX];
+static uint32_t label_canvas[UI_LABEL_MAX][LABEL_TILES][8] EWRAM_BSS;
+static void labels_refresh(void);
+static void labels_reflush(void);
+static int labels_any(void);
 
 static int cur_font;
 static int cur_frame;
@@ -101,6 +112,8 @@ void ui_restore_vram(void)
     box_left = 0;
     box_cols = 30;
     text_cols = BOX_COLS;
+    labels_reflush();
+    labels_refresh();
 }
 
 void ui_set_font(int font)
@@ -306,12 +319,9 @@ void ui_box_close(void)
     box_left = 0;
     box_cols = 30;
     text_cols = BOX_COLS;
-    /* The debug HUD shares BG1; keep the layer on while it's showing. */
-    int hud = 0;
-    for (int t = 0; t < UI_HUD_ROWS * HUD_COLS && !hud; t++)
-        for (int y = 0; y < 8; y++)
-            if (hud_canvas[t][y]) { hud = 1; break; }
-    if (!hud)
+    /* Screen text shares BG1: put back what the box covered. */
+    labels_refresh();
+    if (!labels_any())
         REG_DISPCNT &= ~BG1_ENABLE;
 }
 
@@ -342,40 +352,222 @@ void ui_box_flush(void)
             dst[t * 8 + y] = box_canvas[t][y];
 }
 
-void ui_hud_clear(void)
+/* ------------------------------------------------------------------ */
+/* Screen text                                                          */
+
+/* Walk compiled text: returns the widest line in px (and the line count);
+ * with `draw`, also draws it into slot's canvas, `cols` tiles a line. */
+static int label_text(const unsigned char *s, int slot, int cols, int draw, int *lines_out)
 {
-    for (int t = 0; t < UI_HUD_ROWS * HUD_COLS; t++)
-        for (int y = 0; y < 8; y++)
-            hud_canvas[t][y] = 0;
+    int font = cur_font, color = 0, x = 0, line = 0, widest = 0;
+    for (; *s; s++)
+    {
+        unsigned char ch = *s;
+        if (ch == '\n')
+        {
+            if (x > widest)
+                widest = x;
+            x = 0;
+            if (line + 1 >= UI_MAX_LINES)
+                break;
+            line++;
+            continue;
+        }
+        if ((ch == UI_CODE_FONT || ch == UI_CODE_COLOR || ch == UI_CODE_SPEED ||
+             ch == UI_CODE_VAR || ch == UI_CODE_VAR_HI) && s[1])
+        {
+            int arg = s[1] - 1;
+            s++;
+            if (ch == UI_CODE_FONT)
+            {
+                if (arg < ui_font_count)
+                    font = arg;
+            }
+            else if (ch == UI_CODE_COLOR)
+                color = arg;
+            else if (ch != UI_CODE_SPEED)
+            {
+                int v = var_get(arg + (ch == UI_CODE_VAR_HI ? 128 : 0));
+                unsigned int u = v < 0 ? (unsigned int)-v : (unsigned int)v;
+                char buf[8];
+                int n = 0;
+                do { buf[n++] = (char)('0' + u % 10); u /= 10; } while (u);
+                if (v < 0)
+                    buf[n++] = '-';
+                while (n--)
+                {
+                    if (draw)
+                        draw_char(label_canvas[slot], cols, line, x, font, (unsigned char)buf[n], color);
+                    x += ui_char_width(font, (unsigned char)buf[n]);
+                }
+            }
+            continue;
+        }
+        if (ch < 0x20)
+            continue;
+        if (draw)
+            draw_char(label_canvas[slot], cols, line, x, font, ch, color);
+        x += ui_char_width(font, ch);
+    }
+    if (x > widest)
+        widest = x;
+    if (lines_out)
+        *lines_out = line + 1;
+    return widest;
 }
 
-void ui_hud_text(int row, int x, const char *text)
+/* Is screen tile (r, c) under the open dialogue box? */
+static int under_box(int r, int c)
 {
-    if (row < 0 || row >= UI_HUD_ROWS)
-        return;
-    for (; *text && x < HUD_COLS * 8; text++)
+    return box_top >= 0 && r >= box_top && r < box_top + box_rows && c >= box_left && c < box_left + box_cols;
+}
+
+static void label_cell(int r, int c, int tile)
+{
+    if (!under_box(r, c))
+        put(r, c, tile);
+}
+
+/* Write a label's map entries (its frame, if any, and its text tiles). */
+static void label_put(int slot)
+{
+    const Label *l = &labels[slot];
+    int e = l->framed ? 1 : 0;
+    int left = l->col, top = l->row, right = l->col + l->cols + 2 * e - 1, bottom = l->row + l->lines + 2 * e - 1;
+    if (e)
     {
-        unsigned char ch = (unsigned char)*text;
-        draw_char(hud_canvas, HUD_COLS, row, x, cur_font, ch, 0);
-        x += ui_char_width(cur_font, ch);
+        label_cell(top, left, FRAME_TILE + 0);
+        label_cell(top, right, FRAME_TILE + 2);
+        label_cell(bottom, left, FRAME_TILE + 6);
+        label_cell(bottom, right, FRAME_TILE + 8);
+        for (int c = left + 1; c < right; c++)
+        {
+            label_cell(top, c, FRAME_TILE + 1);
+            label_cell(bottom, c, FRAME_TILE + 7);
+        }
+        for (int r = top + 1; r < bottom; r++)
+        {
+            label_cell(r, left, FRAME_TILE + 3);
+            label_cell(r, right, FRAME_TILE + 5);
+        }
+    }
+    for (int ln = 0; ln < l->lines; ln++)
+        for (int c = 0; c < l->cols; c++)
+            label_cell(top + e + ln, left + e + c, LABEL_TILE + slot * LABEL_TILES + ln * l->cols + c);
+}
+
+static void label_unput(int slot)
+{
+    const Label *l = &labels[slot];
+    int e = l->framed ? 1 : 0;
+    for (int r = l->row; r < l->row + l->lines + 2 * e; r++)
+        for (int c = l->col; c < l->col + l->cols + 2 * e; c++)
+            label_cell(r, c, 0);
+}
+
+/* Copy a label's canvas to its VRAM tiles. */
+static void label_flush(int slot)
+{
+    volatile uint32_t *dst = UI_TILES + (LABEL_TILE + slot * LABEL_TILES) * 8;
+    int n = labels[slot].cols * labels[slot].lines;
+    for (int t = 0; t < n; t++)
+        for (int y = 0; y < 8; y++)
+            dst[t * 8 + y] = label_canvas[slot][t][y];
+}
+
+static void labels_refresh(void)
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+        if (labels[s].active)
+            label_put(s);
+}
+
+static void labels_reflush(void)
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+        if (labels[s].active)
+            label_flush(s);
+}
+
+static int labels_any(void)
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+        if (labels[s].active)
+            return 1;
+    return 0;
+}
+
+void ui_label_draw(int slot, int col, int row, const char *text, int framed, int frames)
+{
+    if (slot < 0 || slot >= UI_LABEL_MAX || !text)
+        return;
+    if (labels[slot].active)
+        ui_label_clear(slot);
+
+    int lines = 1;
+    int width = label_text((const unsigned char *)text, slot, 0, 0, &lines);
+    int e = framed ? 1 : 0;
+    int cols = (width + 7) / 8;
+    if (cols < 1)
+        cols = 1;
+    if (cols * lines > LABEL_TILES)
+        cols = LABEL_TILES / lines;
+    if (cols > 30 - 2 * e)
+        cols = 30 - 2 * e;
+    if (col < 0) col = 0;
+    if (row < 0) row = 0;
+    if (col + cols + 2 * e > 30) col = 30 - cols - 2 * e;
+    if (row + lines + 2 * e > SCREEN_ROWS) row = SCREEN_ROWS - lines - 2 * e;
+
+    Label *l = &labels[slot];
+    l->framed = (uint8_t)e;
+    l->col = (uint8_t)col;
+    l->row = (uint8_t)row;
+    l->cols = (uint8_t)cols;
+    l->lines = (uint8_t)lines;
+    l->frames_left = (uint16_t)(frames < 0 ? 0 : frames > 0xFFFF ? 0xFFFF : frames);
+
+    static const uint32_t clear[8];
+    const uint32_t *fill = e ? &ui_frames[cur_frame][4 * 8] : clear;
+    for (int t = 0; t < cols * lines; t++)
+        for (int y = 0; y < 8; y++)
+            label_canvas[slot][t][y] = fill[y];
+    label_text((const unsigned char *)text, slot, cols, 1, 0);
+    label_flush(slot);
+    l->active = 1;
+    label_put(slot);
+    REG_DISPCNT |= BG1_ENABLE;
+}
+
+void ui_label_clear(int slot)
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+    {
+        if ((slot >= 0 && s != slot) || !labels[s].active)
+            continue;
+        label_unput(s);
+        labels[s].active = 0;
+    }
+    labels_refresh();   /* overlapping ones */
+    if (!labels_any() && box_top < 0)
+        REG_DISPCNT &= ~BG1_ENABLE;
+}
+
+void ui_label_clear_area(int col, int row, int width, int height)
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+    {
+        const Label *l = &labels[s];
+        int e = l->framed ? 2 : 0;
+        if (l->active && l->col < col + width && l->col + l->cols + e > col &&
+            l->row < row + height && l->row + l->lines + e > row)
+            ui_label_clear(s);
     }
 }
 
-void ui_hud_flush(void)
+void ui_labels_tick(void)
 {
-    volatile uint32_t *dst = UI_TILES + HUD_TILE * 8;
-    int any = 0;
-    for (int t = 0; t < UI_HUD_ROWS * HUD_COLS; t++)
-        for (int y = 0; y < 8; y++)
-        {
-            dst[t * 8 + y] = hud_canvas[t][y];
-            any |= hud_canvas[t][y] != 0;
-        }
-    for (int r = 0; r < UI_HUD_ROWS; r++)
-        for (int c = 0; c < HUD_COLS; c++)
-            put(r, c, any ? HUD_TILE + r * HUD_COLS + c : 0);
-    if (any)
-        REG_DISPCNT |= BG1_ENABLE;
-    else if (box_top < 0)
-        REG_DISPCNT &= ~BG1_ENABLE;
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+        if (labels[s].active && labels[s].frames_left && --labels[s].frames_left == 0)
+            ui_label_clear(s);
 }

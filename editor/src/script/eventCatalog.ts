@@ -288,6 +288,50 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => `"${short(ev.text)}"`,
   }),
   def({
+    type: "text_draw",
+    label: "Draw Text",
+    category: "Dialogue",
+    description:
+      "Put text on the screen, outside the dialogue box: item pickups, enemy names, a score. It stays until cleared " +
+      "(or for the given number of frames) and the game keeps running. 8 slots can show at once; drawing into a slot " +
+      "replaces it. New lines and {variables} work; up to 4 lines, about 40 tiles of text per slot.",
+    fields: [
+      { key: "text", label: "Text", kind: "multiline" },
+      { key: "slot", label: "Slot", kind: "int", min: 0, max: 7, defaultValue: 0 },
+      { key: "x", label: "X (tiles)", kind: "int", min: 0, max: 29, defaultValue: 0 },
+      { key: "y", label: "Y (tiles)", kind: "int", min: 0, max: 19, defaultValue: 0 },
+      { key: "frame", label: "In a box", kind: "bool", defaultValue: false },
+      { key: "frames", label: "Clear after (frames, 0 = stays)", kind: "int", min: 0, max: MAX_I16, defaultValue: 0 },
+    ],
+    create: () => ({ type: "text_draw", slot: 0, x: 1, y: 1, text: "" }),
+    summary: (ev) => `${ev.slot ?? 0}: "${short(ev.text, 30)}" at ${ev.x ?? 0}, ${ev.y ?? 0}`,
+  }),
+  def({
+    type: "text_clear",
+    label: "Clear Text",
+    category: "Dialogue",
+    description: "Remove text put there with Draw Text: one slot, all of it, or whatever overlaps an area of the screen.",
+    fields: [
+      {
+        key: "slot",
+        label: "Clear",
+        kind: "select",
+        defaultValue: "all",
+        options: [
+          { value: "all", label: "All screen text" },
+          { value: "area", label: "Text in an area" },
+          ...[0, 1, 2, 3, 4, 5, 6, 7].map((s) => ({ value: String(s), label: `Slot ${s}` })),
+        ],
+      },
+      { key: "x", label: "X (tiles)", kind: "int", min: 0, max: 29, defaultValue: 0, showIf: (e) => e.slot === "area" },
+      { key: "y", label: "Y (tiles)", kind: "int", min: 0, max: 19, defaultValue: 0, showIf: (e) => e.slot === "area" },
+      { key: "width", label: "Width (tiles)", kind: "int", min: 1, max: 30, defaultValue: 30, showIf: (e) => e.slot === "area" },
+      { key: "height", label: "Height (tiles)", kind: "int", min: 1, max: 20, defaultValue: 20, showIf: (e) => e.slot === "area" },
+    ],
+    create: () => ({ type: "text_clear", slot: "all" }),
+    summary: (ev) => (ev.slot === "all" ? "all" : ev.slot === "area" ? `area ${ev.x ?? 0}, ${ev.y ?? 0}` : `slot ${ev.slot}`),
+  }),
+  def({
     type: "choice",
     label: "Yes/No Choice",
     category: "Dialogue",

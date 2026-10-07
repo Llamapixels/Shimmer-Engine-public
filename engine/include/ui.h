@@ -51,7 +51,7 @@ extern const uint8_t ui_default_text_speed;
 
 #define UI_TEXT_WIDTH   224    /* px inside the box (28 tiles) */
 #define UI_MAX_LINES    4      /* text lines the box can grow to */
-#define UI_HUD_ROWS     4      /* debug HUD lines at the top of the screen */
+#define UI_LABEL_MAX    8      /* "Draw Text" slots */
 
 void ui_init(void);
 /* Reload the dialogue layer's VRAM after a cutscene used it. */
@@ -96,9 +96,20 @@ void ui_box_cursor(int line, int x);
 /* Copy the canvas to VRAM (after drawing). */
 void ui_box_flush(void);
 
-/* Debug HUD: text on a see-through background, top of the screen. */
-void ui_hud_clear(void);
-void ui_hud_text(int row, int x, const char *text);
-void ui_hud_flush(void);
+/*
+ * Screen text ("Draw Text"): up to UI_LABEL_MAX bits of text anywhere on
+ * screen, apart from the dialogue box, until cleared. `text` is compiled
+ * text (variables, font and colour codes; "\n" = next line, up to 4).
+ * Top-left at tile (col, row); framed = in a dialogue-frame box; frames =
+ * cleared after this many frames (0 = stays). Drawing into a slot
+ * replaces what it showed.
+ */
+void ui_label_draw(int slot, int col, int row, const char *text, int framed, int frames);
+/* slot -1 = all of them. */
+void ui_label_clear(int slot);
+/* Every label overlapping this tile rectangle. */
+void ui_label_clear_area(int col, int row, int width, int height);
+/* Once per frame: labels with a time limit. */
+void ui_labels_tick(void);
 
 #endif
