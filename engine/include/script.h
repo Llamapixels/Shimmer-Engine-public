@@ -324,7 +324,9 @@ typedef enum
                                  * button's normal action, c = 1 to freeze
                                  * the player while it runs (else it runs
                                  * in the background, like GB Studio),
-                                 * ptr = script */
+                                 * d = trigger (INPUT_TRIG_*, low 3 bits)
+                                 * | frames << 3, ptr = script, str = for
+                                 * a combo, each step's button bit + 1 */
     SCRIPT_INPUT_SCRIPT_REMOVE,/* a = INPUT_* mask */
 
     SCRIPT_ACTOR_SET_POSITION_VARS, /* a = actor, b = x var, c = y var,

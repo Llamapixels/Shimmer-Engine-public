@@ -91,14 +91,37 @@ static struct
     int thread;     /* handle of the last run, to avoid overlapping it */
 } timer_slots[TIMER_SLOTS];
 
-/* Input scripts, one per button bit (INPUT_A .. INPUT_L). */
+/* "Attach Script To Button": scripts bound to a button (INPUT_A ..
+ * INPUT_L, by bit) or a combo, each with a trigger. */
 #define INPUT_BITS 10
-static const ScriptEvent *input_scripts[INPUT_BITS];
+#define INPUT_BINDINGS 24
+enum
+{
+    INPUT_TRIG_PRESS,      /* the frame it goes down */
+    INPUT_TRIG_HOLD,       /* every time it finishes, while held */
+    INPUT_TRIG_LONG,       /* once, after being held `frames` frames */
+    INPUT_TRIG_RELEASE,    /* the frame it comes up */
+    INPUT_TRIG_TAP,        /* released within `frames` frames */
+    INPUT_TRIG_COMBO       /* the `combo` buttons in order, each within
+                            * `frames` frames of the last */
+};
+typedef struct
+{
+    const ScriptEvent *script;   /* 0 = free */
+    const char *combo;           /* INPUT_TRIG_COMBO: bit + 1 per step */
+    uint16_t frames;
+    uint16_t count;              /* frames held / left for the next step */
+    uint8_t bit;                 /* the button (a combo's last one) */
+    uint8_t trigger;
+    uint8_t freeze;              /* stop the player while it runs (else it
+                                  * runs as a background thread, whose
+                                  * handle is kept so it never runs twice
+                                  * at once) */
+    uint8_t step;                /* combo progress */
+    int thread;
+} InputBinding;
+static InputBinding input_bindings[INPUT_BINDINGS];
 static uint16_t input_override_mask = 0;
-/* Per button: freeze the player while its script runs (else it runs as a
- * background thread, whose handle is kept so it never runs twice at once). */
-static uint8_t input_freeze[INPUT_BITS];
-static int input_thread[INPUT_BITS];
 
 static void play_sound_effect(int id)
 {
@@ -187,12 +210,8 @@ void script_reset_scene(void)
         threads[i].ip = 0;
     for (int i = 0; i < TIMER_SLOTS; i++)
         timer_slots[i].script = 0;
-    for (int i = 0; i < INPUT_BITS; i++)
-    {
-        input_scripts[i] = 0;
-        input_freeze[i] = 0;
-        input_thread[i] = 0;
-    }
+    for (int i = 0; i < INPUT_BINDINGS; i++)
+        input_bindings[i].script = 0;
     input_override_mask = 0;
 }
 
@@ -201,8 +220,7 @@ void script_reset_scene(void)
 
 #define SNAP_SLOTS 8
 static ScriptThread snap_threads[SNAP_SLOTS][THREAD_COUNT] EWRAM_BSS;
-static const ScriptEvent *snap_inputs[SNAP_SLOTS][INPUT_BITS] EWRAM_BSS;
-static uint8_t snap_input_freeze[SNAP_SLOTS][INPUT_BITS] EWRAM_BSS;
+static InputBinding snap_inputs[SNAP_SLOTS][INPUT_BINDINGS] EWRAM_BSS;
 static uint16_t snap_override[SNAP_SLOTS] EWRAM_BSS;
 
 void script_snapshot_save(int slot, int exclude_thread)
@@ -219,12 +237,76 @@ void script_snapshot_save(int slot, int exclude_thread)
      * comes back, it must not carry on and leave again. */
     if (exclude_thread >= 0 && exclude_thread < THREAD_COUNT)
         snap_threads[slot][exclude_thread].ip = 0;
-    for (int i = 0; i < INPUT_BITS; i++)
-    {
-        snap_inputs[slot][i] = input_scripts[i];
-        snap_input_freeze[slot][i] = input_freeze[i];
-    }
+    for (int i = 0; i < INPUT_BINDINGS; i++)
+        snap_inputs[slot][i] = input_bindings[i];
     snap_override[slot] = input_override_mask;
+}
+
+/* "Attach Script To Button": (re)bind `bit`'s script for the event's
+ * trigger, replacing what that button (or that same combo) had for it. */
+static void input_bind(int bit, const ScriptEvent *ev)
+{
+    int trigger = ev->d & 7;
+    const char *combo = trigger == INPUT_TRIG_COMBO ? ev->str : 0;
+    int slot = -1;
+    for (int i = 0; i < INPUT_BINDINGS; i++)
+    {
+        InputBinding *b = &input_bindings[i];
+        if (!b->script)
+        {
+            if (slot < 0)
+                slot = i;
+            continue;
+        }
+        if (b->bit != bit || b->trigger != trigger)
+            continue;
+        if (combo)
+        {
+            const char *x = b->combo, *y = combo;
+            while (*x && *x == *y)
+                x++, y++;
+            if (*x != *y)
+                continue;
+        }
+        slot = i;
+        break;
+    }
+    if (slot < 0)
+        return;   /* all INPUT_BINDINGS in use */
+    InputBinding *b = &input_bindings[slot];
+    b->script = (const ScriptEvent *)ev->ptr;
+    b->combo = combo;
+    b->frames = (uint16_t)((uint16_t)ev->d >> 3);
+    b->count = 0;
+    b->bit = (uint8_t)bit;
+    b->trigger = (uint8_t)trigger;
+    b->freeze = ev->c ? 1 : 0;
+    b->step = 0;
+    b->thread = 0;
+}
+
+/* A combo binding: did this frame's press finish its sequence? */
+static int input_combo_step(InputBinding *b)
+{
+    if (b->step && b->count && --b->count == 0)
+        b->step = 0;   /* too slow */
+    uint16_t pressed = 0;
+    for (int k = 0; k < INPUT_BITS; k++)
+        if (input_pressed((uint16_t)(1u << k)))
+            pressed |= (uint16_t)(1u << k);
+    if (!pressed || !b->combo || !b->combo[0])
+        return 0;
+    if (pressed & (1u << ((uint8_t)b->combo[b->step] - 1)))
+        b->step++;
+    else
+        b->step = (pressed & (1u << ((uint8_t)b->combo[0] - 1))) ? 1 : 0;
+    b->count = b->frames;
+    if (b->combo[b->step] == 0)
+    {
+        b->step = 0;
+        return 1;
+    }
+    return 0;
 }
 
 void script_snapshot_restore(int slot)
@@ -233,11 +315,12 @@ void script_snapshot_restore(int slot)
         return;
     for (int i = 0; i < THREAD_COUNT; i++)
         threads[i] = snap_threads[slot][i];
-    for (int i = 0; i < INPUT_BITS; i++)
+    for (int i = 0; i < INPUT_BINDINGS; i++)
     {
-        input_scripts[i] = snap_inputs[slot][i];
-        input_freeze[i] = snap_input_freeze[slot][i];
-        input_thread[i] = 0;
+        input_bindings[i] = snap_inputs[slot][i];
+        input_bindings[i].thread = 0;
+        input_bindings[i].count = 0;
+        input_bindings[i].step = 0;
     }
     input_override_mask = snap_override[slot];
 }
@@ -932,9 +1015,7 @@ static void thread_step(ScriptThread *t, int is_main)
                     continue;
                 if (ev->op == SCRIPT_INPUT_SCRIPT_SET)
                 {
-                    input_scripts[bit] = (const ScriptEvent *)ev->ptr;
-                    input_freeze[bit] = ev->c ? 1 : 0;
-                    input_thread[bit] = 0;
+                    input_bind(bit, ev);
                     if (ev->b)
                         input_override_mask |= m;
                     else
@@ -942,7 +1023,9 @@ static void thread_step(ScriptThread *t, int is_main)
                 }
                 else
                 {
-                    input_scripts[bit] = 0;
+                    for (int i = 0; i < INPUT_BINDINGS; i++)
+                        if (input_bindings[i].script && input_bindings[i].bit == bit)
+                            input_bindings[i].script = 0;
                     input_override_mask &= (uint16_t)~m;
                 }
             }
@@ -1210,22 +1293,52 @@ void script_update(void)
 
 int script_check_input(void)
 {
-    for (int bit = 0; bit < INPUT_BITS; bit++)
+    for (int i = 0; i < INPUT_BINDINGS; i++)
     {
-        if (input_scripts[bit] && input_pressed((uint16_t)(1u << bit)))
+        InputBinding *b = &input_bindings[i];
+        if (!b->script)
+            continue;
+        uint16_t m = (uint16_t)(1u << b->bit);
+        int fire = 0;
+        switch (b->trigger)
         {
-            if (input_freeze[bit])
+        case INPUT_TRIG_PRESS:   fire = input_pressed(m); break;
+        case INPUT_TRIG_HOLD:    fire = input_held(m); break;
+        case INPUT_TRIG_RELEASE: fire = input_released(m); break;
+        case INPUT_TRIG_LONG:
+            if (!input_held(m))
+                b->count = 0;
+            else if (b->count < 0xFFFF && ++b->count == b->frames)
+                fire = 1;
+            break;
+        case INPUT_TRIG_TAP:
+            if (input_held(m))
             {
-                script_start(input_scripts[bit]);
-                return 1;
+                if (input_pressed(m))
+                    b->count = 0;
+                if (b->count < 0xFFFF)
+                    b->count++;
             }
-            /* Like GB Studio: runs alongside play, the player keeps
-             * moving - but never two copies of the same button's script. */
-            int h = input_thread[bit];
-            if (h > 0 && threads[h].ip && threads[h].base == input_scripts[bit])
-                continue;
-            input_thread[bit] = script_thread_start(input_scripts[bit]);
+            else if (input_released(m) && b->count <= b->frames)
+                fire = 1;
+            break;
+        case INPUT_TRIG_COMBO:
+            fire = input_combo_step(b);
+            break;
         }
+        if (!fire)
+            continue;
+        if (b->freeze)
+        {
+            script_start(b->script);
+            return 1;
+        }
+        /* Like GB Studio: runs alongside play, the player keeps moving -
+         * but never two copies of the same binding's script. */
+        int h = b->thread;
+        if (h > 0 && threads[h].ip && threads[h].base == b->script)
+            continue;
+        b->thread = script_thread_start(b->script);
     }
     return 0;
 }

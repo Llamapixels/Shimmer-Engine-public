@@ -658,6 +658,13 @@ export interface InputScriptSetEvent extends EventBase {
   type: "input_script_set";
   buttons: ButtonName | ButtonName[];
   override?: boolean;
+  /** Default "press". */
+  trigger?: "press" | "hold" | "long" | "release" | "tap" | "combo";
+  /** long: frames to hold; tap: most frames held; combo: most frames
+   * between steps. Default 15. */
+  frames?: number;
+  /** trigger "combo": the buttons in order, e.g. "down right a". */
+  combo?: string | ButtonName[];
   script?: EventScript;
 }
 

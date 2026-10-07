@@ -647,6 +647,9 @@ BUTTON_NAME_TO_CONST = {
     "l":      "INPUT_L",
 }
 
+# "input_script_set" triggers -> the engine's INPUT_TRIG_* (script.c).
+INPUT_TRIGGERS = {"press": 0, "hold": 1, "long": 2, "release": 3, "tap": 4, "combo": 5}
+
 # int16_t range - set_var/add_var/if_var literal values must fit.
 INT16_MIN, INT16_MAX = -32768, 32767
 
@@ -2268,13 +2271,36 @@ def compile_parity_event(etype, ev, out, ctx, where):
         out.append(_instr("SCRIPT_TIMER_DISABLE", a=_timer_slot(ev, where)))
 
     elif etype == "input_script_set":
-        mask = _button_mask(ev.get("buttons"), where)
         override = 1 if ev.get("override", False) else 0
         # Like GB Studio the script runs alongside play; "freeze_player"
         # stops the player (and everything waiting on the main script) instead.
         freeze = 1 if ev.get("freeze_player", False) else 0
+        trigger = str(ev.get("trigger", "press"))
+        if trigger not in INPUT_TRIGGERS:
+            raise BuildError(f"{where}: \"trigger\" must be one of: {', '.join(INPUT_TRIGGERS)}.")
+        d, text = 0, "0"
+        if trigger != "press":
+            frames = resolve_small_int(ev.get("frames", 15), "frames", where, 1, 4095)
+            d = INPUT_TRIGGERS[trigger] | (frames << 3)
+        if trigger == "combo":
+            steps = ev.get("combo", [])
+            if isinstance(steps, str):
+                steps = steps.replace(",", " ").split()
+            if not isinstance(steps, list) or not 2 <= len(steps) <= 16:
+                raise BuildError(f"{where}: a combo needs 2 to 16 buttons in order, e.g. \"down right a\".")
+            bits = []
+            for s in steps:
+                name = str(s).strip().lower()
+                if name not in BUTTON_NAME_TO_CONST:
+                    raise BuildError(f"{where}: unknown button '{s}' in the combo. "
+                                     f"Use: {', '.join(BUTTON_NAME_TO_CONST)}.")
+                bits.append(list(BUTTON_NAME_TO_CONST).index(name))
+            mask = BUTTON_NAME_TO_CONST[str(steps[-1]).strip().lower()]
+            text = c_string_literal("".join(chr(b + 1) for b in bits))
+        else:
+            mask = _button_mask(ev.get("buttons"), where)
         ptr = compile_subscript(ev.get("script", []), ctx, where)
-        out.append(_instr("SCRIPT_INPUT_SCRIPT_SET", a=mask, b=override, c=freeze, ptr=ptr))
+        out.append(_instr("SCRIPT_INPUT_SCRIPT_SET", a=mask, b=override, c=freeze, d=d, text=text, ptr=ptr))
 
     elif etype == "actor_line_of_sight":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)

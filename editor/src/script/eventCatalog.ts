@@ -1635,17 +1635,54 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Attach Script To Button",
     category: "Timing & Input",
     description:
-      "Run a script whenever a button is pressed, until removed or the scene changes. \"Override\" replaces the " +
+      "Run a script when a button is pressed, held, released or tapped, or when a combo is entered, until removed or the scene changes. " +
+      "Frames: how long to hold, the longest press that counts as a tap, or the most time between combo buttons. \"Override\" replaces the " +
       "button's normal action (e.g. A = talk). Like GB Studio the script runs alongside play, so the player keeps moving " +
       "(mid-jump attacks work); tick \"Freeze player\" to stop everything until it finishes.",
     fields: [
-      { key: "buttons", label: "Buttons", kind: "buttons" },
+      {
+        key: "trigger",
+        label: "When",
+        kind: "select",
+        defaultValue: "press",
+        options: [
+          { value: "press", label: "Pressed" },
+          { value: "hold", label: "Held (repeats while held)" },
+          { value: "long", label: "Held for a time (once)" },
+          { value: "release", label: "Released" },
+          { value: "tap", label: "Tapped (quick press)" },
+          { value: "combo", label: "Combo (buttons in order)" },
+        ],
+      },
+      { key: "buttons", label: "Buttons", kind: "buttons", showIf: (e) => e.trigger !== "combo" },
+      {
+        key: "combo",
+        label: "Combo buttons, in order",
+        kind: "text",
+        placeholder: "down right a",
+        showIf: (e) => e.trigger === "combo",
+      },
+      {
+        key: "frames",
+        label: "Frames",
+        kind: "int",
+        min: 1,
+        max: 4095,
+        defaultValue: 15,
+        showIf: (e) => e.trigger === "long" || e.trigger === "tap" || e.trigger === "combo",
+      },
       { key: "override", label: "Override", kind: "bool" },
       { key: "freeze_player", label: "Freeze player while it runs", kind: "bool", defaultValue: false },
     ],
-    branches: [{ key: "script", label: "On press" }],
+    branches: [{ key: "script", label: "Script" }],
     create: () => ({ type: "input_script_set", buttons: "a", override: false, script: [] }),
-    summary: (ev) => `${buttonsLabel(ev.buttons)}${ev.override ? " (override)" : ""}`,
+    summary: (ev) => {
+      const t = ev.trigger ?? "press";
+      const what = t === "combo" ? `combo ${Array.isArray(ev.combo) ? ev.combo.join(" ") : ev.combo || "?"}` : buttonsLabel(ev.buttons);
+      const when =
+        t === "hold" ? " held" : t === "long" ? ` held ${ev.frames ?? 15}f` : t === "release" ? " released" : t === "tap" ? " tapped" : "";
+      return `${what}${when}${ev.override ? " (override)" : ""}`;
+    },
   }),
   def({
     type: "actor_line_of_sight",
