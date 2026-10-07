@@ -8,7 +8,7 @@
  *   - macOS:   opens the .dmg to drag the new app into Applications
  */
 import { spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, readFileSync } from "node:fs";
 import { chmod, rename, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -138,6 +138,18 @@ async function install(file: string, win: BrowserWindow | null): Promise<boolean
   return true;
 }
 
+/** This app's version, from its package.json (app.getVersion() gives
+ * Electron's own version when started with "npm start"). */
+function appVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf-8")) as { version?: string };
+    if (pkg.version) return pkg.version;
+  } catch {
+    /* fall through */
+  }
+  return app.getVersion();
+}
+
 let busy = false;
 
 /** Help/Community > Check for Updates. `beforeQuit` saves open work. */
@@ -146,7 +158,7 @@ export async function checkForUpdates(win: BrowserWindow | null, beforeQuit: () 
   busy = true;
   const show = (opts: Electron.MessageBoxOptions) => (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts));
   try {
-    const current = app.getVersion();
+    const current = appVersion();
     const release = await newestRelease();
     if (!release || compareVersions(release.tag_name, current) <= 0) {
       await show({ type: "info", message: "Shimmer Engine is up to date.", detail: `You have version ${current}.` });

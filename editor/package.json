@@ -1,7 +1,7 @@
 {
   "name": "shimmer-engine",
   "productName": "Shimmer Engine",
-  "version": "0.4.1-alpha",
+  "version": "0.5.0-alpha",
   "description": "A game maker for the Game Boy Advance.",
   "private": true,
   "main": "dist-electron/electron/main.js",
