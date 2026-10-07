@@ -37,6 +37,7 @@ export type Tool =
   | "collision"
   | "palette"
   | "tiles"
+  | "front"
   | "eraser"
   | "spawn"
   | "placePrefab";
@@ -48,7 +49,7 @@ export type Brush = "#" | "~" | "!" | "." | "^" | "v" | "<" | ">" | "H";
 export type BrushShape = "8px" | "16px" | "fill" | "magic" | "selection";
 
 /** Which layer the paint tools / eraser work on. */
-export type PaintLayer = "collision" | "palette" | "tiles";
+export type PaintLayer = "collision" | "palette" | "tiles" | "front";
 
 /** Tiles tool stamp: a rectangle of the background's own tiles. */
 export interface TileStamp {

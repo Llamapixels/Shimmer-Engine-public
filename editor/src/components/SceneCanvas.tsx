@@ -49,6 +49,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: IconName; group: numb
   { id: "collision", label: "Paint collisions", key: "C", icon: "collision", group: 1 },
   { id: "palette", label: "Paint colors (BG palettes)", key: "Z", icon: "colors", group: 1 },
   { id: "tiles", label: "Paint tiles", key: "X", icon: "tiles", group: 1 },
+  { id: "front", label: "Paint tiles in front of actors (tree tops, roofs, arches)", key: "F", icon: "front", group: 1 },
   { id: "eraser", label: "Eraser", key: "E", icon: "eraser", group: 1 },
   { id: "spawn", label: "Set player start", key: "P", icon: "start", group: 2 },
 ];
@@ -73,7 +74,7 @@ const COLLISION_TYPES: { id: Brush; label: string; color: string; edge?: "top" |
 ];
 const COLLISION_BY_CHAR = new Map(COLLISION_TYPES.map((c) => [c.id as string, c]));
 
-const LAYER_LABEL: Record<PaintLayer, string> = { collision: "Collisions", palette: "Colors", tiles: "Tiles" };
+const LAYER_LABEL: Record<PaintLayer, string> = { collision: "Collisions", palette: "Colors", tiles: "Tiles", front: "In front" };
 
 /** Deterministic display color per palette id, purely for the canvas
  * overlay (the compiler doesn't use this - actual GBA colors come from
@@ -239,7 +240,7 @@ export default function SceneCanvas() {
 
   // The eraser works on whichever layer was painted last.
   useEffect(() => {
-    if (tool === "collision" || tool === "palette" || tool === "tiles") setEraseLayer(tool);
+    if (tool === "collision" || tool === "palette" || tool === "tiles" || tool === "front") setEraseLayer(tool);
   }, [tool, setEraseLayer]);
 
   // A selection belongs to the layer it was made on.
@@ -284,7 +285,9 @@ export default function SceneCanvas() {
         ? "palette"
         : tool === "tiles"
           ? "tiles"
-          : tool === "eraser"
+          : tool === "front"
+            ? "front"
+            : tool === "eraser"
             ? eraseLayer
             : null;
 
@@ -390,6 +393,14 @@ export default function SceneCanvas() {
       });
     }
 
+    // Tiles in front of actors: shown while painting them.
+    if (paintLayer === "front" && view.front_tiles) {
+      ctx.fillStyle = "rgba(170, 110, 255, 0.45)";
+      view.front_tiles.forEach((row, ty) => {
+        for (let tx = 0; tx < row.length; tx++) if (row[tx] === "#") ctx.fillRect(tx * S, ty * S, S, S);
+      });
+    }
+
     if (showPalettes && view.palette_map) {
       view.palette_map.forEach((row, ty) => {
         row.forEach((pid, tx) => {
@@ -418,6 +429,8 @@ export default function SceneCanvas() {
             label = pi >= 0 ? String(pi + 1) : "";
           } else if (paintLayer === "tiles") {
             label = view.tile_overrides?.[`${tx},${ty}`] ? "•" : "";
+          } else if (paintLayer === "front") {
+            label = view.front_tiles?.[ty]?.[tx] === "#" ? "F" : "";
           } else {
             const ch = view.collision?.[ty]?.[tx] ?? ".";
             label = ch === "." ? "" : ch;
@@ -905,7 +918,7 @@ export default function SceneCanvas() {
       } else if (paintLayer === "palette") {
         const pid = data.palette_map?.[t.y]?.[t.x];
         if (pid) setPaletteBrush(pid);
-      } else {
+      } else if (paintLayer === "tiles") {
         const o = data.tile_overrides?.[`${t.x},${t.y}`];
         setTileStamp({ x: o ? o[0] : t.x, y: o ? o[1] : t.y, w: 1, h: 1 });
       }
@@ -1285,8 +1298,11 @@ export default function SceneCanvas() {
                 {tileStamp ? `Stamp ${tileStamp.w}×${tileStamp.h} from ${tileStamp.x}, ${tileStamp.y}` : "Pick tiles in the panel below"}
               </span>
             )}
+            {tool === "front" && (
+              <span className="scene-canvas-float-hint">Paint the tiles actors walk behind: they're drawn over sprites in the game.</span>
+            )}
             {tool === "eraser" &&
-              (["collision", "palette", "tiles"] as PaintLayer[]).map((l) => (
+              (["collision", "palette", "tiles", "front"] as PaintLayer[]).map((l) => (
                 <button key={l} className={`brush-btn${eraseLayer === l ? " brush-btn-active" : ""}`} onClick={() => setEraseLayer(l)}>
                   {LAYER_LABEL[l]}
                 </button>

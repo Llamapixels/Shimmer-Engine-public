@@ -306,6 +306,8 @@ export interface SceneJSON {
    * Omitted for a brand-new scene - the compiler fills in an all-walkable
    * grid and writes it back the first time it builds. */
   collision?: string[];
+  /** Tiles drawn in front of actors: rows like `collision`, "#" = in front. */
+  front_tiles?: string[];
   /** Per-tile BG palette assignment: palette_map[y][x] is a PaletteJSON
    * id, or null/absent for "let the compiler auto-assign this tile".
    * Same width/height grid as `collision` (background width/height / 8).

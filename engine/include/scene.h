@@ -199,6 +199,12 @@ typedef struct
     /* Custom scripts "script" engine settings name (On dash...): a
      * setting's value - 1 indexes this. 0 = the scene uses none. */
     const ScriptEvent *const *ability_scripts;
+
+    /* Tiles drawn in front of actors (scene JSON "front_tiles"): a map the size
+     * of `map`, holding the map's entry where a tile is in front and 0
+     * (the blank tile) elsewhere. Shown on BG2 above the sprites. 0 =
+     * none. */
+    const uint16_t *front_map;
 } SceneDef;
 
 /* Load background, palettes, collision and camera bounds. */

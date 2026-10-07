@@ -1066,6 +1066,15 @@ def fit_collision(rows, w, h, scene_name):
     return [(rows[y] if y < len(rows) else "")[:w].ljust(w, ".") for y in range(h)]
 
 
+def parse_front(rows, w, h, scene_name):
+    """Scene "front_tiles": rows of "#" (drawn in front of actors) and "." ->
+    a flat list of booleans, w*h (short or missing rows count as ".")."""
+    if not isinstance(rows, list) or not all(isinstance(r, str) for r in rows):
+        raise BuildError(f"{scene_name}: \"front_tiles\" must be a list of strings.")
+    return [(rows[y][x] == "#") if y < len(rows) and x < len(rows[y]) else False
+            for y in range(h) for x in range(w)]
+
+
 def parse_collision(rows, w, h, scene_name):
     rows = fit_collision(rows, w, h, scene_name)
 
@@ -3382,6 +3391,23 @@ def build(project_dir, out_dir):
                                grid, "{}", w if w <= 64 else 64))
         c_parts.append("")
 
+        # Tiles in front of actors ("front_tiles": rows, "#" = in front).
+        front_ref = "0"
+        if scene.get("front_tiles") is not None:
+            front = parse_front(scene["front_tiles"], w, h, name)
+            if any(front):
+                if layer_data:
+                    raise BuildError(f"{name}: tiles in front of actors can't be used together with "
+                                     "background layers (both need the GBA's BG2). Remove the layers or the front tiles.")
+                if scene.get("parallax"):
+                    raise BuildError(f"{name}: tiles in front of actors can't be used together with "
+                                     "parallax strips. Remove one of them.")
+                front_ref = f"{ident}_front_map"
+                c_parts.append(c_array("uint16_t", front_ref,
+                                       [e if f else 0 for e, f in zip(bg["map"], front)],
+                                       "0x{:04X}", w if w <= 16 else 16))
+                c_parts.append("")
+
         # Scene on_init: auto-runs once, every time this scene loads.
         # NPCs' own "on_init"s run first (as themselves), then the scene's.
         init_parts = [(_script_list(npc["on_init"], f"{name}: NPC {j} \"on_init\""), j, f"{name}: NPC {j} on_init")
@@ -3653,6 +3679,8 @@ def build(project_dir, out_dir):
         c_parts.append(f"    .settings      = {settings_idents[settings_key]},")
         if ability_ref != "0":
             c_parts.append(f"    .ability_scripts = {ability_ref},")
+        if front_ref != "0":
+            c_parts.append(f"    .front_map     = {front_ref},")
         c_parts.append("};")
         c_parts.append("")
 

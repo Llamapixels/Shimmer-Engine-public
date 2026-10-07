@@ -65,7 +65,12 @@ void background_vblank(void);
 
 /* Full background layers for the scene being loaded (BG2/BG3; count 0
  * turns them off). See BgLayer in scene.h. */
-void background_set_layers(const BgLayer *layers, int count);   /* call right after each VBlankIntrWait() */
+void background_set_layers(const BgLayer *layers, int count);
+
+/* Tiles in front of actors (SceneDef.front_map, 0 = none): call after the
+ * map is loaded or streaming has begun. Uses BG2 and the layers' screen
+ * blocks, so a scene with it has no BG layers (the compiler checks). */
+void background_set_front(const uint16_t *map);   /* call right after each VBlankIntrWait() */
 
 void background_set_scroll(
     int x,

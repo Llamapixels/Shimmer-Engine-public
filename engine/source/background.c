@@ -77,6 +77,12 @@ static BgLayer layer_def[LAYER_MAX];
 static int32_t layer_drift_x[LAYER_MAX], layer_drift_y[LAYER_MAX];   /* 1/256 px */
 static int layer_cam_x = 0, layer_cam_y = 0;
 
+/* background_set_front(): BG2, screen blocks 24-27 (64x64), scrolled and
+ * streamed with BG0. */
+#define FRONT_SB 24
+#define FRONT_MAP ((volatile uint16_t *)(0x06000000 + FRONT_SB * 0x800))
+static const uint16_t *front_map = 0;
+
 static const uint16_t *loaded_map = 0;
 static uint32_t loaded_width = 0;
 static uint32_t loaded_height = 0;
@@ -202,6 +208,21 @@ static void stream_put(int phys_col, int phys_row, uint16_t entry)
     BG_MAP[block * 1024 + (phys_row % 32) * 32 + (phys_col % 32)] = entry;
 }
 
+/* The front map's entry for a world tile (0 = nothing in front). */
+static uint16_t front_tile_at(int wx, int wy)
+{
+    if (!front_map || wx < 0 || wy < 0 || (uint32_t)wx >= loaded_width || (uint32_t)wy >= loaded_height)
+        return 0;
+    return front_map[(uint32_t)wy * loaded_width + (uint32_t)wx];
+}
+
+static void front_put(int phys_col, int phys_row, uint16_t entry)
+{
+    uint32_t block = (uint32_t)(phys_col / 32) + (uint32_t)(phys_row / 32) * 2;
+
+    FRONT_MAP[block * 1024 + (phys_row % 32) * 32 + (phys_col % 32)] = entry;
+}
+
 /*
  * Given a physical VRAM row/column (0-63) and the camera's CURRENT
  * tile position on that axis, work out which world tile it should
@@ -227,6 +248,8 @@ static void stream_write_col(int world_x, int cam_tile_y)
     {
         int world_y = world_for_phys(row, cam_tile_y);
         stream_put(phys_col, row, stream_tile_at(world_x, world_y));
+        if (front_map)
+            front_put(phys_col, row, front_tile_at(world_x, world_y));
     }
 }
 
@@ -239,6 +262,8 @@ static void stream_write_row(int world_y, int cam_tile_x)
     {
         int world_x = world_for_phys(col, cam_tile_x);
         stream_put(col, phys_row, stream_tile_at(world_x, world_y));
+        if (front_map)
+            front_put(col, phys_row, front_tile_at(world_x, world_y));
     }
 }
 
@@ -420,6 +445,40 @@ void background_set_layers(const BgLayer *layers, int count)
     layers_apply();
 }
 
+void background_set_front(const uint16_t *map)
+{
+    front_map = map;
+    if (!map)
+    {
+        if (layer_count == 0)
+            REG_DISPCNT &= ~BG2_ENABLE;
+        return;
+    }
+
+    /* Same size and layout as BG0 (64x64 while streaming). */
+    uint32_t hw_w = stream_active || loaded_width > 32 ? 64 : 32;
+    uint32_t hw_h = stream_active || loaded_height > 32 ? 64 : 32;
+    uint16_t size_bits = (hw_w == 64 ? 1 : 0) | (hw_h == 64 ? 2 : 0);
+    /* Priority 0: over the sprites (1); BG1, the dialogue box, still
+     * wins the tie. Char block 0: the map's own tiles. */
+    REG_BG2CNT = (uint16_t)(0 | (0 << 2) | (FRONT_SB << 8) | (size_bits << 14));
+
+    if (!stream_active)
+    {
+        uint32_t blocks_across = hw_w / 32;
+        for (uint32_t y = 0; y < hw_h; y++)
+            for (uint32_t x = 0; x < hw_w; x++)
+            {
+                uint32_t block = (x / 32) + (y / 32) * blocks_across;
+                FRONT_MAP[block * 1024 + (y % 32) * 32 + (x % 32)] = front_tile_at((int)x, (int)y);
+            }
+    }
+    /* (Streaming fills it along with BG0, from stream_update().) */
+    REG_BG2HOFS = 0;
+    REG_BG2VOFS = 0;
+    REG_DISPCNT |= BG2_ENABLE;
+}
+
 void background_vblank(void)
 {
     if (layer_count > 0)
@@ -534,6 +593,11 @@ void background_set_scroll(
 
     REG_BG0HOFS = (uint16_t)x;
     REG_BG0VOFS = (uint16_t)y;
+    if (front_map)
+    {
+        REG_BG2HOFS = (uint16_t)x;
+        REG_BG2VOFS = (uint16_t)y;
+    }
 }
 
 uint16_t background_get_tile(int x, int y)

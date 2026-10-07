@@ -51,6 +51,8 @@ void scene_load(const SceneDef *scene)
         );
     }
 
+    background_set_front(scene->front_map);
+
     collision_set_map(
         scene->collision,
         scene->width,

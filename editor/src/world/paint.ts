@@ -35,6 +35,18 @@ function resizePaletteMap(rows: (string | null)[][], w: number, h: number): (str
 /** The scene with `cells` written into `layer`. */
 export function applyCells(scene: SceneJSON, layer: PaintLayer, w: number, h: number, cells: Cells): SceneJSON {
   if (!cells.size) return scene;
+  if (layer === "front") {
+    const grid = resizeCollision(scene.front_tiles ?? [], w, h).map((r) => r.split(""));
+    for (const [k, v] of cells) {
+      const x = k % w;
+      const y = Math.floor(k / w);
+      if (grid[y] && x < w) grid[y][x] = v === "#" ? "#" : ".";
+    }
+    const rows = grid.map((r) => r.join(""));
+    const next: SceneJSON = { ...scene, front_tiles: rows };
+    if (!rows.some((r) => r.includes("#"))) delete next.front_tiles;
+    return next;
+  }
   if (layer === "collision") {
     const grid = resizeCollision(scene.collision ?? [], w, h).map((r) => r.split(""));
     for (const [k, v] of cells) {
@@ -74,6 +86,7 @@ export function applyCells(scene: SceneJSON, layer: PaintLayer, w: number, h: nu
  * pixel-content key of the tile shown there, so equal-looking tiles match. */
 export function cellKey(scene: SceneJSON, layer: PaintLayer, x: number, y: number, tileKeys: string[] | null, w: number): string {
   if (layer === "collision") return scene.collision?.[y]?.[x] ?? ".";
+  if (layer === "front") return scene.front_tiles?.[y]?.[x] ?? ".";
   if (layer === "palette") return scene.palette_map?.[y]?.[x] ?? "";
   const o = scene.tile_overrides?.[`${x},${y}`];
   const sx = o ? o[0] : x;
@@ -83,6 +96,7 @@ export function cellKey(scene: SceneJSON, layer: PaintLayer, x: number, y: numbe
 
 export function readCell(scene: SceneJSON, layer: PaintLayer, x: number, y: number): CellValue {
   if (layer === "collision") return scene.collision?.[y]?.[x] ?? ".";
+  if (layer === "front") return scene.front_tiles?.[y]?.[x] ?? ".";
   if (layer === "palette") return scene.palette_map?.[y]?.[x] ?? null;
   const o = scene.tile_overrides?.[`${x},${y}`];
   return o ? `${o[0]},${o[1]}` : null;
@@ -162,6 +176,7 @@ export function brushValue(
   y: number,
 ): CellValue {
   if (layer === "collision") return erase ? "." : collisionBrush;
+  if (layer === "front") return erase ? "." : "#";
   if (layer === "palette") return erase ? null : paletteBrush;
   if (erase || !stamp) return null;
   const mod = (a: number, n: number) => ((a % n) + n) % n;
