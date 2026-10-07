@@ -10,10 +10,17 @@ static const SceneDef *current_scene = 0;
 void scene_load(const SceneDef *scene)
 {
     /*
-     * Forced blank while loading so the half-loaded scene
-     * never shows on screen.
+     * Keep the half-loaded scene off screen. Not with forced blank,
+     * which shows white: if a fade or transition already covers the
+     * screen, it stays as it is; otherwise everything is darkened to
+     * black for the load.
      */
-    REG_DISPCNT |= 0x0080;
+    uint16_t bldcnt = REG_BLDCNT;
+    if (bldcnt == 0)
+    {
+        REG_BLDCNT = 0x3F | (3 << 6);   /* all layers + backdrop, darken */
+        REG_BLDY = 16;
+    }
 
     /* Before the map: streaming fills rows around each band's scroll. */
     background_set_parallax(scene->parallax, scene->parallax_count);
@@ -67,7 +74,11 @@ void scene_load(const SceneDef *scene)
 
     current_scene = scene;
 
-    REG_DISPCNT &= ~0x0080;
+    if (bldcnt == 0)
+    {
+        REG_BLDCNT = 0;
+        REG_BLDY = 0;
+    }
 }
 
 const SceneDef *scene_current(void)
