@@ -95,7 +95,7 @@ export interface LaunchProjectileEvent extends EventBase {
   type: "launch_projectile";
   sprite: string;
   actor?: ActorRef;
-  direction?: "facing" | "up" | "down" | "left" | "right" | "angle";
+  direction?: "facing" | "player" | "up" | "down" | "left" | "right" | "angle";
   /** Degrees, 0 = right, 90 = up. */
   angle?: number;
   /** px per frame */
@@ -136,6 +136,10 @@ export interface LaunchProjectileEvent extends EventBase {
   tag?: number;
   /** Once stuck (platformer): the player can stand on it, or bounces. */
   stick_solid?: "none" | "platform" | "bouncy";
+  /** Several at once: a fan ("spread", spread_angle degrees apart) or a full ring. */
+  pattern?: "single" | "spread" | "ring";
+  shots?: number;
+  spread_angle?: number;
 }
 
 export interface SetFlagEvent extends EventBase {

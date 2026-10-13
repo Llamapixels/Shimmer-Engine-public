@@ -17,7 +17,7 @@
  *
  * The compiler packs the event into an int16 array (PROJ_P_* below).
  */
-#define PROJECTILE_MAX 8
+#define PROJECTILE_MAX 24
 
 enum
 {
@@ -35,6 +35,9 @@ enum
     PROJ_P_LINGER,      /* PROJ_LAND_LINGER: frames it stays */
     PROJ_P_LAND_STATE,  /* animation state + 1 once landed, 0 = keep */
     PROJ_P_TAG,         /* 0 = none, 1-8: which ones Recall / Remove picks */
+    PROJ_P_SHOTS,       /* how many at once (spread / ring), 0 or 1 = one */
+    PROJ_P_STEP,        /* degrees between them */
+    PROJ_P_AIM,         /* 1 = aimed at the player */
     PROJ_P_COUNT
 };
 

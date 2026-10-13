@@ -449,6 +449,7 @@ export const EVENT_DEFS: EventDef[] = [
         kind: "select",
         options: [
           { value: "facing", label: "The way it's facing" },
+          { value: "player", label: "At the player (aimed)" },
           { value: "up", label: "Up" },
           { value: "down", label: "Down" },
           { value: "left", label: "Left" },
@@ -458,6 +459,19 @@ export const EVENT_DEFS: EventDef[] = [
       },
       { key: "angle", label: "Angle (0 = right, 90 = up)", kind: "int", min: -360, max: 360 },
       { key: "speed", label: "Speed (px/frame)", kind: "float", min: 0, max: 8 },
+      {
+        key: "pattern",
+        label: "Pattern",
+        kind: "select",
+        defaultValue: "single",
+        options: [
+          { value: "single", label: "One" },
+          { value: "spread", label: "Spread (fan)" },
+          { value: "ring", label: "Ring (all around)" },
+        ],
+      },
+      { key: "shots", label: "How many", kind: "int", min: 2, max: 16, defaultValue: 3, showIf: (e) => e.pattern === "spread" || e.pattern === "ring" },
+      { key: "spread_angle", label: "Angle between them (°)", kind: "int", min: 1, max: 180, defaultValue: 15, showIf: (e) => e.pattern === "spread" },
       {
         key: "path",
         label: "Path",

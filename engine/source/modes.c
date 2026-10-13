@@ -1180,10 +1180,14 @@ static const ScriptEvent *shmup_update(Entity *p)
     int hit_x, hit_y;
     move_by_velocity(p, &hit_x, &hit_y);
 
-    /* Stay on screen; the scrolling edge pushes the player along. */
+    /* Stay on screen; the scrolling edge pushes the player along. The
+     * whole 16x16 sprite stays in view (or just the collision box). */
     int cx = camera_get_x(), cy = camera_get_y();
-    int minx = cx - p->col_ox, maxx = cx + SCREEN_WIDTH - p->col_ox - p->col_w;
-    int miny = cy - p->col_oy, maxy = cy + SCREEN_HEIGHT - p->col_oy - p->col_h;
+    int box = MSET(SH_KEEP_ON_SCREEN) == 1;
+    int ox = box ? p->col_ox : 0, oy = box ? p->col_oy : 0;
+    int bw = box ? p->col_w : p->width, bh = box ? p->col_h : p->height;
+    int minx = cx - ox, maxx = cx + SCREEN_WIDTH - ox - bw;
+    int miny = cy - oy, maxy = cy + SCREEN_HEIGHT - oy - bh;
     int want_x = p->x < minx ? minx : p->x > maxx ? maxx : p->x;
     int want_y = p->y < miny ? miny : p->y > maxy ? maxy : p->y;
     int crushed = 0;

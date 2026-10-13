@@ -110,6 +110,8 @@ static void face_velocity(Entity *e, int vx, int vy, Direction fallback)
     entity_animate(e, d, 1);
 }
 
+static void launch_one(const int16_t *p, Entity *from, int source, const SpriteDef *def, int vx, int vy);
+
 void projectile_launch(const int16_t *p)
 {
     if (p[PROJ_P_SPRITE] < 0 || p[PROJ_P_SPRITE] >= SPRITE_COUNT)
@@ -120,20 +122,52 @@ void projectile_launch(const int16_t *p)
         return;
     const SpriteDef *def = &sprite_defs[p[PROJ_P_SPRITE]];
     sprite_load_palette(p[PROJ_P_BANK], def->palette);
-    Projectile *s = take_slot(def, p[PROJ_P_BANK], (p[PROJ_P_FLAGS] & PROJ_FLAG_FRONT) != 0);
-    if (!s)
-        return;
 
     int vx = p[PROJ_P_VX], vy = p[PROJ_P_VY];
-    int dir_x = 0, dir_y = 0;   /* facing, for arcs and waves */
     if (p[PROJ_P_FACING])
     {
         int speed = p[PROJ_P_SPEED];
-        dir_x = from->direction == DIR_RIGHT ? 1 : from->direction == DIR_LEFT ? -1 : 0;
-        dir_y = from->direction == DIR_DOWN ? 1 : from->direction == DIR_UP ? -1 : 0;
+        int dir_x = from->direction == DIR_RIGHT ? 1 : from->direction == DIR_LEFT ? -1 : 0;
+        int dir_y = from->direction == DIR_DOWN ? 1 : from->direction == DIR_UP ? -1 : 0;
         vx = dir_x * speed;
         vy = dir_y * speed;
     }
+    /* Aimed at the player (from anyone but the player). */
+    Entity *pl = world_player();
+    if (p[PROJ_P_AIM] && pl && pl != from)
+    {
+        int dx = (pl->x + pl->width / 2) - (from->x + from->width / 2);
+        int dy = (pl->y + pl->height / 2) - (from->y + from->height / 2);
+        int len = isqrt(dx * dx + dy * dy);
+        if (len)
+        {
+            vx = p[PROJ_P_SPEED] * dx / len;
+            vy = p[PROJ_P_SPEED] * dy / len;
+        }
+    }
+
+    /* Spread / ring: several at once, turned by PROJ_P_STEP degrees from
+     * each other around that direction. */
+    int shots = p[PROJ_P_SHOTS] > 1 ? p[PROJ_P_SHOTS] : 1;
+    int start = -(shots - 1) * p[PROJ_P_STEP] / 2;
+    for (int k = 0; k < shots; k++)
+    {
+        int a = start + k * p[PROJ_P_STEP];
+        if (a == 0)
+        {
+            launch_one(p, from, source, def, vx, vy);
+            continue;
+        }
+        int c = sprite_sin(a + 90), sn = sprite_sin(a);   /* 1/4096 */
+        launch_one(p, from, source, def, (vx * c + vy * sn) / 4096, (vy * c - vx * sn) / 4096);
+    }
+}
+
+static void launch_one(const int16_t *p, Entity *from, int source, const SpriteDef *def, int vx, int vy)
+{
+    Projectile *s = take_slot(def, p[PROJ_P_BANK], (p[PROJ_P_FLAGS] & PROJ_FLAG_FRONT) != 0);
+    if (!s)
+        return;
 
     /* Start at the source's centre, plus the offset (with "mirror",
      * flipped when it fires to the left, so a hitbox sits in front). */

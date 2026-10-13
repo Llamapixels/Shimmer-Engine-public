@@ -141,6 +141,7 @@
     { "key": "td_kb_vel", "mode": "topdown", "group": "Getting hit", "label": "Knockback speed", "unit": "speed", "default": 2, "min": 0, "max": 8, "if": "td_knockback" },
     { "key": "td_kb_frames", "mode": "topdown", "group": "Getting hit", "label": "Knockback time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "td_knockback" },
     { "key": "td_state_knockback", "mode": "topdown", "group": "Getting hit", "label": "Knockback animation", "unit": "state", "anim": "knockback", "default": "", "if": "td_knockback", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"knockback\" if the sprite has one." },
-    { "key": "td_on_knockback", "mode": "topdown", "group": "Getting hit", "label": "On knockback", "unit": "script", "default": "", "if": "td_knockback", "extra": true, "desc": "A custom script (Scripts list) run in the background each time the player is knocked back, e.g. to lower HP or update the HUD." }
+    { "key": "td_on_knockback", "mode": "topdown", "group": "Getting hit", "label": "On knockback", "unit": "script", "default": "", "if": "td_knockback", "extra": true, "desc": "A custom script (Scripts list) run in the background each time the player is knocked back, e.g. to lower HP or update the HUD." },
+    { "key": "sh_keep_on_screen", "mode": "shmup", "group": "Player", "label": "Keep on screen", "unit": "choice", "options": ["The whole sprite", "Only the collision box"], "default": 0, "desc": "With a small hitbox (set the collision box in the sprite editor), \"The whole sprite\" stops the ship at the screen edge before any of it goes out of view." }
   ]
 }

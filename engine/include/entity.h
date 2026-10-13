@@ -5,7 +5,7 @@
 
 #include "sprite.h"
 
-#define ENTITY_MAX 32
+#define ENTITY_MAX 48   /* player + 16 actors + 24 projectiles, and room to spare */
 
 typedef enum
 {

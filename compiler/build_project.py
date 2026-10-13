@@ -240,7 +240,8 @@ Event script types (used in "on_interact" and door "events" lists):
         Change an engine setting (compiler/engine_settings.json) for the
         rest of the scene.
     { "type": "launch_projectile", "sprite": "bullet", "actor": "player",
-      "direction": "facing" | "up" | "down" | "left" | "right" | "angle",
+      "direction": "facing" | "player" | "up" | "down" | "left" | "right" | "angle",
+      "pattern": "single" | "spread" | "ring", "shots": 3, "spread_angle": 15,
       "angle": 45, "speed": 3, "lifetime": 0, "hits": "actors",
       "group": 1, "pierce": false, "through_walls": false, "front": false,
       "offset_x": 0, "offset_y": 0 }
@@ -1453,9 +1454,11 @@ def compile_projectile(ev, ctx, where):
         raise BuildError(f"{where}: \"speed\" must be a number of pixels per frame, 0 to 8.")
     speed_fx = int(round(speed * 256))
     direction = ev.get("direction", "facing")
-    facing, vx, vy = 0, 0, 0
+    facing, vx, vy, aim = 0, 0, 0, 0
     if direction == "facing":
         facing = 1
+    elif direction == "player":
+        aim = 1   # worked out when it's fired; straight right if it can't aim
     elif direction == "angle":
         angle = ev.get("angle", 0)
         if not isinstance(angle, (int, float)) or isinstance(angle, bool):
@@ -1466,7 +1469,19 @@ def compile_projectile(ev, ctx, where):
         dx, dy = PROJECTILE_DIRECTIONS[direction]
         vx, vy = dx * speed_fx, dy * speed_fx
     else:
-        raise BuildError(f"{where}: \"direction\" must be facing, up, down, left, right or angle.")
+        raise BuildError(f"{where}: \"direction\" must be facing, player, up, down, left, right or angle.")
+    if aim:
+        vx = speed_fx
+    pattern = str(ev.get("pattern", "single"))
+    if pattern not in ("single", "spread", "ring"):
+        raise BuildError(f"{where}: \"pattern\" must be single, spread or ring.")
+    shots = 1 if pattern == "single" else resolve_small_int(ev.get("shots", 3), "shots", where, 2, 16)
+    if pattern == "spread":
+        shot_step = resolve_small_int(ev.get("spread_angle", 15), "spread_angle", where, 1, 180)
+    elif pattern == "ring":
+        shot_step = 360 // shots
+    else:
+        shot_step = 0
     life = resolve_small_int(ev.get("lifetime", 0), "lifetime", where, 0, 32767)
     hits = ev.get("hits", "actors")
     hit_list = hits if isinstance(hits, list) else [hits]
@@ -1516,7 +1531,7 @@ def compile_projectile(ev, ctx, where):
     data = [ctx["sprite_index"][sprite], bank, source, facing, vx, vy, speed_fx, life, group,
             target, flags, off_x, off_y,
             path_id, amp, period, gravity, lift, ret, bounces, PROJECTILE_LAND[on_land], linger, land_state,
-            resolve_small_int(ev.get("tag", 0), "tag", where, 0, 8)]
+            resolve_small_int(ev.get("tag", 0), "tag", where, 0, 8), shots, shot_step, aim]
     ident = _aux_ident(ctx, "projectile")
     ctx["_aux"].append(("expr", ident, data))
     return ident
