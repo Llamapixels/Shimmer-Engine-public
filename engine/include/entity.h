@@ -102,6 +102,10 @@ typedef struct
     uint8_t extra_slot;     /* 0, or ENTITY_SLOT_* + 1: shown instead
                              * of the direction/moving animation */
     uint8_t dir_locked;     /* keeps its direction while moving */
+    uint8_t gravity;        /* actor gravity: falls and lands on solid tiles */
+    uint8_t grounded;       /* gravity: standing on something */
+    int16_t vy;             /* gravity: 1/256 px per frame, + = down */
+    int16_t sub_y;          /* gravity: 1/256 px left over */
     uint8_t anim_hold;      /* a script picked a frame: keep it until the
                              * actor's direction or moving flag changes */
     uint8_t script_state;   /* 0, or state + 1: "Set Actor State" chose a

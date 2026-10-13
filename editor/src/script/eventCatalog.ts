@@ -57,7 +57,8 @@ export type FieldKind =
   | "cutscene"
   | "scriptArgs"
   | "spriteState"
-  | "combo";
+  | "combo"
+  | "prefab";
 
 export interface FieldDef {
   /** JSON key. For "tilePos"/"offset" this is a prefix-less pair: the
@@ -150,6 +151,7 @@ export interface CreateContext {
   firstTimer: string | number | null;
   /** id of the first project.customScripts[] entry, if any. */
   firstCustomScript: string | null;
+  firstActorPrefab: string | null;
   /** name of the first song in assets/music, if any. */
   firstMusicTrack: string | null;
   /** name of a sprite other than the player's, if any. */
@@ -223,6 +225,15 @@ const BUTTON_NAMES: Record<string, string> = {
 /** How a button shows in summaries: arrows, A, B, L, R, Start, Select. */
 export function buttonName(b: string): string {
   return BUTTON_NAMES[b.toLowerCase()] ?? b;
+}
+
+/** A prefab's name, from its id (set by the editor, see setPrefabNames). */
+let prefabNames: Record<string, string> = {};
+export function setPrefabNames(names: Record<string, string>) {
+  prefabNames = names;
+}
+function prefabLabel(id: string | undefined): string {
+  return id ? (prefabNames[id] ?? `${id} (missing!)`) : "(no prefab)";
 }
 
 function projectilePick(ev: { sprite?: string; tag?: number }): string {
@@ -492,6 +503,18 @@ export const EVENT_DEFS: EventDef[] = [
       },
       { key: "linger_frames", label: "Lingers for (frames)", kind: "int", min: 1, max: MAX_I16, defaultValue: 60, showIf: (e) => e.on_land === "linger" },
       { key: "land_state", label: "Animation once landed", kind: "spriteState", showIf: (e) => e.on_land === "stick" || e.on_land === "linger" },
+      {
+        key: "stick_solid",
+        label: "Once stuck, the player…",
+        kind: "select",
+        defaultValue: "none",
+        options: [
+          { value: "none", label: "Passes through it" },
+          { value: "platform", label: "Can stand on it (platformer)" },
+          { value: "bouncy", label: "Bounces off it (platformer)" },
+        ],
+        showIf: (e) => e.on_land === "stick",
+      },
       { key: "follow", label: "Follows the thrower (melee hitbox)", kind: "bool", defaultValue: false },
       { key: "mirror_offset", label: "Flip offset X when facing left", kind: "bool", defaultValue: false },
       { key: "tag", label: "Tag (1-8, for Recall / Remove; 0 = none)", kind: "int", min: 0, max: 8, defaultValue: 0 },
@@ -819,6 +842,89 @@ export const EVENT_DEFS: EventDef[] = [
     ],
     create: (c) => ({ type: "actor_set_direction", actor: c.firstActor ?? "self", direction: "down" }),
     summary: (ev) => `${actorLabel(ev.actor)} faces ${ev.direction}`,
+  }),
+  def({
+    type: "spawn_prefab",
+    label: "Spawn Prefab",
+    category: "Actors",
+    description:
+      "Make a new actor from an actor prefab while the game runs (enemies, pickups, bullets...). It appears at a tile, " +
+      "next to an actor, or at a position held in variables, and runs the prefab's On Init; its On Update starts too. " +
+      "The scene keeps \"max at once\" hidden copies of the prefab (they count towards its 16 actors); with all of them " +
+      "out, nothing more spawns until one is removed with Remove Actor (e.g. \"self\" in its On Hit).",
+    fields: [
+      { key: "prefab", label: "Prefab", kind: "prefab" },
+      { key: "max", label: "Max at once", kind: "int", min: 1, max: 16, defaultValue: 3 },
+      {
+        key: "at",
+        label: "Where",
+        kind: "select",
+        defaultValue: "tile",
+        options: [
+          { value: "tile", label: "At a tile" },
+          { value: "actor", label: "At an actor" },
+          { value: "vars", label: "At variables (tiles)" },
+        ],
+      },
+      { key: "pos", label: "Tile", kind: "tilePos", showIf: (e) => (e.at ?? "tile") === "tile" },
+      { key: "actor", label: "Actor", kind: "actor", showIf: (e) => e.at === "actor" },
+      { key: "offset_x", label: "Offset X (px)", kind: "int", min: -256, max: 256, defaultValue: 0, showIf: (e) => e.at === "actor" },
+      { key: "offset_y", label: "Offset Y (px)", kind: "int", min: -256, max: 256, defaultValue: 0, showIf: (e) => e.at === "actor" },
+      { key: "x_var", label: "X variable", kind: "variable", showIf: (e) => e.at === "vars" },
+      { key: "y_var", label: "Y variable", kind: "variable", showIf: (e) => e.at === "vars" },
+      {
+        key: "direction",
+        label: "Facing",
+        kind: "select",
+        defaultValue: "prefab",
+        options: [
+          { value: "prefab", label: "Prefab's (or the actor's, at an actor)" },
+          { value: "down", label: "Down" },
+          { value: "up", label: "Up" },
+          { value: "left", label: "Left" },
+          { value: "right", label: "Right" },
+        ],
+      },
+    ],
+    create: (c) => ({ type: "spawn_prefab", prefab: c.firstActorPrefab ?? "", max: 3, at: "tile", x: 0, y: 0 }),
+    summary: (ev) =>
+      `${prefabLabel(ev.prefab)} ${ev.at === "actor" ? `at ${actorLabel(ev.actor)}` : ev.at === "vars" ? `at $${ev.x_var ?? "?"}, $${ev.y_var ?? "?"}` : `at ${ev.x ?? 0}, ${ev.y ?? 0}`}`,
+  }),
+  def({
+    type: "actor_remove",
+    label: "Remove Actor",
+    category: "Actors",
+    description:
+      "Take an actor out of the scene: hides it and stops its On Update. A spawned prefab copy becomes free to spawn " +
+      "again. Use \"self\" in an actor's own script (e.g. On Hit) to remove it.",
+    fields: [{ key: "actor", label: "Actor", kind: "actor" }],
+    create: (c) => ({ type: "actor_remove", actor: c.firstActor ?? "self" }),
+    summary: (ev) => actorLabel(ev.actor),
+  }),
+  def({
+    type: "actor_set_sprite",
+    label: "Set Actor Sprite",
+    category: "Actors",
+    description: "Change an actor's sprite sheet (its animation starts over in the Default state). On the player it works like Set Player Sprite for this scene.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "sprite", label: "Sprite", kind: "sprite" },
+    ],
+    create: (c) => ({ type: "actor_set_sprite", actor: c.firstActor ?? "self", sprite: c.firstSprite ?? "player" }),
+    summary: (ev) => `${actorLabel(ev.actor)} → ${ev.sprite}`,
+  }),
+  def({
+    type: "actor_jump",
+    label: "Actor Jump",
+    category: "Actors",
+    description: "Make an actor with Gravity jump (it has to be standing on something, unless \"Even in the air\" is on).",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "speed", label: "Jump speed (px/frame)", kind: "float", min: 0.25, max: 8, defaultValue: 4 },
+      { key: "anytime", label: "Even in the air", kind: "bool", defaultValue: false },
+    ],
+    create: (c) => ({ type: "actor_jump", actor: c.firstActor ?? "self", speed: 4 }),
+    summary: (ev) => `${actorLabel(ev.actor)}, ${ev.speed ?? 4} px/frame${ev.anytime ? ", even in the air" : ""}`,
   }),
   def({
     type: "actor_lock_direction",

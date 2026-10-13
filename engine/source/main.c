@@ -118,6 +118,8 @@ static int           scene_sprite_marked = 0;
 /* Was the player touching NPC i last frame? Hit scripts (collision
  * groups) fire on the first frame of a touch, not every frame of it. */
 static uint8_t npc_touching[NPC_MAX];
+static uint8_t npc_dormant[NPC_MAX];   /* spawn_pool copy not spawned yet */
+static uint8_t npc_thread[NPC_MAX];    /* thread its On Update runs in */
 /* Each NPC's position last frame, for "Pushes the player". */
 static int npc_prev_x[NPC_MAX], npc_prev_y[NPC_MAX];
 
@@ -231,6 +233,7 @@ static void scene_entities_load(const SceneDef *scene)
         e->direction = def->direction;
         e->pinned = def->pinned;
         e->dir_locked = def->lock_direction;
+        e->gravity = def->gravity;
         e->move_speed = def->move_speed ? def->move_speed : 1;
         e->anim_speed = def->anim_speed;
         /* "Draw above the player": OAM entries from the front block. */
@@ -245,6 +248,13 @@ static void scene_entities_load(const SceneDef *scene)
         npc_prev_x[npc_count_active] = e->x;
         npc_prev_y[npc_count_active] = e->y;
         npc_touching[npc_count_active] = 0;
+        npc_thread[npc_count_active] = 0;
+        npc_dormant[npc_count_active] = def->spawn_pool;
+        if (def->spawn_pool)
+        {
+            sprite_hide(&e->sprite);
+            e->solid = 0;
+        }
         npc_count_active++;
     }
 }
@@ -275,6 +285,9 @@ static void update_wandering_npc(int i)
 
     if (!npc_wander_moving[i])
         return;
+    /* With gravity it only walks left and right. */
+    if (npc->gravity && npc_wander_dir[i] < 2)
+        npc_wander_dir[i] = (uint8_t)(npc_wander_dir[i] + 2);
 
     int nx = npc->x + WANDER_DX[npc_wander_dir[i]] * npc->move_speed;
     int ny = npc->y + WANDER_DY[npc_wander_dir[i]] * npc->move_speed;
@@ -486,8 +499,8 @@ const ScriptEvent *world_npc_in_front(Entity *player)
 static void start_scene_scripts(const SceneDef *scene)
 {
     for (int i = 0; i < npc_count_active; i++)
-        if (npc_defs[i]->on_update)
-            script_thread_start(npc_defs[i]->on_update);
+        if (npc_defs[i]->on_update && !npc_dormant[i])
+            npc_thread[i] = (uint8_t)script_thread_start(npc_defs[i]->on_update);
     script_start(scene->on_init);
 }
 
@@ -559,6 +572,128 @@ void actor_lock_direction(int index, int on)
     Entity *e = entity_for_actor(index);
     if (e)
         e->dir_locked = on ? 1 : 0;
+}
+
+int actor_spawn(const int16_t *p)
+{
+    int x = p[SPAWN_P_X], y = p[SPAWN_P_Y];
+    Entity *at = 0;
+    if (p[SPAWN_P_MODE] == SPAWN_AT_ACTOR)
+    {
+        at = entity_for_actor(p[SPAWN_P_ACTOR]);
+        if (!at)
+            return -1;
+        x += at->x;
+        y += at->y;
+    }
+    else if (p[SPAWN_P_MODE] == SPAWN_AT_VARS)
+    {
+        x = var_get(p[SPAWN_P_X]) * 8;
+        y = var_get(p[SPAWN_P_Y]) * 8;
+    }
+    int end = p[SPAWN_P_FIRST] + p[SPAWN_P_COUNT];
+    if (end > npc_count_active)
+        end = npc_count_active;
+    for (int i = p[SPAWN_P_FIRST]; i < end; i++)
+    {
+        if (!npc_dormant[i] || !npc_entities[i])
+            continue;
+        Entity *e = npc_entities[i];
+        const NpcDef *def = npc_defs[i];
+        e->x = x;
+        e->y = y;
+        e->vy = 0;
+        e->sub_y = 0;
+        e->grounded = 0;
+        e->script_state = 0;
+        e->dir_locked = 0;
+        int dir = p[SPAWN_P_DIR] < 4 ? p[SPAWN_P_DIR] : at ? at->direction : def->direction;
+        entity_animate(e, (Direction)dir, 0);
+        e->dir_locked = def->lock_direction;
+        sprite_show(&e->sprite);
+        e->solid = 1;
+        npc_dormant[i] = 0;
+        npc_wander_timer[i] = 0;
+        npc_wander_moving[i] = 0;
+        npc_prev_x[i] = x;
+        npc_prev_y[i] = y;
+        npc_touching[i] = 0;
+        npc_thread[i] = def->on_update ? (uint8_t)script_thread_start(def->on_update) : 0;
+        if (def->on_spawn)
+            script_thread_start(def->on_spawn);
+        return i;
+    }
+    return -1;
+}
+
+int actor_remove(int index, const ScriptEvent **base)
+{
+    *base = 0;
+    if (index < 0 || index >= npc_count_active || !npc_entities[index])
+        return 0;
+    Entity *e = npc_entities[index];
+    sprite_hide(&e->sprite);
+    e->solid = 0;
+    if (npc_defs[index]->spawn_pool)
+        npc_dormant[index] = 1;
+    int h = npc_thread[index];
+    npc_thread[index] = 0;
+    *base = npc_defs[index]->on_update;
+    return h;
+}
+
+void actor_set_sprite(int index, int sprite_index, int bank)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e || sprite_index < 0 || sprite_index >= SPRITE_COUNT)
+        return;
+    if (index == PLAYER_ACTOR_INDEX)
+    {
+        player_set_sprite(sprite_index, 0);
+        return;
+    }
+    sprite_load_palette(bank, sprite_defs[sprite_index].palette);
+    entity_change_sprite(e, &sprite_defs[sprite_index], bank);
+}
+
+void actor_jump(int index, int speed, int anytime)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e || !e->gravity || (!anytime && !e->grounded))
+        return;
+    e->vy = (int16_t)-speed;
+    e->sub_y = 0;
+    e->grounded = 0;
+}
+
+/* Actor gravity (NpcDef.gravity): falls at the platformer's Gravity up to
+ * its Max fall speed, and lands on solid and one-way tiles. */
+static void npc_fall(Entity *e)
+{
+    int vy = e->vy + MSET(PL_GRAV);
+    if (vy > MSET(PL_MAX_FALL))
+        vy = MSET(PL_MAX_FALL);
+    e->vy = (int16_t)vy;
+    int total = e->sub_y + vy;
+    int px = total >= 0 ? total >> 8 : -((-total) >> 8);
+    e->sub_y = (int16_t)(total - px * 256);
+    int step = px > 0 ? 1 : -1;
+    for (int k = 0; k != px; k += step)
+    {
+        if (!entity_can_move(e, e->x, e->y + step))
+        {
+            e->vy = 0;
+            e->sub_y = 0;
+            break;
+        }
+        e->y += step;
+    }
+    e->grounded = e->vy >= 0 && !entity_can_move(e, e->x, e->y + 1);
+    if (e->grounded && e->vy > 0)
+    {
+        e->vy = 0;
+        e->sub_y = 0;
+    }
 }
 
 void actor_set_state(int index, int state_index)
@@ -644,6 +779,8 @@ int actor_step_toward(int index, int target_x, int target_y)
     Entity *npc = entity_for_actor(index);
     if (!npc)
         return 0;
+    if (npc->gravity)
+        target_y = npc->y;   /* gravity decides up and down */
 
     /* X fully, then Y - same one-axis-at-a-time shape as the wander
      * movement above, since the sprite can only face one axis. */
@@ -672,6 +809,8 @@ int actor_step_toward_ex(int index, int target_x, int target_y, int type, int co
     Entity *e = entity_for_actor(index);
     if (!e)
         return 0;
+    if (e->gravity)
+        target_y = e->y;   /* gravity decides up and down */
     int dx = target_x - e->x;
     int dy = target_y - e->y;
     if (!dx && !dy)
@@ -1316,6 +1455,8 @@ int main(void)
                      * they're "not there". */
                     if (npc_defs[i]->movement && npc_entities[i]->solid && !npc_entities[i]->pinned)
                         update_wandering_npc(i);
+                    if (npc_entities[i]->gravity && npc_entities[i]->solid && !npc_entities[i]->pinned)
+                        npc_fall(npc_entities[i]);
                 }
             }
 

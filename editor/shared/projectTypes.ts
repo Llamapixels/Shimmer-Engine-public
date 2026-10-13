@@ -238,6 +238,8 @@ export interface NpcJSON {
   push_player?: boolean;
   /** Keeps facing the same way while it moves. */
   lock_direction?: boolean;
+  /** Falls and lands (platformer gravity settings). */
+  gravity?: boolean;
 }
 
 /** One parallax band; the last one runs to the bottom of the screen and

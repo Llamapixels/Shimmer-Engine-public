@@ -1,6 +1,10 @@
 #ifndef ADVANCE_ACTOR_H
 #define ADVANCE_ACTOR_H
 
+#include <stdint.h>
+
+#include "script.h"
+
 /*
  * Runtime control over an NPC actor already placed by the current
  * scene - OR the player - called from event scripts (see the
@@ -40,6 +44,22 @@ void actor_set_position(int index, int x, int y);
  * without moving it. */
 void actor_set_direction(int index, int direction);
 void actor_lock_direction(int index, int on);   /* keep facing the same way while moving */
+
+/* "Spawn Prefab": wakes a hidden copy (NpcDef.spawn_pool) from the run
+ * p[SPAWN_P_FIRST..+COUNT] at the position p describes; returns its
+ * index, or -1 if they're all in use. */
+enum { SPAWN_P_FIRST, SPAWN_P_COUNT, SPAWN_P_MODE, SPAWN_P_X, SPAWN_P_Y, SPAWN_P_ACTOR, SPAWN_P_DIR, SPAWN_P_N };
+enum { SPAWN_AT_PIXELS, SPAWN_AT_ACTOR, SPAWN_AT_VARS };
+int actor_spawn(const int16_t *p);
+/* "Remove Actor": hides it, and a spawned copy is free to spawn again.
+ * Returns the thread its On Update runs in (0 = none) and, in *base,
+ * that script, for the caller to stop. */
+int actor_remove(int index, const ScriptEvent **base);
+/* "Set Actor Sprite": sprite_defs[] index, in OBJ palette bank `bank`. */
+void actor_set_sprite(int index, int sprite_index, int bank);
+/* "Actor Jump": up at `speed` (1/256 px per frame), only if standing
+ * on something unless `anytime`. Needs the actor's gravity on. */
+void actor_jump(int index, int speed, int anytime);
 
 /*
  * Step an actor one frame closer to (target_x, target_y), in pixels -

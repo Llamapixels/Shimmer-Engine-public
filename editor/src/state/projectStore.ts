@@ -18,6 +18,8 @@ import {
   markDeletedCustomScript,
   markDeletedCustomScriptInScript,
   renameParamInScript,
+  renameRefsInPrefab,
+  renameRefsInScript,
   renameRefsInScene,
   shiftIndexRefs,
   type RefKind,
@@ -564,12 +566,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     applyDialogueTranslations: (rows) => {
       const { project } = get();
       if (!project) return { applied: 0, unmatched: rows.length };
-      const r = applyTranslations(project.scenes, project.project.customScripts ?? [], rows);
+      const r = applyTranslations(project.scenes, project.project.customScripts ?? [], rows, project.project.prefabs ?? []);
       if (!r.applied) return r;
       recordHistory();
-      const pj = r.customScripts.some((s, i) => s !== project.project.customScripts?.[i])
-        ? { ...project.project, customScripts: r.customScripts }
-        : project.project;
+      let pj = project.project;
+      if (r.customScripts.some((s, i) => s !== pj.customScripts?.[i])) pj = { ...pj, customScripts: r.customScripts };
+      if (r.prefabs.some((p, i) => p !== pj.prefabs?.[i])) pj = { ...pj, prefabs: r.prefabs };
       r.scenes.forEach((rec, i) => {
         if (rec !== project.scenes[i]) persistScene(project.rootPath, rec.fileId, rec.data);
       });
@@ -619,6 +621,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         pj = { ...pj, [listKey]: (pj[listKey] ?? []).map((n) => (n === from ? to : n)) };
       }
       if (kind === "scene" && pj.start_scene === from) pj = { ...pj, start_scene: to };
+      // Project-wide names are also used in custom scripts and prefabs.
+      const customScripts = (pj.customScripts ?? []).map((cs) => {
+        const script = renameRefsInScript(cs.script, kind, from, to);
+        return script === cs.script ? cs : { ...cs, script };
+      });
+      if (customScripts.some((cs, i) => cs !== pj.customScripts?.[i])) pj = { ...pj, customScripts };
+      const prefabs = (pj.prefabs ?? []).map((p) => renameRefsInPrefab(p, kind, from, to));
+      if (prefabs.some((p, i) => p !== pj.prefabs?.[i])) pj = { ...pj, prefabs };
 
       scenes.forEach((rec, i) => {
         if (rec !== project.scenes[i]) persistScene(project.rootPath, rec.fileId, rec.data);
@@ -694,6 +704,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
       let pj = project.project;
       if (pj.start_scene === oldName) pj = { ...pj, start_scene: effective };
+      // Change Scene events in custom scripts and prefabs too.
+      const customScripts = (pj.customScripts ?? []).map((cs) => {
+        const script = renameRefsInScript(cs.script, "scene", oldName, effective);
+        return script === cs.script ? cs : { ...cs, script };
+      });
+      if (customScripts.some((cs, i) => cs !== pj.customScripts?.[i])) pj = { ...pj, customScripts };
+      const prefabs = (pj.prefabs ?? []).map((p) => renameRefsInPrefab(p, "scene", oldName, effective));
+      if (prefabs.some((p, i) => p !== pj.prefabs?.[i])) pj = { ...pj, prefabs };
       scenes.forEach((r, i) => {
         if (r !== project.scenes[i]) persistScene(project.rootPath, r.fileId, r.data);
       });

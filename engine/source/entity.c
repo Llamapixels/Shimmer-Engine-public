@@ -39,6 +39,10 @@ Entity *entity_create(EntityType type, int x, int y, int width, int height)
         e->anim_enabled = 1;
         e->anim_hold = 0;
         e->dir_locked = 0;
+        e->gravity = 0;
+        e->grounded = 0;
+        e->vy = 0;
+        e->sub_y = 0;
         e->script_state = 0;
         e->col_ox = 0;
         e->col_oy = 0;

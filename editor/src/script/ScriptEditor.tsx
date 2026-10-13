@@ -7,7 +7,7 @@ import PopoverMenu, { type MenuItem } from "../components/common/PopoverMenu";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import AddEventMenu from "./AddEventMenu";
 import { useDragState, pathKey } from "./dragState";
-import { CATEGORY_COLOR, eventSummary, getEventDef, type CreateContext, type EventDef } from "./eventCatalog";
+import { CATEGORY_COLOR, eventSummary, getEventDef, setPrefabNames, type CreateContext, type EventDef } from "./eventCatalog";
 import { FieldControl, type ScriptEnv } from "./ScriptFields";
 import {
   cloneEvent,
@@ -78,6 +78,8 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
   const root = value ?? [];
   const project = useProjectStore((s) => s.project);
   const assets = useProjectStore((s) => s.assets);
+  // Spawn Prefab summaries show the prefab's name.
+  setPrefabNames(Object.fromEntries((project?.project.prefabs ?? []).map((p) => [p.id, p.name])));
   const clipboard = useProjectStore((s) => s.scriptClipboard);
   const setClipboard = useProjectStore((s) => s.setScriptClipboard);
   const setCollapsed = useCollapsed((s) => s.set);
@@ -99,6 +101,7 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
             : null,
       firstTimer: timers.length ? timers[0].name || 0 : null,
       firstCustomScript: project?.project.customScripts?.[0]?.id ?? null,
+      firstActorPrefab: project?.project.prefabs?.find((p) => p.kind === "npc")?.id ?? null,
       firstMusicTrack: assets?.music?.[0]?.name ?? null,
       firstSprite: assets?.sprites?.find((a) => a.name !== "player")?.name ?? null,
     };

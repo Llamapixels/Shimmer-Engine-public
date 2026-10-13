@@ -7,12 +7,12 @@
  */
 
 import type { EventScript, ScriptEventJSON } from "../../shared/eventTypes";
-import type { CustomScriptJSON, SceneRecord } from "../../shared/projectTypes";
-import { labeledScripts, mapAllSceneEvents, type RefPlace } from "./scriptRefs";
+import type { CustomScriptJSON, NpcJSON, PrefabJSON, SceneRecord } from "../../shared/projectTypes";
+import { labeledScripts, mapAllSceneEvents, prefabScripts, type RefPlace } from "./scriptRefs";
 import { mapEvents, walkEvents } from "./scriptTree";
 
 export interface DialogueLine {
-  /** "scene:<fileId>" or "script:<id>" - where import looks for it. */
+  /** "scene:<fileId>", "script:<id>" or "prefab:<id>" - where import looks for it. */
   container: string;
   place: Omit<RefPlace, "count">;
   kind: string;
@@ -50,7 +50,11 @@ function mapTextSlots(ev: ScriptEventJSON, fn: (text: string) => string): Script
   return ev;
 }
 
-export function collectDialogue(scenes: SceneRecord[], customScripts: CustomScriptJSON[]): DialogueLine[] {
+export function collectDialogue(
+  scenes: SceneRecord[],
+  customScripts: CustomScriptJSON[],
+  prefabs: PrefabJSON[] = [],
+): DialogueLine[] {
   const out: DialogueLine[] = [];
   const add = (container: string, place: DialogueLine["place"], script: EventScript | undefined) =>
     walkEvents(script, (ev) => {
@@ -63,6 +67,9 @@ export function collectDialogue(scenes: SceneRecord[], customScripts: CustomScri
   }
   for (const cs of customScripts)
     add(`script:${cs.id}`, { label: `Script "${cs.name}"`, sceneId: null, target: { kind: "customScript", id: cs.id } }, cs.script);
+  for (const p of prefabs)
+    for (const s of prefabScripts(p))
+      add(`prefab:${p.id}`, { label: `Prefab "${p.name}" › ${s.label}`, sceneId: null, target: { kind: "prefab", id: p.id } }, s.script);
   return out;
 }
 
@@ -78,7 +85,14 @@ export function applyTranslations(
   scenes: SceneRecord[],
   customScripts: CustomScriptJSON[],
   rows: Translation[],
-): { scenes: SceneRecord[]; customScripts: CustomScriptJSON[]; applied: number; unmatched: number } {
+  prefabs: PrefabJSON[] = [],
+): {
+  scenes: SceneRecord[];
+  customScripts: CustomScriptJSON[];
+  prefabs: PrefabJSON[];
+  applied: number;
+  unmatched: number;
+} {
   const pending = new Map<string, Map<string, string[]>>();
   for (const r of rows) {
     if (r.text === r.original) continue;
@@ -105,9 +119,18 @@ export function applyTranslations(
     const script = mapEvents(cs.script, swapIn(`script:${cs.id}`)) ?? cs.script;
     return script === cs.script ? cs : { ...cs, script };
   });
+  const nextPrefabs = prefabs.map((p) => {
+    let t = p.template as Partial<NpcJSON>;
+    for (const s of prefabScripts(p)) {
+      if (!s.script) continue;
+      const script = mapEvents(s.script, swapIn(`prefab:${p.id}`)) ?? s.script;
+      if (script !== s.script) t = { ...t, [s.key]: script };
+    }
+    return t === p.template ? p : { ...p, template: t };
+  });
   let unmatched = 0;
   for (const byText of pending.values()) for (const q of byText.values()) unmatched += q.length;
-  return { scenes: nextScenes, customScripts: nextScripts, applied, unmatched };
+  return { scenes: nextScenes, customScripts: nextScripts, prefabs: nextPrefabs, applied, unmatched };
 }
 
 // ---------------------------------------------------------------------------

@@ -637,6 +637,26 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       );
     }
 
+    case "prefab": {
+      const list = (project?.prefabs ?? []).filter((p) => p.kind === "npc");
+      const cur = String(value ?? "");
+      const found = list.some((p) => p.id === cur);
+      return (
+        <select className={!found ? "select-invalid" : undefined} value={cur} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {!found && (
+            <option value={cur}>
+              {list.length === 0 ? "No actor prefabs yet - add one in the Prefabs list" : cur ? `${cur} (missing!)` : "Choose a prefab…"}
+            </option>
+          )}
+          {list.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
     case "spriteState": {
       // The state of the event's own "sprite"; "" keeps its animation.
       const sprite = String(rec.sprite ?? "");

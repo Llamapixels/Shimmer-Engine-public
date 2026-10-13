@@ -307,6 +307,27 @@ static void wave_offset(const Projectile *s, int *ox, int *oy)
     *oy = (s->vx >> 4) * side / len;
 }
 
+int projectiles_platform(Entity *p, int nx, int ny)
+{
+    if (ny <= p->y)
+        return 0;
+    int old_bottom = p->y + p->col_oy + p->col_h;
+    int px = nx + p->col_ox, py = ny + p->col_oy;
+    for (int i = 0; i < PROJECTILE_MAX; i++)
+    {
+        Projectile *s = &shots[i];
+        if (!s->active || !s->landed || !(s->flags & (PROJ_FLAG_PLATFORM | PROJ_FLAG_BOUNCY)))
+            continue;
+        Entity *e = s->e;
+        int ex = e->x + e->col_ox, ey = e->y + e->col_oy;
+        if (old_bottom > ey)
+            continue;   /* only from above */
+        if (px < ex + e->col_w && px + p->col_w > ex && py < ey + e->col_h && py + p->col_h > ey)
+            return (s->flags & PROJ_FLAG_BOUNCY) ? 2 : 1;
+    }
+    return 0;
+}
+
 void projectiles_command(int command, int sprite, int tag)
 {
     for (int i = 0; i < PROJECTILE_MAX; i++)

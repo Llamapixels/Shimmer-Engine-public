@@ -7,6 +7,7 @@
 #include "camera.h"
 #include "wav.h"
 #include "script.h"
+#include "projectile.h"
 
 /*
  * The scene types. Each one's update function moves the player for a
@@ -188,6 +189,9 @@ static int on_ladder_top(Entity *p, int ny)
     return 0;
 }
 
+/* Landed on a bouncy projectile this frame (projectiles_platform()). */
+static int bounce_hit;
+
 static int blocked(Entity *p, int nx, int ny)
 {
     if (!entity_can_move(p, nx, ny))
@@ -196,6 +200,14 @@ static int blocked(Entity *p, int nx, int ny)
         return 0;
     if (mode == SCENE_MODE_PLATFORM && on_ladder_top(p, ny))
         return 1;
+    if (mode == SCENE_MODE_PLATFORM)
+    {
+        int on = projectiles_platform(p, nx, ny);
+        if (on == 2)
+            bounce_hit = 1;
+        if (on)
+            return 1;
+    }
     return npc_in_way(p, nx, ny) != 0;
 }
 
@@ -781,6 +793,7 @@ static const ScriptEvent *platform_update(Entity *p)
 
     int hit_x = 0, hit_y = 0;
     int was_y = vel_y;
+    bounce_hit = 0;
     if (climbing)
     {
         /* On a ladder only its own column matters, so a ladder through
@@ -806,7 +819,17 @@ static const ScriptEvent *platform_update(Entity *p)
         if (dash_timer > 0)
             dash_timer = 0;
     }
-    if (hit_y)
+    if (hit_y && was_y > 0 && bounce_hit)
+    {
+        /* A bouncy projectile: springs up higher than a jump (and
+         * higher still while the jump button is held). */
+        play_setting_sound(MS_PL_SOUND_JUMP);
+        vel_y = -(MSET(PL_JUMP_VEL) * 3 / 2);
+        hold_timer = MSET(PL_HOLD_FRAMES);
+        grounded = 0;
+        kick_timer = 0;
+    }
+    else if (hit_y)
     {
         if (was_y > 0)
         {

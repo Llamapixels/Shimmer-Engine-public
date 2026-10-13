@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "entity.h"
+
 /*
  * Projectiles ("Launch Projectile" event, SCRIPT_LAUNCH_PROJECTILE):
  * a sprite flying along a path (straight, a wave, an arc, a boomerang)
@@ -50,6 +52,8 @@ enum { PROJ_CMD_RECALL, PROJ_CMD_REMOVE };
 #define PROJ_FLAG_FOLLOW   8     /* stays at its offset from the thrower (melee) */
 #define PROJ_FLAG_ACTOR_BOUNCE 16   /* bounces off actors too */
 #define PROJ_FLAG_MIRROR   32    /* offset X flips when fired to the left */
+#define PROJ_FLAG_PLATFORM 64    /* once stuck, the player can stand on it */
+#define PROJ_FLAG_BOUNCY   128   /* once stuck, the player bounces off it */
 
 /* Scene change: drop them all (call before the sprite allocator resets). */
 void projectiles_reset(void);
@@ -58,6 +62,11 @@ void projectile_launch(const int16_t *params);
 
 /* "Recall Projectiles" / "Remove Projectiles": every projectile of
  * sprite_defs[sprite] (-1 = all) flies back to its thrower, or vanishes. */
+/* Platformer: is a stuck projectile with PROJ_FLAG_PLATFORM/_BOUNCY in
+ * the way of the player's collision box moving down to (nx, ny)? 0 = no,
+ * 1 = stand on it, 2 = bounce off it. */
+int projectiles_platform(Entity *p, int nx, int ny);
+
 /* sprite: sprite_defs[] index or -1 for any; tag: 1-8, or 0 for any. */
 void projectiles_command(int command, int sprite, int tag);
 

@@ -8,7 +8,7 @@
  */
 
 import type { EventScript, ScriptArg, ScriptEventJSON } from "../../shared/eventTypes";
-import type { CustomScriptJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
+import type { CustomScriptJSON, NpcJSON, PrefabJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import { getEventDef } from "./eventCatalog";
 import { mapEvents, walkEvents } from "./scriptTree";
 
@@ -394,8 +394,43 @@ function mapSceneEvents(
 export interface RefPlace {
   label: string;
   sceneId: string | null;
-  target: { kind: "scene" } | { kind: "npc"; index: number } | { kind: "door"; index: number } | { kind: "customScript"; id: string };
+  target:
+    | { kind: "scene" }
+    | { kind: "npc"; index: number }
+    | { kind: "door"; index: number }
+    | { kind: "customScript"; id: string }
+    | { kind: "prefab"; id: string };
   count: number;
+}
+
+const PREFAB_SCRIPTS = [
+  ["on_interact", "On Interact"],
+  ["on_init", "On Init"],
+  ["on_update", "On Update"],
+  ["on_hit", "On Hit"],
+] as const;
+
+/** An actor prefab's scripts, with labels. */
+export function prefabScripts(p: PrefabJSON): { key: (typeof PREFAB_SCRIPTS)[number][0]; label: string; script: EventScript | undefined }[] {
+  if (p.kind !== "npc") return [];
+  const t = p.template as Partial<NpcJSON>;
+  return PREFAB_SCRIPTS.map(([key, label]) => ({ key, label, script: t[key] }));
+}
+
+/** Every reference in a bare script (a custom script, a prefab's) renamed. */
+export function renameRefsInScript(script: EventScript, kind: RefKind, from: string, to: string | number): EventScript {
+  return mapEvents(script, (ev) => renameInEvent(ev, kind, from, to)) ?? script;
+}
+
+/** The same for each of a prefab's scripts. */
+export function renameRefsInPrefab(p: PrefabJSON, kind: RefKind, from: string, to: string | number): PrefabJSON {
+  let t = p.template as Partial<NpcJSON>;
+  for (const { key, script } of prefabScripts(p)) {
+    if (!script) continue;
+    const next = renameRefsInScript(script, kind, from, to);
+    if (next !== script) t = { ...t, [key]: next };
+  }
+  return t === p.template ? p : { ...p, template: t };
 }
 
 /** Every script list a scene owns, with a label and where it lives. */
@@ -434,6 +469,7 @@ export function findRefs(
   customScripts: CustomScriptJSON[],
   kind: RefKind | "customScript",
   name: string,
+  prefabs: PrefabJSON[] = [],
 ): RefPlace[] {
   const out: RefPlace[] = [];
   const count = (script: EventScript | undefined) => {
@@ -459,5 +495,10 @@ export function findRefs(
     const n = count(cs.script);
     if (n) out.push({ label: `Script "${cs.name}"`, sceneId: null, target: { kind: "customScript", id: cs.id }, count: n });
   }
+  for (const p of prefabs)
+    for (const s of prefabScripts(p)) {
+      const n = count(s.script);
+      if (n) out.push({ label: `Prefab "${p.name}" › ${s.label}`, sceneId: null, target: { kind: "prefab", id: p.id }, count: n });
+    }
   return out;
 }

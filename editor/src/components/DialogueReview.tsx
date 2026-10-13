@@ -21,8 +21,8 @@ export default function DialogueReview() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const lines = useMemo(
-    () => collectDialogue(project.scenes, project.project.customScripts ?? []),
-    [project.scenes, project.project.customScripts],
+    () => collectDialogue(project.scenes, project.project.customScripts ?? [], project.project.prefabs ?? []),
+    [project.scenes, project.project.customScripts, project.project.prefabs],
   );
   const q = query.trim().toLowerCase();
   const shown = q ? lines.filter((l) => l.text.toLowerCase().includes(q) || l.place.label.toLowerCase().includes(q)) : lines;

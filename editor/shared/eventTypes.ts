@@ -132,6 +132,8 @@ export interface LaunchProjectileEvent extends EventBase {
   mirror_offset?: boolean;
   /** 1-8: lets Recall / Remove Projectiles pick these out. */
   tag?: number;
+  /** Once stuck (platformer): the player can stand on it, or bounces. */
+  stick_solid?: "none" | "platform" | "bouncy";
 }
 
 export interface SetFlagEvent extends EventBase {
@@ -244,6 +246,46 @@ export interface ActorSetDirectionEvent extends EventBase {
   type: "actor_set_direction";
   actor: ActorRef;
   direction: Direction;
+}
+
+/** Wake one of the scene's hidden copies of an actor prefab. */
+export interface SpawnPrefabEvent extends EventBase {
+  type: "spawn_prefab";
+  /** PrefabJSON id (an actor prefab). */
+  prefab: string;
+  /** Copies the scene keeps: how many can be out at once (1-16). */
+  max?: number;
+  at?: "tile" | "actor" | "vars";
+  x?: number;
+  y?: number;
+  actor?: ActorRef;
+  offset_x?: number;
+  offset_y?: number;
+  x_var?: string;
+  y_var?: string;
+  direction?: Direction | "prefab";
+}
+
+/** Hide an actor and stop its On Update; a spawned copy can spawn again. */
+export interface ActorRemoveEvent extends EventBase {
+  type: "actor_remove";
+  actor: ActorRef;
+}
+
+export interface ActorSetSpriteEvent extends EventBase {
+  type: "actor_set_sprite";
+  actor: ActorRef;
+  sprite: string;
+}
+
+/** Actors with gravity: jump. */
+export interface ActorJumpEvent extends EventBase {
+  type: "actor_jump";
+  actor: ActorRef;
+  /** px per frame */
+  speed?: number;
+  /** Also in mid-air. */
+  anytime?: boolean;
 }
 
 /** Keep facing the same way while moving (strafing). */
@@ -1138,6 +1180,10 @@ export type ScriptEventJSON =
   | ProjectileRecallEvent
   | ProjectileRemoveEvent
   | ActorLockDirectionEvent
+  | SpawnPrefabEvent
+  | ActorRemoveEvent
+  | ActorSetSpriteEvent
+  | ActorJumpEvent
   | TextClearEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

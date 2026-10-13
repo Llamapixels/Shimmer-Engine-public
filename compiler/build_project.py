@@ -87,6 +87,8 @@ Scene JSON NPC format:
                                            frame (0 = the sprite's own)
             "above_player": true,      <- optional: drawn in front of the
                                            player instead of behind it
+            "gravity": true,           <- optional: falls and lands on solid
+                                           tiles (platformer Gravity settings)
             "lock_direction": true,    <- optional: keeps facing the same
                                            way while it moves
             "push_player": true,       <- optional: walking into the player
@@ -263,6 +265,18 @@ Event script types (used in "on_interact" and door "events" lists):
     { "type": "projectile_recall" | "projectile_remove", "sprite": "<name>" | "all", "tag": 0-8 }
         Send projectiles back to their thrower (stuck ones too), or remove them.
         "tag" (1-8, 0 = any) picks the ones launched with that "tag".
+    { "type": "spawn_prefab", "prefab": "<prefab id>", "max": 3, "at": "tile",
+      "x": 0, "y": 0, "direction": "prefab" }
+        Wakes one of the scene's hidden copies of an actor prefab: "at" "tile"
+        (x, y in tiles), "actor" ("actor", "offset_x"/"offset_y" px from its
+        position) or "vars" ("x_var"/"y_var", tiles). "max": copies the scene
+        keeps (how many can be out at once). Its "on_init" runs when spawned.
+    { "type": "actor_remove", "actor": ... }
+        Hides an actor and stops its on_update; a spawned copy can spawn again.
+    { "type": "actor_set_sprite", "actor": ..., "sprite": "<name>" }
+    { "type": "actor_jump", "actor": ..., "speed": 4, "anytime": false }
+        For actors with "gravity": jump up at speed px/frame (only when standing,
+        unless "anytime").
     { "type": "actor_lock_direction", "actor": ..., "enabled": true }
         Keep the actor facing the same way while it moves (strafing).
     { "type": "text_set_font", "font": "<name>" }
@@ -1460,7 +1474,8 @@ def compile_projectile(ev, ctx, where):
     group = resolve_small_int(ev.get("group", 1), "group", where, 1, 3)
     flags = ((1 if ev.get("pierce") else 0) | (2 if ev.get("through_walls") else 0) | (4 if ev.get("front") else 0)
              | (8 if ev.get("follow") else 0) | (16 if ev.get("bounce_actors") else 0)
-             | (32 if ev.get("mirror_offset") else 0))
+             | (32 if ev.get("mirror_offset") else 0)
+             | {"platform": 64, "bouncy": 128}.get(str(ev.get("stick_solid", "none")), 0))
     off_x = resolve_small_int(ev.get("offset_x", 0), "offset_x", where, -128, 128)
     off_y = resolve_small_int(ev.get("offset_y", 0), "offset_y", where, -128, 128)
 
@@ -1515,6 +1530,73 @@ def projectile_sprites(obj):
         for v in obj:
             found += projectile_sprites(v)
     return found
+
+
+def actor_sprite_events(obj):
+    """Sprite names of every "actor_set_sprite" event anywhere in obj."""
+    return [ev["sprite"] for ev in _events_of_type(obj, "actor_set_sprite") if isinstance(ev.get("sprite"), str)]
+
+
+def spawn_pools(scene, prefabs, custom_scripts, engine_values, where):
+    """How many hidden copies of each prefab a scene needs for its "spawn_prefab"
+    events: in its own scripts, the custom scripts they call (and the ones
+    its engine settings run), and the spawned prefabs' own scripts."""
+    pools = {}
+    queue = [scene]
+    seen_scripts, seen_prefabs = set(), set()
+    for sid in custom_scripts:
+        if sid in engine_values:
+            seen_scripts.add(sid)
+            queue.append(custom_scripts[sid])
+    while queue:
+        obj = queue.pop()
+        for ev in _events_of_type(obj, "spawn_prefab"):
+            pid = ev.get("prefab")
+            if pid not in prefabs:
+                raise BuildError(f"{where}: Spawn Prefab names a prefab that doesn't exist ('{pid}').")
+            if prefabs[pid].get("kind") != "npc":
+                raise BuildError(f"{where}: Spawn Prefab needs an actor prefab, not a trigger ('{prefabs[pid].get('name')}').")
+            n = ev.get("max", 3)
+            if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= 16:
+                raise BuildError(f"{where}: Spawn Prefab \"max\" must be 1 to 16.")
+            pools[pid] = max(pools.get(pid, 0), n)
+            if pid not in seen_prefabs:
+                seen_prefabs.add(pid)
+                queue.append(prefabs[pid].get("template") or {})
+        for ev in _events_of_type(obj, "call_script"):
+            sid = ev.get("script")
+            if sid in custom_scripts and sid not in seen_scripts:
+                seen_scripts.add(sid)
+                queue.append(custom_scripts[sid])
+    return pools
+
+
+def add_spawn_pools(scene, prefabs, custom_scripts, engine_values, where):
+    """Append each spawned prefab's hidden copies to the scene's NPCs
+    (scene["_pools"]: prefab id -> (first index, count))."""
+    pools = spawn_pools(scene, prefabs, custom_scripts, engine_values, where)
+    if not pools:
+        return
+    npcs = list(scene.get("npcs") or [])
+    scene["_pools"] = {}
+    for pid in sorted(pools):
+        template = json.loads(json.dumps(prefabs[pid].get("template") or {}))
+        for k in ("name", "x", "y"):
+            template.pop(k, None)
+        on_spawn = template.pop("on_init", None)
+        scene["_pools"][pid] = (len(npcs), pools[pid])
+        for _ in range(pools[pid]):
+            copy = json.loads(json.dumps(template))
+            copy.update({"x": 0, "y": 0, "_pool": pid})
+            if on_spawn:
+                copy["_on_spawn"] = on_spawn
+            npcs.append(copy)
+    if len(npcs) > 16:
+        copies = ", ".join(f"{prefabs[p].get('name', p)} x{n}" for p, n in sorted(pools.items()))
+        raise BuildError(
+            f"{where}: {len(npcs)} actors counting the Spawn Prefab copies ({copies}); "
+            "the most is 16. Lower Spawn Prefab's \"max at once\".")
+    scene["npcs"] = npcs
 
 
 def _events_of_type(obj, etype):
@@ -2325,6 +2407,7 @@ PARITY_EVENT_TYPES = [
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
+    "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2624,6 +2707,51 @@ def compile_parity_event(etype, ev, out, ctx, where):
             raise BuildError(f"{where}: unknown sprite '{sname}'.")
         tag = resolve_small_int(ev.get("tag", 0), "tag", where, 0, 8)
         out.append(_instr("SCRIPT_PROJECTILES", a=0 if etype == "projectile_recall" else 1, b=idx, c=tag))
+
+    elif etype == "spawn_prefab":
+        pid = _require(ev, "prefab", where)
+        pool = ctx.get("spawn_pools", {}).get(pid)
+        if not pool:
+            raise BuildError(f"{where}: Spawn Prefab: unknown prefab '{pid}'.")
+        at = str(ev.get("at", "tile"))
+        actor = 0
+        if at == "tile":
+            mode, x, y = 0, int(ev.get("x", 0)) * TILE, int(ev.get("y", 0)) * TILE
+        elif at == "actor":
+            mode = 1
+            actor = resolve_actor(_require(ev, "actor", where), ctx, where)
+            x = resolve_small_int(ev.get("offset_x", 0), "offset_x", where, -256, 256)
+            y = resolve_small_int(ev.get("offset_y", 0), "offset_y", where, -256, 256)
+        elif at == "vars":
+            mode = 2
+            x = resolve_var(_require(ev, "x_var", where), ctx, where)
+            y = resolve_var(_require(ev, "y_var", where), ctx, where)
+        else:
+            raise BuildError(f"{where}: \"at\" must be tile, actor or vars.")
+        dname = str(ev.get("direction", "prefab")).lower()
+        direction = DIRECTION_MAP.get(dname, 4)
+        ident = _aux_ident(ctx, "spawn")
+        ctx["_aux"].append(("expr", ident, [pool[0], pool[1], mode, x, y, actor, direction]))
+        out.append(_instr("SCRIPT_SPAWN_PREFAB", ptr=ident))
+
+    elif etype == "actor_remove":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        out.append(_instr("SCRIPT_ACTOR_REMOVE", a=idx))
+
+    elif etype == "actor_set_sprite":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        sprite = _require(ev, "sprite", where)
+        if sprite not in ctx["sprite_index"]:
+            raise BuildError(f"{where}: unknown sprite '{sprite}'.")
+        bank = ctx["scene_banks"].get(sprite, 0)
+        out.append(_instr("SCRIPT_ACTOR_SET_SPRITE", a=idx, b=ctx["sprite_index"][sprite], c=bank))
+
+    elif etype == "actor_jump":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        speed = ev.get("speed", 4)
+        if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 < speed <= 8:
+            raise BuildError(f"{where}: \"speed\" must be a number of pixels per frame, above 0 and up to 8.")
+        out.append(_instr("SCRIPT_ACTOR_JUMP", a=idx, b=int(round(speed * 256)), c=1 if ev.get("anytime") else 0))
 
     elif etype == "actor_lock_direction":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
@@ -3372,6 +3500,13 @@ def build(project_dir, out_dir):
 
     name_to_index = {n: i for i, n in enumerate(scene_names)}
 
+    # "Spawn Prefab": hidden copies of the prefabs each scene spawns.
+    prefabs = {p["id"]: p for p in project.get("prefabs") or [] if isinstance(p, dict) and "id" in p}
+    project_engine = json.dumps(project.get("engine") or {})
+    for (scene_file, scene), name in zip(scene_data_list, scene_names):
+        add_spawn_pools(scene, prefabs, custom_scripts,
+                        project_engine + json.dumps(scene.get("engine") or {}), name)
+
     # Shared name-resolution context for compile_events()/compile_script().
     # "npc_name_to_index"/"scene_npc_count"/"self_actor_index" and
     # "timer_name_to_index"/"scene_timer_count" are scene- (and, for
@@ -3419,12 +3554,14 @@ def build(project_dir, out_dir):
     # "Set Player Sprite" targets: compiled too, and while a project uses
     # the event, OBJ palette bank 0 is the player's alone (the player's
     # colors can change at any time).
+    custom_actor_sprites = actor_sprite_events(project.get("customScripts") or [])
     player_swaps = player_sprite_events(project.get("customScripts") or [])
     for _, scene in scene_data_list:
         player_swaps += player_sprite_events(scene)
     for _, scene in scene_data_list:
         for sname in ([scene.get("player_sprite")] + [npc.get("sprite") or player_sprite for npc in scene.get("npcs", [])]
-                      + projectile_sprites(scene) + custom_projectiles + player_swaps):
+                      + projectile_sprites(scene) + custom_projectiles + player_swaps
+                      + actor_sprite_events(scene) + custom_actor_sprites):
             if sname and sname not in sprite_names:
                 sprite_names.append(sname)
     if len(sprite_names) > 255:
@@ -3586,9 +3723,11 @@ def build(project_dir, out_dir):
         ctx["npc_name_to_index"] = npc_name_to_index
         ctx["npc_sprite_of"] = npc_sprite_of
         scene_banks = assign_palette_banks(
-            [npc.get("sprite") or player_sprite for npc in npcs] + projectile_sprites(scene) + custom_projectiles,
+            [npc.get("sprite") or player_sprite for npc in npcs] + projectile_sprites(scene) + custom_projectiles
+            + actor_sprite_events(scene) + custom_actor_sprites,
             scene_player_sprite, compiled_sprites, name, player_only=bool(player_swaps))
         ctx["scene_banks"] = scene_banks
+        ctx["spawn_pools"] = scene.get("_pools", {})
 
         # Scene type and its engine settings (compiler/modes.py).
         try:
@@ -3818,6 +3957,15 @@ def build(project_dir, out_dir):
                 else:
                     events = None
 
+                spawn_ref = "0"
+                if npc.get("_on_spawn"):
+                    spawn_ref = f"{ident}_npc{j}_spawn_script"
+                    ctx["self_actor_index"] = j
+                    instructions = compile_script(_script_list(npc["_on_spawn"], f"{where} \"on_init\""),
+                                                  ctx, f"{where} (spawned prefab) on_init")
+                    ctx["self_actor_index"] = None
+                    emit_script(c_parts, spawn_ref, instructions)
+
                 if events is not None:
                     script_ident = f"{ident}_npc{j}_script"
                     ctx["self_actor_index"] = j   # "self" inside its own script
@@ -3859,7 +4007,8 @@ def build(project_dir, out_dir):
                     f"{scene_banks[sname]}, {movement_val}, {script_ref}, "
                     f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref}, "
                     f"{1 if npc.get('platform') else 0}, {1 if npc.get('above_player') else 0}, "
-                    f"{1 if npc.get('push_player') else 0}, {1 if npc.get('lock_direction') else 0} }},")
+                    f"{1 if npc.get('push_player') else 0}, {1 if npc.get('lock_direction') else 0}, "
+                    f"{1 if npc.get('gravity') else 0}, {1 if npc.get('_pool') else 0}, {spawn_ref} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")

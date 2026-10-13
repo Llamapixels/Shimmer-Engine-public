@@ -11,7 +11,8 @@ import "./UsedIn.css";
 export function useRefPlaces(kind: RefKind | "customScript", name: string) {
   const project = useProjectStore((s) => s.project);
   return useMemo(
-    () => (project ? findRefs(project.scenes, project.project.customScripts ?? [], kind, name) : []),
+    () =>
+      project ? findRefs(project.scenes, project.project.customScripts ?? [], kind, name, project.project.prefabs ?? []) : [],
     [project, kind, name],
   );
 }
@@ -27,6 +28,10 @@ export function useJumpTo() {
     setWorldMap(false);
     if (p.target.kind === "customScript") {
       setSelection({ kind: "customScript", id: p.target.id });
+      return;
+    }
+    if (p.target.kind === "prefab") {
+      setSelection({ kind: "prefab", id: p.target.id });
       return;
     }
     if (!p.sceneId) return;

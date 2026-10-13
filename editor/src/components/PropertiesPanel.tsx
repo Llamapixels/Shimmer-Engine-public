@@ -1279,6 +1279,15 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
         </FieldRow>
 
         {scene.data.type === "platform" && (
+          <FieldRow label="Gravity" hint={GRAVITY_HINT}>
+            <label className="script-field-bool">
+              <input type="checkbox" checked={!!npc.gravity} onChange={(e) => patchNpc({ gravity: e.target.checked || undefined })} />
+              {npc.gravity ? "Falls" : "Off"}
+            </label>
+          </FieldRow>
+        )}
+
+        {scene.data.type === "platform" && (
           <FieldRow label="Platform" hint="The player can stand on it (it only blocks from above) and rides along when it moves.">
             <label className="script-field-bool">
               <input type="checkbox" checked={!!npc.platform} onChange={(e) => patchNpc({ platform: e.target.checked || undefined })} />
@@ -1677,7 +1686,7 @@ function PrefabProps({ id, scenes }: { id: string; scenes: SceneRecord[] }) {
         </FieldRow>
 
         {prefab.kind === "npc" ? (
-          <NpcPrefabFields template={prefab.template as Partial<NpcJSON>} patch={patch} />
+          <NpcPrefabFields id={id} template={prefab.template as Partial<NpcJSON>} patch={patch} scenes={scenes} />
         ) : (
           <DoorPrefabFields template={prefab.template as Partial<DoorJSON>} patch={patch} names={names} />
         )}
@@ -1688,13 +1697,49 @@ function PrefabProps({ id, scenes }: { id: string; scenes: SceneRecord[] }) {
         <p className="view-note">
           Placing copies these defaults into a brand-new {prefab.kind === "npc" ? "NPC" : "door"} on the active scene -
           it's a starting point, not a live link, so editing the prefab afterwards never changes ones already placed.
+          {prefab.kind === "npc" &&
+            " Actor prefabs can also appear while the game runs, with the Spawn Prefab event: those always use the prefab as it is now."}
         </p>
       </div>
     </>
   );
 }
 
-function NpcPrefabFields({ template, patch }: { template: Partial<NpcJSON>; patch: (t: Partial<NpcJSON>) => void }) {
+function NpcPrefabFields({
+  id,
+  template,
+  patch,
+  scenes,
+}: {
+  id: string;
+  template: Partial<NpcJSON>;
+  patch: (t: Partial<NpcJSON>) => void;
+  scenes: SceneRecord[];
+}) {
+  const updatePrefabTemplate = useProjectStore((s) => s.updatePrefabTemplate);
+  const [tab, setTab] = useState<ActorTab>("interact");
+  const env: ScriptEnv = useMemo(
+    () => ({ rootId: `prefab:${id}:${tab}`, sceneId: "__prefab__", scene: { background: "" }, scenes, allowSelf: true }),
+    [id, tab, scenes],
+  );
+  const scriptKey = { interact: "on_interact", init: "on_init", update: "on_update", hit: "on_hit" } as const;
+  // Script edits apply to the prefab as it is in the store right now.
+  const onScript: ScriptUpdater = (fn) => {
+    const cur = (useProjectStore.getState().project?.project.prefabs ?? []).find((p) => p.id === id);
+    if (!cur) return;
+    const next = withScript(cur.template as Partial<NpcJSON>, scriptKey[tab], fn);
+    if (next !== cur.template) updatePrefabTemplate(id, next);
+  };
+  const count = (s: EventScript | undefined) => (s?.length ? ` (${s.length})` : "");
+  const group = template.collision_group ?? 0;
+  const flag = (key: "above_player" | "lock_direction" | "push_player" | "gravity" | "platform", label: string, hint: string) => (
+    <FieldRow label={label} hint={hint}>
+      <label className="script-field-bool">
+        <input type="checkbox" checked={!!template[key]} onChange={(e) => patch({ [key]: e.target.checked || undefined })} />
+        {template[key] ? "On" : "Off"}
+      </label>
+    </FieldRow>
+  );
   return (
     <>
       <FieldRow label="Sprite">
@@ -1720,17 +1765,97 @@ function NpcPrefabFields({ template, patch }: { template: Partial<NpcJSON>; patc
           </select>
         </FieldRow>
       </div>
-      <FieldRow label="Dialogue" hint="A simple on_interact text - open the placed NPC afterwards for a full script.">
-        <textarea
-          rows={2}
-          value={template.dialogue ?? ""}
-          onChange={(e) => patch({ dialogue: e.target.value })}
-          placeholder="Hello!"
-        />
+      <div className="field-row-pair">
+        <FieldRow label="Movement speed">
+          <select
+            value={template.move_speed ?? 1}
+            onChange={(e) => patch({ move_speed: Number(e.target.value) === 1 ? undefined : Number(e.target.value) })}
+          >
+            {MOVE_SPEEDS.map((v) => (
+              <option key={v} value={v}>
+                {v} px/frame
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+        <FieldRow label="Animation speed">
+          <select value={template.anim_speed ?? 0} onChange={(e) => patch({ anim_speed: Number(e.target.value) || undefined })}>
+            {ANIM_SPEEDS.map((v) => (
+              <option key={v} value={v}>
+                {v === 0 ? "Sprite's own" : `${v} frames`}
+              </option>
+            ))}
+          </select>
+        </FieldRow>
+      </div>
+      {flag("gravity", "Gravity", GRAVITY_HINT)}
+      {flag("platform", "Platform", "Platformer: the player can stand on it (it only blocks from above) and rides along when it moves.")}
+      {flag("above_player", "Draw above player", "Draw this actor over the player instead of under it.")}
+      {flag("lock_direction", "Lock facing direction", "Keeps facing the same way while it moves.")}
+      {flag("push_player", "Pushes the player", "When it moves into the player, it shoves the player along.")}
+      <FieldRow
+        label="Collision group"
+        hint={group ? `Touching the player runs its On Hit, or else the scene's On Player Hit for group ${group}.` : undefined}
+      >
+        <div className="seg seg-wide">
+          {[0, 1, 2, 3].map((g) => (
+            <button
+              key={g}
+              className={group === g ? "seg-on" : ""}
+              onClick={(e) => {
+                e.preventDefault();
+                patch({ collision_group: g || undefined });
+              }}
+            >
+              {g === 0 ? "None" : g}
+            </button>
+          ))}
+        </div>
       </FieldRow>
+      {template.on_interact === undefined && (
+        <FieldRow label="Dialogue" hint="A simple On Interact text. Add events in the On Interact tab below for a full script instead.">
+          <textarea
+            rows={2}
+            value={template.dialogue ?? ""}
+            onChange={(e) => patch({ dialogue: e.target.value || undefined })}
+            placeholder="Hello!"
+          />
+        </FieldRow>
+      )}
+      <Tabs
+        tabs={[
+          { id: "interact", label: `On Interact${count(template.on_interact)}` },
+          { id: "init", label: `On Init${count(template.on_init)}` },
+          { id: "update", label: `On Update${count(template.on_update)}` },
+          { id: "hit", label: `On Hit${count(template.on_hit)}` },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+      <div className="properties-script">
+        <ScriptEditor
+          key={tab}
+          value={template[scriptKey[tab]]}
+          onChange={onScript}
+          env={env}
+          emptyHint={
+            tab === "interact"
+              ? "Runs when the player talks to it (replaces the Dialogue above). Events can target it as “Self”."
+              : tab === "init"
+                ? "Runs as this actor when its scene starts - or, for a spawned copy, the moment it's spawned."
+                : tab === "update"
+                  ? "Runs over and over in the background while it's in the scene (from its spawn, for spawned copies)."
+                  : "Runs when the player touches it. Needs a collision group (above)."
+          }
+        />
+      </div>
     </>
   );
 }
+
+const GRAVITY_HINT =
+  "Falls and lands on solid ground and one-way platforms, using the scene's platformer Gravity settings. " +
+  "It only walks left and right (wandering and Move events), and can jump with Actor Jump.";
 
 function DoorPrefabFields({
   template,

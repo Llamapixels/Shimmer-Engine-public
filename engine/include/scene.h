@@ -77,6 +77,10 @@ typedef struct
     uint8_t above_player;    /* 1 = drawn in front of the player */
     uint8_t push_player;     /* 1 = moving into the player shoves it along */
     uint8_t lock_direction;  /* 1 = keeps facing the same way while moving */
+    uint8_t gravity;         /* 1 = falls and lands (platformer gravity settings) */
+    uint8_t spawn_pool;      /* 1 = a "Spawn Prefab" copy: starts hidden, and
+                              * its On Update starts when it's spawned */
+    const ScriptEvent *on_spawn;   /* spawn_pool: runs when spawned */
 } NpcDef;
 
 /*

@@ -417,8 +417,15 @@ typedef enum
     SCRIPT_PROJECTILES,        /* a = PROJ_CMD_*, b = sprite_defs[] index
                                  * or -1 for all, c = tag 1-8 or 0 for any
                                  * (projectile.h) */
-    SCRIPT_ACTOR_LOCK_DIRECTION /* a = actor, b = 1: keep facing the same
+    SCRIPT_ACTOR_LOCK_DIRECTION, /* a = actor, b = 1: keep facing the same
                                  * way while it moves */
+    SCRIPT_SPAWN_PREFAB,       /* ptr = int16_t[SPAWN_P_N] (actor.h) */
+    SCRIPT_ACTOR_REMOVE,       /* a = actor: hide it, stop its On Update,
+                                 * and free a spawned copy */
+    SCRIPT_ACTOR_SET_SPRITE,   /* a = actor, b = sprite_defs[] index,
+                                 * c = OBJ palette bank in this scene */
+    SCRIPT_ACTOR_JUMP          /* a = actor, b = speed (1/256 px per
+                                 * frame), c = 1: even in the air */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

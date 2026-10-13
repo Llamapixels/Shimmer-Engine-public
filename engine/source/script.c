@@ -1088,6 +1088,31 @@ static void thread_step(ScriptThread *t, int is_main)
             actor_lock_direction(ev->a, ev->b);
             break;
 
+        case SCRIPT_SPAWN_PREFAB:
+            actor_spawn((const int16_t *)ev->ptr);
+            break;
+
+        case SCRIPT_ACTOR_REMOVE:
+        {
+            const ScriptEvent *base;
+            int h = actor_remove(ev->a, &base);
+            if (h > 0 && h < THREAD_COUNT && base && threads[h].ip && threads[h].base == base)
+            {
+                threads[h].ip = 0;
+                if (&threads[h] == t)
+                    return;   /* the actor removed itself from its own On Update */
+            }
+            break;
+        }
+
+        case SCRIPT_ACTOR_SET_SPRITE:
+            actor_set_sprite(ev->a, ev->b, ev->c);
+            break;
+
+        case SCRIPT_ACTOR_JUMP:
+            actor_jump(ev->a, ev->b, ev->c);
+            break;
+
         case SCRIPT_PROJECTILES:
             projectiles_command(ev->a, ev->b, ev->c);
             break;
