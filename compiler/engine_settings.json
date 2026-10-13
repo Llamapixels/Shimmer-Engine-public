@@ -3,7 +3,7 @@
   "modes": [
     { "id": "topdown", "label": "Top Down 2D", "engine": 0 },
     { "id": "platform", "label": "Platformer", "engine": 1 },
-    { "id": "adventure", "label": "Adventure", "engine": 2 },
+    { "id": "adventure", "label": "Adventure (old)", "engine": 2 },
     { "id": "shmup", "label": "Shoot 'Em Up", "engine": 3 },
     { "id": "pointnclick", "label": "Point and Click", "engine": 4 },
     { "id": "logo", "label": "Logo", "engine": 5 }
@@ -122,6 +122,25 @@
     { "key": "ad_state_push", "mode": "adventure", "group": "Pushing", "label": "Push animation", "unit": "state", "anim": "push", "default": "", "if": "ad_push", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"push\" if the sprite has one." },
     { "key": "ad_state_knockback", "mode": "adventure", "group": "Getting hit", "label": "Knockback animation", "unit": "state", "anim": "knockback", "default": "", "if": "ad_knockback", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"knockback\" if the sprite has one." },
     { "key": "ad_on_knockback", "mode": "adventure", "group": "Getting hit", "label": "On knockback", "unit": "script", "default": "", "if": "ad_knockback", "extra": true, "desc": "A custom script (Scripts list) run in the background each time the player is knocked back, e.g. to lower HP or update the HUD." },
-    { "key": "pl_air_turn", "mode": "platform", "group": "Walking", "label": "Turn around in the air", "unit": "choice", "options": ["Only with air control", "Always", "Never"], "default": 0, "desc": "Whether pressing left/right in the air turns the player to face that way. \"Always\" turns even without air control (steering stays off); \"Never\" keeps the facing from the jump." }
+    { "key": "pl_air_turn", "mode": "platform", "group": "Walking", "label": "Turn around in the air", "unit": "choice", "options": ["Only with air control", "Always", "Never"], "default": 0, "desc": "Whether pressing left/right in the air turns the player to face that way. \"Always\" turns even without air control (steering stays off); \"Never\" keeps the facing from the jump." },
+    { "key": "td_acc", "mode": "topdown", "group": "Movement", "label": "Acceleration", "unit": "accel", "default": 0, "min": 0, "max": 2, "extra": true, "desc": "0 = full speed at once. Above 0, the player speeds up smoothly (free movement only)." },
+    { "key": "td_dec", "mode": "topdown", "group": "Movement", "label": "Deceleration", "unit": "accel", "default": 0, "min": 0, "max": 2, "extra": true, "desc": "0 = stops at once. Above 0, the player slides to a stop (free movement only)." },
+    { "key": "td_face_horizontal", "mode": "topdown", "group": "Movement", "label": "Only face left/right", "unit": "bool", "default": 0, "extra": true, "desc": "For side-view sprites (free movement only)." },
+    { "key": "td_on_step", "mode": "topdown", "group": "Movement", "label": "On step (turn-based)", "unit": "script", "default": "", "if": "td_grid", "extra": true, "desc": "Grid movement: a custom script run after every step the player takes, while the player waits - move enemies there for a turn-based dungeon crawler (Mystery Dungeon style)." },
+    { "key": "td_dash", "mode": "topdown", "group": "Dash", "label": "Dash", "unit": "bool", "default": 0, "extra": true, "desc": "A quick burst of speed (free movement only)." },
+    { "key": "td_dash_input", "mode": "topdown", "group": "Dash", "label": "Dash input", "unit": "choice", "options": ["Double tap a direction", "A", "B", "L", "R"], "default": 4, "if": "td_dash" },
+    { "key": "td_dash_dist", "mode": "topdown", "group": "Dash", "label": "Dash distance (px)", "unit": "pixels", "default": 48, "min": 8, "max": 160, "if": "td_dash" },
+    { "key": "td_dash_frames", "mode": "topdown", "group": "Dash", "label": "Dash time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "td_dash" },
+    { "key": "td_dash_ready", "mode": "topdown", "group": "Dash", "label": "Cooldown (frames)", "unit": "frames", "default": 20, "min": 0, "max": 120, "if": "td_dash" },
+    { "key": "td_state_dash", "mode": "topdown", "group": "Dash", "label": "Dash animation", "unit": "state", "anim": "dash", "default": "", "if": "td_dash", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"dash\" if the sprite has one." },
+    { "key": "td_on_dash", "mode": "topdown", "group": "Dash", "label": "On dash", "unit": "script", "default": "", "if": "td_dash", "extra": true, "desc": "A custom script (Scripts list) run in the background each time the player dashes." },
+    { "key": "td_push", "mode": "topdown", "group": "Pushing", "label": "Push actors", "unit": "bool", "default": 0, "extra": true, "desc": "Walking into an actor for a moment pushes it, if it has room (free movement only)." },
+    { "key": "td_push_delay", "mode": "topdown", "group": "Pushing", "label": "Push delay (frames)", "unit": "frames", "default": 8, "min": 0, "max": 60, "if": "td_push" },
+    { "key": "td_state_push", "mode": "topdown", "group": "Pushing", "label": "Push animation", "unit": "state", "anim": "push", "default": "", "if": "td_push", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"push\" if the sprite has one." },
+    { "key": "td_knockback", "mode": "topdown", "group": "Getting hit", "label": "Knockback", "unit": "bool", "default": 0, "extra": true, "desc": "Getting hit pushes the player away (free movement only)." },
+    { "key": "td_kb_vel", "mode": "topdown", "group": "Getting hit", "label": "Knockback speed", "unit": "speed", "default": 2, "min": 0, "max": 8, "if": "td_knockback" },
+    { "key": "td_kb_frames", "mode": "topdown", "group": "Getting hit", "label": "Knockback time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "td_knockback" },
+    { "key": "td_state_knockback", "mode": "topdown", "group": "Getting hit", "label": "Knockback animation", "unit": "state", "anim": "knockback", "default": "", "if": "td_knockback", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"knockback\" if the sprite has one." },
+    { "key": "td_on_knockback", "mode": "topdown", "group": "Getting hit", "label": "On knockback", "unit": "script", "default": "", "if": "td_knockback", "extra": true, "desc": "A custom script (Scripts list) run in the background each time the player is knocked back, e.g. to lower HP or update the HUD." }
   ]
 }

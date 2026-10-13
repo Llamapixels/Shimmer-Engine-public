@@ -25,7 +25,7 @@ import NumberInput from "./common/NumberInput";
 import FieldRow from "./inspector/FieldRow";
 import { UsedInList } from "./UsedIn";
 import { EngineFields } from "../engine/EngineSettingsCard";
-import { type EngineValue, modeLabel, settingsForMode } from "../engine/engineSettings";
+import { type EngineValue, modeLabel, settingsForMode, settingValue } from "../engine/engineSettings";
 import "./PropertiesPanel.css";
 import Icon from "./common/Icon";
 import Chevron from "./common/Chevron";
@@ -201,7 +201,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
         <FieldRow label="Type" hint={SCENE_TYPES.find((t) => t.id === (data.type ?? "topdown"))?.hint}>
           <div className="type-row">
             <select value={data.type ?? "topdown"} onChange={(e) => patch({ type: e.target.value === "topdown" ? undefined : (e.target.value as SceneType) })}>
-              {SCENE_TYPES.map((t) => (
+              {SCENE_TYPES.filter((t) => t.id !== "adventure" || data.type === "adventure").map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.label}
                 </option>
@@ -219,6 +219,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
             </button>
           </div>
         </FieldRow>
+        {data.type === "adventure" && <AdventureConvert scene={scene} />}
         {showEngine && <SceneEngineOverrides scene={scene} />}
 
         <FieldRow label="Background">
@@ -453,13 +454,76 @@ function PlayerProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecor
 }
 
 const SCENE_TYPES: { id: SceneType; label: string; hint: string }[] = [
-  { id: "topdown", label: "Top Down 2D", hint: "Walk around in 4 directions (or on a grid), talk to actors with A." },
+  {
+    id: "topdown",
+    label: "Top Down 2D",
+    hint:
+      "Walk in 4 or 8 directions, freely or tile by tile on a grid (turn-based with On step), talk to actors with A. " +
+      "Engine settings add acceleration, running, dashing, pushing and knockback.",
+  },
   { id: "platform", label: "Platformer", hint: "Side view with gravity: run, jump, ladders, one-way platforms, wall jumps, dashes." },
-  { id: "adventure", label: "Adventure", hint: "Free 8-way movement with momentum, running, dashing and pushing actors." },
+  { id: "adventure", label: "Adventure (old)", hint: "Now part of Top Down 2D: convert this scene below." },
   { id: "shmup", label: "Shoot Em' Up", hint: "The screen scrolls the way the player faces at the start. Fire with Launch Projectile on a button." },
   { id: "pointnclick", label: "Point and Click", hint: "The player is a cursor: move it over actors and triggers and press A." },
   { id: "logo", label: "Logo", hint: "No player: a still screen for logos and title cards, run by the scene's scripts." },
 ]
+
+/** Adventure's settings -> the Top Down settings that do the same. */
+const ADVENTURE_TO_TOPDOWN: [string, string][] = [
+  ["ad_eight_way", "td_diagonal"],
+  ["ad_face_horizontal", "td_face_horizontal"],
+  ["ad_walk_vel", "td_speed"],
+  ["ad_walk_acc", "td_acc"],
+  ["ad_dec", "td_dec"],
+  ["ad_run", "td_run"],
+  ["ad_run_button", "td_run_button"],
+  ["ad_run_vel", "td_run_speed"],
+  ["ad_state_run", "td_state_run"],
+  ["ad_dash", "td_dash"],
+  ["ad_dash_input", "td_dash_input"],
+  ["ad_dash_dist", "td_dash_dist"],
+  ["ad_dash_frames", "td_dash_frames"],
+  ["ad_dash_ready", "td_dash_ready"],
+  ["ad_state_dash", "td_state_dash"],
+  ["ad_on_dash", "td_on_dash"],
+  ["ad_push", "td_push"],
+  ["ad_push_delay", "td_push_delay"],
+  ["ad_state_push", "td_state_push"],
+  ["ad_knockback", "td_knockback"],
+  ["ad_kb_vel", "td_kb_vel"],
+  ["ad_kb_frames", "td_kb_frames"],
+  ["ad_state_knockback", "td_state_knockback"],
+  ["ad_on_knockback", "td_on_knockback"],
+  ["ad_interact", "td_interact"],
+];
+
+/** Adventure is part of Top Down now: one click moves a scene over,
+ * carrying its Adventure settings into this scene's Top Down ones. */
+function AdventureConvert({ scene }: { scene: SceneRecord }) {
+  const updateScene = useProjectStore((s) => s.updateScene);
+  const projectEngine = useProjectStore((s) => s.project?.project.engine);
+  const convert = () =>
+    updateScene(scene.fileId, (s) => {
+      const engine: Record<string, EngineValue> = {};
+      for (const [k, v] of Object.entries(s.engine ?? {})) if (!k.startsWith("ad_")) engine[k] = v;
+      for (const [from, to] of ADVENTURE_TO_TOPDOWN) {
+        const v = settingValue(from, projectEngine, s.engine);
+        if (v !== settingValue(to, projectEngine)) engine[to] = v;
+      }
+      engine.td_grid = 0;
+      const next = { ...s, type: undefined, engine: Object.keys(engine).length ? engine : undefined };
+      return next;
+    });
+  return (
+    <div className="view-note">
+      Adventure is now part of Top Down 2D, with the same momentum, running, dashing, pushing and knockback as options.
+      This scene still runs as before.{" "}
+      <button className="btn btn-small" onClick={convert}>
+        Convert to Top Down
+      </button>
+    </div>
+  );
+}
 
 /** A scene's own engine settings, over the project's (Settings > Engine). */
 function SceneEngineOverrides({ scene }: { scene: SceneRecord }) {

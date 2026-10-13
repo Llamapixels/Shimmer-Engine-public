@@ -40,6 +40,7 @@ static int coyote, jump_buffer, hold_timer, air_jumps, wall_jumps;
 static int climbing, drop_timer;
 static int dash_timer, dash_cooldown, dash_vx, dash_vy;
 static int kb_timer;
+static int step_done;   /* Top Down grid: a step just finished */
 static int kick_timer;                /* wall kick: gravity/steering off */
 static int kick_anim;                 /* frames left of the wall kick animation */
 static int was_grounded, was_sliding; /* for the land / wall slide sounds */
@@ -94,6 +95,7 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
     vel_x = vel_y = 0;
     grounded = coyote = jump_buffer = hold_timer = air_jumps = wall_jumps = 0;
     climbing = drop_timer = dash_timer = dash_cooldown = kb_timer = push_timer = kick_timer = 0;
+    step_done = 0;
     running = wall_sliding = floating = crouching = pushing = 0;
     tap_timer[0] = tap_timer[1] = 0;
     look_offset = 0;
@@ -318,8 +320,16 @@ static int state_setting(int kind)
         case MODE_ANIM_KNOCKBACK: return MS_AD_STATE_KNOCKBACK;
         }
     }
-    else if (mode == SCENE_MODE_TOPDOWN && kind == MODE_ANIM_RUN)
-        return MS_TD_STATE_RUN;
+    else if (mode == SCENE_MODE_TOPDOWN)
+    {
+        switch (kind)
+        {
+        case MODE_ANIM_RUN:       return MS_TD_STATE_RUN;
+        case MODE_ANIM_DASH:      return MS_TD_STATE_DASH;
+        case MODE_ANIM_PUSH:      return MS_TD_STATE_PUSH;
+        case MODE_ANIM_KNOCKBACK: return MS_TD_STATE_KNOCKBACK;
+        }
+    }
     return -1;
 }
 
@@ -449,8 +459,27 @@ static int dash_pressed(int choice, int dir_x)
 /* ------------------------------------------------------------------ */
 /* Top Down                                                            */
 
+static const ScriptEvent *topdown_free_update(Entity *p);   /* below */
+
+/* Top Down's "On step" script (grid movement): the custom script set
+ * by the setting, or 0. */
+static const ScriptEvent *step_script(void)
+{
+    int v = MSET(TD_ON_STEP);
+    if (v > 0 && cur_scene && cur_scene->ability_scripts)
+        return cur_scene->ability_scripts[v - 1];
+    return 0;
+}
+
 static const ScriptEvent *topdown_update(Entity *p)
 {
+    int grid_mode = MSET(TD_GRID) != 0;
+    /* Acceleration, dash, pushing, knockback or left/right-only facing:
+     * the smooth free movement (Adventure's). */
+    if (!grid_mode && (MSET(TD_ACC) || MSET(TD_DEC) || MSET(TD_DASH) || MSET(TD_PUSH) || MSET(TD_FACE_HORIZONTAL) ||
+                       kb_timer > 0 || dash_timer > 0))
+        return topdown_free_update(p);
+
     int speed = MSET(TD_SPEED);
     running = MSET(TD_RUN) && input_held(MSET(TD_RUN_BUTTON));
     if (running)
@@ -507,6 +536,7 @@ static const ScriptEvent *topdown_update(Entity *p)
                 /* Land exactly on the line. */
                 pos_x = (int32_t)tx << 8;
                 pos_y = (int32_t)ty << 8;
+                step_done = 1;
             }
             if (move_axis(p, tx - p->x, 0) || move_axis(p, 0, ty - p->y))
             {
@@ -539,6 +569,15 @@ static const ScriptEvent *topdown_update(Entity *p)
     use_named_state(p, running && moved ? MODE_ANIM_RUN : -1);
     entity_animate(p, face, moved);
 
+    /* Turn-based: a finished grid step runs "On step" (the player waits
+     * for it, so enemies can take their turn). */
+    if (step_done)
+    {
+        step_done = 0;
+        const ScriptEvent *s = step_script();
+        if (s)
+            return s;
+    }
     if (grid_left == 0 && input_pressed(MSET(TD_INTERACT)))
         return world_npc_in_front(p);
     return 0;
@@ -937,11 +976,38 @@ static const ScriptEvent *platform_update(Entity *p)
 /* ------------------------------------------------------------------ */
 /* Adventure                                                           */
 
-static const ScriptEvent *adventure_update(Entity *p)
+/* Smooth free movement with acceleration, dash, pushing and knockback:
+ * Adventure's, and Top Down's when one of those options is on. Each
+ * field is the mode's own setting (MS_*). */
+typedef struct
+{
+    int eight_way, face_h, walk, acc, dec, run, run_button, run_vel;
+    int dash, dash_input, dash_dist, dash_frames, dash_ready, on_dash;
+    int push, push_delay, interact;
+} FreeMove;
+
+static const FreeMove ADVENTURE_MOVE = {
+    MS_AD_EIGHT_WAY, MS_AD_FACE_HORIZONTAL, MS_AD_WALK_VEL, MS_AD_WALK_ACC, MS_AD_DEC, MS_AD_RUN, MS_AD_RUN_BUTTON,
+    MS_AD_RUN_VEL, MS_AD_DASH, MS_AD_DASH_INPUT, MS_AD_DASH_DIST, MS_AD_DASH_FRAMES, MS_AD_DASH_READY, MS_AD_ON_DASH,
+    MS_AD_PUSH, MS_AD_PUSH_DELAY, MS_AD_INTERACT,
+};
+
+static const FreeMove TOPDOWN_MOVE = {
+    MS_TD_DIAGONAL, MS_TD_FACE_HORIZONTAL, MS_TD_SPEED, MS_TD_ACC, MS_TD_DEC, MS_TD_RUN, MS_TD_RUN_BUTTON,
+    MS_TD_RUN_SPEED, MS_TD_DASH, MS_TD_DASH_INPUT, MS_TD_DASH_DIST, MS_TD_DASH_FRAMES, MS_TD_DASH_READY, MS_TD_ON_DASH,
+    MS_TD_PUSH, MS_TD_PUSH_DELAY, MS_TD_INTERACT,
+};
+
+#define FSET(field) (mode_settings[c->field])
+
+static const ScriptEvent *free_update(Entity *p, const FreeMove *c)
 {
     int dx = input_held(INPUT_RIGHT) - input_held(INPUT_LEFT);
     int dy = input_held(INPUT_DOWN) - input_held(INPUT_UP);
-    if (!MSET(AD_EIGHT_WAY) && dx && dy)
+    /* Acceleration / deceleration 0 = instant. */
+    int acc = FSET(acc) > 0 ? FSET(acc) : 0x7FFF;
+    int dec = FSET(dec) > 0 ? FSET(dec) : 0x7FFF;
+    if (!FSET(eight_way) && dx && dy)
     {
         if (p->direction == DIR_LEFT || p->direction == DIR_RIGHT)
             dy = 0;
@@ -955,8 +1021,8 @@ static const ScriptEvent *adventure_update(Entity *p)
     if (kb_timer > 0)
     {
         kb_timer--;
-        vel_x = approach(vel_x, 0, MSET(AD_DEC) / 2);
-        vel_y = approach(vel_y, 0, MSET(AD_DEC) / 2);
+        vel_x = approach(vel_x, 0, dec / 2);
+        vel_y = approach(vel_y, 0, dec / 2);
     }
     else if (dash_timer > 0)
     {
@@ -968,18 +1034,18 @@ static const ScriptEvent *adventure_update(Entity *p)
     }
     else
     {
-        running = MSET(AD_RUN) && input_held(MSET(AD_RUN_BUTTON));
-        int max = running ? MSET(AD_RUN_VEL) : MSET(AD_WALK_VEL);
+        running = FSET(run) && input_held(FSET(run_button));
+        int max = running ? FSET(run_vel) : FSET(walk);
         /* Diagonals at ~0.7 of the speed, so they're not faster. */
         int axis_max = dx && dy ? max * 181 / 256 : max;
-        vel_x = dx ? approach(vel_x, dx * axis_max, MSET(AD_WALK_ACC)) : approach(vel_x, 0, MSET(AD_DEC));
-        vel_y = dy ? approach(vel_y, dy * axis_max, MSET(AD_WALK_ACC)) : approach(vel_y, 0, MSET(AD_DEC));
+        vel_x = dx ? approach(vel_x, dx * axis_max, acc) : approach(vel_x, 0, dec);
+        vel_y = dy ? approach(vel_y, dy * axis_max, acc) : approach(vel_y, 0, dec);
 
-        if (MSET(AD_DASH) && dash_cooldown == 0 && dash_pressed(MSET(AD_DASH_INPUT), dx))
+        if (FSET(dash) && dash_cooldown == 0 && dash_pressed(FSET(dash_input), dx))
         {
-            int frames = MSET(AD_DASH_FRAMES) ? MSET(AD_DASH_FRAMES) : 1;
-            int speed = MSET(AD_DASH_DIST) * 256 / frames;
-            run_ability_script(MS_AD_ON_DASH);
+            int frames = FSET(dash_frames) ? FSET(dash_frames) : 1;
+            int speed = FSET(dash_dist) * 256 / frames;
+            run_ability_script(c->on_dash);
             int fx = dx, fy = dy;
             if (!fx && !fy)
             {
@@ -991,13 +1057,13 @@ static const ScriptEvent *adventure_update(Entity *p)
             dash_vx = fx * speed;
             dash_vy = fy * speed;
             dash_timer = frames;
-            dash_cooldown = frames + MSET(AD_DASH_READY);
+            dash_cooldown = frames + FSET(dash_ready);
         }
     }
 
     /* Facing. */
     Direction face = (Direction)p->direction;
-    if (MSET(AD_FACE_HORIZONTAL))
+    if (FSET(face_h))
     {
         if (dx)
             face = dx > 0 ? DIR_RIGHT : DIR_LEFT;
@@ -1020,10 +1086,10 @@ static const ScriptEvent *adventure_update(Entity *p)
     int moved = p->x != ox || p->y != oy;
 
     /* Pushing an actor. */
-    if (MSET(AD_PUSH) && (dx || dy) && !moved)
+    if (FSET(push) && (dx || dy) && !moved)
     {
         int n = npc_in_way(p, p->x + dx, p->y + dy);
-        if (n && ++push_timer > MSET(AD_PUSH_DELAY))
+        if (n && ++push_timer > FSET(push_delay))
         {
             Entity *npc = world_npc(n - 1);
             pushing = 1;
@@ -1049,9 +1115,21 @@ static const ScriptEvent *adventure_update(Entity *p)
     use_named_state(p, kind);
     entity_animate(p, face, moved || pushing);
 
-    if (input_pressed(MSET(AD_INTERACT)))
+    if (input_pressed(FSET(interact)))
         return world_npc_in_front(p);
     return 0;
+}
+
+#undef FSET
+
+static const ScriptEvent *adventure_update(Entity *p)
+{
+    return free_update(p, &ADVENTURE_MOVE);
+}
+
+static const ScriptEvent *topdown_free_update(Entity *p)
+{
+    return free_update(p, &TOPDOWN_MOVE);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1254,16 +1332,19 @@ void modes_player_hit(Entity *p, int from_x, int from_y)
         facing_left = away_x > 0;
         run_ability_script(MS_PL_ON_KNOCKBACK);
     }
-    else if (mode == SCENE_MODE_ADVENTURE && MSET(AD_KNOCKBACK))
+    else if ((mode == SCENE_MODE_ADVENTURE && MSET(AD_KNOCKBACK)) ||
+             (mode == SCENE_MODE_TOPDOWN && MSET(TD_KNOCKBACK) && !MSET(TD_GRID)))
     {
-        kb_timer = MSET(AD_KB_FRAMES);
+        int adv = mode == SCENE_MODE_ADVENTURE;
+        int kb_vel = adv ? MSET(AD_KB_VEL) : MSET(TD_KB_VEL);
+        kb_timer = adv ? MSET(AD_KB_FRAMES) : MSET(TD_KB_FRAMES);
         int dxs = p->x + p->width / 2 - from_x, dys = p->y + p->height / 2 - from_y;
         if (dxs < 0) dxs = -dxs;
         if (dys < 0) dys = -dys;
         /* Mostly along the axis it came from. */
-        vel_x = dxs >= dys / 2 ? away_x * MSET(AD_KB_VEL) : 0;
-        vel_y = dys >= dxs / 2 ? away_y * MSET(AD_KB_VEL) : 0;
+        vel_x = dxs >= dys / 2 ? away_x * kb_vel : 0;
+        vel_y = dys >= dxs / 2 ? away_y * kb_vel : 0;
         dash_timer = 0;
-        run_ability_script(MS_AD_ON_KNOCKBACK);
+        run_ability_script(adv ? MS_AD_ON_KNOCKBACK : MS_TD_ON_KNOCKBACK);
     }
 }
