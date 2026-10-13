@@ -59,6 +59,8 @@ export interface TextEvent extends EventBase {
   /** false = no frame: just the text, on a see-through background. */
   frame?: boolean;
   focus?: TextFocus;
+  /** Keep on screen (HUD): drawn at once and left up while the game carries on. */
+  hud?: boolean;
 }
 
 /** Text/choice/menu: dim and/or blur everything but the box while it's open. */
@@ -246,6 +248,11 @@ export interface ActorSetDirectionEvent extends EventBase {
   type: "actor_set_direction";
   actor: ActorRef;
   direction: Direction;
+}
+
+/** Takes down a HUD text box (TextEvent.hud). */
+export interface TextHudCloseEvent extends EventBase {
+  type: "text_hud_close";
 }
 
 /** Wake one of the scene's hidden copies of an actor prefab. */
@@ -1181,6 +1188,7 @@ export type ScriptEventJSON =
   | ProjectileRemoveEvent
   | ActorLockDirectionEvent
   | SpawnPrefabEvent
+  | TextHudCloseEvent
   | ActorRemoveEvent
   | ActorSetSpriteEvent
   | ActorJumpEvent

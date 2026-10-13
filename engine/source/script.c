@@ -552,6 +552,11 @@ static void thread_step(ScriptThread *t, int is_main)
                 t->ip--;
                 return;
             }
+            if (ev->op == SCRIPT_TEXT && (ev->a & DIALOGUE_OPT_HUD))
+            {
+                dialogue_show_ex(ev->str, ev->a, ev->b);   /* HUD: carry on */
+                break;
+            }
             if (ev->op == SCRIPT_TEXT)
             {
                 dialogue_set_focus((ev->a >> 6) & 3);
@@ -1111,6 +1116,10 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_ACTOR_JUMP:
             actor_jump(ev->a, ev->b, ev->c);
+            break;
+
+        case SCRIPT_TEXT_HUD_CLOSE:
+            dialogue_hud_close();
             break;
 
         case SCRIPT_PROJECTILES:

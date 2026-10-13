@@ -41,7 +41,7 @@ typedef struct
     int color;   /* UI palette index for the text, 0 = the font's own */
 } TextState;
 
-typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU } Mode;
+typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU, MODE_HUD } Mode;
 
 static Mode mode = MODE_NONE;
 static int last_choice = 0;
@@ -410,20 +410,39 @@ void dialogue_show_ex(const char *text, int options, int place)
     text_lines = rows ? rows : TEXT_LINES;
     if (text_lines > UI_MAX_LINES)
         text_lines = UI_MAX_LINES;
-    mode = MODE_TEXT;
+    int hud = (options & DIALOGUE_OPT_HUD) != 0;
+    if (hud && mode != MODE_NONE && mode != MODE_HUD)
+        return;   /* a real box is up: it wins */
+    mode = hud ? MODE_HUD : MODE_TEXT;
     int framed = !(options & DIALOGUE_OPT_NO_FRAME);
     if (DIALOGUE_OPT_POSITION(options) == UI_BOX_CUSTOM)
         ui_box_open_at(text_lines, DIALOGUE_PLACE_X(place), DIALOGUE_PLACE_Y(place), DIALOGUE_PLACE_W(place), framed);
     else
         ui_box_open_ex(text_lines, DIALOGUE_OPT_POSITION(options), framed);
+    if (hud)
+    {
+        /* The first page, all at once; no focus, no waiting for A. */
+        start_page(text, st);
+        shown = page_chars;
+        render_page();
+        return;
+    }
     focus_start();
     start_page(text, st);
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 
+void dialogue_hud_close(void)
+{
+    if (mode != MODE_HUD)
+        return;
+    mode = MODE_NONE;
+    ui_box_close();
+}
+
 int dialogue_active(void)
 {
-    return mode != MODE_NONE;
+    return mode != MODE_NONE && mode != MODE_HUD;
 }
 
 void dialogue_show_choice(const char *packed)
@@ -457,7 +476,7 @@ static void close_box(void)
 
 void dialogue_update(void)
 {
-    if (mode == MODE_NONE)
+    if (mode == MODE_NONE || mode == MODE_HUD)
         return;
 
     if (mode == MODE_CHOICE || mode == MODE_MENU)

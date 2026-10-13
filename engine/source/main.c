@@ -1519,6 +1519,7 @@ int main(void)
             const SceneDef *next = scenes[pending_switch_scene];
             scene_load(next);
             ui_label_clear(-1);   /* screen text belongs to the scene left */
+            dialogue_hud_close();
             scene_entities_load(next);
             play_scene_music(next);
 

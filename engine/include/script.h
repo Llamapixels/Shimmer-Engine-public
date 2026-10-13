@@ -424,8 +424,9 @@ typedef enum
                                  * and free a spawned copy */
     SCRIPT_ACTOR_SET_SPRITE,   /* a = actor, b = sprite_defs[] index,
                                  * c = OBJ palette bank in this scene */
-    SCRIPT_ACTOR_JUMP          /* a = actor, b = speed (1/256 px per
+    SCRIPT_ACTOR_JUMP,         /* a = actor, b = speed (1/256 px per
                                  * frame), c = 1: even in the air */
+    SCRIPT_TEXT_HUD_CLOSE      /* take down a HUD text box */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

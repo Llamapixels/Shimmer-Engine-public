@@ -27,12 +27,19 @@ void dialogue_show(const char *text);
 #define DIALOGUE_OPT_POSITION(o) ((o) & 3)
 #define DIALOGUE_OPT_ROWS(o)     (((o) >> 2) & 7)
 #define DIALOGUE_OPT_NO_FRAME    0x20
+/* Bit 8: a HUD box - drawn at once and left up while the game (and the
+ * script) carry on, until dialogue_hud_close(), another box, or a scene
+ * change. */
+#define DIALOGUE_OPT_HUD         0x100
 /* With position UI_BOX_CUSTOM, SCRIPT_TEXT's `b` places the box: tile
  * column, row and width (frame included). */
 #define DIALOGUE_PLACE_X(p)      ((p) & 31)
 #define DIALOGUE_PLACE_Y(p)      (((p) >> 5) & 31)
 #define DIALOGUE_PLACE_W(p)      (((p) >> 10) & 31)
 void dialogue_show_ex(const char *text, int options, int place);
+
+/* Take down a HUD box (DIALOGUE_OPT_HUD), if one is up. */
+void dialogue_hud_close(void);
 
 /* "Focus" for the next box (text, choice or menu) until it closes:
  * DIALOGUE_FOCUS_DIM darkens and DIALOGUE_FOCUS_BLUR pixelates

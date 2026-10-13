@@ -300,6 +300,7 @@ export const EVENT_DEFS: EventDef[] = [
       { key: "box_width", label: "Width (tiles)", kind: "int", min: 1, max: 30, defaultValue: 30, showIf: (e) => e.position === "custom" },
       { key: "rows", label: "Rows", kind: "int", min: 1, max: 4, defaultValue: 2 },
       { key: "frame", label: "Frame", kind: "bool", defaultValue: true },
+      { key: "hud", label: "Keep on screen (HUD)", kind: "bool", defaultValue: false },
       {
         key: "focus",
         label: "Focus",
@@ -311,10 +312,11 @@ export const EVENT_DEFS: EventDef[] = [
           { value: "blur", label: "Blur the rest" },
           { value: "dim_blur", label: "Dim and blur the rest" },
         ],
+        showIf: (e) => !e.hud,
       },
     ],
     create: () => ({ type: "text", text: "" }),
-    summary: (ev) => `"${short(ev.text)}"`,
+    summary: (ev) => `"${short(ev.text)}"${ev.hud ? " (HUD)" : ""}`,
   }),
   def({
     type: "text_draw",
@@ -842,6 +844,15 @@ export const EVENT_DEFS: EventDef[] = [
     ],
     create: (c) => ({ type: "actor_set_direction", actor: c.firstActor ?? "self", direction: "down" }),
     summary: (ev) => `${actorLabel(ev.actor)} faces ${ev.direction}`,
+  }),
+  def({
+    type: "text_hud_close",
+    label: "Close Text Box",
+    category: "Dialogue",
+    description: "Take down a Display Text box shown with \"Keep on screen (HUD)\".",
+    fields: [],
+    create: () => ({ type: "text_hud_close" }),
+    summary: () => "",
   }),
   def({
     type: "spawn_prefab",

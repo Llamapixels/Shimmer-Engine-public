@@ -271,6 +271,10 @@ Event script types (used in "on_interact" and door "events" lists):
         (x, y in tiles), "actor" ("actor", "offset_x"/"offset_y" px from its
         position) or "vars" ("x_var"/"y_var", tiles). "max": copies the scene
         keeps (how many can be out at once). Its "on_init" runs when spawned.
+    { "type": "text", ..., "hud": true }
+        A HUD box: drawn at once (first page only) and left up while the game
+        carries on, until "text_hud_close", another text box or a scene change.
+    { "type": "text_hud_close" }
     { "type": "actor_remove", "actor": ... }
         Hides an actor and stops its on_update; a spawned copy can spawn again.
     { "type": "actor_set_sprite", "actor": ..., "sprite": "<name>" }
@@ -1783,7 +1787,7 @@ def text_options(ev, where):
         raise BuildError(f"{where}: \"rows\" must be 1 to 4.")
     framed = ev.get("frame", True) is not False
     a = (TEXT_POSITIONS[pos] | ((0 if rows == 2 else rows) << 2) | (0 if framed else 0x20)
-         | (text_focus(ev, where) << 6))
+         | (text_focus(ev, where) << 6) | (0x100 if ev.get("hud") else 0))
     b = 0
     if pos == "custom":
         bx = resolve_small_int(ev.get("box_x", 0), "box_x", where, 0, 29)
@@ -2407,7 +2411,7 @@ PARITY_EVENT_TYPES = [
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
-    "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump",
+    "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2752,6 +2756,9 @@ def compile_parity_event(etype, ev, out, ctx, where):
         if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 < speed <= 8:
             raise BuildError(f"{where}: \"speed\" must be a number of pixels per frame, above 0 and up to 8.")
         out.append(_instr("SCRIPT_ACTOR_JUMP", a=idx, b=int(round(speed * 256)), c=1 if ev.get("anytime") else 0))
+
+    elif etype == "text_hud_close":
+        out.append(_instr("SCRIPT_TEXT_HUD_CLOSE"))
 
     elif etype == "actor_lock_direction":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
