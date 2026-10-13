@@ -111,3 +111,11 @@
 .world-map-link-scene {
   stroke: #ff7ab8;
 }
+.world-map-bounds {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 2px dashed rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  box-sizing: border-box;
+}

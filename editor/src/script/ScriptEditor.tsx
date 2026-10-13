@@ -423,7 +423,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
   );
 });
 
-const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits", "scriptArgs"]);
+const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits", "scriptArgs", "combo"]);
 
 const MAX_MENU_OPTIONS = 4;
 const MIN_MENU_OPTIONS = 2;

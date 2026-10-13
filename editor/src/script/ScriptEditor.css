@@ -592,3 +592,22 @@
   font-family: var(--font-mono, monospace);
   opacity: 0.8;
 }
+
+/* Attach Script To Button: combo in order. */
+.combo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.combo-steps {
+  font-family: var(--font-mono, monospace);
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+}
+
+.combo-steps-short {
+  border-color: var(--danger-text);
+}

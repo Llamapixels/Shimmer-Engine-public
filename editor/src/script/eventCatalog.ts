@@ -55,7 +55,9 @@ export type FieldKind =
   | "engineSetting"
   | "engineValue"
   | "cutscene"
-  | "scriptArgs";
+  | "scriptArgs"
+  | "spriteState"
+  | "combo";
 
 export interface FieldDef {
   /** JSON key. For "tilePos"/"offset" this is a prefix-less pair: the
@@ -212,6 +214,21 @@ function unitsLabel(units: unknown): string {
 
 function bitsLabel(bits: number[] | undefined): string {
   return bits && bits.length ? bits.map((b) => `#${b}`).join(" ") : "(none)";
+}
+
+const BUTTON_NAMES: Record<string, string> = {
+  up: "↑", down: "↓", left: "←", right: "→", a: "A", b: "B", l: "L", r: "R", start: "Start", select: "Select",
+};
+
+/** How a button shows in summaries: arrows, A, B, L, R, Start, Select. */
+export function buttonName(b: string): string {
+  return BUTTON_NAMES[b.toLowerCase()] ?? b;
+}
+
+function projectilePick(ev: { sprite?: string; tag?: number }): string {
+  const sprite = ev.sprite && ev.sprite !== "all" ? ev.sprite : "";
+  const tag = ev.tag ? `tag ${ev.tag}` : "";
+  return [tag, sprite].filter(Boolean).join(", ") || "all";
 }
 
 function buttonsLabel(b: string | string[]): string {
@@ -474,9 +491,10 @@ export const EVENT_DEFS: EventDef[] = [
         ],
       },
       { key: "linger_frames", label: "Lingers for (frames)", kind: "int", min: 1, max: MAX_I16, defaultValue: 60, showIf: (e) => e.on_land === "linger" },
-      { key: "land_state", label: "Animation state once landed", kind: "text", placeholder: "state name", showIf: (e) => e.on_land === "stick" || e.on_land === "linger" },
+      { key: "land_state", label: "Animation once landed", kind: "spriteState", showIf: (e) => e.on_land === "stick" || e.on_land === "linger" },
       { key: "follow", label: "Follows the thrower (melee hitbox)", kind: "bool", defaultValue: false },
       { key: "mirror_offset", label: "Flip offset X when facing left", kind: "bool", defaultValue: false },
+      { key: "tag", label: "Tag (1-8, for Recall / Remove; 0 = none)", kind: "int", min: 0, max: 8, defaultValue: 0 },
       { key: "lifetime", label: "Lifetime (frames, 0 = until off screen)", kind: "int", min: 0, max: MAX_I16 },
       {
         key: "hits",
@@ -516,19 +534,29 @@ export const EVENT_DEFS: EventDef[] = [
     type: "projectile_recall",
     label: "Recall Projectiles",
     category: "Engine",
-    description: "Send projectiles flying back to whoever threw them, through walls; stuck ones come loose. They vanish when they get back.",
-    fields: [{ key: "sprite", label: "Sprite", kind: "text", placeholder: "all, or a sprite name" }],
+    description:
+      "Send projectiles flying back to whoever threw them, through walls; stuck ones come loose. They vanish when they get back. " +
+      "Pick which with a tag (set the same tag on Launch Projectile) and/or a sprite.",
+    fields: [
+      { key: "tag", label: "Tag (0 = any)", kind: "int", min: 0, max: 8, defaultValue: 0 },
+      { key: "sprite", label: "Sprite", kind: "text", placeholder: "all, or a sprite name" },
+    ],
     create: () => ({ type: "projectile_recall", sprite: "all" }),
-    summary: (ev) => ev.sprite || "all",
+    summary: (ev) => projectilePick(ev),
   }),
   def({
     type: "projectile_remove",
     label: "Remove Projectiles",
     category: "Engine",
-    description: "Make projectiles vanish at once (all of them, or one sprite's), e.g. to set off bombs sitting on the ground.",
-    fields: [{ key: "sprite", label: "Sprite", kind: "text", placeholder: "all, or a sprite name" }],
+    description:
+      "Make projectiles vanish at once, e.g. to set off bombs sitting on the ground. Pick which with a tag (set the same tag " +
+      "on Launch Projectile) and/or a sprite.",
+    fields: [
+      { key: "tag", label: "Tag (0 = any)", kind: "int", min: 0, max: 8, defaultValue: 0 },
+      { key: "sprite", label: "Sprite", kind: "text", placeholder: "all, or a sprite name" },
+    ],
     create: () => ({ type: "projectile_remove", sprite: "all" }),
-    summary: (ev) => ev.sprite || "all",
+    summary: (ev) => projectilePick(ev),
   }),
   def({
     type: "text_set_font",
@@ -791,6 +819,20 @@ export const EVENT_DEFS: EventDef[] = [
     ],
     create: (c) => ({ type: "actor_set_direction", actor: c.firstActor ?? "self", direction: "down" }),
     summary: (ev) => `${actorLabel(ev.actor)} faces ${ev.direction}`,
+  }),
+  def({
+    type: "actor_lock_direction",
+    label: "Lock Actor Direction",
+    category: "Actors",
+    description:
+      "Keep the player or an actor facing the same way while it moves (strafing, walking backwards). Set Actor Direction " +
+      "still turns it. Actors can also start locked (their \"Lock facing direction\" option).",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "enabled", label: "Locked", kind: "bool", defaultValue: true },
+    ],
+    create: (c) => ({ type: "actor_lock_direction", actor: c.firstActor ?? "player", enabled: true }),
+    summary: (ev) => `${actorLabel(ev.actor)}: ${ev.enabled ? "locked" : "unlocked"}`,
   }),
 
   def({
@@ -1824,13 +1866,7 @@ export const EVENT_DEFS: EventDef[] = [
         ],
       },
       { key: "buttons", label: "Buttons", kind: "buttons", showIf: (e) => e.trigger !== "combo" },
-      {
-        key: "combo",
-        label: "Combo buttons, in order",
-        kind: "text",
-        placeholder: "down right a",
-        showIf: (e) => e.trigger === "combo",
-      },
+      { key: "combo", label: "Combo, in order", kind: "combo", showIf: (e) => e.trigger === "combo" },
       {
         key: "frames",
         label: "Frames",
@@ -1847,7 +1883,10 @@ export const EVENT_DEFS: EventDef[] = [
     create: () => ({ type: "input_script_set", buttons: "a", override: false, script: [] }),
     summary: (ev) => {
       const t = ev.trigger ?? "press";
-      const what = t === "combo" ? `combo ${Array.isArray(ev.combo) ? ev.combo.join(" ") : ev.combo || "?"}` : buttonsLabel(ev.buttons);
+      const what =
+        t === "combo"
+          ? `combo ${(Array.isArray(ev.combo) ? ev.combo : String(ev.combo ?? "").split(/[\s,]+/).filter(Boolean)).map(buttonName).join(", ") || "?"}`
+          : buttonsLabel(ev.buttons);
       const when =
         t === "hold" ? " held" : t === "long" ? ` held ${ev.frames ?? 15}f` : t === "release" ? " released" : t === "tap" ? " tapped" : "";
       return `${what}${when}${ev.override ? " (override)" : ""}`;

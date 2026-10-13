@@ -66,8 +66,7 @@ static const char *option_end[MENU_MAX_OPTIONS];
 
 static int is_code(unsigned char c)
 {
-    return c == UI_CODE_VAR || c == UI_CODE_VAR_HI || c == UI_CODE_FONT || c == UI_CODE_SPEED ||
-           c == UI_CODE_COLOR;
+    return UI_IS_VAR_CODE(c) || c == UI_CODE_FONT || c == UI_CODE_SPEED || c == UI_CODE_COLOR;
 }
 
 /* A code's argument (stored +1, see ui.h); variable codes give the
@@ -75,12 +74,12 @@ static int is_code(unsigned char c)
 static int code_arg(unsigned char code, unsigned char byte)
 {
     int a = byte - 1;
-    return code == UI_CODE_VAR_HI ? a + 128 : a;
+    return UI_IS_VAR_CODE(code) ? a + UI_VAR_BASE(code) : a;
 }
 
 static int is_var(unsigned char c)
 {
-    return c == UI_CODE_VAR || c == UI_CODE_VAR_HI;
+    return UI_IS_VAR_CODE(c);
 }
 
 /* A variable's value as decimal digits; returns the length. */

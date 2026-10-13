@@ -38,6 +38,7 @@ Entity *entity_create(EntityType type, int x, int y, int width, int height)
         e->anim_timer = 0;
         e->anim_enabled = 1;
         e->anim_hold = 0;
+        e->dir_locked = 0;
         e->script_state = 0;
         e->col_ox = 0;
         e->col_oy = 0;
@@ -138,7 +139,7 @@ void entity_animate(Entity *entity, Direction direction, int moving)
 {
     if (entity == 0)
         return;
-    uint8_t d = (uint8_t)direction;
+    uint8_t d = entity->dir_locked ? entity->direction : (uint8_t)direction;
     uint8_t m = moving ? 1 : 0;
     if (d != entity->direction || m != entity->moving)
         entity->anim_hold = 0;
@@ -157,6 +158,8 @@ void entity_animate_slot(Entity *entity, Direction direction, int slot)
         entity_animate(entity, direction, 0);
         return;
     }
+    if (entity->dir_locked)
+        direction = (Direction)entity->direction;
     if ((uint8_t)direction != entity->direction || entity->extra_slot != slot + 1)
         entity->anim_hold = 0;
     entity->direction = (uint8_t)direction;

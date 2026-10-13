@@ -30,6 +30,7 @@ typedef struct
     uint8_t bounces_left;    /* 255 = forever */
     uint8_t land;            /* PROJ_LAND_* */
     uint8_t land_state;      /* animation state + 1 after landing, 0 = keep */
+    uint8_t tag;             /* PROJ_P_TAG */
     int16_t amp, period, gravity, ret, linger, speed, off_x, off_y;
     uint16_t age;            /* frames since launch (wave phase, boomerang turn) */
 } Projectile;
@@ -158,6 +159,7 @@ void projectile_launch(const int16_t *p)
     s->bounces_left = (uint8_t)p[PROJ_P_BOUNCES];
     s->land = (uint8_t)p[PROJ_P_LAND];
     s->land_state = (uint8_t)p[PROJ_P_LAND_STATE];
+    s->tag = (uint8_t)p[PROJ_P_TAG];
     s->amp = p[PROJ_P_AMP];
     s->period = p[PROJ_P_PERIOD] > 0 ? p[PROJ_P_PERIOD] : 1;
     s->gravity = p[PROJ_P_GRAVITY];
@@ -305,12 +307,12 @@ static void wave_offset(const Projectile *s, int *ox, int *oy)
     *oy = (s->vx >> 4) * side / len;
 }
 
-void projectiles_command(int command, int sprite)
+void projectiles_command(int command, int sprite, int tag)
 {
     for (int i = 0; i < PROJECTILE_MAX; i++)
     {
         Projectile *s = &shots[i];
-        if (!s->active || (sprite >= 0 && s->def != &sprite_defs[sprite]))
+        if (!s->active || (sprite >= 0 && s->def != &sprite_defs[sprite]) || (tag > 0 && s->tag != tag))
             continue;
         if (command == PROJ_CMD_RECALL)
         {

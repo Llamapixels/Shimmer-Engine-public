@@ -414,8 +414,11 @@ typedef enum
                                  * str = text (ui.h ui_label_draw()) */
     SCRIPT_TEXT_CLEAR,         /* a = slot 0-7, 8 = all, 9 = the area
                                  * b = col | row << 5, c = width | height << 5 */
-    SCRIPT_PROJECTILES         /* a = PROJ_CMD_*, b = sprite_defs[] index
-                                 * or -1 for all (projectile.h) */
+    SCRIPT_PROJECTILES,        /* a = PROJ_CMD_*, b = sprite_defs[] index
+                                 * or -1 for all, c = tag 1-8 or 0 for any
+                                 * (projectile.h) */
+    SCRIPT_ACTOR_LOCK_DIRECTION /* a = actor, b = 1: keep facing the same
+                                 * way while it moves */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

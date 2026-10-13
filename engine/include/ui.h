@@ -48,6 +48,12 @@ extern const uint8_t ui_default_text_speed;
 #define UI_CODE_VAR_HI  0x05   /* a = variable index 128-255, minus 128 */
 #define UI_CODE_COLOR   0x06   /* a = palette index for the text colour from
                                 * here on, 0 = the font's own colour */
+#define UI_CODE_VAR_2   0x07   /* a = variable index 256-383, minus 256 */
+#define UI_CODE_VAR_3   0x08   /* a = variable index 384-511, minus 384 */
+
+/* Is c one of the variable codes? Its argument + this = the index. */
+#define UI_IS_VAR_CODE(c) ((c) == UI_CODE_VAR || (c) == UI_CODE_VAR_HI || (c) == UI_CODE_VAR_2 || (c) == UI_CODE_VAR_3)
+#define UI_VAR_BASE(c)    ((c) == UI_CODE_VAR_HI ? 128 : (c) == UI_CODE_VAR_2 ? 256 : (c) == UI_CODE_VAR_3 ? 384 : 0)
 
 #define UI_TEXT_WIDTH   224    /* px inside the box (28 tiles) */
 #define UI_MAX_LINES    4      /* text lines the box can grow to */

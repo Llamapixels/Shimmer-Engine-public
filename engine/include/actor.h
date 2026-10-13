@@ -39,6 +39,7 @@ void actor_set_position(int index, int x, int y);
 /* Turn an actor to face a direction (Direction, 0-3 - see entity.h),
  * without moving it. */
 void actor_set_direction(int index, int direction);
+void actor_lock_direction(int index, int on);   /* keep facing the same way while moving */
 
 /*
  * Step an actor one frame closer to (target_x, target_y), in pixels -

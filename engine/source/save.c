@@ -33,10 +33,9 @@ static uint8_t compute_checksum(const SaveData *data)
     return sum;
 }
 
-/* Each slot gets a fixed 1KB stripe of the 32KB SRAM. Slot 0 starts
- * at offset 0 - where the single save always lived - so saves from
- * before slots existed still load as slot 0. */
-#define SLOT_STRIDE 1024
+/* Each slot gets a fixed 2KB stripe of the 32KB SRAM (512 variables
+ * take 1KB on their own). */
+#define SLOT_STRIDE 2048
 _Static_assert(sizeof(SaveData) <= SLOT_STRIDE, "SaveData outgrew its SRAM slot");
 
 static volatile uint8_t *slot_base(int slot)

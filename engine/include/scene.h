@@ -76,6 +76,7 @@ typedef struct
                               * above) and ride it when it moves */
     uint8_t above_player;    /* 1 = drawn in front of the player */
     uint8_t push_player;     /* 1 = moving into the player shoves it along */
+    uint8_t lock_direction;  /* 1 = keeps facing the same way while moving */
 } NpcDef;
 
 /*

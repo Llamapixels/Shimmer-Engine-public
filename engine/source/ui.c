@@ -374,7 +374,7 @@ static int label_text(const unsigned char *s, int slot, int cols, int draw, int 
             continue;
         }
         if ((ch == UI_CODE_FONT || ch == UI_CODE_COLOR || ch == UI_CODE_SPEED ||
-             ch == UI_CODE_VAR || ch == UI_CODE_VAR_HI) && s[1])
+             UI_IS_VAR_CODE(ch)) && s[1])
         {
             int arg = s[1] - 1;
             s++;
@@ -387,7 +387,7 @@ static int label_text(const unsigned char *s, int slot, int cols, int draw, int 
                 color = arg;
             else if (ch != UI_CODE_SPEED)
             {
-                int v = var_get(arg + (ch == UI_CODE_VAR_HI ? 128 : 0));
+                int v = var_get(arg + UI_VAR_BASE(ch));
                 unsigned int u = v < 0 ? (unsigned int)-v : (unsigned int)v;
                 char buf[8];
                 int n = 0;

@@ -1259,6 +1259,16 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
         </FieldRow>
 
         <FieldRow
+          label="Lock facing direction"
+          hint="Keeps facing the same way while it moves (walking backwards, strafing). Set Actor Direction still turns it; Lock Actor Direction switches this on or off."
+        >
+          <label className="script-field-bool">
+            <input type="checkbox" checked={!!npc.lock_direction} onChange={(e) => patchNpc({ lock_direction: e.target.checked || undefined })} />
+            {npc.lock_direction ? "On" : "Off"}
+          </label>
+        </FieldRow>
+
+        <FieldRow
           label="Pushes the player"
           hint="When this actor moves into the player, it shoves the player along (walls stop it). Off: it walks over the player, who can step out of the way. To let the player walk through it, turn its collisions off with Set Actor Collisions."
         >

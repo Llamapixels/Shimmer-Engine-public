@@ -87,6 +87,8 @@ Scene JSON NPC format:
                                            frame (0 = the sprite's own)
             "above_player": true,      <- optional: drawn in front of the
                                            player instead of behind it
+            "lock_direction": true,    <- optional: keeps facing the same
+                                           way while it moves
             "push_player": true,       <- optional: walking into the player
                                            shoves it along (else it just
                                            overlaps, and the player can walk
@@ -258,8 +260,11 @@ Event script types (used in "on_interact" and door "events" lists):
         "actor" | "variable" | "number" }]) use "@name" in place of an actor,
         a variable or a number; "args" gives each one: {"actor": <actor>},
         {"var": "<variable>"}, or a plain number.
-    { "type": "projectile_recall" | "projectile_remove", "sprite": "<name>" | "all" }
+    { "type": "projectile_recall" | "projectile_remove", "sprite": "<name>" | "all", "tag": 0-8 }
         Send projectiles back to their thrower (stuck ones too), or remove them.
+        "tag" (1-8, 0 = any) picks the ones launched with that "tag".
+    { "type": "actor_lock_direction", "actor": ..., "enabled": true }
+        Keep the actor facing the same way while it moves (strafing).
     { "type": "text_set_font", "font": "<name>" }
     { "type": "text_set_frame", "frame": "<name>" }
     { "type": "text_set_speed", "speed": 0-30 }
@@ -567,7 +572,7 @@ DIRECTION_MAP = {
 
 MAX_EVENT_FLAGS = 32   # one bit per named flag, in SaveData.flags
 MAX_ITEMS = 32         # one bit per named item, in SaveData.inventory
-MAX_VARIABLES = 256    # one int16_t per named variable, in SaveData.variables.
+MAX_VARIABLES = 512    # one int16_t per named variable, in SaveData.variables.
                         # No bitfield ceiling like flags/items - capped by
                         # dialogue "{name}" interpolation's one-byte variable
                         # index (dialogue.c's expand_marker()) instead.
@@ -1491,7 +1496,8 @@ def compile_projectile(ev, ctx, where):
         land_state = names[key] + 1
     data = [ctx["sprite_index"][sprite], bank, source, facing, vx, vy, speed_fx, life, group,
             target, flags, off_x, off_y,
-            path_id, amp, period, gravity, lift, ret, bounces, PROJECTILE_LAND[on_land], linger, land_state]
+            path_id, amp, period, gravity, lift, ret, bounces, PROJECTILE_LAND[on_land], linger, land_state,
+            resolve_small_int(ev.get("tag", 0), "tag", where, 0, 8)]
     ident = _aux_ident(ctx, "projectile")
     ctx["_aux"].append(("expr", ident, data))
     return ident
@@ -1645,7 +1651,8 @@ def interpolate_vars(text, ctx, where):
         # would end the C string).
         if m.group(1) is not None:
             idx = resolve_var(m.group(1), ctx, where)
-            out.append(("\x02" if idx < 128 else "\x05") + chr((idx & 0x7F) + 1))
+            # ui.h UI_CODE_VAR / _HI / _2 / _3: 128 variables each.
+            out.append("\x02\x05\x07\x08"[idx >> 7] + chr((idx & 0x7F) + 1))
         elif m.group(2) is not None:
             out.append("\x03" + chr(resolve_ui_name(m.group(2), "font", ctx, where) + 1))
         elif m.group(0).startswith("!C"):
@@ -2317,7 +2324,7 @@ PARITY_EVENT_TYPES = [
     "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
-    "text_draw", "text_clear", "projectile_recall", "projectile_remove",
+    "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2615,7 +2622,12 @@ def compile_parity_event(etype, ev, out, ctx, where):
             idx = ctx["sprite_index"][sname]
         else:
             raise BuildError(f"{where}: unknown sprite '{sname}'.")
-        out.append(_instr("SCRIPT_PROJECTILES", a=0 if etype == "projectile_recall" else 1, b=idx))
+        tag = resolve_small_int(ev.get("tag", 0), "tag", where, 0, 8)
+        out.append(_instr("SCRIPT_PROJECTILES", a=0 if etype == "projectile_recall" else 1, b=idx, c=tag))
+
+    elif etype == "actor_lock_direction":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        out.append(_instr("SCRIPT_ACTOR_LOCK_DIRECTION", a=idx, b=1 if ev.get("enabled", True) else 0))
 
     elif etype == "text_draw":
         slot = resolve_small_int(ev.get("slot", 0), "slot", where, 0, 7)
@@ -3847,7 +3859,7 @@ def build(project_dir, out_dir):
                     f"{scene_banks[sname]}, {movement_val}, {script_ref}, "
                     f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref}, "
                     f"{1 if npc.get('platform') else 0}, {1 if npc.get('above_player') else 0}, "
-                    f"{1 if npc.get('push_player') else 0} }},")
+                    f"{1 if npc.get('push_player') else 0}, {1 if npc.get('lock_direction') else 0} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")

@@ -23,7 +23,7 @@ import NamedListSelect from "../components/common/NamedListSelect";
 import NumberInput from "../components/common/NumberInput";
 import { playerSpriteName } from "../sprites/model";
 import { sceneName, useProjectStore } from "../state/projectStore";
-import type { FieldDef } from "./eventCatalog";
+import { buttonName, type FieldDef } from "./eventCatalog";
 import Icon from "../components/common/Icon";
 import DialogueBoxPreview from "../components/common/DialogueBoxPreview";
 
@@ -605,6 +605,59 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             </button>
           ))}
         </div>
+      );
+    }
+
+    case "combo": {
+      // Buttons in order: click to add, ⌫ removes the last one.
+      const steps: string[] = Array.isArray(value)
+        ? (value as string[])
+        : String(value ?? "").split(/[\s,]+/).filter(Boolean);
+      const set = (next: string[]) => patch({ [field.key]: next });
+      const order: ButtonName[] = ["up", "down", "left", "right", "a", "b", "l", "r", "start", "select"];
+      return (
+        <div className="combo-field">
+          <div className={`combo-steps${steps.length < 2 ? " combo-steps-short" : ""}`}>
+            {steps.length ? steps.map((b) => buttonName(b)).join(", ") : "Click buttons below, in order"}
+          </div>
+          <div className="chips">
+            {order.map((b) => (
+              <button key={b} className="chip" disabled={steps.length >= 16} onClick={() => set([...steps, b])}>
+                {buttonName(b)}
+              </button>
+            ))}
+            <button className="chip" title="Remove the last button" disabled={!steps.length} onClick={() => set(steps.slice(0, -1))}>
+              ⌫
+            </button>
+            <button className="chip" title="Start over" disabled={!steps.length} onClick={() => set([])}>
+              Clear
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    case "spriteState": {
+      // The state of the event's own "sprite"; "" keeps its animation.
+      const sprite = String(rec.sprite ?? "");
+      const states = (spriteSheets.find((s) => s.name === sprite)?.states ?? []).map((st) => st.name).filter(Boolean);
+      const cur = String(value ?? "");
+      const found = !cur || states.includes(cur) || cur.toLowerCase() === "default";
+      return (
+        <select
+          className={!found ? "select-invalid" : undefined}
+          value={cur.toLowerCase() === "default" ? "default" : cur}
+          onChange={(e) => patch({ [field.key]: e.target.value || undefined })}
+        >
+          <option value="">Keep its animation</option>
+          <option value="default">Default</option>
+          {!found && <option value={cur}>{cur} (missing!)</option>}
+          {states.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
       );
     }
 

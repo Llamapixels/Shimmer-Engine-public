@@ -214,6 +214,7 @@ export default function SceneCanvas() {
   const [showGrid, setShowGrid] = useState(true);
   const [showValues, setShowValues] = useState(false);
   const [showActors, setShowActors] = useState(true);
+  const [showScreen, setShowScreen] = useState(false);
   const [opacity, setOpacity] = useState(100);
   const [hover, setHover] = useState<Pt | null>(null);
   /** Right-click menu on an actor, trigger or note. */
@@ -630,6 +631,34 @@ export default function SceneCanvas() {
       ctx.strokeRect(rect.x * S + 0.5, rect.y * S + 0.5, rect.w * S - 1, rect.h * S - 1);
     }
 
+    // "Screen": where pinned actors and screen text are placed (screen
+    // coordinates, from the scene's top-left), and what the game shows
+    // first (the camera on the player's start, stopped at the edges).
+    if (showScreen) {
+      const px = S / TILE;
+      const mapW = tileW * TILE;
+      const mapH = tileH * TILE;
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.font = `${Math.max(10, Math.floor(S * 0.9))}px ${v("--font-ui", "sans-serif")}`;
+      ctx.textBaseline = "bottom";
+      if (view.player_start) {
+        const camX = Math.max(0, Math.min(mapW - SCREEN_W, view.player_start.x * TILE + 8 - SCREEN_W / 2));
+        const camY = Math.max(0, Math.min(mapH - SCREEN_H, view.player_start.y * TILE + 8 - SCREEN_H / 2));
+        ctx.strokeStyle = "rgba(61, 214, 140, 0.9)";
+        ctx.setLineDash([8, 5]);
+        ctx.strokeRect(camX * px + 1, camY * px + 1, SCREEN_W * px - 2, SCREEN_H * px - 2);
+        ctx.fillStyle = "rgba(61, 214, 140, 1)";
+        ctx.fillText("Start view", camX * px + 4, (camY + SCREEN_H) * px - 4);
+      }
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "rgba(255, 210, 63, 0.95)";
+      ctx.strokeRect(1, 1, SCREEN_W * px - 2, SCREEN_H * px - 2);
+      ctx.fillStyle = "rgba(255, 210, 63, 1)";
+      ctx.fillText("Screen (pinned actors, screen text)", 4, SCREEN_H * px - 4);
+      ctx.restore();
+    }
+
     // Camera picks: the 240x160 screen the camera shows when centred on the
     // hovered tile, stopped at the scene's edges like the engine's camera.
     if (tilePick?.screenOutline && hover) {
@@ -659,6 +688,7 @@ export default function SceneCanvas() {
     showGrid,
     showValues,
     showActors,
+    showScreen,
     opacity,
     tileW,
     tileH,
@@ -1220,6 +1250,13 @@ export default function SceneCanvas() {
         <label className="scene-canvas-toggle" title="Show each tile's value as text (zoom 2x or more)">
           <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} />
           Values
+        </label>
+        <label
+          className="scene-canvas-toggle"
+          title="Outline the GBA screen: where pinned actors and screen text sit (yellow) and what the game shows at the start (green)"
+        >
+          <input type="checkbox" checked={showScreen} onChange={(e) => setShowScreen(e.target.checked)} />
+          Screen
         </label>
         <label className="scene-canvas-toggle" title="Show actors, triggers and notes while painting">
           <input type="checkbox" checked={showActors} onChange={(e) => setShowActors(e.target.checked)} />

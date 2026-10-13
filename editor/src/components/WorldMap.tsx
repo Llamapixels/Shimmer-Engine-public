@@ -17,6 +17,9 @@ import "./WorldMap.css";
 
 const TILE = 8;
 const GAP = 64;   /* px between scenes laid out automatically */
+/* Scenes stay inside this area (px), so none can be dragged off and lost. */
+const WORLD_SIZE = 16384;
+const clampTo = (v: number, size: number) => Math.max(0, Math.min(WORLD_SIZE - size, v));
 
 interface Link {
   from: string;
@@ -206,7 +209,12 @@ export default function WorldMap() {
     }
     return out;
   }, [scenes, imgs]);
-  const pos = (rec: SceneRecord, _i: number) => rec.data.world_pos ?? defaults.get(rec.fileId) ?? { x: 0, y: 0 };
+  const sizeOf = (rec: SceneRecord) => ({ w: imgs[rec.fileId]?.w ?? 240, h: imgs[rec.fileId]?.h ?? 160 });
+  const pos = (rec: SceneRecord, _i: number) => {
+    const p = rec.data.world_pos ?? defaults.get(rec.fileId) ?? { x: 0, y: 0 };
+    const { w, h } = sizeOf(rec);
+    return { x: clampTo(p.x, w), y: clampTo(p.y, h) };
+  };
   const posOf = (rec: SceneRecord, i: number) =>
     drag?.kind === "scene" && drag.id === rec.fileId ? { x: drag.x, y: drag.y } : pos(rec, i);
 
@@ -258,8 +266,14 @@ export default function WorldMap() {
     if (drag.kind === "pan") setPan({ x: drag.px + e.clientX - drag.sx, y: drag.py + e.clientY - drag.sy });
     else {
       const w = toWorld(e.clientX, e.clientY);
-      // Snap to 8 px so scenes line up neatly.
-      setDrag({ ...drag, x: Math.round((drag.ox + w.x - drag.sx) / 8) * 8, y: Math.round((drag.oy + w.y - drag.sy) / 8) * 8 });
+      // Snap to 8 px so scenes line up neatly, inside the world area.
+      const rec = scenes.find((s) => s.fileId === drag.id);
+      const size = rec ? sizeOf(rec) : { w: 240, h: 160 };
+      setDrag({
+        ...drag,
+        x: clampTo(Math.round((drag.ox + w.x - drag.sx) / 8) * 8, size.w),
+        y: clampTo(Math.round((drag.oy + w.y - drag.sy) / 8) * 8, size.h),
+      });
     }
   };
   const onUp = () => {
@@ -323,6 +337,7 @@ export default function WorldMap() {
         onWheel={onWheel}
       >
         <div className="world-map-plane" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
+          <div className="world-map-bounds" style={{ width: WORLD_SIZE, height: WORLD_SIZE, borderWidth: 2 / Math.max(zoom, 0.1) }} />
           {scenes.map((rec, i) => {
             const p = posOf(rec, i);
             const im = imgs[rec.fileId];

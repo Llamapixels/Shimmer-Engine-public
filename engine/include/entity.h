@@ -101,6 +101,7 @@ typedef struct
     uint8_t anim_enabled;   /* "Set Actor Animate" */
     uint8_t extra_slot;     /* 0, or ENTITY_SLOT_* + 1: shown instead
                              * of the direction/moving animation */
+    uint8_t dir_locked;     /* keeps its direction while moving */
     uint8_t anim_hold;      /* a script picked a frame: keep it until the
                              * actor's direction or moving flag changes */
     uint8_t script_state;   /* 0, or state + 1: "Set Actor State" chose a

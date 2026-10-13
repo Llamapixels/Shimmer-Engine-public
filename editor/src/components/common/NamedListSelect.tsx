@@ -8,19 +8,14 @@ export type NamedListKind = "flags" | "items" | "variables";
  * SaveData.inventory in engine/include/save.h) - that bitfield is a real,
  * fixed 32-slot ceiling, not a made-up number.
  *
- * Variables are a plain int16_t[] (SaveData.variables), so there's no
- * bitfield limit - GBA's 32KB battery-backed SRAM save has room for far
- * more than even this. The real ceiling comes from dialogue text
- * interpolation ("{name}" in a text event), which encodes a variable
- * reference as a 0x02 marker byte followed by one index byte
- * (dialogue.c's expand_marker()) - that byte addresses at most 256
- * variables. 256 is used here to match that, with margin to spare
- * before it'd ever bite. Keep in sync with MAX_VARIABLES in
+ * Variables are a plain int16_t[] (SaveData.variables), 512 of them:
+ * 1KB of each 2KB save slot. Text shows them with a code byte per 128
+ * variables (ui.h UI_CODE_VAR...). Keep in sync with MAX_VARIABLES in
  * engine/include/state.h and compiler/build_project.py. */
 export const NAMED_LIST_LIMIT: Record<NamedListKind, number> = {
   flags: 32,
   items: 32,
-  variables: 256,
+  variables: 512,
 };
 
 const NOUN: Record<NamedListKind, string> = { flags: "flag", items: "item", variables: "variable" };

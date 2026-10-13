@@ -21,7 +21,7 @@
  * expand_marker()), which can address at most 256 variables. Keep in
  * sync with MAX_VARIABLES in compiler/build_project.py and
  * NAMED_LIST_LIMIT in editor/src/components/common/NamedListSelect.tsx. */
-#define MAX_VARIABLES 256
+#define MAX_VARIABLES 512
 
 /* Call once at startup (or on loading a save) to set the starting
  * flags/inventory bitmasks and variable values. `variables` must

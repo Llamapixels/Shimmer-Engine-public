@@ -236,6 +236,8 @@ export interface NpcJSON {
   above_player?: boolean;
   /** Moving into the player shoves it along. */
   push_player?: boolean;
+  /** Keeps facing the same way while it moves. */
+  lock_direction?: boolean;
 }
 
 /** One parallax band; the last one runs to the bottom of the screen and

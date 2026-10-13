@@ -32,6 +32,7 @@ enum
     PROJ_P_LAND,        /* PROJ_LAND_* */
     PROJ_P_LINGER,      /* PROJ_LAND_LINGER: frames it stays */
     PROJ_P_LAND_STATE,  /* animation state + 1 once landed, 0 = keep */
+    PROJ_P_TAG,         /* 0 = none, 1-8: which ones Recall / Remove picks */
     PROJ_P_COUNT
 };
 
@@ -57,7 +58,8 @@ void projectile_launch(const int16_t *params);
 
 /* "Recall Projectiles" / "Remove Projectiles": every projectile of
  * sprite_defs[sprite] (-1 = all) flies back to its thrower, or vanishes. */
-void projectiles_command(int command, int sprite);
+/* sprite: sprite_defs[] index or -1 for any; tag: 1-8, or 0 for any. */
+void projectiles_command(int command, int sprite, int tag);
 
 /* Move (when `move`), check hits and draw, every frame of play. */
 void projectiles_update(int move, int camera_x, int camera_y);

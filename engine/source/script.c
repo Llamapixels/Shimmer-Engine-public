@@ -1084,8 +1084,12 @@ static void thread_step(ScriptThread *t, int is_main)
             actor_rotate_by(ev->a, ev->c ? var_get(ev->b) : ev->b);
             break;
 
+        case SCRIPT_ACTOR_LOCK_DIRECTION:
+            actor_lock_direction(ev->a, ev->b);
+            break;
+
         case SCRIPT_PROJECTILES:
-            projectiles_command(ev->a, ev->b);
+            projectiles_command(ev->a, ev->b, ev->c);
             break;
 
         case SCRIPT_TEXT_DRAW:

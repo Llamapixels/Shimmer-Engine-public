@@ -636,9 +636,14 @@ static const ScriptEvent *platform_update(Entity *p)
 
         if (grounded)
             kick_timer = 0;
+        /* "Turn around in the air": 0 = only with air control, 1 = always,
+         * 2 = never. */
+        int air_turn = grounded || MSET(PL_AIR_TURN) == 1 || (MSET(PL_AIR_TURN) == 0 && MSET(PL_AIR_CONTROL));
         if (kick_timer > 0 || (!grounded && !MSET(PL_AIR_CONTROL)))
         {
             /* keep momentum */
+            if (kick_timer == 0 && dir_x && air_turn)
+                facing_left = dir_x < 0;
         }
         else if (dir_x && (!crouching || crouch_stuck))
         {
@@ -648,12 +653,16 @@ static const ScriptEvent *platform_update(Entity *p)
                 vel_x += dir_x * acc;
             if (vel_x > max || vel_x < -max)
                 vel_x = approach(vel_x, dir_x * max, grounded ? MSET(PL_DEC) : MSET(PL_AIR_DEC));
-            facing_left = dir_x < 0;
+            if (air_turn)
+                facing_left = dir_x < 0;
         }
         else
         {
             vel_x = approach(vel_x, 0, grounded ? MSET(PL_DEC) : MSET(PL_AIR_DEC));
         }
+
+        if (p->dir_locked && (p->direction == DIR_LEFT || p->direction == DIR_RIGHT))
+            facing_left = p->direction == DIR_LEFT;
 
         /* Dash input "Down + Jump" (not where Down + Jump drops through
          * a platform): the jump becomes the dash. */
@@ -861,6 +870,9 @@ static const ScriptEvent *platform_update(Entity *p)
         kind = MODE_ANIM_RUN;
     int named = use_named_state(p, kind);
     platform_sprite = is_platform_sprite(p);
+    /* Lock Actor Direction: keep the facing it had. */
+    if (p->dir_locked && (p->direction == DIR_LEFT || p->direction == DIR_RIGHT))
+        facing_left = p->direction == DIR_LEFT;
 
     if (named || !platform_sprite)
     {

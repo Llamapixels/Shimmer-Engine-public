@@ -130,6 +130,8 @@ export interface LaunchProjectileEvent extends EventBase {
   follow?: boolean;
   /** Offset X flips when fired to the left. */
   mirror_offset?: boolean;
+  /** 1-8: lets Recall / Remove Projectiles pick these out. */
+  tag?: number;
 }
 
 export interface SetFlagEvent extends EventBase {
@@ -242,6 +244,13 @@ export interface ActorSetDirectionEvent extends EventBase {
   type: "actor_set_direction";
   actor: ActorRef;
   direction: Direction;
+}
+
+/** Keep facing the same way while moving (strafing). */
+export interface ActorLockDirectionEvent extends EventBase {
+  type: "actor_lock_direction";
+  actor: ActorRef;
+  enabled: boolean;
 }
 
 export interface ActorMoveToEvent extends EventBase {
@@ -799,12 +808,15 @@ export interface ProjectileRecallEvent extends EventBase {
   type: "projectile_recall";
   /** A sprite name, or "all". */
   sprite: string;
+  /** 1-8: only projectiles launched with this tag; 0 / unset = any. */
+  tag?: number;
 }
 
 export interface ProjectileRemoveEvent extends EventBase {
   type: "projectile_remove";
   /** A sprite name, or "all". */
   sprite: string;
+  tag?: number;
 }
 
 /** Text on screen, apart from the dialogue box. */
@@ -1125,6 +1137,7 @@ export type ScriptEventJSON =
   | TextDrawEvent
   | ProjectileRecallEvent
   | ProjectileRemoveEvent
+  | ActorLockDirectionEvent
   | TextClearEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

@@ -230,6 +230,7 @@ static void scene_entities_load(const SceneDef *scene)
         e->solid = 1;
         e->direction = def->direction;
         e->pinned = def->pinned;
+        e->dir_locked = def->lock_direction;
         e->move_speed = def->move_speed ? def->move_speed : 1;
         e->anim_speed = def->anim_speed;
         /* "Draw above the player": OAM entries from the front block. */
@@ -546,7 +547,18 @@ void actor_set_direction(int index, int direction)
     if (!e)
         return;
 
+    /* An explicit turn works even with the direction locked. */
+    uint8_t locked = e->dir_locked;
+    e->dir_locked = 0;
     entity_animate(e, (Direction)direction, 0);
+    e->dir_locked = locked;
+}
+
+void actor_lock_direction(int index, int on)
+{
+    Entity *e = entity_for_actor(index);
+    if (e)
+        e->dir_locked = on ? 1 : 0;
 }
 
 void actor_set_state(int index, int state_index)
