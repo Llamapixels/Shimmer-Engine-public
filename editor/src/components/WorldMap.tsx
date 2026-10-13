@@ -6,7 +6,7 @@
  * select it (its properties show on the right). Lines show where Change
  * Scene events and doors lead (toggle with "Connections").
  */
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import type { NpcJSON, ProjectJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import { loadSpriteImage, type SpriteImage } from "../sprites/image";
@@ -125,7 +125,17 @@ function useSpriteSheets(rootPath: string | null, names: string[]) {
 
 /** An actor's first frame, drawn as in the scene view (sprites larger
  * than 16 px spill over the box, so the canvas has a margin). */
-function ActorSprite({ npc, img, project, sprite }: { npc: NpcJSON; img?: SpriteImage; project: ProjectJSON; sprite: string }) {
+const ActorSprite = memo(function ActorSprite({
+  npc,
+  img,
+  project,
+  sprite,
+}: {
+  npc: NpcJSON;
+  img?: SpriteImage;
+  project: ProjectJSON;
+  sprite: string;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const ctx = ref.current?.getContext("2d");
@@ -144,7 +154,86 @@ function ActorSprite({ npc, img, project, sprite }: { npc: NpcJSON; img?: Sprite
       style={{ left: npc.x * TILE - 16, top: npc.y * TILE - 16 }}
     />
   );
+});
+
+/** What a scene card asks the map to do (one stable object, so cards
+ * only redraw when their own scene changes). */
+interface CardActions {
+  down: (e: ReactPointerEvent, rec: SceneRecord, i: number) => void;
+  open: (rec: SceneRecord) => void;
+  select: (rec: SceneRecord, kind: "npc" | "door", index: number) => void;
 }
+
+const SceneCard = memo(function SceneCard({
+  rec,
+  index,
+  x,
+  y,
+  img,
+  active,
+  selDoor,
+  selNpc,
+  labelSize,
+  sheets,
+  project,
+  playerSprite,
+  actions,
+}: {
+  rec: SceneRecord;
+  index: number;
+  x: number;
+  y: number;
+  img?: { url: string; w: number; h: number };
+  active: boolean;
+  selDoor: number;
+  selNpc: number;
+  labelSize: number;
+  sheets: Record<string, SpriteImage>;
+  project: ProjectJSON;
+  playerSprite: string;
+  actions: CardActions;
+}) {
+  return (
+    <div
+      className={`world-map-scene${active ? " world-map-scene-active" : ""}`}
+      style={{ left: x, top: y, width: img?.w ?? 240, height: img?.h ?? 160 }}
+      onPointerDown={(e) => actions.down(e, rec, index)}
+      onDoubleClick={() => actions.open(rec)}
+    >
+      <div className="world-map-label" style={{ fontSize: labelSize }}>
+        {sceneName(rec)}
+      </div>
+      {img ? <img src={img.url} alt="" draggable={false} /> : <div className="world-map-missing">no background</div>}
+      {(rec.data.doors ?? []).map((d, k) => (
+        <div
+          key={`d${k}`}
+          className={`world-map-thing world-map-door${selDoor === k ? " world-map-thing-on" : ""}`}
+          style={{ left: d.x * TILE, top: d.y * TILE, width: (d.width ?? 1) * TILE, height: (d.height ?? 1) * TILE }}
+          title={`Trigger ${k + 1}`}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            actions.select(rec, "door", k);
+          }}
+        />
+      ))}
+      {(rec.data.npcs ?? []).map((n, k) => (
+        <ActorSprite key={`s${k}`} npc={n} img={sheets[n.sprite || playerSprite]} project={project} sprite={n.sprite || playerSprite} />
+      ))}
+      {(rec.data.npcs ?? []).map((n, k) => (
+        <div
+          key={`n${k}`}
+          className={`world-map-thing world-map-npc${selNpc === k ? " world-map-thing-on" : ""}`}
+          style={{ left: n.x * TILE, top: n.y * TILE, width: 2 * TILE, height: 2 * TILE }}
+          title={n.name || `Actor ${k + 1}`}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            actions.select(rec, "npc", k);
+          }}
+        />
+      ))}
+    </div>
+  );
+});
 
 function readPref(key: string, fallback: boolean): boolean {
   try {
@@ -181,6 +270,10 @@ export default function WorldMap() {
     | null
   >(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const planeRef = useRef<HTMLDivElement>(null);
+  // While dragging the view, it moves by setting the transform directly
+  // (no re-render per mouse move); the new pan is saved on release.
+  const livePan = useRef<{ x: number; y: number } | null>(null);
 
   // Scenes not placed yet: in rows of 4, spaced by their real sizes,
   // below any that have been placed.
@@ -224,11 +317,30 @@ export default function WorldMap() {
     return m;
   }, [scenes]);
 
+  // Each scene's scene changes, found once per edit (not per mouse move),
+  // without repeats (the same spot leading to the same place).
+  const rawLinks = useMemo(
+    () =>
+      new Map(
+        scenes.map((rec) => {
+          const seen = new Set<string>();
+          const list = sceneLinks(rec).filter((l) => {
+            const k = `${l.to}|${l.kind}|${l.sx}|${l.sy}|${l.dx}|${l.dy}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+          return [rec.fileId, list];
+        }),
+      ),
+    [scenes],
+  );
+
   const links: Link[] = [];
   if (showLinks)
     scenes.forEach((rec, i) => {
       const p = posOf(rec, i);
-      for (const l of sceneLinks(rec)) {
+      for (const l of rawLinks.get(rec.fileId) ?? []) {
         const j = byName.get(l.to);
         if (j === undefined) continue;
         const q = posOf(scenes[j], j);
@@ -263,8 +375,11 @@ export default function WorldMap() {
   };
   const onMove = (e: ReactPointerEvent) => {
     if (!drag) return;
-    if (drag.kind === "pan") setPan({ x: drag.px + e.clientX - drag.sx, y: drag.py + e.clientY - drag.sy });
-    else {
+    if (drag.kind === "pan") {
+      const next = { x: drag.px + e.clientX - drag.sx, y: drag.py + e.clientY - drag.sy };
+      livePan.current = next;
+      if (planeRef.current) planeRef.current.style.transform = `translate(${next.x}px, ${next.y}px) scale(${zoom})`;
+    } else {
       const w = toWorld(e.clientX, e.clientY);
       // Snap to 8 px so scenes line up neatly, inside the world area.
       const rec = scenes.find((s) => s.fileId === drag.id);
@@ -277,12 +392,37 @@ export default function WorldMap() {
     }
   };
   const onUp = () => {
+    if (livePan.current) {
+      setPan(livePan.current);
+      livePan.current = null;
+    }
     if (drag?.kind === "scene" && (drag.x !== drag.ox || drag.y !== drag.oy)) {
       const { id, x, y } = drag;
       updateScene(id, (s) => ({ ...s, world_pos: { x, y } }));
     }
     setDrag(null);
   };
+
+  const actionsRef = useRef<CardActions>(null!);
+  actionsRef.current = {
+    down: (e, rec, i) => onDown(e, rec, i),
+    open: (rec) => {
+      setActiveScene(rec.fileId);
+      setWorldMap(false);
+    },
+    select: (rec, kind, index) => {
+      setActiveScene(rec.fileId);
+      setSelection({ kind, sceneId: rec.fileId, index });
+    },
+  };
+  const actions = useMemo<CardActions>(
+    () => ({
+      down: (e, rec, i) => actionsRef.current.down(e, rec, i),
+      open: (rec) => actionsRef.current.open(rec),
+      select: (rec, kind, index) => actionsRef.current.select(rec, kind, index),
+    }),
+    [],
+  );
 
   const fit = () => {
     const r = boxRef.current?.getBoundingClientRect();
@@ -336,69 +476,30 @@ export default function WorldMap() {
         onPointerUp={onUp}
         onWheel={onWheel}
       >
-        <div className="world-map-plane" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
-          <div className="world-map-bounds" style={{ width: WORLD_SIZE, height: WORLD_SIZE, borderWidth: 2 / Math.max(zoom, 0.1) }} />
-          {scenes.map((rec, i) => {
-            const p = posOf(rec, i);
-            const im = imgs[rec.fileId];
-            return (
-              <div
-                key={rec.fileId}
-                className={`world-map-scene${rec.fileId === activeSceneId ? " world-map-scene-active" : ""}`}
-                style={{ left: p.x, top: p.y, width: im?.w ?? 240, height: im?.h ?? 160 }}
-                onPointerDown={(e) => onDown(e, rec, i)}
-                onDoubleClick={() => {
-                  setActiveScene(rec.fileId);
-                  setWorldMap(false);
-                }}
-              >
-                <div className="world-map-label" style={{ fontSize: 12 / Math.max(zoom, 0.35) }}>
-                  {sceneName(rec)}
-                </div>
-                {im ? <img src={im.url} alt="" draggable={false} /> : <div className="world-map-missing">no background</div>}
-                {(rec.data.doors ?? []).map((d, k) => (
-                  <div
-                    key={`d${k}`}
-                    className={`world-map-thing world-map-door${
-                      selection.kind === "door" && selection.sceneId === rec.fileId && selection.index === k ? " world-map-thing-on" : ""
-                    }`}
-                    style={{ left: d.x * TILE, top: d.y * TILE, width: (d.width ?? 1) * TILE, height: (d.height ?? 1) * TILE }}
-                    title={`Trigger ${k + 1}`}
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setActiveScene(rec.fileId);
-                      setSelection({ kind: "door", sceneId: rec.fileId, index: k });
-                    }}
-                  />
-                ))}
-                {project &&
-                  (rec.data.npcs ?? []).map((n, k) => (
-                    <ActorSprite
-                      key={`s${k}`}
-                      npc={n}
-                      img={sheets[n.sprite || playerSprite]}
-                      project={project.project}
-                      sprite={n.sprite || playerSprite}
-                    />
-                  ))}
-                {(rec.data.npcs ?? []).map((n, k) => (
-                  <div
-                    key={`n${k}`}
-                    className={`world-map-thing world-map-npc${
-                      selection.kind === "npc" && selection.sceneId === rec.fileId && selection.index === k ? " world-map-thing-on" : ""
-                    }`}
-                    style={{ left: n.x * TILE, top: n.y * TILE, width: 2 * TILE, height: 2 * TILE }}
-                    title={n.name || `Actor ${k + 1}`}
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setActiveScene(rec.fileId);
-                      setSelection({ kind: "npc", sceneId: rec.fileId, index: k });
-                    }}
-                  />
-                ))}
-              </div>
-            );
-          })}
+        <div ref={planeRef} className="world-map-plane" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
+          {project &&
+            scenes.map((rec, i) => {
+              const p = posOf(rec, i);
+              const selHere = (selection.kind === "npc" || selection.kind === "door") && selection.sceneId === rec.fileId;
+              return (
+                <SceneCard
+                  key={rec.fileId}
+                  rec={rec}
+                  index={i}
+                  x={p.x}
+                  y={p.y}
+                  img={imgs[rec.fileId]}
+                  active={rec.fileId === activeSceneId}
+                  selDoor={selHere && selection.kind === "door" ? selection.index : -1}
+                  selNpc={selHere && selection.kind === "npc" ? selection.index : -1}
+                  labelSize={12 / Math.max(zoom, 0.35)}
+                  sheets={sheets}
+                  project={project.project}
+                  playerSprite={playerSprite}
+                  actions={actions}
+                />
+              );
+            })}
           {showLinks && (
             <svg className="world-map-links" style={{ overflow: "visible" }} width={1} height={1}>
               <defs>
