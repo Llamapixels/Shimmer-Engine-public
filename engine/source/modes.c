@@ -31,6 +31,21 @@ static const SpriteDef *scene_sprite = 0;
 static int air_jumped, kick_show;
 /* "Crouch height": the standing collision box while crouched low. */
 static int crouch_low, crouch_oy, crouch_h, crouch_stuck;
+static int sliding;   /* a Slide (a low dash) is on: the crouch box */
+
+/* Room to stand up from the low box here? */
+static int stand_room(Entity *p)
+{
+    if (!crouch_low)
+        return 1;
+    int oy = p->col_oy, h = p->col_h;
+    p->col_oy = crouch_oy;
+    p->col_h = crouch_h;
+    int ok = entity_can_move(p, p->x, p->y);
+    p->col_oy = oy;
+    p->col_h = h;
+    return ok;
+}
 static const SpriteDef *crouch_def;
 
 static int32_t pos_x, pos_y;          /* 1/256 px */
@@ -93,7 +108,7 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
     cur_scene = scene;
     mode = scene->mode;
     scene_sprite = player->def;
-    air_jumped = kick_show = crouch_low = crouch_stuck = 0;
+    air_jumped = kick_show = crouch_low = crouch_stuck = sliding = 0;
     for (int i = 0; i < MS_COUNT; i++)
         mode_settings[i] = scene->settings ? scene->settings[i] : 0;
 
@@ -442,6 +457,9 @@ static void run_ability_script(int setting)
 static void crouch_box(Entity *p, int *crouching)
 {
     int h = MSET(PL_CROUCH_HEIGHT);
+    /* A slide with no crouch height set: half height. */
+    if (h <= 0 && sliding && !crouch_low)
+        h = p->col_h / 2;
     if (crouch_low && p->def != crouch_def)
         crouch_low = 0;   /* another sprite: its own box */
     if (*crouching && !crouch_low && h > 0 && h < p->col_h)
@@ -713,6 +731,17 @@ static const ScriptEvent *platform_update(Entity *p)
         dash_timer--;
         vel_x = dash_vx;
         vel_y = 0;
+        if (sliding)
+        {
+            /* A slide keeps the low box; at its end under a low ceiling it
+             * carries on (Mega Man) or leaves the player crawling. */
+            crouching = 1;
+            crouch_box(p, &crouching);
+            if (dash_timer == 0 && MSET(PL_SLIDE_END) == 1 && !stand_room(p))
+                dash_timer = 1;
+            if (dash_timer == 0)
+                sliding = 0;
+        }
     }
     else if (climbing)
     {
@@ -743,6 +772,16 @@ static const ScriptEvent *platform_update(Entity *p)
         running = MSET(PL_RUN) && input_held(MSET(PL_RUN_BUTTON));
         int max = running ? MSET(PL_RUN_VEL) : MSET(PL_WALK_VEL);
         int acc = running ? MSET(PL_RUN_ACC) : MSET(PL_WALK_ACC);
+        if (crouch_stuck)
+        {
+            /* Crawling (no room to stand up): half walking speed, at once. */
+            running = 0;
+            max = MSET(PL_WALK_VEL) / 2;
+            if (vel_x > max)
+                vel_x = max;
+            else if (vel_x < -max)
+                vel_x = -max;
+        }
 
         if (grounded)
             kick_timer = 0;
@@ -885,6 +924,7 @@ static const ScriptEvent *platform_update(Entity *p)
             dash_timer = frames;
             dash_vx = (facing_left ? -1 : 1) * (MSET(PL_DASH_DIST) * 256 / frames);
             dash_cooldown = frames + MSET(PL_DASH_READY);
+            sliding = MSET(PL_SLIDE) && grounded;
             run_ability_script(MS_PL_ON_DASH);
         }
     }
@@ -916,6 +956,7 @@ static const ScriptEvent *platform_update(Entity *p)
         vel_x = 0;
         if (dash_timer > 0)
             dash_timer = 0;
+        sliding = 0;   /* against a wall: crawl out if there's no room */
     }
     if (hit_y && was_y > 0 && bounce_hit)
     {

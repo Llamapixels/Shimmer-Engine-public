@@ -61,6 +61,8 @@
     { "key": "pl_dash_frames", "mode": "platform", "group": "Dash", "label": "Dash time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "pl_dash" },
     { "key": "pl_dash_ready", "mode": "platform", "group": "Dash", "label": "Cooldown (frames)", "unit": "frames", "default": 20, "min": 0, "max": 120, "if": "pl_dash" },
     { "key": "pl_dash_air", "mode": "platform", "group": "Dash", "label": "Dash in the air", "unit": "bool", "default": 1, "if": "pl_dash" },
+    { "key": "pl_slide", "mode": "platform", "group": "Dash", "label": "Slide (dash low, under gaps)", "unit": "bool", "default": 0, "if": "pl_dash", "desc": "A dash on the ground uses the crouch box (Crouch height, or half the player's height), so it goes under low gaps - Mega Man's slide. Down + Jump makes a good slide input." },
+    { "key": "pl_slide_end", "mode": "platform", "group": "Dash", "label": "Slide ends under a low ceiling", "unit": "choice", "options": ["Crawl until there's room to stand", "Keep sliding until there's room"], "default": 0, "if": "pl_slide", "desc": "Crawling lets the player move on (low) by walking; keep sliding carries on at dash speed through a long tunnel." },
     { "key": "pl_float", "mode": "platform", "group": "Float", "label": "Float (hold Jump while falling)", "unit": "bool", "default": 0 },
     { "key": "pl_float_vel", "mode": "platform", "group": "Float", "label": "Float fall speed", "unit": "speed", "default": 0.375, "min": 0, "max": 4, "if": "pl_float" },
     { "key": "pl_knockback", "mode": "platform", "group": "Getting hit", "label": "Knockback", "unit": "bool", "default": 1, "desc": "Getting hit knocks the player away from what hit them." },
