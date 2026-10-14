@@ -78,7 +78,6 @@ export function EngineFields({
                 <div key={d.key} className="engine-row" title={d.desc}>
                   <span className="engine-label">
                     {d.label}
-                    {d.extra && <span className="engine-badge">GBA</span>}
                   </span>
                   <EngineValueInput def={d} value={settingValue(d.key, base, values)} onChange={(v) => onChange(d.key, v)} />
                   <button

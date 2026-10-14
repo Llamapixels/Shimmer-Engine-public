@@ -42,17 +42,6 @@
 .engine-label {
   color: var(--text-primary);
 }
-
-.engine-badge {
-  margin-left: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 3px;
-  padding: 0 3px;
-}
-
 .engine-desc {
   grid-column: 1 / -1;
   font-size: 12px;
