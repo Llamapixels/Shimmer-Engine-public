@@ -1221,8 +1221,8 @@ static void timers_reset(void)
 static void timers_update(void)
 {
     const SceneDef *scene = scene_current();
-    if (!scene)
-        return;
+    if (!scene || script_world_locked())
+        return;   /* "Pause World" stops the clocks too */
 
     int can_fire = (game_state == STATE_PLAY) &&
                    !script_active() && !dialogue_active();
@@ -1410,7 +1410,7 @@ int main(void)
                 script_update();
                 npcs_push_player(player);
                 sync_camera(player);
-                projectiles_update(1, camera_get_display_x(), camera_get_display_y());
+                projectiles_update(!script_world_locked(), camera_get_display_x(), camera_get_display_y());
 
                 if (script_wants_scene_switch(
                         &pending_switch_scene,

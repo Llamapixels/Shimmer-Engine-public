@@ -296,6 +296,10 @@ Event script types (used in "on_interact" and door "events" lists):
         A HUD box: drawn at once (first page only) and left up while the game
         carries on, until "text_hud_close", another text box or a scene change.
     { "type": "text_hud_close" }
+    { "type": "pause_world" }   /   { "type": "resume_world" }
+        Like GBVM's lock / unlock: until Resume World (or the script
+        ends), only this script runs - other scripts, timers, projectiles,
+        wandering actors and the player wait. For cutscenes and menus.
     { "type": "raycast_set_heights", "x": 0, "y": 0, "width": 1, "height": 1,
       "change": "both" | "floor" | "ceiling",
       "floor": 0 | null, "ceiling": 8 | null, "speed": 0.5 }
@@ -2712,6 +2716,7 @@ PARITY_EVENT_TYPES = [
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
+    "pause_world", "resume_world",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3083,6 +3088,9 @@ def compile_parity_event(etype, ev, out, ctx, where):
         ident = _aux_ident(ctx, "heights")
         ctx["_aux"].append(("expr", ident, [x, y, rw, rh, floor, ceil, int(round(speed * 256))]))
         out.append(_instr("SCRIPT_RAYCAST_HEIGHTS", ptr=ident))
+
+    elif etype in ("pause_world", "resume_world"):
+        out.append(_instr("SCRIPT_WORLD_LOCK", a=1 if etype == "pause_world" else 0))
 
     elif etype == "text_hud_close":
         out.append(_instr("SCRIPT_TEXT_HUD_CLOSE"))

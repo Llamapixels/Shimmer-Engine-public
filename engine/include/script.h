@@ -427,7 +427,8 @@ typedef enum
     SCRIPT_ACTOR_JUMP,         /* a = actor, b = speed (1/256 px per
                                  * frame), c = 1: even in the air */
     SCRIPT_TEXT_HUD_CLOSE,     /* take down a HUD text box */
-    SCRIPT_RAYCAST_HEIGHTS     /* ptr = int16_t[7], raycast_heights() */
+    SCRIPT_RAYCAST_HEIGHTS,    /* ptr = int16_t[7], raycast_heights() */
+    SCRIPT_WORLD_LOCK,         /* a = 1 pause the world for this script, 0 resume */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */
@@ -546,6 +547,11 @@ int script_check_input(void);
  * to its range). Returns 1 if one started. Checked during normal play. */
 int script_check_sight(void);
 int script_input_overridden(uint16_t mask);
+
+/* "Pause World" (GBVM's lock): only the script that paused it runs -
+ * other scripts, timers, projectiles, wandering actors and the player
+ * wait - until it resumes the world or ends. */
+int script_world_locked(void);
 
 /* Ask for a scene switch from outside a script (loading a save,
  * popping the scene stack). direction < 0 keeps the player's facing. */

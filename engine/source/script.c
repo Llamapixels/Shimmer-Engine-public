@@ -177,9 +177,17 @@ static void thread_stop(int handle)
     threads[handle].ip = 0;
 }
 
+/* "Pause World": the thread that has the world to itself, -1 = none. */
+static int lock_owner = -1;
+
+int script_world_locked(void)
+{
+    return lock_owner >= 0;
+}
+
 int script_active(void)
 {
-    return threads[0].ip != 0;
+    return threads[0].ip != 0 || lock_owner >= 0;
 }
 
 void script_request_scene_switch(int scene_index, int x, int y, int direction)
@@ -214,6 +222,7 @@ void script_reset_scene(void)
     for (int i = 0; i < INPUT_BINDINGS; i++)
         input_bindings[i].script = 0;
     input_override_mask = 0;
+    lock_owner = -1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1127,6 +1136,13 @@ static void thread_step(ScriptThread *t, int is_main)
             raycast_heights((const int16_t *)ev->ptr);
             break;
 
+        case SCRIPT_WORLD_LOCK:
+            if (ev->a)
+                lock_owner = (int)(t - threads);
+            else if (lock_owner == (int)(t - threads) || lock_owner < 0)
+                lock_owner = -1;
+            break;
+
         case SCRIPT_PROJECTILES:
             projectiles_command(ev->a, ev->b, ev->c);
             break;
@@ -1340,6 +1356,24 @@ static void timers_tick(void)
 void script_update(void)
 {
     frame_time++;
+
+    /* "Pause World": only its script runs (and the world resumes when
+     * that script ends, whatever happens). */
+    if (lock_owner >= 0)
+    {
+        thread_step(&threads[lock_owner], lock_owner == 0);
+        if (pending_switch)
+        {
+            for (int j = 0; j < THREAD_COUNT; j++)
+                threads[j].ip = 0;
+            lock_owner = -1;
+            return;
+        }
+        if (!threads[lock_owner].ip)
+            lock_owner = -1;
+        return;
+    }
+
     timers_tick();
 
     for (int i = 0; i < THREAD_COUNT; i++)

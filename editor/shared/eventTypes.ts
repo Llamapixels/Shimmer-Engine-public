@@ -254,6 +254,14 @@ export interface ActorSetDirectionEvent extends EventBase {
   direction: Direction;
 }
 
+/** "Pause World" / "Resume World" (GBVM's lock / unlock). */
+export interface PauseWorldEvent extends EventBase {
+  type: "pause_world";
+}
+export interface ResumeWorldEvent extends EventBase {
+  type: "resume_world";
+}
+
 /** Takes down a HUD text box (TextEvent.hud). */
 export interface TextHudCloseEvent extends EventBase {
   type: "text_hud_close";
@@ -1208,6 +1216,8 @@ export type ScriptEventJSON =
   | ActorLockDirectionEvent
   | SpawnPrefabEvent
   | TextHudCloseEvent
+  | PauseWorldEvent
+  | ResumeWorldEvent
   | RaycastSetHeightsEvent
   | ActorRemoveEvent
   | ActorSetSpriteEvent

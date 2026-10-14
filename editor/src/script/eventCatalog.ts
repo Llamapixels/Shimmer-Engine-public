@@ -869,6 +869,26 @@ export const EVENT_DEFS: EventDef[] = [
     summary: () => "",
   }),
   def({
+    type: "pause_world",
+    label: "Pause World",
+    category: "Scripts",
+    description:
+      "Until Resume World (or the end of this script), only this script runs: other scripts, actors' On Update, timers, " +
+      "projectiles, wandering actors and the player all wait. Like GBVM's Lock. For cutscenes, menus and pause screens.",
+    fields: [],
+    create: () => ({ type: "pause_world" }),
+    summary: () => "everything else waits",
+  }),
+  def({
+    type: "resume_world",
+    label: "Resume World",
+    category: "Scripts",
+    description: "Lets everything Pause World stopped carry on (it also resumes by itself when the pausing script ends).",
+    fields: [],
+    create: () => ({ type: "resume_world" }),
+    summary: () => "",
+  }),
+  def({
     type: "raycast_set_heights",
     label: "Set 3D Heights",
     category: "Scene",
