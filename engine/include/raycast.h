@@ -26,6 +26,8 @@ int raycast_active(void);
  * 256 = down). */
 void raycast_set_view(int x, int y, int angle);
 int raycast_angle(void);
+/* The camera's centre, 1/256 px. */
+void raycast_camera(int *x, int *y);
 
 /*
  * Heights: every cell has a floor and a ceiling height in 1/8 cell units

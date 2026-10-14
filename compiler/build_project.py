@@ -1457,7 +1457,7 @@ def parse_collision(rows, w, h, scene_name):
     return grid
 
 
-def validate_doors(doors, scene_name, w, h, name_to_index):
+def validate_doors(doors, scene_name, w, h, name_to_index, small_player=False):
     """
     Catch doors that can never fire, or that don't say what they do,
     before they reach the ROM.
@@ -1505,7 +1505,7 @@ def validate_doors(doors, scene_name, w, h, name_to_index):
                     f"{scene_name}: door {i} targets unknown scene "
                     f"'{target}'. Known scenes: {known}")
 
-        if dh < 2:
+        if dh < 2 and not small_player:   # (First Person 3D: a 6px player)
             print(f"  WARNING: {scene_name} door {i} at ({dx},{dy}) is only "
                   "1 tile tall. The 16px player triggers doors with its "
                   "center, so this may be unreachable - use height 2.")
@@ -4004,7 +4004,7 @@ def build(project_dir, out_dir):
         music_const = music_track_const(music_name, ctx, f"{name}: \"music\"") if music_name else None
 
         doors = scene.get("doors", [])
-        validate_doors(doors, name, w, h, name_to_index)
+        validate_doors(doors, name, w, h, name_to_index, small_player=scene.get("type") == "raycast")
 
         npcs = scene.get("npcs", [])
 

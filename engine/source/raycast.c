@@ -333,6 +333,12 @@ int raycast_ceil_over(int x, int y, int w, int h)
     return low;
 }
 
+void raycast_camera(int *x, int *y)
+{
+    *x = cam_x;
+    *y = cam_y;
+}
+
 int raycast_angle(void)
 {
     return cam_angle;
@@ -802,16 +808,18 @@ static int turned_frame(const Entity *e, int vx, int vy)
 
 /* One billboard for entity e (actor n, or -1 for a projectile drawn
  * `lift` above the floor), if it's in view. */
-static void add_board(Entity *e, int n, int lift, int dir_x, int dir_y, int plane_x, int plane_y, int det)
+static void add_board(Entity *e, int n, int lift, int32_t x, int32_t y, int dir_x, int dir_y, int plane_x, int plane_y, int det)
 {
-    int ex = e->x + 8, ey = e->y + 8;
-    int sx = (ex << 9) - view_x * 2;
-    int sy = (ey << 9) - view_y * 2;
+    /* x, y: the footprint's top-left in 1/256 px (sub-pixel, so a
+     * projectile right in front of the camera stays under the crosshair). */
+    int ex = (x >> 8) + 8, ey = (y >> 8) + 8;
+    int sx = (x + (8 << 8)) * 2 - view_x * 2;
+    int sy = (y + (8 << 8)) * 2 - view_y * 2;
     int tx = (int)(((int64_t)(dir_y * sx - dir_x * sy) >> 12) * 4096 / det);
     int ty = (int)(((int64_t)(-plane_y * sx + plane_x * sy) >> 12) * 4096 / det);
-    if (ty < (n < 0 ? 2048 : 256))
+    if (ty < (n < 0 ? 4096 : 256))
         return;   /* behind the camera, or right on top of it (a projectile
-                   * shows from half a cell away) */
+                   * shows from a cell away) */
     Billboard *b = &boards[board_count];
     b->e = e;
     b->n = n;
@@ -846,14 +854,15 @@ static void gather_actors(void)
         Entity *e = world_npc(i);
         if (!e || !e->solid || e->pinned || !e->sprite.visible)
             continue;
-        add_board(e, i, 0, dir_x, dir_y, plane_x, plane_y, det);
+        add_board(e, i, 0, e->x << 8, e->y << 8, dir_x, dir_y, plane_x, plane_y, det);
     }
     /* Projectiles fly at eye height: a sprite centred in its 16x16 cell
      * (4 units up) sits a unit under the crosshair. */
     Entity *shots[PROJECTILE_MAX];
-    int count = projectile_entities(shots, PROJECTILE_MAX);
+    int32_t at[PROJECTILE_MAX * 2];
+    int count = projectile_entities(shots, at, PROJECTILE_MAX);
     for (int i = 0; i < count && board_count < MAX_ACTORS; i++)
-        add_board(shots[i], -1, (eye_units << 9) - 2560, dir_x, dir_y, plane_x, plane_y, det);
+        add_board(shots[i], -1, (eye_units << 9) - 2560, at[i * 2], at[i * 2 + 1], dir_x, dir_y, plane_x, plane_y, det);
     for (int i = 1; i < board_count; i++)
         for (int j = i; j > 0 && boards[j].depth > boards[j - 1].depth; j--)
         {

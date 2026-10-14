@@ -38,12 +38,19 @@ typedef struct
 
 static Projectile shots[PROJECTILE_MAX];
 
-int projectile_entities(Entity **out, int max)
+int projectile_entities(Entity **out, int32_t *xy, int max)
 {
     int n = 0;
     for (int i = 0; i < PROJECTILE_MAX && n < max; i++)
         if (shots[i].active && shots[i].e)
-            out[n++] = shots[i].e;
+        {
+            /* The path's own position (sub-pixel) when it's on it. */
+            Entity *e = shots[i].e;
+            int on_path = (shots[i].x >> 8) == e->x && (shots[i].y >> 8) == e->y;
+            xy[n * 2] = on_path ? shots[i].x : e->x << 8;
+            xy[n * 2 + 1] = on_path ? shots[i].y : e->y << 8;
+            out[n++] = e;
+        }
     return n;
 }
 
@@ -195,6 +202,17 @@ static void launch_one(const int16_t *p, Entity *from, int source, const SpriteD
     int y = from->y + from->height / 2 - 8 + p[PROJ_P_OFF_Y];
     s->x = x << 8;
     s->y = y << 8;
+    if (raycast_active() && source == PLAYER_ACTOR_INDEX && p[PROJ_P_FACING])
+    {
+        /* First Person 3D: from the camera itself, to the sub-pixel, so
+         * it flies straight under the crosshair. */
+        int cx, cy;
+        raycast_camera(&cx, &cy);
+        s->x = cx - (8 << 8);
+        s->y = cy - (8 << 8);
+        x = s->x >> 8;
+        y = s->y >> 8;
+    }
     s->vx = vx;
     s->vy = vy - p[PROJ_P_LIFT];
     s->life = p[PROJ_P_LIFE];
