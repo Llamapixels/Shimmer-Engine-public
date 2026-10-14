@@ -61,6 +61,9 @@ enum { PROJ_CMD_RECALL, PROJ_CMD_REMOVE };
 /* Scene change: drop them all (call before the sprite allocator resets). */
 void projectiles_reset(void);
 
+/* The projectiles flying (First Person 3D draws them in the view). */
+int projectile_entities(Entity **out, int max);
+
 void projectile_launch(const int16_t *params);
 
 /* "Recall Projectiles" / "Remove Projectiles": every projectile of

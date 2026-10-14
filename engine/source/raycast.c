@@ -5,6 +5,7 @@
 #include "entity.h"
 #include "sprite.h"   /* sprite_sin() */
 #include "world.h"
+#include "projectile.h"
 
 #define VIEW_W      120
 #define VIEW_H      80
@@ -22,7 +23,7 @@
 
 #define SPRITE_PAL  128                   /* OBJ palette banks 0-6 copied to 128-239 */
 #define SPRITE_BANKS 7
-#define MAX_ACTORS  16
+#define MAX_ACTORS  28                    /* actors and projectiles */
 #define CANVAS      64                    /* actors: a 64x64 canvas; the 16x16 footprint
                                            * sits bottom-centre (24 px either side, 48 above) */
 #define FOOT_X      24
@@ -115,7 +116,8 @@ static uint8_t seg_n[VIEW_W];
 typedef struct
 {
     Entity *e;
-    int n;                 /* actor index */
+    int n;                 /* actor index, -1 = a projectile */
+    int lift;              /* drawn this far above the floor (Q12) */
     int frame;             /* frame to show (turned to the camera) */
     int depth, screen_x, line, bottom;
 } Billboard;
@@ -301,6 +303,14 @@ void raycast_set_options(int fov, int fog, int turn_actors, int show_crosshair)
         sky_span = rc->sky_w * (k < 1 ? 1 : k);
     }
     dirty = 1;
+}
+
+int raycast_solid_at(int x, int y)
+{
+    int cx = x >> 3, cy = y >> 3;
+    if (!active || cx < 0 || cy < 0 || cx >= map_w || cy >= map_h)
+        return 0;
+    return solid_cell(cy * map_w + cx);
 }
 
 int raycast_aimed(void)
@@ -790,8 +800,39 @@ static int turned_frame(const Entity *e, int vx, int vy)
     return a->frames[e->anim_frame % a->frame_count];
 }
 
-/* Every visible actor: where it is on screen (camera space, like the
- * walls), farthest first. 16 sprite pixels = one cell. */
+/* One billboard for entity e (actor n, or -1 for a projectile drawn
+ * `lift` above the floor), if it's in view. */
+static void add_board(Entity *e, int n, int lift, int dir_x, int dir_y, int plane_x, int plane_y, int det)
+{
+    int ex = e->x + 8, ey = e->y + 8;
+    int sx = (ex << 9) - view_x * 2;
+    int sy = (ey << 9) - view_y * 2;
+    int tx = (int)(((int64_t)(dir_y * sx - dir_x * sy) >> 12) * 4096 / det);
+    int ty = (int)(((int64_t)(-plane_y * sx + plane_x * sy) >> 12) * 4096 / det);
+    if (ty < (n < 0 ? 2048 : 256))
+        return;   /* behind the camera, or right on top of it (a projectile
+                   * shows from half a cell away) */
+    Billboard *b = &boards[board_count];
+    b->e = e;
+    b->n = n;
+    b->lift = lift;
+    b->frame = turned_frame(e, view_x - (ex << 8), view_y - (ey << 8));
+    b->depth = ty;
+    b->screen_x = (VIEW_W / 2) * (4096 + (int)(((int64_t)tx << 12) / ty)) >> 12;
+    b->line = (VIEW_H << 12) / ty;
+    /* Actors stand on the floor under them; projectiles fly level, from
+     * the camera's feet (they don't hop over steps and window sills). */
+    int cx = ex >> 3, cy = ey >> 3;
+    int fl = n < 0 ? view_eye - (eye_units << 9)
+             : (cx >= 0 && cy >= 0 && cx < map_w && cy < map_h) ? (int)CELL_FLOOR(cy * map_w + cx) << 9 : 0;
+    b->bottom = HORIZON + (((view_eye - fl - lift) * b->line) >> 12);
+    if (b->line < 1 || b->screen_x + b->line * 2 < 0 || b->screen_x - b->line * 2 >= VIEW_W)
+        return;
+    board_count++;
+}
+
+/* Every visible actor and projectile: where it is on screen (camera
+ * space, like the walls), farthest first. 16 sprite pixels = one cell. */
 static void gather_actors(void)
 {
     const int dir_x = sin_tab[(view_angle + 256) & 1023], dir_y = sin_tab[view_angle & 1023];
@@ -805,27 +846,14 @@ static void gather_actors(void)
         Entity *e = world_npc(i);
         if (!e || !e->solid || e->pinned || !e->sprite.visible)
             continue;
-        int ex = e->x + 8, ey = e->y + 8;
-        int sx = (ex << 9) - view_x * 2;
-        int sy = (ey << 9) - view_y * 2;
-        int tx = (int)(((int64_t)(dir_y * sx - dir_x * sy) >> 12) * 4096 / det);
-        int ty = (int)(((int64_t)(-plane_y * sx + plane_x * sy) >> 12) * 4096 / det);
-        if (ty < 256)
-            continue;   /* behind the camera, or right on top of it */
-        Billboard *b = &boards[board_count];
-        b->e = e;
-        b->n = i;
-        b->frame = turned_frame(e, view_x - (ex << 8), view_y - (ey << 8));
-        b->depth = ty;
-        b->screen_x = (VIEW_W / 2) * (4096 + (int)(((int64_t)tx << 12) / ty)) >> 12;
-        b->line = (VIEW_H << 12) / ty;
-        int cx = ex >> 3, cy = ey >> 3;
-        int fl = (cx >= 0 && cy >= 0 && cx < map_w && cy < map_h) ? (int)CELL_FLOOR(cy * map_w + cx) << 9 : 0;
-        b->bottom = HORIZON + (((view_eye - fl) * b->line) >> 12);
-        if (b->line < 1 || b->screen_x + b->line * 2 < 0 || b->screen_x - b->line * 2 >= VIEW_W)
-            continue;
-        board_count++;
+        add_board(e, i, 0, dir_x, dir_y, plane_x, plane_y, det);
     }
+    /* Projectiles fly at eye height: a sprite centred in its 16x16 cell
+     * (4 units up) sits a unit under the crosshair. */
+    Entity *shots[PROJECTILE_MAX];
+    int count = projectile_entities(shots, PROJECTILE_MAX);
+    for (int i = 0; i < count && board_count < MAX_ACTORS; i++)
+        add_board(shots[i], -1, (eye_units << 9) - 2560, dir_x, dir_y, plane_x, plane_y, det);
     for (int i = 1; i < board_count; i++)
         for (int j = i; j > 0 && boards[j].depth > boards[j - 1].depth; j--)
         {
@@ -858,7 +886,7 @@ static void draw_actor(const Billboard *b)
             continue;
         const uint8_t *col = CANVAS_PX + (((x - left) * step) >> 16);
         uint8_t *dst = VIEW + (x >> 3) * 64 + (x & 7);
-        if (x == VIEW_W / 2 && y0 <= HORIZON && HORIZON < y1 && col[(((HORIZON - top) * step) >> 16) * CANVAS])
+        if (b->n >= 0 && x == VIEW_W / 2 && y0 <= HORIZON && HORIZON < y1 && col[(((HORIZON - top) * step) >> 16) * CANVAS])
             aim_next = b->n;   /* under the crosshair (nearest drawn last) */
         int v = (y0 - top) * step;
         for (int y = y0; y < y1; y++, v += step)

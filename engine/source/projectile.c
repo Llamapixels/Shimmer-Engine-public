@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "raycast.h"
 #include "projectile.h"
 #include "entity.h"
 #include "scene.h"
@@ -36,6 +37,15 @@ typedef struct
 } Projectile;
 
 static Projectile shots[PROJECTILE_MAX];
+
+int projectile_entities(Entity **out, int max)
+{
+    int n = 0;
+    for (int i = 0; i < PROJECTILE_MAX && n < max; i++)
+        if (shots[i].active && shots[i].e)
+            out[n++] = shots[i].e;
+    return n;
+}
 
 void projectiles_reset(void)
 {
@@ -124,7 +134,14 @@ void projectile_launch(const int16_t *p)
     sprite_load_palette(p[PROJ_P_BANK], def->palette);
 
     int vx = p[PROJ_P_VX], vy = p[PROJ_P_VY];
-    if (p[PROJ_P_FACING])
+    if (p[PROJ_P_FACING] && raycast_active() && from == world_player())
+    {
+        /* First Person 3D: straight ahead, wherever the view points. */
+        int a = raycast_angle();
+        vx = (raycast_cos(a) * p[PROJ_P_SPEED]) >> 12;
+        vy = (raycast_sin(a) * p[PROJ_P_SPEED]) >> 12;
+    }
+    else if (p[PROJ_P_FACING])
     {
         int speed = p[PROJ_P_SPEED];
         int dir_x = from->direction == DIR_RIGHT ? 1 : from->direction == DIR_LEFT ? -1 : 0;
@@ -230,7 +247,11 @@ static void kill(Projectile *s)
 static int in_wall(Projectile *s, int32_t x, int32_t y)
 {
     Entity *e = s->e;
-    return collision_test_rect((x >> 8) + e->col_ox + e->col_w / 2 - 1, (y >> 8) + e->col_oy + e->col_h / 2 - 1, 2, 2);
+    int cx = (x >> 8) + e->col_ox + e->col_w / 2 - 1, cy = (y >> 8) + e->col_oy + e->col_h / 2 - 1;
+    /* First Person 3D: closed doors stop it too (windows don't). */
+    if (raycast_active() && raycast_solid_at(cx + 1, cy + 1))
+        return 1;
+    return collision_test_rect(cx, cy, 2, 2);
 }
 
 /* It hit a wall or the ground (not bouncing any more): what now? */
@@ -406,10 +427,18 @@ void projectiles_update(int move, int camera_x, int camera_y)
                 kill(s);
                 continue;
             }
-            /* Off screen (with a margin) - not ones stuck in place. */
+            /* Off screen (with a margin) - not ones stuck in place. In
+             * First Person 3D the whole scene is "on screen". */
+            int left = camera_x - 32, top = camera_y - 32;
+            int right = camera_x + SCREEN_WIDTH + 16, bottom = camera_y + SCREEN_HEIGHT + 16;
+            if (raycast_active() && scene)
+            {
+                left = top = -32;
+                right = scene->width * 8 + 16;
+                bottom = scene->height * 8 + 16;
+            }
             if (!(s->landed && s->land == PROJ_LAND_STICK) && !(s->flags & PROJ_FLAG_FOLLOW) && !s->returning &&
-                (e->x < camera_x - 32 || e->x > camera_x + SCREEN_WIDTH + 16 ||
-                 e->y < camera_y - 32 || e->y > camera_y + SCREEN_HEIGHT + 16))
+                (e->x < left || e->x > right || e->y < top || e->y > bottom))
             {
                 kill(s);
                 continue;

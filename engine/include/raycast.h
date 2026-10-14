@@ -43,6 +43,8 @@ void raycast_set_options(int fov, int fog, int turn_actors, int crosshair);
 void raycast_set_eye(int floor);
 /* Lowest ceiling over a box (px), in units. */
 int raycast_ceil_over(int x, int y, int w, int h);
+/* Is the cell at (px) solid - a wall or a closed door? */
+int raycast_solid_at(int x, int y);
 /* The actor under the crosshair in the last frame drawn, or -1. */
 int raycast_aimed(void);
 /* Highest floor under a box (px), in units. */
