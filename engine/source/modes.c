@@ -1305,6 +1305,13 @@ static int slot_frames(const Entity *e, int slot)
     return a->frame_count * speed;
 }
 
+/* A First Person 3D button pressed this frame - unless a script attached
+ * to it ("Attach Script To Button", Override) has taken it over. */
+static int rc_button(uint16_t mask)
+{
+    return input_pressed(mask) && !script_input_overridden(mask);
+}
+
 /* Fire (alt = 0) or Alt Fire: the weapon's animation, its sound and
  * script, and (Fire) the actor under the crosshair is hit. */
 static void raycast_fire(int alt)
@@ -1401,7 +1408,7 @@ static const ScriptEvent *raycast_update(Entity *p)
             rc_vz = 0;
         }
     }
-    if (rc_ground && MSET(RC_JUMP) && input_pressed(MSET(RC_JUMP_BUTTON)))
+    if (rc_ground && MSET(RC_JUMP) && rc_button(MSET(RC_JUMP_BUTTON)))
     {
         rc_ground = 0;
         rc_vz = rc_jump_v;
@@ -1463,19 +1470,19 @@ static const ScriptEvent *raycast_update(Entity *p)
     }
     if (rc_fire_wait > 0)
         rc_fire_wait--;
-    else if (MSET(RC_FIRE) && input_pressed(MSET(RC_FIRE_BUTTON)))
+    else if (MSET(RC_FIRE) && rc_button(MSET(RC_FIRE_BUTTON)))
     {
         rc_fire_wait = MSET(RC_FIRE_RATE);
         raycast_fire(0);
     }
-    else if (MSET(RC_ALT_FIRE) && input_pressed(MSET(RC_ALT_BUTTON)))
+    else if (MSET(RC_ALT_FIRE) && rc_button(MSET(RC_ALT_BUTTON)))
     {
         rc_fire_wait = MSET(RC_FIRE_RATE);
         raycast_fire(1);
     }
 
     /* Talk to the actor just ahead. */
-    if (input_pressed(MSET(RC_INTERACT)))
+    if (rc_button(MSET(RC_INTERACT)))
     {
         int cx = p->x + p->width / 2 + ((c * 10) >> 12);
         int cy = p->y + p->height / 2 + ((s * 10) >> 12);
