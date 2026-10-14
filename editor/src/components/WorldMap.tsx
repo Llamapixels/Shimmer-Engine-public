@@ -196,7 +196,7 @@ const SceneCard = memo(function SceneCard({
   return (
     <div
       className={`world-map-scene${active ? " world-map-scene-active" : ""}`}
-      style={{ left: x, top: y, width: img?.w ?? 240, height: img?.h ?? 160 }}
+      style={{ transform: `translate(${x}px, ${y}px)`, width: img?.w ?? 240, height: img?.h ?? 160 }}
       onPointerDown={(e) => actions.down(e, rec, index)}
       onDoubleClick={() => actions.open(rec)}
     >
@@ -367,7 +367,6 @@ export default function WorldMap() {
     e.stopPropagation();
     (e.target as Element).setPointerCapture?.(e.pointerId);
     if (rec && i !== undefined && e.button === 0) {
-      setActiveScene(rec.fileId);
       const p = pos(rec, i);
       const w = toWorld(e.clientX, e.clientY);
       setDrag({ kind: "scene", id: rec.fileId, sx: w.x, sy: w.y, ox: p.x, oy: p.y, x: p.x, y: p.y });
@@ -400,6 +399,9 @@ export default function WorldMap() {
       const { id, x, y } = drag;
       updateScene(id, (s) => ({ ...s, world_pos: { x, y } }));
     }
+    // Select it once it's let go, so opening its properties never
+    // interrupts the drag.
+    if (drag?.kind === "scene") setActiveScene(drag.id);
     setDrag(null);
   };
 

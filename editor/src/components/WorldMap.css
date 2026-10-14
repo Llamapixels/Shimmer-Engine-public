@@ -27,6 +27,9 @@
   flex: 1;
   overflow: hidden;
   cursor: grab;
+  /* Moving things in the map never re-lays out the rest of the window
+   * (a big script open in the properties panel made that slow). */
+  contain: strict;
 }
 .world-map-panning {
   cursor: grabbing;
@@ -40,6 +43,9 @@
 }
 .world-map-scene {
   position: absolute;
+  left: 0;
+  top: 0;
+  contain: layout style;
   cursor: move;
   outline: 2px solid rgba(255, 255, 255, 0.15);
 }

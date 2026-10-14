@@ -45,19 +45,35 @@ function useEditor(): Ctx {
   return c;
 }
 
-/** Which blocks are collapsed, by their session-stable key. */
-const useCollapsed = create<{ keys: Record<string, true>; set: (keys: string[], collapsed: boolean) => void }>((set) => ({
+/** Which blocks the user folded (true) or unfolded (false), by their
+ * session-stable key. Blocks nobody touched use foldsByDefault(). */
+const useCollapsed = create<{ keys: Record<string, boolean>; set: (keys: string[], collapsed: boolean) => void }>((set) => ({
   keys: {},
   set: (keys, collapsed) =>
     set((s) => {
       const next = { ...s.keys };
-      for (const k of keys) {
-        if (collapsed) next[k] = true;
-        else delete next[k];
-      }
+      for (const k of keys) next[k] = collapsed;
       return { keys: next };
     }),
 }));
+
+/** Events holding more than this many events start folded, so a huge
+ * script opens at once instead of drawing thousands of blocks. */
+const FOLD_OVER = 40;
+
+function foldsByDefault(ev: ScriptEventJSON): boolean {
+  let n = 0;
+  const walk = (v: unknown): void => {
+    if (n > FOLD_OVER) return;
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") {
+      if ("type" in v) n += 1;
+      for (const x of Object.values(v)) if (x && typeof x === "object") walk(x);
+    }
+  };
+  for (const [k, x] of Object.entries(ev)) if (k !== "type" && x && typeof x === "object") walk(x);
+  return n > FOLD_OVER;
+}
 
 interface Props {
   value: EventScript | undefined;
@@ -238,7 +254,9 @@ function performDrop(e: DragEvent, rootId: string, apply: ScriptUpdater) {
 const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; loc: EventLocation }) {
   const { env, apply, createCtx } = useEditor();
   const key = eventKey(ev);
-  const collapsed = useCollapsed((s) => !!s.keys[key]);
+  const folded = useCollapsed((s) => s.keys[key]);
+  const bigByDefault = useMemo(() => foldsByDefault(ev), [ev]);
+  const collapsed = folded ?? bigByDefault;
   const setCollapsed = useCollapsed((s) => s.set);
   const dragging = useDragState(
     (s) => s.dimmed?.rootId === env.rootId && s.dimmed.from.index === loc.index && pathKey(s.dimmed.from.path) === pathKey(loc.path),
