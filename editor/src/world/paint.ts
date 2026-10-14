@@ -5,7 +5,7 @@
  */
 
 import type { SceneJSON } from "../../shared/projectTypes";
-import type { PaintLayer, TileStamp } from "../state/projectStore";
+import type { PaintLayer, RcBrush, RcLayer, TileStamp } from "../state/projectStore";
 
 /** Value of one cell in a layer: a collision character; a palette id or
  * null; "sx,sy" for a tile override or null for the original tile. */
@@ -32,9 +32,82 @@ function resizePaletteMap(rows: (string | null)[][], w: number, h: number): (str
   return out;
 }
 
+/** First Person 3D: wall_textures characters, "0" = raycast.textures[0]. */
+export const RC_TEX_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
+export const RC_LAYERS: RcLayer[] = ["floor_h", "ceil_h", "walltex", "floor_flat", "ceil_flat"];
+export const isRcLayer = (l: PaintLayer): l is RcLayer => (RC_LAYERS as string[]).includes(l);
+
+/** The project's wall textures (what a scene with no raycast.textures
+ * uses): set by the canvas from the asset listing. */
+let projectTextures: string[] = ["bricks"];
+export function setProjectTextures(names: string[]) {
+  projectTextures = names.length ? names : ["bricks"];
+}
+export function sceneTextures(scene: SceneJSON): string[] {
+  return scene.raycast?.textures ?? projectTextures;
+}
+
+const RC_HEIGHT_KEY = { floor_h: "floor_heights", ceil_h: "ceiling_heights" } as const;
+const RC_CHAR_KEY = { walltex: "wall_textures", floor_flat: "floor_flats", ceil_flat: "ceiling_flats" } as const;
+
+function applyRcCells(scene: SceneJSON, layer: RcLayer, w: number, h: number, cells: Cells): SceneJSON {
+  if (layer === "floor_h" || layer === "ceil_h") {
+    const key = RC_HEIGHT_KEY[layer];
+    const grid = resizePaletteMap((scene[key] ?? []) as (string | null)[][], w, h) as unknown as (number | null)[][];
+    for (const [k, v] of cells) {
+      const x = k % w;
+      const y = Math.floor(k / w);
+      if (grid[y] && x < w) grid[y][x] = v === null ? null : Number(v);
+    }
+    const next: SceneJSON = { ...scene, [key]: grid };
+    if (!grid.some((r) => r.some((v) => v !== null))) delete next[key];
+    return next;
+  }
+  const key = RC_CHAR_KEY[layer];
+  const grid = resizeCollision(scene[key] ?? [], w, h).map((r) => r.split(""));
+  let next: SceneJSON = scene;
+  let textures = sceneTextures(scene);
+  for (const [k, v] of cells) {
+    const x = k % w;
+    const y = Math.floor(k / w);
+    if (!grid[y] || x >= w) continue;
+    let ch = ".";
+    if (v !== null && layer === "walltex") {
+      let i = textures.indexOf(v);
+      if (i < 0 && textures.length < RC_TEX_CHARS.length) {
+        textures = [...textures, v];
+        i = textures.length - 1;
+      }
+      ch = i <= 0 ? "." : RC_TEX_CHARS[i];
+    } else if (v !== null) ch = v;
+    grid[y][x] = ch;
+  }
+  const rows = grid.map((r) => r.join(""));
+  next = { ...next, [key]: rows };
+  if (layer === "walltex" && (textures !== sceneTextures(scene) || !scene.raycast?.textures))
+    next.raycast = { ...(scene.raycast ?? {}), textures };
+  if (!rows.some((r) => /[^.]/.test(r))) delete next[key];
+  return next;
+}
+
+function readRcCell(scene: SceneJSON, layer: RcLayer, x: number, y: number): CellValue {
+  if (layer === "floor_h" || layer === "ceil_h") {
+    const v = scene[RC_HEIGHT_KEY[layer]]?.[y]?.[x];
+    return v === null || v === undefined ? null : String(v);
+  }
+  const ch = scene[RC_CHAR_KEY[layer]]?.[y]?.[x] ?? ".";
+  if (ch === ".") return null;
+  if (layer === "walltex") {
+    const i = RC_TEX_CHARS.indexOf(ch.toLowerCase());
+    return sceneTextures(scene)[i] ?? null;
+  }
+  return ch;
+}
+
 /** The scene with `cells` written into `layer`. */
 export function applyCells(scene: SceneJSON, layer: PaintLayer, w: number, h: number, cells: Cells): SceneJSON {
   if (!cells.size) return scene;
+  if (isRcLayer(layer)) return applyRcCells(scene, layer, w, h, cells);
   if (layer === "front") {
     const grid = resizeCollision(scene.front_tiles ?? [], w, h).map((r) => r.split(""));
     for (const [k, v] of cells) {
@@ -85,6 +158,7 @@ export function applyCells(scene: SceneJSON, layer: PaintLayer, w: number, h: nu
 /** What a cell holds now (for fill/magic comparisons). For tiles, the
  * pixel-content key of the tile shown there, so equal-looking tiles match. */
 export function cellKey(scene: SceneJSON, layer: PaintLayer, x: number, y: number, tileKeys: string[] | null, w: number): string {
+  if (isRcLayer(layer)) return readRcCell(scene, layer, x, y) ?? "";
   if (layer === "collision") return scene.collision?.[y]?.[x] ?? ".";
   if (layer === "front") return scene.front_tiles?.[y]?.[x] ?? ".";
   if (layer === "palette") return scene.palette_map?.[y]?.[x] ?? "";
@@ -95,6 +169,7 @@ export function cellKey(scene: SceneJSON, layer: PaintLayer, x: number, y: numbe
 }
 
 export function readCell(scene: SceneJSON, layer: PaintLayer, x: number, y: number): CellValue {
+  if (isRcLayer(layer)) return readRcCell(scene, layer, x, y);
   if (layer === "collision") return scene.collision?.[y]?.[x] ?? ".";
   if (layer === "front") return scene.front_tiles?.[y]?.[x] ?? ".";
   if (layer === "palette") return scene.palette_map?.[y]?.[x] ?? null;
@@ -174,7 +249,14 @@ export function brushValue(
   anchor: { x: number; y: number },
   x: number,
   y: number,
+  rc?: RcBrush,
 ): CellValue {
+  if (isRcLayer(layer)) {
+    if (erase || !rc) return null;
+    if (layer === "walltex") return rc.walltex || null;
+    if (layer === "floor_flat" || layer === "ceil_flat") return rc[layer] > 0 ? String(rc[layer]) : null;
+    return String(rc[layer]);
+  }
   if (layer === "collision") return erase ? "." : collisionBrush;
   if (layer === "front") return erase ? "." : "#";
   if (layer === "palette") return erase ? null : paletteBrush;

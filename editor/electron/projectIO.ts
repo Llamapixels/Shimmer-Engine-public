@@ -282,6 +282,7 @@ const ASSET_FOLDERS = [
   "assets/fonts",
   "assets/frames",
   "assets/ui",
+  "assets/textures",
 ];
 
 async function ensureAssetFolders(rootPath: string): Promise<void> {
@@ -309,6 +310,8 @@ function assetFolder(kind: AssetKind): { base: AssetBase; rel: string; exts: str
       return { base: "project", rel: "assets/frames", exts: IMAGE_EXTS };
     case "sounds":
       return { base: "project", rel: "assets/sounds", exts: [".wav"] };
+    case "textures":
+      return { base: "project", rel: "assets/textures", exts: IMAGE_EXTS };
   }
 }
 
@@ -366,9 +369,10 @@ export async function listAssets(rootPath: string): Promise<AssetListing> {
 
   const sounds = await listFolder(rootPath, "project", "assets/sounds", [".wav"]);
   const cutscenes = await listFolder(rootPath, "project", CUTSCENES_DIR, [".cut"]);
+  const textures = await listFolder(rootPath, "project", "assets/textures", IMAGE_EXTS);
   const builtinFonts = engineRoot ? await listFolder(engineRoot, "engine", "engine/data/ui/fonts", IMAGE_EXTS) : [];
 
-  return { backgrounds, sprites, music, fonts, builtinFonts, frames, sounds, cutscenes, engineRoot };
+  return { backgrounds, sprites, music, fonts, builtinFonts, frames, sounds, cutscenes, textures, engineRoot };
 }
 
 /** A file name that doesn't collide with anything already in `dir`:

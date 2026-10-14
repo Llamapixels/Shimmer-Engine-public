@@ -259,6 +259,21 @@ export interface TextHudCloseEvent extends EventBase {
   type: "text_hud_close";
 }
 
+/** First Person 3D: move an area's floor and / or ceiling (doors, lifts). */
+export interface RaycastSetHeightsEvent extends EventBase {
+  type: "raycast_set_heights";
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  change?: "both" | "floor" | "ceiling";
+  /** 1/8 tile units; null = leave it. */
+  floor?: number | null;
+  ceiling?: number | null;
+  /** Units a frame; 0 = at once. */
+  speed?: number;
+}
+
 /** Wake one of the scene's hidden copies of an actor prefab. */
 export interface SpawnPrefabEvent extends EventBase {
   type: "spawn_prefab";
@@ -1193,6 +1208,7 @@ export type ScriptEventJSON =
   | ActorLockDirectionEvent
   | SpawnPrefabEvent
   | TextHudCloseEvent
+  | RaycastSetHeightsEvent
   | ActorRemoveEvent
   | ActorSetSpriteEvent
   | ActorJumpEvent

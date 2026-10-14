@@ -28,6 +28,8 @@ import { EngineFields } from "../engine/EngineSettingsCard";
 import { type EngineValue, modeLabel, settingsForMode, settingValue } from "../engine/engineSettings";
 import "./PropertiesPanel.css";
 import Icon from "./common/Icon";
+import { RC_TEX_CHARS, sceneTextures } from "../world/paint";
+import { RC_DEFAULT_CEILING, RC_MAX_FLATS } from "../world/raycastView";
 import Chevron from "./common/Chevron";
 
 const DIRECTIONS: Direction[] = ["down", "up", "left", "right"];
@@ -220,6 +222,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
           </div>
         </FieldRow>
         {data.type === "adventure" && <AdventureConvert scene={scene} />}
+        {data.type === "raycast" && <RaycastLookEditor scene={scene} />}
         {showEngine && <SceneEngineOverrides scene={scene} />}
 
         <FieldRow label="Background">
@@ -466,7 +469,130 @@ const SCENE_TYPES: { id: SceneType; label: string; hint: string }[] = [
   { id: "shmup", label: "Shoot Em' Up", hint: "The screen scrolls the way the player faces at the start. Fire with Launch Projectile on a button." },
   { id: "pointnclick", label: "Point and Click", hint: "The player is a cursor: move it over actors and triggers and press A." },
   { id: "logo", label: "Logo", hint: "No player: a still screen for logos and title cards, run by the scene's scripts." },
+  {
+    id: "raycast",
+    label: "First Person 3D",
+    hint:
+      "A first person view of the map, like the old shooters: Up / Down walk, Left / Right turn, L / R strafe. Solid tiles are walls; " +
+      "paint floor and ceiling heights (stairs, ledges, windows, doors, lifts), wall textures and colours with the 3D tool (H). " +
+      "The background only sets the map's size here.",
+  },
 ]
+
+/** First Person 3D: the scene's colours, default ceiling and wall textures. */
+function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
+  const updateScene = useProjectStore((s) => s.updateScene);
+  const assets = useProjectStore((s) => s.assets);
+  const setRcLayer = useProjectStore((s) => s.setRcLayer);
+  const look = scene.data.raycast ?? {};
+  const flats = look.flats ?? [];
+  const used = sceneTextures(scene.data);
+  const all = Array.from(new Set([...(assets?.textures ?? []).map((t) => t.name), "bricks"]));
+  const set = (p: Partial<NonNullable<SceneJSON["raycast"]>>, key?: string) =>
+    updateScene(scene.fileId, (s) => ({ ...s, raycast: { ...(s.raycast ?? {}), ...p } }), key ? `rc:${key}` : undefined);
+  const hex = (c: string | undefined, d: string) => (c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : d);
+
+  /** Drop texture i: its walls take the first texture, later ones move up. */
+  const removeTexture = (i: number) =>
+    updateScene(scene.fileId, (s) => {
+      const list = sceneTextures(s).filter((_, j) => j !== i);
+      const rows = s.wall_textures?.map((r) =>
+        r
+          .split("")
+          .map((ch) => {
+            const k = ch === "." ? 0 : RC_TEX_CHARS.indexOf(ch.toLowerCase());
+            if (k <= 0 || k === i) return ".";
+            return k > i ? (k - 1 === 0 ? "." : RC_TEX_CHARS[k - 1]) : ch;
+          })
+          .join(""),
+      );
+      return { ...s, raycast: { ...(s.raycast ?? {}), textures: list }, wall_textures: rows };
+    });
+  /** Drop colour i: its tiles take the scene's own, later ones move down. */
+  const removeFlat = (i: number) =>
+    updateScene(scene.fileId, (s) => {
+      const fix = (rows?: string[]) =>
+        rows?.map((r) =>
+          r
+            .split("")
+            .map((ch) => {
+              const k = Number(ch);
+              if (!(k >= 1 && k <= 5)) return ch;
+              return k === i + 1 ? "." : k > i + 1 ? String(k - 1) : ch;
+            })
+            .join(""),
+        );
+      return {
+        ...s,
+        raycast: { ...(s.raycast ?? {}), flats: (s.raycast?.flats ?? []).filter((_, j) => j !== i) },
+        floor_flats: fix(s.floor_flats),
+        ceiling_flats: fix(s.ceiling_flats),
+      };
+    });
+
+  return (
+    <div className="rc-look">
+      <FieldRow label="3D floor and ceiling" hint="The colours of floors and ceilings with none painted.">
+        <div className="type-row">
+          <input type="color" value={hex(look.floor, "#3c3a36")} onChange={(e) => set({ floor: e.target.value }, "floor")} title="Floor" />
+          <input type="color" value={hex(look.ceiling, "#22242c")} onChange={(e) => set({ ceiling: e.target.value }, "ceiling")} title="Ceiling" />
+          <span className="field-hint-inline">Ceiling height</span>
+          <NumberInput
+            value={look.ceiling_height ?? RC_DEFAULT_CEILING}
+            min={1}
+            max={255}
+            onChange={(n) => set({ ceiling_height: n })}
+            title="Ceiling height of tiles with none painted, in eighths of a tile (8 = one tile)"
+          />
+        </div>
+      </FieldRow>
+      <FieldRow label={`More colours (${flats.length}/${RC_MAX_FLATS})`} hint="Paint them on floors and ceilings with the 3D tool: lava, water, carpet, lights.">
+        <div className="palette-swatch-list">
+          {flats.map((c, i) => (
+            <div key={i} className="palette-swatch-row">
+              <span className="field-hint-inline">{i + 1}</span>
+              <input
+                type="color"
+                value={hex(c, "#000000")}
+                onChange={(e) => set({ flats: flats.map((f, j) => (j === i ? e.target.value : f)) }, `flat${i}`)}
+              />
+              <button className="icon-btn" title="Remove colour" onClick={() => removeFlat(i)}>
+                ×
+              </button>
+            </div>
+          ))}
+          <button className="btn btn-small" disabled={flats.length >= RC_MAX_FLATS} onClick={() => set({ flats: [...flats, "#806040"] })}>
+            + Add colour
+          </button>
+        </div>
+      </FieldRow>
+      <FieldRow label="Wall textures" hint="The textures this scene's walls use (32×32 PNGs in assets/textures). The first is on every wall you haven't painted.">
+        <div className="palette-swatch-list">
+          {used.map((t, i) => (
+            <div key={`${t}${i}`} className="palette-swatch-row">
+              <span>
+                {i === 0 ? "★ " : ""}
+                {t}
+                {all.includes(t) ? "" : " (missing)"}
+              </span>
+              <button className="icon-btn" title="Remove: its walls take the first texture" disabled={used.length <= 1} onClick={() => removeTexture(i)}>
+                ×
+              </button>
+            </div>
+          ))}
+          <div className="type-row">
+            <button className="btn btn-small" onClick={() => setRcLayer("walltex")}>
+              Paint textures
+            </button>
+            <button className="btn btn-small" onClick={() => setRcLayer("floor_h")}>
+              Paint heights
+            </button>
+          </div>
+        </div>
+      </FieldRow>
+    </div>
+  );
+}
 
 /** Adventure's settings -> the Top Down settings that do the same. */
 const ADVENTURE_TO_TOPDOWN: [string, string][] = [

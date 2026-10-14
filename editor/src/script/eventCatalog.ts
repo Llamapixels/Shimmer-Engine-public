@@ -869,6 +869,42 @@ export const EVENT_DEFS: EventDef[] = [
     summary: () => "",
   }),
   def({
+    type: "raycast_set_heights",
+    label: "Set 3D Heights",
+    category: "Scene",
+    description:
+      "First Person 3D: move the floor and / or ceiling of an area of tiles, in eighths of a tile (8 = one tile). " +
+      "Doors: raise a ceiling from the floor. Lifts: raise or lower a floor (the player rides it). Secret walls, " +
+      "bridges, rising water. Speed is eighths a frame; 0 moves it at once.",
+    fields: [
+      { key: "pos", label: "Top-left tile", kind: "tilePos" },
+      { key: "width", label: "Width (tiles)", kind: "int", min: 1, max: 128, defaultValue: 1 },
+      { key: "height", label: "Height (tiles)", kind: "int", min: 1, max: 128, defaultValue: 1 },
+      {
+        key: "change",
+        label: "Move",
+        kind: "select",
+        defaultValue: "both",
+        options: [
+          { value: "both", label: "Floor and ceiling" },
+          { value: "floor", label: "Floor" },
+          { value: "ceiling", label: "Ceiling" },
+        ],
+      },
+      { key: "floor", label: "Floor to", kind: "int", min: 0, max: 255, defaultValue: 0, showIf: (e) => e.change !== "ceiling" },
+      { key: "ceiling", label: "Ceiling to", kind: "int", min: 0, max: 255, defaultValue: 8, showIf: (e) => e.change !== "floor" },
+      { key: "speed", label: "Speed (eighths a frame)", kind: "float", min: 0, max: 16, defaultValue: 0.5 },
+    ],
+    create: () => ({ type: "raycast_set_heights", x: 0, y: 0, width: 1, height: 1, change: "ceiling", ceiling: 8, speed: 0.5 }),
+    summary: (ev) => {
+      const e = ev as unknown as { x: number; y: number; width?: number; height?: number; change?: string; floor?: number; ceiling?: number };
+      const parts = [];
+      if (e.change !== "ceiling") parts.push(`floor ${e.floor ?? 0}`);
+      if (e.change !== "floor") parts.push(`ceiling ${e.ceiling ?? 8}`);
+      return `${e.width ?? 1}×${e.height ?? 1} at ${e.x}, ${e.y}: ${parts.join(", ")}`;
+    },
+  }),
+  def({
     type: "spawn_prefab",
     label: "Spawn Prefab",
     category: "Actors",

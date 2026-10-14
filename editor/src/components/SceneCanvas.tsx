@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import type { BgLayerJSON, DoorJSON, NoteJSON, NpcJSON, ProjectJSON, SceneJSON } from "../../shared/projectTypes";
-import { sceneName, useProjectStore, type Brush, type BrushShape, type PaintLayer, type TileStamp, type Tool } from "../state/projectStore";
+import { sceneName, useProjectStore, type Brush, type BrushShape, type PaintLayer, type RcLayer, type TileStamp, type Tool } from "../state/projectStore";
 import { loadSpriteImage, type SpriteImage } from "../sprites/image";
 import { playerSpriteName, type Facing } from "../sprites/model";
 import { drawActor, sheetFor } from "../sprites/render";
@@ -11,14 +11,19 @@ import {
   cellKey,
   floodCells,
   footprint,
+  isRcLayer,
   lineCells,
   magicCells,
   readCell,
   resizeCollision,
+  RC_LAYERS,
+  setProjectTextures,
   tileKeysOf,
   type CellValue,
   type Cells,
 } from "../world/paint";
+import { drawRcLayer, RC_LAYER_LABEL } from "../world/raycastView";
+import { RcLayerButtons, RcValuePanel, useTextureImages } from "./RaycastTools";
 import "./SceneCanvas.css";
 import Icon, { type IconName } from "./common/Icon";
 import Chevron from "./common/Chevron";
@@ -50,6 +55,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: IconName; group: numb
   { id: "palette", label: "Paint colors (BG palettes)", key: "Z", icon: "colors", group: 1 },
   { id: "tiles", label: "Paint tiles", key: "X", icon: "tiles", group: 1 },
   { id: "front", label: "Paint tiles in front of actors (tree tops, roofs, arches)", key: "F", icon: "front", group: 1 },
+  { id: "rc", label: "Paint 3D: floor and ceiling heights, wall textures, floor and ceiling colours", key: "H", icon: "stairs", group: 1 },
   { id: "eraser", label: "Eraser", key: "E", icon: "eraser", group: 1 },
   { id: "spawn", label: "Set player start", key: "P", icon: "start", group: 2 },
 ];
@@ -74,7 +80,16 @@ const COLLISION_TYPES: { id: Brush; label: string; color: string; edge?: "top" |
 ];
 const COLLISION_BY_CHAR = new Map(COLLISION_TYPES.map((c) => [c.id as string, c]));
 
-const LAYER_LABEL: Record<PaintLayer, string> = { collision: "Collisions", palette: "Colors", tiles: "Tiles", front: "In front" };
+const LAYER_LABEL: Record<PaintLayer, string> = {
+  collision: "Collisions",
+  palette: "Colors",
+  tiles: "Tiles",
+  front: "In front",
+  ...RC_LAYER_LABEL,
+};
+/** Tools a First Person 3D scene doesn't use, and the one only it does. */
+const FLAT_ONLY_TOOLS: Tool[] = ["palette", "tiles", "front"];
+const toolsFor = (rc: boolean) => TOOLS.filter((t) => (rc ? !FLAT_ONLY_TOOLS.includes(t.id) : t.id !== "rc"));
 
 /** Deterministic display color per palette id, purely for the canvas
  * overlay (the compiler doesn't use this - actual GBA colors come from
@@ -194,6 +209,10 @@ export default function SceneCanvas() {
   const placingPrefabId = useProjectStore((s) => s.placingPrefabId);
   const setPlacingPrefab = useProjectStore((s) => s.setPlacingPrefab);
   const placePrefab = useProjectStore((s) => s.placePrefab);
+  const rcLayer = useProjectStore((s) => s.rcLayer);
+  const setRcLayer = useProjectStore((s) => s.setRcLayer);
+  const rcBrush = useProjectStore((s) => s.rcBrush);
+  const setRcBrush = useProjectStore((s) => s.setRcBrush);
   const projectJson = useProjectStore((s) => s.project?.project);
   const tilePick = useProjectStore((s) => s.tilePick);
   const setTilePick = useProjectStore((s) => s.setTilePick);
@@ -207,6 +226,8 @@ export default function SceneCanvas() {
 
   const activeScene = scenes?.find((s) => s.fileId === activeSceneId);
   const data = activeScene?.data;
+  const isRc = data?.type === "raycast";
+  const tools = toolsFor(isRc);
 
   const [zoom, setZoom] = useState(2);
   const [showCollision, setShowCollision] = useState(true);
@@ -244,7 +265,16 @@ export default function SceneCanvas() {
   // The eraser works on whichever layer was painted last.
   useEffect(() => {
     if (tool === "collision" || tool === "palette" || tool === "tiles" || tool === "front") setEraseLayer(tool);
-  }, [tool, setEraseLayer]);
+    else if (tool === "rc") setEraseLayer(rcLayer);
+  }, [tool, rcLayer, setEraseLayer]);
+
+  // A tool the scene's type doesn't use (after switching scenes or type).
+  useEffect(() => {
+    if (!data) return;
+    if (!tools.some((t) => t.id === tool) && tool !== "placePrefab") setTool("select");
+    if (tool === "eraser" && isRcLayer(eraseLayer) !== isRc) setEraseLayer(isRc ? rcLayer : "collision");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRc, tool, eraseLayer]);
 
   // A selection belongs to the layer it was made on.
   useEffect(() => {
@@ -272,6 +302,8 @@ export default function SceneCanvas() {
     [data?.npcs, data?.player_sprite, playerSprite],
   );
   const sheets = useSpriteImages(rootPath, spriteNames, assets);
+  const textures = useTextureImages(rootPath, assets);
+  setProjectTextures((assets?.textures ?? []).map((t) => t.name));
 
   const bgTilesW = bgImage ? Math.floor(bgImage.width / TILE) : 0;
   const bgTilesH = bgImage ? Math.floor(bgImage.height / TILE) : 0;
@@ -290,6 +322,8 @@ export default function SceneCanvas() {
           ? "tiles"
           : tool === "front"
             ? "front"
+            : tool === "rc"
+            ? rcLayer
             : tool === "eraser"
             ? eraseLayer
             : null;
@@ -325,7 +359,7 @@ export default function SceneCanvas() {
     for (const [px, py] of pts)
       for (const [cx, cy] of footprint(size, stamp, anchor, px, py)) {
         if (cx < 0 || cy < 0 || cx >= tileW || cy >= tileH) continue;
-        into.set(cy * tileW + cx, brushValue(layer, erase, brush, paletteBrush, stamp, anchor, cx, cy));
+        into.set(cy * tileW + cx, brushValue(layer, erase, brush, paletteBrush, stamp, anchor, cx, cy, rcBrush));
       }
     return into;
   };
@@ -415,7 +449,21 @@ export default function SceneCanvas() {
     }
     ctx.globalAlpha = 1;
 
-    if (showValues && S >= 12) {
+    // First Person 3D: the layer being painted.
+    if (isRc && paintLayer && isRcLayer(paintLayer)) {
+      ctx.globalAlpha = opacity / 100;
+      drawRcLayer(ctx, view, paintLayer, {
+        S,
+        w: tileW,
+        h: tileH,
+        textures: textures.images,
+        font: `${Math.floor(S * 0.5)}px ${v("--font-mono", "monospace")}`,
+        labels: S >= 12,
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    if (showValues && S >= 12 && !(paintLayer && isRcLayer(paintLayer))) {
       // GB Studio's "show tile values": what each cell holds, as text.
       ctx.font = `${Math.floor(S * 0.55)}px ${v("--font-mono", "monospace")}`;
       ctx.textAlign = "center";
@@ -706,6 +754,8 @@ export default function SceneCanvas() {
     brushShape,
     tileStamp,
     palettes,
+    isRc,
+    textures.images,
   ]);
 
   // Cursor-centered ctrl+wheel zoom (see zoomAnchorRef).
@@ -846,7 +896,12 @@ export default function SceneCanvas() {
       setBrushShape(shape.id);
       return;
     }
-    const match = TOOLS.find((x) => x.key.toLowerCase() === k);
+    // 3D tool: [ and ] lower / raise the height it paints.
+    if (tool === "rc" && (rcLayer === "floor_h" || rcLayer === "ceil_h") && (e.key === "[" || e.key === "]")) {
+      setRcBrush({ [rcLayer]: Math.max(0, Math.min(255, rcBrush[rcLayer] + (e.key === "]" ? 1 : -1))) });
+      return;
+    }
+    const match = tools.find((x) => x.key.toLowerCase() === k);
     if (match) setTool(match.id);
   };
 
@@ -927,6 +982,15 @@ export default function SceneCanvas() {
     setCtxMenu({ x: e.clientX, y: e.clientY, target });
   };
 
+  /** Alt-click with the 3D tool: paint with what's under the cursor. */
+  const pickRc = (layer: RcLayer, x: number, y: number) => {
+    const v = readCell(data, layer, x, y);
+    if (layer === "floor_h") setRcBrush({ floor_h: v === null ? 0 : Number(v) });
+    else if (layer === "ceil_h") setRcBrush({ ceil_h: v === null ? (data.raycast?.ceiling_height ?? 8) : Number(v) });
+    else if (layer === "walltex") setRcBrush({ walltex: v ?? "" });
+    else setRcBrush({ [layer]: v === null ? 0 : Number(v) });
+  };
+
   const keyFn = (layer: PaintLayer) => (x: number, y: number) => cellKey(data, layer, x, y, tileKeys, tileW);
 
   const onMouseDown = (e: ReactMouseEvent<HTMLCanvasElement>) => {
@@ -953,6 +1017,8 @@ export default function SceneCanvas() {
       } else if (paintLayer === "tiles") {
         const o = data.tile_overrides?.[`${t.x},${t.y}`];
         setTileStamp({ x: o ? o[0] : t.x, y: o ? o[1] : t.y, w: 1, h: 1 });
+      } else if (isRcLayer(paintLayer)) {
+        pickRc(paintLayer, t.x, t.y);
       }
       return;
     }
@@ -996,7 +1062,7 @@ export default function SceneCanvas() {
         for (const k of idx) {
           const x = k % tileW;
           const y = Math.floor(k / tileW);
-          cells.set(k, brushValue(layer, erase, brush, paletteBrush, stamp, anchor, x, y));
+          cells.set(k, brushValue(layer, erase, brush, paletteBrush, stamp, anchor, x, y, rcBrush));
         }
         updateScene(sceneId, (s) => applyCells(s, layer, tileW, tileH, cells));
         lastPaint.current = anchor;
@@ -1202,9 +1268,9 @@ export default function SceneCanvas() {
           Dialogue
         </button>
         <div className="tool-group" role="toolbar" aria-label="Canvas tools">
-          {TOOLS.map((t, i) => (
+          {tools.map((t, i) => (
             <span key={t.id} className="tool-slot">
-              {i > 0 && TOOLS[i - 1].group !== t.group && <span className="tool-sep" />}
+              {i > 0 && tools[i - 1].group !== t.group && <span className="tool-sep" />}
               <button
                 className={`tool-btn${tool === t.id && !tilePick ? " tool-btn-active" : ""}`}
                 title={`${t.label} (${t.key})`}
@@ -1314,8 +1380,9 @@ export default function SceneCanvas() {
               </button>
             ))}
             <span className="brush-sep" />
+            {tool === "rc" && <RcLayerButtons layer={rcLayer} onPick={setRcLayer} />}
             {tool === "collision" &&
-              COLLISION_TYPES.map((c) => (
+              COLLISION_TYPES.filter((c) => !isRc || c.id === "#").map((c) => (
                 <button
                   key={c.id}
                   className={`brush-btn${brush === c.id ? " brush-btn-active" : ""}`}
@@ -1351,7 +1418,7 @@ export default function SceneCanvas() {
               <span className="scene-canvas-float-hint">Paint the tiles actors walk behind: they're drawn over sprites in the game.</span>
             )}
             {tool === "eraser" &&
-              (["collision", "palette", "tiles", "front"] as PaintLayer[]).map((l) => (
+              ((isRc ? ["collision", ...RC_LAYERS] : ["collision", "palette", "tiles", "front"]) as PaintLayer[]).map((l) => (
                 <button key={l} className={`brush-btn${eraseLayer === l ? " brush-btn-active" : ""}`} onClick={() => setEraseLayer(l)}>
                   {LAYER_LABEL[l]}
                 </button>
@@ -1370,6 +1437,9 @@ export default function SceneCanvas() {
           </div>
         )}
         {tool === "tiles" && bgImage && <TilePicker img={bgImage} stamp={tileStamp} onPick={setTileStamp} />}
+        {tool === "rc" && !tilePick && rootPath && (
+          <RcValuePanel scene={data} layer={rcLayer} brush={rcBrush} textures={textures} rootPath={rootPath} />
+        )}
         <div
           ref={scrollRef}
           className="scene-canvas-scroll"

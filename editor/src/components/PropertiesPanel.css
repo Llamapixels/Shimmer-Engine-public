@@ -379,3 +379,8 @@
 .script-param-row select:focus {
   border-color: var(--accent);
 }
+
+.field-hint-inline {
+  font-size: 12px;
+  color: var(--text-muted);
+}

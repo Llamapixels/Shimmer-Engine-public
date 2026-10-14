@@ -135,8 +135,24 @@ More scene settings (GB Studio's scene inspector):
                                        player_init_events()
     "type": "platform"             <- scene type (GB Studio's): topdown
                                        (default), platform, adventure, shmup,
-                                       pointnclick or logo - how the player
-                                       moves; see compiler/modes.py
+                                       pointnclick, logo or raycast (First
+                                       Person 3D) - how the player moves;
+                                       see compiler/modes.py
+    "raycast": {"floor": "#5a4a3a", "ceiling": "#2a3040",
+                "flats": ["#c06030"], "ceiling_height": 8,
+                "textures": ["bricks", "stone"]}
+                                   <- First Person 3D look: floor / ceiling
+                                       colours, up to 5 more ("flats"), the
+                                       default ceiling height and the wall
+                                       textures it uses (assets/textures)
+    "floor_heights": [[0, 0, 2, ...], ...], "ceiling_heights": [[8, ...]]
+                                   <- First Person 3D: per tile, 1/8 tile
+                                       units (ceiling <= floor: a wall)
+    "wall_textures": ["0011..."]   <- per tile: which of "textures" ("0" the
+                                       first)
+    "floor_flats": ["..12.."], "ceiling_flats": [...]
+                                   <- per tile: "1"-"5" one of "flats", "."
+                                       the scene's floor / ceiling colour
     "engine": {"pl_grav": 0.3}     <- this scene's own engine settings, over
                                        project.json "engine" (the full list
                                        is compiler/engine_settings.json)
@@ -277,6 +293,7 @@ Event script types (used in "on_interact" and door "events" lists):
         carries on, until "text_hud_close", another text box or a scene change.
     { "type": "text_hud_close" }
     { "type": "raycast_set_heights", "x": 0, "y": 0, "width": 1, "height": 1,
+      "change": "both" | "floor" | "ceiling",
       "floor": 0 | null, "ceiling": 8 | null, "speed": 0.5 }
         First Person 3D: move an area's floor and/or ceiling (1/8 tile
         units; null = leave it) at speed units a frame (0 = at once).
@@ -1228,7 +1245,8 @@ def default_wall_texture():
 
 
 def load_wall_textures(project_dir):
-    """(names, 32x32 RGB images) from assets/textures, sorted by name."""
+    """(names, 32x32 RGB images) from assets/textures, sorted by name, then
+    the built-in "bricks" (unless a file has that name)."""
     folder = project_dir / PROJECT_TEXTURES_DIR
     files = sorted(folder.glob("*.png")) if folder.is_dir() else []
     if len(files) > len(RC_TEX_CHARS):
@@ -1242,8 +1260,9 @@ def load_wall_textures(project_dir):
         flat.paste(im, mask=im.split()[3])
         names.append(f.stem)
         images.append(flat)
-    if not images:
-        names, images = ["bricks"], [default_wall_texture()]
+    if "bricks" not in names:
+        names.append("bricks")
+        images.append(default_wall_texture())
     return names, images
 
 
@@ -1305,11 +1324,22 @@ def _int_rows(scene, key, w, h, default, name):
     return out
 
 
-def raycast_cells(scene, grid, w, h, tex_count, flat_count, name):
+def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name):
     """Per-cell arrays for a First Person 3D scene: texture, floor height,
     ceiling height (1/8 tile units), floor and ceiling colour. Solid
-    collision tiles are walls (ceiling = floor)."""
+    collision tiles are walls (ceiling = floor). "wall_textures" picks
+    from the scene's raycast "textures" list (names in assets/textures):
+    "0" the first, "1" the next... (with no list, all textures by name)."""
     look = scene.get("raycast") or {}
+    used = look.get("textures")
+    if used is None:   # every file in assets/textures (or the built-in bricks)
+        used = list(file_textures) or ["bricks"]
+    if not isinstance(used, list) or not all(isinstance(t, str) for t in used) or len(used) > len(RC_TEX_CHARS):
+        raise BuildError(f"{name}: raycast \"textures\" must be a list of up to {len(RC_TEX_CHARS)} texture names.")
+    for t in used:
+        if t not in tex_names:
+            raise BuildError(f"{name}: wall texture \"{t}\" isn't in assets/textures.")
+    tex_index = [tex_names.index(t) for t in used] or [0]
     ceil_default = look.get("ceiling_height", 8)
     if not isinstance(ceil_default, int) or isinstance(ceil_default, bool) or not 1 <= ceil_default <= 255:
         raise BuildError(f"{name}: raycast \"ceiling_height\" must be 1-255.")
@@ -1332,9 +1362,10 @@ def raycast_cells(scene, grid, w, h, tex_count, flat_count, name):
         for x in range(w):
             ch = tex_rows[y][x].lower()
             t = RC_TEX_CHARS.index(ch) if ch in RC_TEX_CHARS else 0
-            if t >= tex_count:
-                raise BuildError(f"{name}: wall at ({x},{y}) uses texture {ch!r}, but there are only "
-                                 f"{tex_count} in assets/textures.")
+            if t >= len(tex_index):
+                raise BuildError(f"{name}: wall at ({x},{y}) uses texture {ch!r}, but the scene lists only "
+                                 f"{len(tex_index)}.")
+            t = tex_index[t]
             f, c = floors[y][x], ceils[y][x]
             if grid[y * w + x] == COLLISION_CHARS["#"]:
                 c = f   # a solid tile is a wall
@@ -2929,10 +2960,20 @@ def compile_parity_event(etype, ev, out, ctx, where):
         rw = resolve_small_int(ev.get("width", 1), "width", where, 1, 128)
         rh = resolve_small_int(ev.get("height", 1), "height", where, 1, 128)
 
-        def height(key):
+        # With "change" (the editor), a missing height is the field's
+        # default (floor 0, ceiling 8); without it, missing = leave it.
+        explicit = "change" in ev
+
+        def height(key, default):
             v = ev.get(key)
-            return -1 if v is None or v == "" else resolve_small_int(v, key, where, 0, 255)
-        floor, ceil = height("floor"), height("ceiling")
+            if v is None or v == "":
+                return default if explicit else -1
+            return resolve_small_int(v, key, where, 0, 255)
+        change = ev.get("change", "both")
+        if change not in ("both", "floor", "ceiling"):
+            raise BuildError(f"{where}: \"change\" must be both, floor or ceiling.")
+        floor = height("floor", 0) if change != "ceiling" else -1
+        ceil = height("ceiling", 8) if change != "floor" else -1
         speed = ev.get("speed", 0.5)
         if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 <= speed <= 16:
             raise BuildError(f"{where}: \"speed\" must be 0 (at once) to 16 units a frame.")
@@ -4244,10 +4285,12 @@ def build(project_dir, out_dir):
             if "raycast_textures" not in ctx:
                 tex_names, tex_images = load_wall_textures(project_dir)
                 tex_colors, tex_data = build_wall_textures(tex_images)
-                ctx["raycast_textures"] = (tex_names, tex_colors)
+                folder = project_dir / PROJECT_TEXTURES_DIR
+                files = [n for n in tex_names if (folder / f"{n}.png").is_file()]
+                ctx["raycast_textures"] = (tex_names, tex_colors, files)
                 c_parts.append(c_array("uint8_t", "raycast_textures", tex_data, "{}", 32))
                 print(f"  wall textures: {', '.join(tex_names)} ({len(tex_colors)} colours)")
-            tex_names, tex_colors = ctx["raycast_textures"]
+            tex_names, tex_colors, tex_files = ctx["raycast_textures"]
             look = scene.get("raycast") or {}
             if not isinstance(look, dict):
                 raise BuildError(f"{name}: \"raycast\" must be an object.")
@@ -4265,7 +4308,7 @@ def build(project_dir, out_dir):
             pal[RC_CEIL] = gba_color(hex_rgb(look.get("ceiling"), "#22242c", f"{name}: raycast ceiling"))
             for i, col in enumerate(flats):
                 pal[RC_CEIL + 1 + i] = gba_color(hex_rgb(col, "#000000", f"{name}: raycast flats"))
-            tex, fl, ce, fc, cc = raycast_cells(scene, grid, w, h, len(tex_names), len(flats), name)
+            tex, fl, ce, fc, cc = raycast_cells(scene, grid, w, h, tex_names, tex_files, len(flats), name)
             for suffix, arr in (("tex", tex), ("floor", fl), ("ceil", ce), ("fcol", fc), ("ccol", cc)):
                 c_parts.append(c_array("uint8_t", f"{ident}_rc_{suffix}", arr, "{}", w))
             c_parts.append(f"static const uint16_t {ident}_rc_palette[240] = {{ " + ", ".join(map(str, pal)) + " };")

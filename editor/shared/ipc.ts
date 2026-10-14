@@ -74,7 +74,7 @@ export interface ReadAssetResult {
   dataUrl: string;
 }
 
-export type AssetKind = "backgrounds" | "sprites" | "music" | "fonts" | "frames" | "sounds";
+export type AssetKind = "backgrounds" | "sprites" | "music" | "fonts" | "frames" | "sounds" | "textures";
 
 export interface AssetInfo {
   /** File stem - what scene JSON refers to for sprites ("npc1") and
@@ -104,6 +104,8 @@ export interface AssetListing {
   cutscenes: AssetInfo[];
   /** WAV sound effects (assets/sounds/*.wav, compiler/wav.py). */
   sounds: AssetInfo[];
+  /** First Person 3D wall textures (assets/textures/*.png, 32x32). */
+  textures: AssetInfo[];
   /** Absolute path of the folder containing engine/, or null if this
    * project isn't inside a Shimmer Engine checkout (music and the
    * player sprite can't be listed then). */

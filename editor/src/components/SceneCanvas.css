@@ -430,3 +430,87 @@
   opacity: 0.4;
   cursor: default;
 }
+
+/* 3D tool: what it paints with (RaycastTools.tsx). */
+.rc-panel {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 5;
+  max-width: min(620px, calc(100% - 16px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+  font-size: 12.5px;
+}
+
+.rc-panel-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rc-panel-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: normal;
+}
+
+.rc-panel-error {
+  color: var(--danger, #ff6b6b);
+  font-size: 12px;
+}
+
+.rc-height-input {
+  width: 56px;
+}
+
+.rc-texture-row {
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.rc-texture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+  max-width: 64px;
+}
+
+.rc-texture span {
+  max-width: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rc-texture img,
+.rc-texture-missing {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  display: block;
+}
+
+.rc-texture:hover {
+  background: var(--bg-4);
+}
+
+.rc-texture-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+  color: var(--text-primary);
+}

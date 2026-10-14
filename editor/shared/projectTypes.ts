@@ -280,7 +280,22 @@ export interface BgLayerJSON {
 }
 
 /** GB Studio's scene types (compiler/engine_settings.json "modes"). */
-export type SceneType = "topdown" | "platform" | "adventure" | "shmup" | "pointnclick" | "logo";
+export type SceneType = "topdown" | "platform" | "adventure" | "shmup" | "pointnclick" | "logo" | "raycast";
+
+/** A First Person 3D scene's look (compiler raycast_cells()). */
+export interface RaycastLookJSON {
+  /** Floor and ceiling colours, "#rrggbb". */
+  floor?: string;
+  ceiling?: string;
+  /** Up to 5 more colours tiles can use ("1"-"5" in floor_flats /
+   * ceiling_flats). */
+  flats?: string[];
+  /** Ceiling height of tiles with none set, 1/8 tile units (default 8). */
+  ceiling_height?: number;
+  /** Wall textures this scene uses (assets/textures names); wall_textures
+   * "0" is the first. Default: every texture in the folder. */
+  textures?: string[];
+}
 
 export interface TimerJSON {
   name?: string;
@@ -347,6 +362,17 @@ export interface SceneJSON {
    * all-null one) compiles exactly as it did before this field existed.
    * Additive/optional field. */
   palette_map?: (string | null)[][];
+  /** First Person 3D (type "raycast"): the look, and per tile (same grid
+   * as `collision`): floor and ceiling heights in 1/8 tile units (null =
+   * the default; a ceiling at or under the floor is a wall), the wall
+   * texture ("0".."9", "a".."z" into raycast.textures) and floor / ceiling
+   * colour ("1"-"5" into raycast.flats, "." the scene's own). */
+  raycast?: RaycastLookJSON;
+  floor_heights?: (number | null)[][];
+  ceiling_heights?: (number | null)[][];
+  wall_textures?: string[];
+  floor_flats?: string[];
+  ceiling_flats?: string[];
 }
 
 /** A reusable NPC/door starting point (GB Studio's "prefab"): dropping one

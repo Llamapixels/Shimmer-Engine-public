@@ -54,7 +54,8 @@ export type Tool =
   | "front"
   | "eraser"
   | "spawn"
-  | "placePrefab";
+  | "placePrefab"
+  | "rc";
 
 /** Collision brush: the same characters scene JSON uses. */
 export type Brush = "#" | "~" | "!" | "." | "^" | "v" | "<" | ">" | "H";
@@ -63,7 +64,22 @@ export type Brush = "#" | "~" | "!" | "." | "^" | "v" | "<" | ">" | "H";
 export type BrushShape = "8px" | "16px" | "fill" | "magic" | "selection";
 
 /** Which layer the paint tools / eraser work on. */
-export type PaintLayer = "collision" | "palette" | "tiles" | "front";
+export type PaintLayer = "collision" | "palette" | "tiles" | "front" | RcLayer;
+
+/** First Person 3D layers: floor / ceiling height, wall texture, floor /
+ * ceiling colour (scene floor_heights, ceiling_heights, wall_textures,
+ * floor_flats, ceiling_flats). */
+export type RcLayer = "floor_h" | "ceil_h" | "walltex" | "floor_flat" | "ceil_flat";
+
+/** What the 3D tool paints on each of its layers: heights in 1/8 tiles,
+ * a texture name, a colour number (1-5; 0 = the scene's own). */
+export interface RcBrush {
+  floor_h: number;
+  ceil_h: number;
+  walltex: string;
+  floor_flat: number;
+  ceil_flat: number;
+}
 
 /** Tiles tool stamp: a rectangle of the background's own tiles. */
 export interface TileStamp {
@@ -183,6 +199,9 @@ interface ProjectState {
   paletteBrush: string | null;
   /** id of the prefab armed for placement with the "placePrefab" tool. */
   placingPrefabId: string | null;
+  /** The 3D tool's layer and values. */
+  rcLayer: RcLayer;
+  rcBrush: RcBrush;
   tilePick: TilePick | null;
   /** Game World shows the world map (every scene) instead of one scene. */
   worldMap: boolean;
@@ -222,6 +241,8 @@ interface ProjectState {
   setTileStamp: (stamp: TileStamp | null) => void;
   setPaletteBrush: (id: string | null) => void;
   setPlacingPrefab: (id: string | null) => void;
+  setRcLayer: (layer: RcLayer) => void;
+  setRcBrush: (brush: Partial<RcBrush>) => void;
   setTilePick: (pick: TilePick | null) => void;
   /** Also closes the Dialogue list. */
   setWorldMap: (on: boolean) => void;
@@ -469,6 +490,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     tileStamp: null,
     paletteBrush: null,
     placingPrefabId: null,
+    rcLayer: "floor_h",
+    rcBrush: { floor_h: 2, ceil_h: 12, walltex: "", floor_flat: 1, ceil_flat: 1 },
     tilePick: null,
     worldMap: false,
     dialogueView: false,
@@ -553,6 +576,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setEraseLayer: (eraseLayer) => set({ eraseLayer }),
     setTileStamp: (tileStamp) => set({ tileStamp, tool: "tiles", tilePick: null }),
     setPaletteBrush: (paletteBrush) => set({ paletteBrush, tool: "palette", tilePick: null }),
+    setRcLayer: (rcLayer) => set({ rcLayer, tool: "rc", tilePick: null }),
+    setRcBrush: (b) => set({ rcBrush: { ...get().rcBrush, ...b } }),
     setPlacingPrefab: (placingPrefabId) => set({ placingPrefabId, tool: placingPrefabId ? "placePrefab" : "select", tilePick: null }),
     setTilePick: (tilePick) =>
       set({
