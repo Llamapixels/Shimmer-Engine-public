@@ -58,7 +58,7 @@ export type Tool =
   | "rc";
 
 /** Collision brush: the same characters scene JSON uses. */
-export type Brush = "#" | "~" | "!" | "." | "^" | "v" | "<" | ">" | "H";
+export type Brush = "#" | "~" | "!" | "." | "^" | "v" | "<" | ">" | "H" | "/" | "\\";
 
 /** How painting tools apply (GB Studio's brush toolbar). */
 export type BrushShape = "8px" | "16px" | "fill" | "magic" | "selection";

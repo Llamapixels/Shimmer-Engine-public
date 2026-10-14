@@ -616,9 +616,11 @@ COLLISION_CHARS = {
     "<": 6,   # one-way: left edge solid
     ">": 7,   # one-way: right edge solid
     "H": 8,   # ladder (walkable; Platformer scenes climb it)
+    "/": 9,   # stairs rising to the right (walkable; Platformer scenes walk up them)
+    "\\": 10,  # stairs rising to the left
 }
 COLLISION_NAMES = {0: "walkable", 1: "solid", 2: "water", 3: "damage",
-                   4: "top", 5: "bottom", 6: "left", 7: "right", 8: "ladder"}
+                   4: "top", 5: "bottom", 6: "left", 7: "right", 8: "ladder", 9: "stairs /", 10: "stairs \\"}
 
 # Direction name -> engine constant
 DIRECTION_MAP = {

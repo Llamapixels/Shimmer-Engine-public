@@ -21,6 +21,8 @@
 #define COLLISION_LEFT     6
 #define COLLISION_RIGHT    7
 #define COLLISION_LADDER   8   /* walkable; platformer scenes climb it */
+#define COLLISION_STAIRS_R 9   /* walkable; platformer stairs rising to the right ("/") */
+#define COLLISION_STAIRS_L 10  /* ... rising to the left ("\\") */
 
 /* Platformer drop-through: while on, one-way "top" tiles don't block. */
 void collision_set_ignore_top(int ignore);

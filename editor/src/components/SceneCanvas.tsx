@@ -71,7 +71,14 @@ const BRUSH_SHAPES: { id: BrushShape; label: string; title: string; key?: string
   { id: "selection", label: "Select", title: "Select an area: Ctrl+C / Ctrl+V / Delete" },
 ];
 
-const COLLISION_TYPES: { id: Brush; label: string; color: string; edge?: "top" | "bottom" | "left" | "right" }[] = [
+const COLLISION_TYPES: {
+  id: Brush;
+  label: string;
+  color: string;
+  edge?: "top" | "bottom" | "left" | "right";
+  /** Stairs: the way they rise. */
+  stairs?: "right" | "left";
+}[] = [
   { id: "#", label: "Solid", color: "rgba(255, 64, 64, 0.5)" },
   { id: "^", label: "Top", color: "rgba(255, 210, 0, 0.45)", edge: "top" },
   { id: "v", label: "Bottom", color: "rgba(255, 210, 0, 0.45)", edge: "bottom" },
@@ -80,6 +87,8 @@ const COLLISION_TYPES: { id: Brush; label: string; color: string; edge?: "top" |
   { id: "~", label: "Water", color: "rgba(64, 128, 255, 0.5)" },
   { id: "!", label: "Damage", color: "rgba(255, 160, 0, 0.5)" },
   { id: "H", label: "Ladder", color: "rgba(64, 220, 120, 0.5)" },
+  { id: "/", label: "Stairs /", color: "rgba(240, 200, 80, 0.3)", stairs: "right" },
+  { id: "\\", label: "Stairs \\", color: "rgba(240, 200, 80, 0.3)", stairs: "left" },
 ];
 const COLLISION_BY_CHAR = new Map(COLLISION_TYPES.map((c) => [c.id as string, c]));
 
@@ -428,6 +437,20 @@ export default function SceneCanvas() {
           if (!c) continue;
           ctx.fillStyle = c.color;
           ctx.fillRect(tx * S, ty * S, S, S);
+          if (c.stairs) {
+            // The stair line: one pixel up for each across.
+            ctx.strokeStyle = "rgba(255, 220, 90, 0.95)";
+            ctx.lineWidth = Math.max(2, S / 6);
+            ctx.beginPath();
+            if (c.stairs === "right") {
+              ctx.moveTo(tx * S, ty * S + S);
+              ctx.lineTo(tx * S + S, ty * S);
+            } else {
+              ctx.moveTo(tx * S, ty * S);
+              ctx.lineTo(tx * S + S, ty * S + S);
+            }
+            ctx.stroke();
+          }
           if (c.edge) {
             ctx.fillStyle = "rgba(255, 240, 150, 0.95)";
             const x = tx * S;
@@ -1631,7 +1654,13 @@ export default function SceneCanvas() {
                   key={c.id}
                   className={`brush-btn${brush === c.id ? " brush-btn-active" : ""}`}
                   onClick={() => setBrush(c.id)}
-                  title={c.edge ? `One-way: the ${c.edge} edge is solid` : c.label}
+                  title={
+                    c.edge
+                      ? `One-way: the ${c.edge} edge is solid`
+                      : c.stairs
+                        ? `Stairs rising to the ${c.stairs} (platformer: Up at the bottom or Down at the top to walk them)`
+                        : c.label
+                  }
                   data-testid={`collision-${c.label.toLowerCase()}`}
                 >
                   <span className={`scene-canvas-swatch${c.edge ? ` swatch-edge-${c.edge}` : ""}`} style={{ background: c.color }} />

@@ -546,7 +546,7 @@ def _bytes_c(values, per_line=16):
 # Animation state names the scene types use when a sprite has them, in
 # engine/include/modes.h's MODE_ANIM_* order.
 MODE_ANIM_NAMES = ["jump", "fall", "climb", "run", "dash", "wall_slide", "float",
-                   "knockback", "crouch", "hover", "push", "double_jump", "wall_kick"]
+                   "knockback", "crouch", "hover", "push", "double_jump", "wall_kick", "stairs"]
 
 
 def emit_sprite(cs, ident, source_name):

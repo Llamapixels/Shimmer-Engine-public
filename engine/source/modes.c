@@ -32,6 +32,7 @@ static int air_jumped, kick_show;
 /* "Crouch height": the standing collision box while crouched low. */
 static int crouch_low, crouch_oy, crouch_h, crouch_stuck;
 static int sliding;   /* a Slide (a low dash) is on: the crouch box */
+static int on_stairs, stair_sub;   /* Castlevania stairs: see stairs_update() */
 
 /* Room to stand up from the low box here? */
 static int stand_room(Entity *p)
@@ -108,7 +109,7 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
     cur_scene = scene;
     mode = scene->mode;
     scene_sprite = player->def;
-    air_jumped = kick_show = crouch_low = crouch_stuck = sliding = 0;
+    air_jumped = kick_show = crouch_low = crouch_stuck = sliding = on_stairs = 0;
     for (int i = 0; i < MS_COUNT; i++)
         mode_settings[i] = scene->settings ? scene->settings[i] : 0;
 
@@ -668,6 +669,107 @@ static int ladder_at(int x, int y)
     return tile_at_px(x, y) == COLLISION_LADDER;
 }
 
+/* Castlevania stairs: "/" tiles rise to the right, "\" to the left, one
+ * pixel up for each across. on_stairs: 0, or the way they rise (+1 / -1). */
+static int stair_at(int x, int y)
+{
+    int t = tile_at_px(x, y);
+    return t == COLLISION_STAIRS_R ? 1 : t == COLLISION_STAIRS_L ? -1 : 0;
+}
+
+/* Is a bottom-centre (cx, feet) on a staircase rising `dir`? */
+static int on_stair_line(int cx, int feet, int dir)
+{
+    return stair_at(cx, feet - 1) == dir || stair_at(cx, feet) == dir;
+}
+
+/* Puts the player's bottom-centre at (cx, feet). */
+static void stair_place(Entity *p, int cx, int feet)
+{
+    p->x = cx - p->col_ox - p->col_w / 2;
+    p->y = feet - p->col_oy - p->col_h;
+    pos_x = p->x << 8;
+    pos_y = p->y << 8;
+}
+
+/* Up at the foot of a staircase, or Down at its top: onto it. Returns the
+ * way it rises, 0 = none here. */
+static int stairs_mount(Entity *p, int cx, int feet)
+{
+    for (int k = 0; k <= 12; k++)
+    {
+        int x = cx + ((k & 1) ? -(k + 1) / 2 : k / 2);   /* nearest first */
+        if (input_held(INPUT_UP))
+        {
+            /* The bottom stair, standing on this floor: its lower end. */
+            int d = stair_at(x, feet - 1);
+            if (d && ((feet - 1) & 7) == 7)
+            {
+                int tx = x >> 3;
+                stair_place(p, d > 0 ? tx * 8 : tx * 8 + 7, feet);
+                return d;
+            }
+        }
+        if (input_held(INPUT_DOWN))
+        {
+            /* The top stair, just under this floor: its upper end. */
+            int d = stair_at(x, feet);
+            if (d && (feet & 7) == 0 && !stair_at(x, feet - 1))
+            {
+                int tx = x >> 3;
+                stair_place(p, d > 0 ? tx * 8 + 8 : tx * 8 - 1, feet);
+                return d;
+            }
+        }
+    }
+    return 0;
+}
+
+/* A frame on the stairs: Up / Down (or along them with Left / Right),
+ * off at either end. */
+static void stairs_update(Entity *p, int cx, int feet, int jump_btn)
+{
+    int d = on_stairs;
+    int up = input_held(INPUT_UP) || input_held(d > 0 ? INPUT_RIGHT : INPUT_LEFT);
+    int down = input_held(INPUT_DOWN) || input_held(d > 0 ? INPUT_LEFT : INPUT_RIGHT);
+    int way = up && !down ? 1 : down && !up ? -1 : 0;
+    vel_x = vel_y = 0;
+    if (MSET(PL_STAIR_JUMP) && MSET(PL_JUMP) && input_pressed(jump_btn))
+    {
+        on_stairs = 0;
+        vel_y = -MSET(PL_JUMP_VEL);
+        return;
+    }
+    if (way)
+    {
+        stair_sub += MSET(PL_STAIR_VEL);
+        facing_left = (way > 0) != (d > 0);
+    }
+    else
+        stair_sub = 0;
+    while (stair_sub >= 256)
+    {
+        stair_sub -= 256;
+        int nx = cx + (way > 0 ? d : -d), nf = feet - way;
+        if (!on_stair_line(nx, nf, d))
+        {
+            /* Off the top onto the floor there, or at the bottom. */
+            if (way > 0)
+            {
+                cx = nx;
+                feet = nf;
+            }
+            on_stairs = 0;
+            break;
+        }
+        cx = nx;
+        feet = nf;
+    }
+    stair_place(p, cx, feet);
+    use_named_state(p, MODE_ANIM_STAIRS);
+    entity_animate(p, facing_left ? DIR_LEFT : DIR_RIGHT, way != 0);
+}
+
 static const ScriptEvent *platform_update(Entity *p)
 {
     int cx = p->x + p->col_ox + p->col_w / 2;
@@ -688,6 +790,12 @@ static const ScriptEvent *platform_update(Entity *p)
         pos_y = p->y << 8;
         feet = p->y + p->col_oy + p->col_h;
         cx = p->x + p->col_ox + p->col_w / 2;
+    }
+
+    if (on_stairs)
+    {
+        stairs_update(p, cx, feet, jump_btn);
+        return 0;
     }
 
     collision_set_ignore_top(drop_timer > 0);
@@ -898,6 +1006,19 @@ static const ScriptEvent *platform_update(Entity *p)
         }
         if (vel_y > max_fall)
             vel_y = max_fall;
+
+        /* Onto stairs: Up at the foot of a staircase, Down at its top. */
+        if (MSET(PL_STAIRS) && grounded && !climbing && (input_held(INPUT_UP) || input_held(INPUT_DOWN)))
+        {
+            int d = stairs_mount(p, cx, feet);
+            if (d)
+            {
+                on_stairs = d;
+                stair_sub = 0;
+                vel_x = vel_y = 0;
+                return 0;
+            }
+        }
 
         /* Grab a ladder: Up on one, or Down from the top of one. */
         if (MSET(PL_LADDERS) &&
