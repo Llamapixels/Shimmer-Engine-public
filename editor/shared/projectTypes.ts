@@ -175,6 +175,10 @@ export interface UiSettingsJSON {
   frame?: string;
   /** Frames per character, 0 (instant) to 30; default 1. */
   textSpeed?: number;
+  /** How dialogue boxes open and close (compiler/ui.py BOX_TRANSITIONS). */
+  boxTransition?: "none" | "fade" | "swipe_left" | "swipe_right" | "swipe_up" | "swipe_down" | "tv" | "book";
+  /** ...in this many frames (1-60, default 12). */
+  boxTransitionFrames?: number;
 }
 
 export interface DoorJSON {

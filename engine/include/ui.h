@@ -37,6 +37,23 @@ extern const uint8_t ui_frame_count;
 extern const uint8_t ui_default_font;
 extern const uint8_t ui_default_frame;
 extern const uint8_t ui_default_text_speed;
+/* How dialogue boxes open and close (UI_ANIM_*) and in how many frames. */
+extern const uint8_t ui_box_transition;
+extern const uint8_t ui_box_transition_frames;
+
+enum
+{
+    UI_ANIM_NONE, UI_ANIM_FADE, UI_ANIM_SWIPE_LEFT, UI_ANIM_SWIPE_RIGHT, UI_ANIM_SWIPE_UP,
+    UI_ANIM_SWIPE_DOWN, UI_ANIM_TV, UI_ANIM_BOOK
+};
+
+/* The box's open / close animation (ui_box_transition). ui_box_anim_open()
+ * after ui_box_open*(); ui_box_anim_close() instead of ui_box_close()
+ * (the box closes when it's done); ui_box_anim_tick() every frame. */
+void ui_box_anim_open(void);
+void ui_box_anim_close(void);
+int ui_box_animating(void);
+void ui_box_anim_tick(void);
 
 /* Control bytes inside compiled text (compiler/build_project.py's
  * interpolate_vars()). Each but UI_CODE_OPTION is followed by one

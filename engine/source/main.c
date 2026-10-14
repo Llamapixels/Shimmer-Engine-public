@@ -1365,6 +1365,7 @@ int main(void)
         raycast_vblank();
         background_vblank();
         ui_labels_tick();
+        ui_box_anim_tick();
         wav_vblank();
 
         music_update();

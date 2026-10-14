@@ -44,6 +44,7 @@ typedef struct
 typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU, MODE_HUD } Mode;
 
 static Mode mode = MODE_NONE;
+static int focus_pending;     /* the focus effect waits for the box to open */
 static int last_choice = 0;
 static int text_lines = TEXT_LINES;   /* lines in the current text box */
 
@@ -329,7 +330,8 @@ static void open_options(const char *packed, int count, int prompt)
     cursor = 0;
     text_lines = TEXT_LINES;
     ui_box_open(count + (prompt ? 1 : 0));
-    focus_start();
+    ui_box_anim_open();
+    focus_pending = 1;
     draw_options();
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
@@ -427,7 +429,8 @@ void dialogue_show_ex(const char *text, int options, int place)
         render_page();
         return;
     }
-    focus_start();
+    ui_box_anim_open();
+    focus_pending = 1;
     start_page(text, st);
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
@@ -469,8 +472,9 @@ int dialogue_last_choice(void)
 static void close_box(void)
 {
     mode = MODE_NONE;
-    ui_box_close();
+    focus_pending = 0;
     focus_end();
+    ui_box_anim_close();   /* the box closes when its animation ends */
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 
@@ -478,6 +482,15 @@ void dialogue_update(void)
 {
     if (mode == MODE_NONE || mode == MODE_HUD)
         return;
+
+    /* Still opening: nothing happens in it yet. Then the focus effect. */
+    if (ui_box_animating())
+        return;
+    if (focus_pending)
+    {
+        focus_pending = 0;
+        focus_start();
+    }
 
     if (mode == MODE_CHOICE || mode == MODE_MENU)
     {

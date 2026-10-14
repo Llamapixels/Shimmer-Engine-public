@@ -311,6 +311,133 @@ void ui_box_open_at(int lines, int col, int row, int width, int framed)
     REG_DISPCNT |= BG1_ENABLE;
 }
 
+/* ------------------------------------------------------------------ */
+/* Box open / close animations: window 1 (BG1 only inside it) or alpha
+ * blending, over ui_box_transition_frames frames. */
+
+#define WININ_W1_ALL  (0x3F << 8)          /* inside window 1: every layer, effects */
+#define WINOUT_NO_BG1 (0x3F & ~(1 << 1))   /* outside: all but BG1, effects */
+
+static int anim_t = -1;       /* frames done, -1 = none */
+static int anim_closing;
+
+static void anim_stop(void)
+{
+    anim_t = -1;
+    REG_DISPCNT &= ~WIN1_ENABLE;
+    REG_BG1HOFS = 0;
+    if (ui_box_transition == UI_ANIM_FADE)
+    {
+        REG_BLDCNT = 0;
+        REG_BLDALPHA = 0;
+    }
+}
+
+/* Show the animation at progress p (0 = closed .. 256 = open). */
+static void anim_show(int p)
+{
+    int l = box_left * 8, t = box_top * 8, w = box_cols * 8, h = box_rows * 8;
+    int x1 = l, x2 = l + w, y1 = t, y2 = t + h;
+    switch (ui_box_transition)
+    {
+    case UI_ANIM_FADE:
+    {
+        int a = (p * 16) >> 8;
+        REG_BLDCNT = (1 << 1) | (1 << 6) | (0x3D << 8);   /* BG1 over everything else */
+        REG_BLDALPHA = (uint16_t)(a | ((16 - a) << 8));
+        return;
+    }
+    case UI_ANIM_SWIPE_LEFT:   x2 = l + ((w * p) >> 8); break;              /* grows from the left */
+    case UI_ANIM_SWIPE_RIGHT:  x1 = l + w - ((w * p) >> 8); break;
+    case UI_ANIM_SWIPE_UP:     y1 = t + h - ((h * p) >> 8); break;          /* grows up from the bottom */
+    case UI_ANIM_SWIPE_DOWN:   y2 = t + ((h * p) >> 8); break;
+    case UI_ANIM_TV:
+        /* A line widening from the middle, then opening up and down. */
+        if (p < 128)
+        {
+            int half = (w * p) >> 8;   /* p / 128 of half the width */
+            x1 = l + w / 2 - half;
+            x2 = l + w / 2 + half;
+            y1 = t + h / 2 - 1;
+            y2 = t + h / 2 + 1;
+        }
+        else
+        {
+            int half = ((h / 2 - 1) * (p - 128)) >> 7;
+            y1 = t + h / 2 - 1 - half;
+            y2 = t + h / 2 + 1 + half;
+        }
+        break;
+    case UI_ANIM_BOOK:
+        /* The page swings out from its left edge. */
+        x2 = l + ((w * p) >> 8);
+        REG_BG1HOFS = (uint16_t)((w * (256 - p)) >> 8);
+        break;
+    default:
+        return;
+    }
+    if (x2 > 240) x2 = 240;
+    if (y2 > 160) y2 = 160;
+    if (x2 <= x1) x1 = x2 = 0;
+    if (y2 <= y1) y1 = y2 = 0;
+    REG_WIN1H = (uint16_t)((x1 << 8) | x2);
+    REG_WIN1V = (uint16_t)((y1 << 8) | y2);
+    REG_WININ = (uint16_t)((REG_WININ & 0x00FF) | WININ_W1_ALL);
+    REG_WINOUT = (uint16_t)((REG_WINOUT & 0xFF00) | WINOUT_NO_BG1);
+    REG_DISPCNT |= WIN1_ENABLE;
+}
+
+void ui_box_anim_open(void)
+{
+    if (anim_t >= 0 && anim_closing)
+    {
+        /* A box closing and the next one opening at once (text after
+         * text): it simply stays open. */
+        anim_stop();
+        return;
+    }
+    if (ui_box_transition == UI_ANIM_NONE || ui_box_transition_frames == 0)
+        return;
+    anim_closing = 0;
+    anim_t = 0;
+    anim_show(0);
+}
+
+void ui_box_anim_close(void)
+{
+    if (ui_box_transition == UI_ANIM_NONE || ui_box_transition_frames == 0 || box_top < 0)
+    {
+        anim_stop();
+        ui_box_close();
+        return;
+    }
+    anim_closing = 1;
+    anim_t = 0;
+    anim_show(256);
+}
+
+int ui_box_animating(void)
+{
+    return anim_t >= 0 && !anim_closing;
+}
+
+void ui_box_anim_tick(void)
+{
+    if (anim_t < 0)
+        return;
+    int n = ui_box_transition_frames;
+    if (++anim_t >= n)
+    {
+        int closing = anim_closing;
+        anim_stop();
+        if (closing)
+            ui_box_close();
+        return;
+    }
+    int p = (anim_t * 256) / n;
+    anim_show(anim_closing ? 256 - p : p);
+}
+
 void ui_box_close(void)
 {
     clear_box_rows();

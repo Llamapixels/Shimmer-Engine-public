@@ -47,6 +47,10 @@ class UiError(Exception):
     pass
 
 
+# Dialogue box open / close animations, in engine/include/ui.h's UI_ANIM_* order.
+BOX_TRANSITIONS = ["none", "fade", "swipe_left", "swipe_right", "swipe_up", "swipe_down", "tv", "book"]
+
+
 def gba_color(rgb):
     def c5(v):
         return (v * 31 + 127) // 255
@@ -254,6 +258,12 @@ def build_ui(project, project_dir, defaults_dir, referenced):
     speed = ui.get("textSpeed", 1)
     if not isinstance(speed, int) or isinstance(speed, bool) or not 0 <= speed <= 30:
         raise UiError("project.json ui.textSpeed must be a whole number from 0 to 30.")
+    transition = ui.get("boxTransition", "none")
+    if transition not in BOX_TRANSITIONS:
+        raise UiError(f"project.json ui.boxTransition must be one of: {', '.join(BOX_TRANSITIONS)}.")
+    transition_frames = ui.get("boxTransitionFrames", 12)
+    if not isinstance(transition_frames, int) or isinstance(transition_frames, bool) or not 1 <= transition_frames <= 60:
+        raise UiError("project.json ui.boxTransitionFrames must be a whole number from 1 to 60.")
 
     mapping = {}
     for f in fonts:
@@ -263,6 +273,7 @@ def build_ui(project, project_dir, defaults_dir, referenced):
         "cursor": cursor, "palette": palette.c_values(), "mapping": mapping,
         "default_font": font_names.index(want_font), "default_frame": frame_names.index(want_frame),
         "speed": speed,
+        "transition": BOX_TRANSITIONS.index(transition), "transition_frames": transition_frames,
     }
 
 
@@ -318,4 +329,6 @@ def ui_to_c(ui):
     c.append(f"const uint8_t ui_default_font = {ui['default_font']};")
     c.append(f"const uint8_t ui_default_frame = {ui['default_frame']};")
     c.append(f"const uint8_t ui_default_text_speed = {ui['speed']};")
+    c.append(f"const uint8_t ui_box_transition = {ui['transition']};")
+    c.append(f"const uint8_t ui_box_transition_frames = {ui['transition_frames']};")
     return "\n".join(c) + "\n"

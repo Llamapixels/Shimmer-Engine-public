@@ -110,6 +110,33 @@ export default function DialogueCard() {
         Text speed (frames per letter, 0 = instant)
         <NumberInput value={speed} min={0} max={30} onChange={(n) => setUi({ textSpeed: n })} />
       </label>
+      <label className="settings-field">
+        Boxes open and close with
+        <select
+          value={ui.boxTransition ?? "none"}
+          onChange={(e) => setUi({ boxTransition: e.target.value as NonNullable<UiSettingsJSON["boxTransition"]> })}
+        >
+          <option value="none">Nothing (they just appear)</option>
+          <option value="fade">A fade</option>
+          <option value="swipe_left">A swipe from the left</option>
+          <option value="swipe_right">A swipe from the right</option>
+          <option value="swipe_up">A swipe up from the bottom</option>
+          <option value="swipe_down">A swipe down from the top</option>
+          <option value="tv">An old TV turning on and off</option>
+          <option value="book">A book page turning</option>
+        </select>
+      </label>
+      {(ui.boxTransition ?? "none") !== "none" && (
+        <label className="settings-field">
+          Taking (frames, 60 = a second)
+          <NumberInput
+            value={ui.boxTransitionFrames ?? 12}
+            min={1}
+            max={60}
+            onChange={(n) => setUi({ boxTransitionFrames: n })}
+          />
+        </label>
+      )}
       <div className="name-row" style={{ marginBottom: 10 }}>
         <button className="btn btn-small" onClick={exportDefaults} title="Copy the built-in font, frame and cursor into this project to edit them">
           Copy built-in font and frame to project
