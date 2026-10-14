@@ -829,11 +829,54 @@ export default function SceneCanvas() {
     const onKey = (e: KeyboardEvent) => {
       if (useProjectStore.getState().section !== "world") return;
       if (isTypingTarget(e.target)) return;
+      if (e.key === " ") {
+        // Space held: drag to pan (and don't press a focused button).
+        e.preventDefault();
+        if (!e.repeat) setSpaceHeld(true);
+        return;
+      }
       handleKey.current?.(e);
     };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key === " ") setSpaceHeld(false);
+    };
+    const onBlur = () => setSpaceHeld(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
+
+  // ---- Panning: Space + drag, or the middle mouse button ----
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const [panning, setPanning] = useState(false);
+  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const startPan = (e: ReactMouseEvent) => {
+    const scroll = scrollRef.current;
+    if (!scroll || !(e.button === 1 || (e.button === 0 && spaceHeld))) return;
+    e.preventDefault();
+    e.stopPropagation();
+    panRef.current = { x: e.clientX, y: e.clientY, left: scroll.scrollLeft, top: scroll.scrollTop };
+    setPanning(true);
+    const move = (ev: MouseEvent) => {
+      const p = panRef.current;
+      if (!p) return;
+      scroll.scrollLeft = p.left - (ev.clientX - p.x);
+      scroll.scrollTop = p.top - (ev.clientY - p.y);
+    };
+    const up = () => {
+      panRef.current = null;
+      setPanning(false);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
   const handleKey = useRef<((e: KeyboardEvent) => void) | null>(null);
 
   const sceneId = activeScene?.fileId ?? "";
@@ -1360,7 +1403,19 @@ export default function SceneCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collisionMismatch, bgImage, sceneId]);
 
-  const cursor = tilePick ? "crosshair" : tool === "select" ? (drag ? "grabbing" : "default") : tool === "eraser" ? "cell" : "crosshair";
+  const cursor = panning
+    ? "grabbing"
+    : spaceHeld
+      ? "grab"
+      : tilePick
+        ? "crosshair"
+        : tool === "select"
+          ? drag
+            ? "grabbing"
+            : "default"
+          : tool === "eraser"
+            ? "cell"
+            : "crosshair";
 
   return (
     <div className="scene-canvas-wrap">
@@ -1592,6 +1647,8 @@ export default function SceneCanvas() {
         <div
           ref={scrollRef}
           className="scene-canvas-scroll"
+          onMouseDownCapture={startPan}
+          style={spaceHeld || panning ? { cursor: panning ? "grabbing" : "grab" } : undefined}
           onWheel={(e) => {
             if (!e.ctrlKey) return;
             e.preventDefault();
