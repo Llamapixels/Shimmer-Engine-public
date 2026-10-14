@@ -8,6 +8,7 @@
 #include "wav.h"
 #include "script.h"
 #include "projectile.h"
+#include "raycast.h"
 
 /*
  * The scene types. Each one's update function moves the player for a
@@ -110,6 +111,29 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
     player->sprite.visible = mode != SCENE_MODE_LOGO;
     if (mode == SCENE_MODE_SHMUP)
         player->direction = scene->player_start_direction;
+
+    if (mode == SCENE_MODE_RAYCAST && scene->raycast)
+    {
+        /* A small body (6x6) centred in the start cell, so one-cell
+         * corridors fit. */
+        if (player->width == 16)
+        {
+            player->x += 1;
+            player->y += 1;
+        }
+        player->width = player->height = 6;
+        entity_set_collision_box(player, 0, 0, 6, 6);
+        pos_x = player->x << 8;
+        pos_y = player->y << 8;
+        static const int16_t FACING[4] = { 256, 768, 0, 512 };   /* down, up, right, left */
+        raycast_enter(scene);
+        raycast_set_view(pos_x + (3 << 8), pos_y + (3 << 8), FACING[player->direction & 3]);
+    }
+    else
+    {
+        raycast_leave();
+        player->width = player->height = 16;
+    }
 }
 
 /* A "sound" engine setting: a WAV index + 1, 0 = none. */
@@ -1230,6 +1254,52 @@ static const ScriptEvent *shmup_update(Entity *p)
 }
 
 /* ------------------------------------------------------------------ */
+/* First Person 3D                                                     */
+
+static const ScriptEvent *raycast_update(Entity *p)
+{
+    static const int TURN[3] = { 6, 10, 16 };   /* 1024ths of a turn per frame */
+    int angle = raycast_angle();
+    int turn = TURN[MSET(RC_TURN) >= 0 && MSET(RC_TURN) < 3 ? MSET(RC_TURN) : 1];
+    angle = (angle + (input_held(INPUT_RIGHT) - input_held(INPUT_LEFT)) * turn) & 1023;
+
+    int fwd = input_held(INPUT_UP) - input_held(INPUT_DOWN);
+    int strafe = MSET(RC_STRAFE) ? input_held(INPUT_R) - input_held(INPUT_L) : 0;
+    int c = raycast_cos(angle), s = raycast_sin(angle);
+    int speed = MSET(RC_WALK);
+    int dx = ((fwd * c - strafe * s) * speed) >> 12;
+    int dy = ((fwd * s + strafe * c) * speed) >> 12;
+
+    pos_x += dx;
+    int tx = pos_x >> 8;
+    if (tx != p->x && move_axis(p, tx - p->x, 0))
+        pos_x = p->x << 8;
+    pos_y += dy;
+    int ty = pos_y >> 8;
+    if (ty != p->y && move_axis(p, 0, ty - p->y))
+        pos_y = p->y << 8;
+
+    /* The nearest of the four directions, for everything else that
+     * reads the player's facing (projectiles, Set Actor Direction...). */
+    int q = ((angle + 128) & 1023) >> 8;   /* 0 right, 1 down, 2 left, 3 up */
+    static const Direction DIRS[4] = { DIR_RIGHT, DIR_DOWN, DIR_LEFT, DIR_UP };
+    entity_animate(p, DIRS[q], fwd || strafe);
+
+    raycast_set_view(pos_x + (p->width << 7), pos_y + (p->height << 7), angle);
+
+    /* Talk to the actor just ahead. */
+    if (input_pressed(MSET(RC_INTERACT)))
+    {
+        int cx = p->x + p->width / 2 + ((c * 10) >> 12);
+        int cy = p->y + p->height / 2 + ((s * 10) >> 12);
+        int i = world_npc_at(cx, cy);
+        if (i >= 0 && world_npc_def(i)->on_interact)
+            return world_npc_def(i)->on_interact;
+    }
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Point and Click                                                     */
 
 static const DoorDef *door_at(int x, int y)
@@ -1293,6 +1363,7 @@ const ScriptEvent *modes_update(Entity *player)
     case SCENE_MODE_ADVENTURE:   return adventure_update(player);
     case SCENE_MODE_SHMUP:       return shmup_update(player);
     case SCENE_MODE_POINTNCLICK: return pointnclick_update(player);
+    case SCENE_MODE_RAYCAST:     return raycast_update(player);
     case SCENE_MODE_LOGO:        return 0;
     default:                     return topdown_update(player);
     }

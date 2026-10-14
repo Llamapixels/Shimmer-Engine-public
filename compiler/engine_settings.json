@@ -6,7 +6,8 @@
     { "id": "adventure", "label": "Adventure (old)", "engine": 2 },
     { "id": "shmup", "label": "Shoot 'Em Up", "engine": 3 },
     { "id": "pointnclick", "label": "Point and Click", "engine": 4 },
-    { "id": "logo", "label": "Logo", "engine": 5 }
+    { "id": "logo", "label": "Logo", "engine": 5 },
+    { "id": "raycast", "label": "First Person 3D", "engine": 6 }
   ],
   "buttons": ["a", "b", "l", "r", "up", "down", "select"],
   "settings": [
@@ -142,6 +143,10 @@
     { "key": "td_kb_frames", "mode": "topdown", "group": "Getting hit", "label": "Knockback time (frames)", "unit": "frames", "default": 10, "min": 1, "max": 60, "if": "td_knockback" },
     { "key": "td_state_knockback", "mode": "topdown", "group": "Getting hit", "label": "Knockback animation", "unit": "state", "anim": "knockback", "default": "", "if": "td_knockback", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"knockback\" if the sprite has one." },
     { "key": "td_on_knockback", "mode": "topdown", "group": "Getting hit", "label": "On knockback", "unit": "script", "default": "", "if": "td_knockback", "extra": true, "desc": "A custom script (Scripts list) run in the background each time the player is knocked back, e.g. to lower HP or update the HUD." },
-    { "key": "sh_keep_on_screen", "mode": "shmup", "group": "Player", "label": "Keep on screen", "unit": "choice", "options": ["The whole sprite", "Only the collision box"], "default": 0, "desc": "With a small hitbox (set the collision box in the sprite editor), \"The whole sprite\" stops the ship at the screen edge before any of it goes out of view." }
+    { "key": "sh_keep_on_screen", "mode": "shmup", "group": "Player", "label": "Keep on screen", "unit": "choice", "options": ["The whole sprite", "Only the collision box"], "default": 0, "desc": "With a small hitbox (set the collision box in the sprite editor), \"The whole sprite\" stops the ship at the screen edge before any of it goes out of view." },
+    { "key": "rc_walk", "mode": "raycast", "group": "Movement", "label": "Walk speed", "unit": "speed", "default": 1, "min": 0.25, "max": 4, "desc": "Up and Down walk forwards and back." },
+    { "key": "rc_turn", "mode": "raycast", "group": "Movement", "label": "Turn speed", "unit": "choice", "options": ["Slow", "Normal", "Fast"], "default": 1, "desc": "Left and Right turn." },
+    { "key": "rc_strafe", "mode": "raycast", "group": "Movement", "label": "Strafe with L and R", "unit": "bool", "default": 1, "desc": "Step sideways without turning." },
+    { "key": "rc_interact", "mode": "raycast", "group": "Buttons", "label": "Interact button", "unit": "button", "default": "a", "desc": "Talks to the actor just in front." }
   ]
 }

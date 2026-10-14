@@ -194,6 +194,10 @@ void entity_set_transform(Entity *entity, int angle, int scale_x, int scale_y);
 
 void entity_set_collision_box(Entity *entity, int ox, int oy, int w, int h);
 
+/* First Person 3D scenes: actors aren't drawn as flat sprites on the map
+ * (pinned ones, the HUD, still are). */
+extern int entity_world_hidden;
+
 void entity_update(Entity *entity);
 
 void entity_update_camera(Entity *entity, int camera_x, int camera_y);

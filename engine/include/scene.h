@@ -147,6 +147,23 @@ typedef struct
  * A compiled scene, as produced by compiler/build_project.py.
  * All arrays live in ROM.
  */
+/* A First Person 3D scene's walls and look (engine/source/raycast.c). */
+typedef struct RaycastDef
+{
+    const uint8_t *walls;       /* width * height cells: 0 = open, else
+                                 * texture index + 1 */
+    const uint8_t *textures;    /* tex_count 32x32 textures of palette
+                                 * indices, column by column */
+    uint8_t tex_count;
+    const uint16_t *palette;    /* BG palette entries 1-127: textures, floor,
+                                 * ceiling (128-239 are the actors', copied
+                                 * from the OBJ palette; 240+ the dialogue
+                                 * layer's) */
+    uint8_t floor, ceiling;     /* palette indices */
+    uint8_t dark;               /* added to a texture's colour on north and
+                                 * south faces (its darker copy) */
+} RaycastDef;
+
 typedef struct
 {
     const char *name;
@@ -227,6 +244,9 @@ typedef struct
     /* Animated tiles (scene JSON "tile_animations"). */
     const TileAnim *tile_anims;
     uint8_t tile_anim_count;
+
+    /* First Person 3D scenes (raycast.h); 0 for every other kind. */
+    const struct RaycastDef *raycast;
 } SceneDef;
 
 /* Load background, palettes, collision and camera bounds. */

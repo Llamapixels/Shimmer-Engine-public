@@ -547,6 +547,7 @@ import expr as X
 # compiled into engine/data/uge_songs.c.
 PROJECT_MUSIC_DIR = Path("assets") / "music"
 PROJECT_SOUNDS_DIR = Path("assets") / "sounds"
+PROJECT_TEXTURES_DIR = Path("assets") / "textures"   # First Person 3D wall textures
 PROJECT_CUTSCENES_DIR = Path("assets") / "cutscenes"   # video cutscenes (compiler/cutscenes.py)   # WAV sound effects (compiler/wav.py)
 WAV_CHANNELS = {"auto": 0, "a": 1, "b": 2}
 
@@ -1193,6 +1194,98 @@ def parse_front(rows, w, h, scene_name):
         raise BuildError(f"{scene_name}: \"front_tiles\" must be a list of strings.")
     return [(rows[y][x] == "#") if y < len(rows) and x < len(rows[y]) else False
             for y in range(h) for x in range(w)]
+
+
+# ---------------------------------------------------------------------------
+# First Person 3D (engine/source/raycast.c)
+# ---------------------------------------------------------------------------
+
+RC_TEX = 32                # textures are 32x32
+RC_MAX_COLORS = 60         # texture colours (each also gets a darker copy); 128-239
+                           # hold the actors' sprite palettes
+RC_TEX_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def default_wall_texture():
+    """Bricks, for projects with no assets/textures yet."""
+    im = Image.new("RGB", (RC_TEX, RC_TEX), (88, 84, 80))
+    for row in range(4):
+        y0 = row * 8
+        shift = 0 if row % 2 == 0 else 8
+        for col in range(-1, 3):
+            x0 = col * 16 + shift
+            for y in range(y0 + 1, y0 + 7):
+                for x in range(x0 + 1, x0 + 15):
+                    if 0 <= x < RC_TEX:
+                        shade = 150 if (x + y) % 5 else 135
+                        im.putpixel((x, y), (shade, 64, 44))
+    return im
+
+
+def load_wall_textures(project_dir):
+    """(names, 32x32 RGB images) from assets/textures, sorted by name."""
+    folder = project_dir / PROJECT_TEXTURES_DIR
+    files = sorted(folder.glob("*.png")) if folder.is_dir() else []
+    if len(files) > len(RC_TEX_CHARS):
+        raise BuildError(f"{len(files)} wall textures in assets/textures; the most is {len(RC_TEX_CHARS)}.")
+    names, images = [], []
+    for f in files:
+        im = Image.open(f).convert("RGBA")
+        if im.size != (RC_TEX, RC_TEX):
+            im = im.resize((RC_TEX, RC_TEX), Image.NEAREST)
+        flat = Image.new("RGB", im.size, (0, 0, 0))
+        flat.paste(im, mask=im.split()[3])
+        names.append(f.stem)
+        images.append(flat)
+    if not images:
+        names, images = ["bricks"], [default_wall_texture()]
+    return names, images
+
+
+def build_wall_textures(images):
+    """-> (colours, column-major palette indices 1..N for every texture)."""
+    strip = Image.new("RGB", (RC_TEX * len(images), RC_TEX))
+    for i, im in enumerate(images):
+        strip.paste(im, (i * RC_TEX, 0))
+    if len(set(strip.getdata())) > RC_MAX_COLORS:
+        strip = strip.quantize(colors=RC_MAX_COLORS, method=Image.Quantize.MEDIANCUT).convert("RGB")
+    colors = sorted(set(strip.getdata()))
+    index = {c: i + 1 for i, c in enumerate(colors)}
+    data = []
+    for t in range(len(images)):
+        for x in range(RC_TEX):
+            for y in range(RC_TEX):
+                data.append(index[strip.getpixel((t * RC_TEX + x, y))])
+    return colors, data
+
+
+def hex_rgb(value, default, where):
+    v = str(value or default).strip().lstrip("#")
+    if len(v) != 6 or any(ch not in "0123456789abcdefABCDEF" for ch in v):
+        raise BuildError(f"{where}: colours look like \"#3a3a3a\".")
+    return tuple(int(v[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def raycast_walls(scene, grid, w, h, tex_count, name):
+    """Wall map: solid collision cells are walls, textured per
+    "wall_textures" (rows of "." or a texture's character, 0-9 then a-z)."""
+    rows = scene.get("wall_textures") or []
+    if not isinstance(rows, list):
+        raise BuildError(f"{name}: \"wall_textures\" must be a list of strings.")
+    walls = []
+    for y in range(h):
+        row = rows[y] if y < len(rows) and isinstance(rows[y], str) else ""
+        for x in range(w):
+            if grid[y * w + x] != COLLISION_CHARS["#"]:
+                walls.append(0)
+                continue
+            ch = row[x].lower() if x < len(row) else "."
+            t = RC_TEX_CHARS.index(ch) if ch in RC_TEX_CHARS else 0
+            if t >= tex_count:
+                raise BuildError(f"{name}: wall at ({x},{y}) uses texture {ch!r}, but there are only "
+                                 f"{tex_count} in assets/textures.")
+            walls.append(t + 1)
+    return walls
 
 
 def parse_collision(rows, w, h, scene_name):
@@ -4071,6 +4164,33 @@ def build(project_dir, out_dir):
             c_parts.append("};")
             c_parts.append("")
 
+        raycast_ref = "0"
+        if scene_mode == M.MODES["raycast"]:
+            if "raycast_textures" not in ctx:
+                tex_names, tex_images = load_wall_textures(project_dir)
+                tex_colors, tex_data = build_wall_textures(tex_images)
+                ctx["raycast_textures"] = (tex_names, tex_colors)
+                c_parts.append(c_array("uint8_t", "raycast_textures", tex_data, "{}", 32))
+                print(f"  wall textures: {', '.join(tex_names)} ({len(tex_colors)} colours)")
+            tex_names, tex_colors = ctx["raycast_textures"]
+            look = scene.get("raycast") or {}
+            if not isinstance(look, dict):
+                raise BuildError(f"{name}: \"raycast\" must be an object.")
+            n = len(tex_colors)
+            pal = [0] * 240
+            for i, c in enumerate(tex_colors):
+                pal[1 + i] = gba_color(c)
+                pal[1 + n + i] = gba_color(tuple(v * 5 // 8 for v in c))
+            floor_i, ceil_i = 2 * n + 1, 2 * n + 2
+            pal[floor_i] = gba_color(hex_rgb(look.get("floor"), "#3c3a36", f"{name}: raycast floor"))
+            pal[ceil_i] = gba_color(hex_rgb(look.get("ceiling"), "#22242c", f"{name}: raycast ceiling"))
+            walls = raycast_walls(scene, grid, w, h, len(tex_names), name)
+            c_parts.append(c_array("uint8_t", f"{ident}_rc_walls", walls, "{}", w))
+            c_parts.append(f"static const uint16_t {ident}_rc_palette[240] = {{ " + ", ".join(map(str, pal)) + " };")
+            c_parts.append(f"static const RaycastDef {ident}_raycast = {{ {ident}_rc_walls, raycast_textures, "
+                           f"{len(tex_names)}, {ident}_rc_palette, {floor_i}, {ceil_i}, {n} }};")
+            raycast_ref = f"&{ident}_raycast"
+
         c_parts.append(f"const SceneDef scene_{ident} =")
         c_parts.append("{")
         c_parts.append(f'    .name          = "{name}",')
@@ -4130,6 +4250,8 @@ def build(project_dir, out_dir):
         if anims:
             c_parts.append(f"    .tile_anims    = {ident}_tile_anims,")
             c_parts.append(f"    .tile_anim_count = {len(anims)},")
+        if raycast_ref != "0":
+            c_parts.append(f"    .raycast       = {raycast_ref},")
         c_parts.append("};")
         c_parts.append("")
 

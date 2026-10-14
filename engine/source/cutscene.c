@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "wav.h"
 #include "audio.h"
+#include "raycast.h"
 
 /* See cutscene.h for the file format. */
 
@@ -167,5 +168,6 @@ void cutscene_play(int index, int flags)
         scene_load(scene_current());
     ui_restore_vram();
     REG_DISPCNT = dispcnt;
+    raycast_restore();
     input_block_presses(10);
 }

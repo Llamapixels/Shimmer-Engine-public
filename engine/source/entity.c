@@ -255,12 +255,19 @@ void entity_update(Entity *entity)
     sprite_update(&entity->sprite);
 }
 
+int entity_world_hidden = 0;
+
 void entity_update_camera(Entity *entity, int camera_x, int camera_y)
 {
     if (entity == 0 || !entity->active)
         return;
     sprite_set_position(&entity->sprite, entity->x, entity->y);
     step_animation(entity);
+    if (entity_world_hidden && !entity->pinned)
+    {
+        sprite_update_camera(&entity->sprite, entity->x + 1024, entity->y);   /* off screen */
+        return;
+    }
     if (entity->pinned)
         sprite_update_camera(&entity->sprite, 0, 0);
     else
