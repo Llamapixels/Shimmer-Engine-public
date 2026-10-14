@@ -23,6 +23,8 @@ import {
   type Cells,
 } from "../world/paint";
 import { drawRcLayer, RC_LAYER_LABEL } from "../world/raycastView";
+import type { Camera } from "../world/raycastPreview";
+import RaycastPreview from "./RaycastPreview";
 import { RcLayerButtons, RcValuePanel, useTextureImages } from "./RaycastTools";
 import "./SceneCanvas.css";
 import Icon, { type IconName } from "./common/Icon";
@@ -236,6 +238,10 @@ export default function SceneCanvas() {
   const [showValues, setShowValues] = useState(false);
   const [showActors, setShowActors] = useState(true);
   const [showScreen, setShowScreen] = useState(false);
+  /** First Person 3D: the floor heights under the map, and the preview. */
+  const [showHeights, setShowHeights] = useState(true);
+  const [showPreview, setShowPreview] = useState(false);
+  const [rcCam, setRcCam] = useState<Camera | null>(null);
   const [opacity, setOpacity] = useState(100);
   const [hover, setHover] = useState<Pt | null>(null);
   /** Right-click menu on an actor, trigger or note. */
@@ -275,6 +281,9 @@ export default function SceneCanvas() {
     if (tool === "eraser" && isRcLayer(eraseLayer) !== isRc) setEraseLayer(isRc ? rcLayer : "collision");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRc, tool, eraseLayer]);
+
+  // The preview camera starts at the player's start in each scene.
+  useEffect(() => setRcCam(null), [activeSceneId]);
 
   // A selection belongs to the layer it was made on.
   useEffect(() => {
@@ -448,6 +457,20 @@ export default function SceneCanvas() {
       });
     }
     ctx.globalAlpha = 1;
+
+    // First Person 3D: the floor heights, while not painting a 3D layer.
+    if (isRc && showHeights && !(paintLayer && isRcLayer(paintLayer))) {
+      ctx.globalAlpha = (opacity / 100) * 0.6;
+      drawRcLayer(ctx, view, "floor_h", {
+        S,
+        w: tileW,
+        h: tileH,
+        textures: textures.images,
+        font: `${Math.floor(S * 0.5)}px ${v("--font-mono", "monospace")}`,
+        labels: showValues && S >= 12,
+      });
+      ctx.globalAlpha = 1;
+    }
 
     // First Person 3D: the layer being painted.
     if (isRc && paintLayer && isRcLayer(paintLayer)) {
@@ -722,6 +745,34 @@ export default function SceneCanvas() {
       ctx.strokeRect(camX * px + 1, camY * px + 1, Math.min(SCREEN_W, mapW) * px - 2, Math.min(SCREEN_H, mapH) * px - 2);
       ctx.restore();
     }
+
+    // The 3D preview's camera: where it stands and what it sees.
+    if (isRc && showPreview && rcCam) {
+      const cx = rcCam.x * S;
+      const cy = rcCam.y * S;
+      const reach = S * 6;
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 210, 63, 0.18)";
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, reach, rcCam.angle - 0.588, rcCam.angle + 0.588);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(4, S * 0.4), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(rcCam.angle) * S * 1.5, cy + Math.sin(rcCam.angle) * S * 1.5);
+      ctx.stroke();
+      ctx.restore();
+    }
   }, [
     view,
     bgImage,
@@ -756,6 +807,9 @@ export default function SceneCanvas() {
     palettes,
     isRc,
     textures.images,
+    showHeights,
+    showPreview,
+    rcCam,
   ]);
 
   // Cursor-centered ctrl+wheel zoom (see zoomAnchorRef).
@@ -1324,6 +1378,22 @@ export default function SceneCanvas() {
           <input type="checkbox" checked={showScreen} onChange={(e) => setShowScreen(e.target.checked)} />
           Screen
         </label>
+        {isRc && (
+          <label className="scene-canvas-toggle" title="Shade the map by floor height (walls red)">
+            <input type="checkbox" checked={showHeights} onChange={(e) => setShowHeights(e.target.checked)} />
+            Heights
+          </label>
+        )}
+        {isRc && (
+          <button
+            className={`btn btn-small${showPreview ? " pin-btn-on" : ""}`}
+            title="See the scene in 3D, as the game shows it, and walk around it"
+            onClick={() => setShowPreview((v) => !v)}
+            data-testid="rc-preview-toggle"
+          >
+            3D view
+          </button>
+        )}
         <label className="scene-canvas-toggle" title="Show actors, triggers and notes while painting">
           <input type="checkbox" checked={showActors} onChange={(e) => setShowActors(e.target.checked)} />
           Actors
@@ -1437,6 +1507,20 @@ export default function SceneCanvas() {
           </div>
         )}
         {tool === "tiles" && bgImage && <TilePicker img={bgImage} stamp={tileStamp} onPick={setTileStamp} />}
+        {isRc && showPreview && view && (
+          <RaycastPreview
+            scene={view}
+            w={tileW}
+            h={tileH}
+            textures={textures}
+            sheets={sheets}
+            project={projectJson}
+            playerSprite={playerSprite}
+            camera={rcCam}
+            onCamera={setRcCam}
+            onClose={() => setShowPreview(false)}
+          />
+        )}
         {tool === "rc" && !tilePick && rootPath && (
           <RcValuePanel scene={data} layer={rcLayer} brush={rcBrush} textures={textures} rootPath={rootPath} />
         )}
