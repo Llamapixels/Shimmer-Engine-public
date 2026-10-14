@@ -1500,7 +1500,7 @@ export default function SceneCanvas() {
               </button>
             ))}
             <span className="brush-sep" />
-            {tool === "rc" && <RcLayerButtons layer={rcLayer} onPick={setRcLayer} />}
+            {tool === "rc" && isRc && <RcLayerButtons layer={rcLayer} onPick={setRcLayer} />}
             {tool === "collision" &&
               COLLISION_TYPES.filter((c) => !isRc || c.id === "#").map((c) => (
                 <button
@@ -1572,7 +1572,7 @@ export default function SceneCanvas() {
             onClose={() => setShowPreview(false)}
           />
         )}
-        {tool === "rc" && !tilePick && rootPath && (
+        {tool === "rc" && isRc && !tilePick && rootPath && (
           <RcValuePanel
             scene={data}
             sceneId={sceneId}

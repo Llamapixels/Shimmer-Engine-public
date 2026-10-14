@@ -175,6 +175,8 @@ typedef struct RaycastDef
      * its offset from bottom centre (px). */
     int8_t weapon;
     int8_t weapon_dx, weapon_dy;
+    uint8_t edge_tex;           /* the texture past the map's edge (the
+                                 * scene's first) */
 } RaycastDef;
 
 typedef struct

@@ -1387,6 +1387,7 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
         if t not in tex_names:
             raise BuildError(f"{name}: wall texture \"{t}\" isn't in assets/textures.")
     tex_index = [tex_names.index(t) for t in used] or [0]
+    scene["_rc_edge_tex"] = tex_index[0]
     def setting(key, default, lo, hi):
         v = look.get(key, default)
         if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
@@ -3975,8 +3976,12 @@ def build(project_dir, out_dir):
         # New scene with no collision yet: write an all-walkable grid.
         if "collision" not in scene:
             scene["collision"] = blank_collision(w, h)
+            # Only the grid goes into the file: the scene here also has
+            # what the build adds (Spawn Prefab copies, the 3D weapon...).
+            on_disk = json.loads(scene_file.read_text(encoding="utf-8"))
+            on_disk["collision"] = scene["collision"]
             scene_file.write_text(
-                json.dumps(scene, indent=2) + "\n", encoding="utf-8")
+                json.dumps(on_disk, indent=2) + "\n", encoding="utf-8")
             print(f"  {name}: added blank collision grid to {scene_file.name}")
 
         grid = parse_collision(scene["collision"], w, h, name)
@@ -4424,7 +4429,7 @@ def build(project_dir, out_dir):
             c_parts.append(f"static const RaycastDef {ident}_raycast = {{ {ident}_rc_tex, {ident}_rc_floor, "
                            f"{ident}_rc_ceil, {ident}_rc_fcol, {ident}_rc_ccol, raycast_textures, "
                            f"{len(tex_names)}, {ident}_rc_palette, {n}, {sky_ref}, {sky_w}, {sky_h}, "
-                           f"{RC_SKY_COLOR}, {weapon}, {wdx}, {wdy} }};")
+                           f"{RC_SKY_COLOR}, {weapon}, {wdx}, {wdy}, {scene.get('_rc_edge_tex', 0)} }};")
             raycast_ref = f"&{ident}_raycast"
 
         c_parts.append(f"const SceneDef scene_{ident} =")

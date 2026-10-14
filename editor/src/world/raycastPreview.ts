@@ -94,6 +94,8 @@ export interface RcMap {
   fcol: Uint32Array;
   ccol: Uint32Array;
   sky: Uint8Array;
+  /** The texture past the map's edge (the scene's first). */
+  edgeTex: Pixels | null;
   skyColor: number;
   skyPx: Pixels | null;
 }
@@ -115,6 +117,7 @@ export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<st
     fcol: new Uint32Array(n),
     ccol: new Uint32Array(n),
     sky: new Uint8Array(n),
+    edgeTex: textures[names[0] ?? ""] ?? null,
     skyColor: hexColor(look.sky_color, "#6c94d0"),
     skyPx,
   };
@@ -265,7 +268,7 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
       if (yf < ybot) ybot = yf;
       if (yc > ytop) ytop = yc;
 
-      const tex = outside ? null : m.tex[ni];
+      const tex = outside ? m.edgeTex : m.tex[ni];
       const wall = side === 0 ? cam.y + d * rayY : cam.x + d * rayX;
       let texX = Math.floor((wall - Math.floor(wall)) * TEX);
       if ((side === 0 && rayX > 0) || (side === 1 && rayY < 0)) texX = TEX - 1 - texX;

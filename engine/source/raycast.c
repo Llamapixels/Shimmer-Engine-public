@@ -629,7 +629,7 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
             }
 
             /* Texture column where the ray met this edge. */
-            int t = out ? 0 : texmap[ni];
+            int t = out ? rc->edge_tex : texmap[ni];
             if (t >= tex_count)
                 t = 0;
             int wall = side == 0 ? pos_y + (int)(((int64_t)d * ray_y) >> 12)

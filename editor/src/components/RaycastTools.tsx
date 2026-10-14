@@ -172,6 +172,9 @@ function shapeWarnings(floor: number, ceil: number, wall: boolean, ground: numbe
   return out;
 }
 
+/** The scene the shape brush was last set up for. */
+let brushScene: string | null = null;
+
 export interface StairsRequest {
   dir: "right" | "left" | "down" | "up";
   from: number;
@@ -205,8 +208,11 @@ export function RcValuePanel({
   const [error, setError] = useState<string | null>(null);
   const d = rcDefaults(scene);
 
-  // A new scene: the shape brush starts at its ground and ceiling.
+  // Another scene: the shape brush starts at its ground and ceiling (coming
+  // back to the tool in the same scene keeps what was picked).
   useEffect(() => {
+    if (brushScene === sceneId) return;
+    brushScene = sceneId;
     setRcBrush({ shape_floor: d.floor, shape_ceil: d.ceil, shape_wall: false, floor_h: d.floor, ceil_h: d.ceil });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId]);
