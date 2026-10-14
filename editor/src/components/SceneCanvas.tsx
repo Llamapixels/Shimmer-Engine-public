@@ -218,6 +218,7 @@ export default function SceneCanvas() {
   const setRcBrush = useProjectStore((s) => s.setRcBrush);
   const projectJson = useProjectStore((s) => s.project?.project);
   const tilePick = useProjectStore((s) => s.tilePick);
+  const posPreview = useProjectStore((s) => s.posPreview);
   const setTilePick = useProjectStore((s) => s.setTilePick);
   const updateScene = useProjectStore((s) => s.updateScene);
   const addNpc = useProjectStore((s) => s.addNpc);
@@ -747,6 +748,69 @@ export default function SceneCanvas() {
       ctx.restore();
     }
 
+    // A script field's position being looked at: the actor there (a
+    // ghost, with a line from where it stands now), or the screen a
+    // camera there shows.
+    if (posPreview && (!posPreview.sceneId || posPreview.sceneId === activeScene?.fileId)) {
+      const px = S / TILE;
+      const { x, y } = posPreview;
+      ctx.save();
+      if (posPreview.kind === "camera") {
+        const mapW = tileW * TILE;
+        const mapH = tileH * TILE;
+        const camX = Math.max(0, Math.min(mapW - SCREEN_W, x * TILE - SCREEN_W / 2));
+        const camY = Math.max(0, Math.min(mapH - SCREEN_H, y * TILE - SCREEN_H / 2));
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(camX * px + 1, camY * px + 1, Math.min(SCREEN_W, mapW) * px - 2, Math.min(SCREEN_H, mapH) * px - 2);
+        ctx.setLineDash([]);
+        ctx.fillStyle = accent;
+        ctx.fillRect(x * S - 3, y * S - 3, 6, 6);
+      } else {
+        const npcs = view.npcs ?? [];
+        const ref = posPreview.actor;
+        const idx =
+          typeof ref === "number" ? ref : typeof ref === "string" && ref !== "player" && ref !== "self" ? npcs.findIndex((n) => n.name === ref) : -1;
+        const npc = idx >= 0 ? npcs[idx] : undefined;
+        const name = npc ? npc.sprite || playerSprite : ref === "player" ? view.player_sprite || playerSprite : null;
+        const img = name ? sheets[name] : undefined;
+        const sheet = img && projectJson && name ? sheetFor(projectJson, name, img) : null;
+        const size = posPreview.kind === "actor" ? ACTOR_TILES : 1;
+        if (posPreview.kind === "actor") {
+          // From where it stands now.
+          const from = npc ? { x: npc.x, y: npc.y } : ref === "player" ? view.player_start : undefined;
+          if (from && (from.x !== x || from.y !== y)) {
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            ctx.moveTo((from.x + 1) * S, (from.y + 1) * S);
+            ctx.lineTo((x + 1) * S, (y + 1) * S);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          if (img && sheet) drawActor(ctx, img, sheet, ((npc?.direction as Facing) ?? "down") as Facing, x * S, y * S, px, { alpha: 0.6 });
+        }
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(x * S + 1, y * S + 1, size * S - 2, size * S - 2);
+        ctx.setLineDash([]);
+        if (zoom >= 2) {
+          ctx.font = font;
+          ctx.textBaseline = "bottom";
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(0,0,0,.8)";
+          const label = `${x}, ${y}`;
+          ctx.strokeText(label, x * S, y * S - 2);
+          ctx.fillStyle = accent;
+          ctx.fillText(label, x * S, y * S - 2);
+        }
+      }
+      ctx.restore();
+    }
+
     // The 3D preview's camera: where it stands and what it sees.
     if (isRc && showPreview && rcCam) {
       const cx = rcCam.x * S;
@@ -811,6 +875,7 @@ export default function SceneCanvas() {
     showHeights,
     showPreview,
     rcCam,
+    posPreview,
   ]);
 
   // Cursor-centered ctrl+wheel zoom (see zoomAnchorRef).

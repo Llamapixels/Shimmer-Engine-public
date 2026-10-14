@@ -108,6 +108,20 @@ export interface TilePick {
   actorBox?: boolean;
 }
 
+/** A script field's position being looked at (hovered or edited): the
+ * scene canvas shows where it is - the actor there, or the screen a camera
+ * there shows. */
+export interface PosPreview {
+  /** The scene the script belongs to ("" = a custom script: any). */
+  sceneId: string;
+  /** In tiles. */
+  x: number;
+  y: number;
+  kind: "actor" | "camera" | "tile";
+  /** The event's "actor" (a name, an index, "player" or "self"). */
+  actor?: unknown;
+}
+
 interface Snapshot {
   project: ProjectJSON;
   scenes: SceneRecord[];
@@ -211,6 +225,7 @@ interface ProjectState {
   rcLayer: RcLayer;
   rcBrush: RcBrush;
   tilePick: TilePick | null;
+  posPreview: PosPreview | null;
   /** Game World shows the world map (every scene) instead of one scene. */
   worldMap: boolean;
   /** ...or the Dialogue list (every line of text). */
@@ -252,6 +267,7 @@ interface ProjectState {
   setRcLayer: (layer: RcLayer) => void;
   setRcBrush: (brush: Partial<RcBrush>) => void;
   setTilePick: (pick: TilePick | null) => void;
+  setPosPreview: (p: PosPreview | null) => void;
   /** Also closes the Dialogue list. */
   setWorldMap: (on: boolean) => void;
   setDialogueView: (on: boolean) => void;
@@ -363,6 +379,7 @@ function loadedState(data: ProjectData) {
     section: "world" as Section,
     tool: "select" as Tool,
     tilePick: null,
+    posPreview: null,
     worldMap: false,
     dialogueView: false,
     loading: false,
@@ -501,6 +518,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     rcLayer: "shape",
     rcBrush: { shape_floor: 0, shape_ceil: 8, shape_wall: false, floor_h: 0, ceil_h: 8, walltex: "", floor_flat: 1, ceil_flat: 1, floor_tex: "", ceil_tex: "" },
     tilePick: null,
+    posPreview: null,
     worldMap: false,
     dialogueView: false,
     loading: false,
@@ -587,6 +605,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setRcLayer: (rcLayer) => set({ rcLayer, tool: "rc", tilePick: null }),
     setRcBrush: (b) => set({ rcBrush: { ...get().rcBrush, ...b } }),
     setPlacingPrefab: (placingPrefabId) => set({ placingPrefabId, tool: placingPrefabId ? "placePrefab" : "select", tilePick: null }),
+    setPosPreview: (posPreview) => set({ posPreview }),
     setTilePick: (tilePick) =>
       set({
         tilePick,

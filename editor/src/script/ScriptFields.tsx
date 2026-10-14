@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import EngineValueInput from "../engine/EngineValueInput";
 import { ENGINE_MODES, ENGINE_SETTINGS, type EngineValue, SETTING_BY_KEY } from "../engine/engineSettings";
@@ -690,7 +690,14 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       // button always fills in tiles.
       const max = rec.units === "pixels" ? 2047 : 255;
       return (
-        <div className="script-field-pos">
+        <PosPreviewArea
+          env={env}
+          x={rec.units === "pixels" ? Math.floor(x / 8) : x}
+          y={rec.units === "pixels" ? Math.floor(y / 8) : y}
+          kind={ev.type.startsWith("camera_") ? "camera" : ev.type.startsWith("actor_") || ev.type === "spawn_prefab" ? "actor" : "tile"}
+          actor={ev.type.startsWith("actor_") ? rec.actor ?? "player" : undefined}
+          disabled={ev.type === "switch_scene"}
+        >
           <span className="pos-label">X</span>
           <NumberInput value={x} min={0} max={max} onChange={(n) => patch({ [xKey]: n }, true)} />
           <span className="pos-label">Y</span>
@@ -714,7 +721,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           >
             <Icon name="pick" /> Pick
           </button>
-        </div>
+        </PosPreviewArea>
       );
     }
 
@@ -937,6 +944,51 @@ export function FieldControl({ field, ev, env, patch }: Props) {
  * colour, speed, variable) so nobody has to remember them, and the game's
  * box drawn underneath.
  */
+/** A position field: while hovered or being typed in, the scene canvas
+ * shows where it is (and follows the numbers as they change). */
+function PosPreviewArea({
+  env,
+  x,
+  y,
+  kind,
+  actor,
+  disabled,
+  children,
+}: {
+  env: ScriptEnv;
+  x: number;
+  y: number;
+  kind: "actor" | "camera" | "tile";
+  actor?: unknown;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  const setPosPreview = useProjectStore((s) => s.setPosPreview);
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const on = (hover || focus) && !disabled;
+  const actorKey = JSON.stringify(actor ?? null);
+  useEffect(() => {
+    if (!on) return;
+    setPosPreview({ sceneId: env.sceneId, x, y, kind, actor });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on, x, y, kind, actorKey, env.sceneId]);
+  useEffect(() => {
+    if (on) return () => setPosPreview(null);
+  }, [on, setPosPreview]);
+  return (
+    <div
+      className="script-field-pos"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onFocus={() => setFocus(true)}
+      onBlur={() => setFocus(false)}
+    >
+      {children}
+    </div>
+  );
+}
+
 function DialogueTextField({
   value,
   onChange,
