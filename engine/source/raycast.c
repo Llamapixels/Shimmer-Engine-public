@@ -588,9 +588,12 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
             int solid = out || n_ceil <= n_floor;
             if (with_sky && solid && c_cc == SKY && !out)
             {
-                /* Under the sky a wall is a block as tall as its floor
-                 * value: what's behind it shows over it. */
+                /* Under the sky a wall is a block: a solid collision tile
+                 * (ceiling 0) as tall as its floor value, anything else
+                 * closed (a door) up to the sky. What's behind shows over it. */
                 solid = 0;
+                if (n_ceil)
+                    n_floor = c_ceil;
                 n_ceil = c_ceil;
                 n_cc = SKY;
             }

@@ -82,6 +82,14 @@ function heightColor(v: number, ceiling: boolean): string {
   return ceiling ? `hsla(${270 - t * 90}, 55%, ${22 + t * 45}%, 0.7)` : `hsla(${210 - t * 180}, 60%, ${22 + t * 45}%, 0.7)`;
 }
 
+/** Shape view: the ground grey, raised floors warm (higher = redder),
+ * lowered ones blue (deeper = darker). */
+function shapeColor(diff: number): string {
+  if (diff === 0) return "rgba(110, 110, 120, 0.35)";
+  const t = Math.min(1, Math.abs(diff) / 24);
+  return diff > 0 ? `hsla(${50 - t * 45}, 85%, ${55 - t * 15}%, 0.6)` : `hsla(215, 75%, ${50 - t * 25}%, 0.65)`;
+}
+
 export interface RcDrawOptions {
   S: number;
   w: number;
@@ -113,7 +121,7 @@ export function drawRcLayer(ctx: CanvasRenderingContext2D, s: SceneJSON, layer: 
       for (let x = 0; x < w; x++) {
         const wall = isRcWall(s, x, y);
         const c = ceilAt(s, x, y);
-        ctx.fillStyle = wall ? "rgba(255, 64, 64, 0.55)" : heightColor(floorAt(s, x, y) - d.floor + 6, false);
+        ctx.fillStyle = wall ? "rgba(255, 64, 64, 0.55)" : shapeColor(floorAt(s, x, y) - d.floor);
         ctx.fillRect(x * S, y * S, S, S);
         if (!wall && c >= RC_SKY && S >= 8) {
           ctx.fillStyle = "rgba(140, 200, 255, 0.55)";

@@ -233,7 +233,10 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
         {data.type === "raycast" && <RaycastLookEditor scene={scene} />}
         {showEngine && <SceneEngineOverrides scene={scene} />}
 
-        <FieldRow label="Background">
+        <FieldRow
+          label="Background"
+          hint={data.type === "raycast" ? "In First Person 3D it only sets the map's size (8 px a tile) and what you paint over." : undefined}
+        >
           <BackgroundSelect value={data.background} onChange={(ref) => patch({ background: ref })} />
         </FieldRow>
 
@@ -241,10 +244,10 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
           <MusicSelect value={data.music} onChange={(m) => patch({ music: m })} />
         </FieldRow>
 
-        <LayersEditor scene={scene} />
-        <TileAnimationsEditor scene={scene} />
+        {data.type !== "raycast" && <LayersEditor scene={scene} />}
+        {data.type !== "raycast" && <TileAnimationsEditor scene={scene} />}
 
-        <ParallaxEditor scene={scene} />
+        {data.type !== "raycast" && <ParallaxEditor scene={scene} />}
 
         <FieldRow label="Player sprite">
           <PlayerSpriteSelect value={data.player_sprite} projectDefault={playerSprite} onChange={(v) => patch({ player_sprite: v })} />

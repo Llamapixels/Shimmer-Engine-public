@@ -130,6 +130,9 @@ export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<st
       if (s.collision?.[y]?.[x] === "#") {
         f = Math.min(255, f + wallH);
         c = 0;
+      } else if (c <= f && c === 0) {
+        f = Math.max(f, 1);
+        c = 1;
       }
       m.floor[i] = f;
       m.ceil[i] = c;
@@ -244,8 +247,10 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
       if (!outside && nFloor === cFloor && nCeil === cCeil && m.fcol[ni] === cFc && m.ccol[ni] === cCc && nSky === cSky) continue;
       let solid = outside || nCeil <= nFloor;
       if (solid && cSky && !outside) {
-        // Under the sky a wall is a block as tall as its floor value.
+        // Under the sky a wall is a block: a collision wall (ceiling 0) as
+        // tall as its floor value, anything else closed up to the sky.
         solid = false;
+        if (nCeil !== 0) nFloor = cCeil;
         nCeil = cCeil;
         nSky = true;
       }

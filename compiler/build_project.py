@@ -1429,6 +1429,10 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
                 # A solid tile is a wall; its floor value is its top (what
                 # shows of it under the sky): wall_height above its floor.
                 f, c = min(255, f + wall_height), 0
+            elif c <= f and c == 0:
+                # Closed at height 0 (a door on the lowest ground): ceiling 0
+                # marks collision walls, so keep it 1.
+                f, c = max(f, 1), 1
             tex.append(t)
             fl.append(f)
             ce.append(c)
