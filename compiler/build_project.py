@@ -1223,8 +1223,11 @@ def parse_front(rows, w, h, scene_name):
 # ---------------------------------------------------------------------------
 
 RC_TEX = 32                # textures are 32x32
-RC_MAX_COLORS = 60         # texture colours (each also gets a darker copy); 128-239
-                           # hold the actors' sprite palettes
+RC_MAX_COLORS = 59         # texture and sky colours (each also gets a darker copy);
+                           # 128-239 hold the actors' sprite palettes
+RC_SKY_COLOR, RC_CROSSHAIR = 119, 120   # palette: the sky colour, the crosshair
+RC_SKY = 255               # a cell's ceiling colour: the sky (ceiling height 255)
+RC_SKY_MAX_H = 80          # sky pictures: the view's height
 RC_TEX_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 
@@ -1266,21 +1269,65 @@ def load_wall_textures(project_dir):
     return names, images
 
 
-def build_wall_textures(images):
-    """-> (colours, column-major palette indices 1..N for every texture)."""
-    strip = Image.new("RGB", (RC_TEX * len(images), RC_TEX))
+def build_wall_textures(images, skies=()):
+    """-> (colours, column-major palette indices 1..N for every texture,
+    the same for each sky picture). Textures and skies share the colours."""
+    sky_w = sum(im.width for im in skies)
+    sky_h = max([im.height for im in skies] or [0])
+    strip = Image.new("RGB", (RC_TEX * len(images) + sky_w, max(RC_TEX, sky_h)))
     for i, im in enumerate(images):
         strip.paste(im, (i * RC_TEX, 0))
-    if len(set(strip.getdata())) > RC_MAX_COLORS:
+    x0 = RC_TEX * len(images)
+    for im in skies:
+        strip.paste(im, (x0, 0))
+        x0 += im.width
+    used = Image.new("RGB", (1, 1))
+    pixels = [strip.getpixel((x, y)) for x in range(RC_TEX * len(images)) for y in range(RC_TEX)]
+    x0 = RC_TEX * len(images)
+    for im in skies:
+        pixels += [strip.getpixel((x, y)) for x in range(x0, x0 + im.width) for y in range(im.height)]
+        x0 += im.width
+    if len(set(pixels)) > RC_MAX_COLORS:
         strip = strip.quantize(colors=RC_MAX_COLORS, method=Image.Quantize.MEDIANCUT).convert("RGB")
-    colors = sorted(set(strip.getdata()))
+    del used
+    data, sky_data = [], []
+    seen = set()
+    for t in range(len(images)):
+        for x in range(RC_TEX):
+            for y in range(RC_TEX):
+                seen.add(strip.getpixel((t * RC_TEX + x, y)))
+    x0 = RC_TEX * len(images)
+    for im in skies:
+        for x in range(x0, x0 + im.width):
+            for y in range(im.height):
+                seen.add(strip.getpixel((x, y)))
+        x0 += im.width
+    colors = sorted(seen)
     index = {c: i + 1 for i, c in enumerate(colors)}
-    data = []
     for t in range(len(images)):
         for x in range(RC_TEX):
             for y in range(RC_TEX):
                 data.append(index[strip.getpixel((t * RC_TEX + x, y))])
-    return colors, data
+    x0 = RC_TEX * len(images)
+    for im in skies:
+        sky_data.append([index[strip.getpixel((x, y))] for x in range(x0, x0 + im.width) for y in range(im.height)])
+        x0 += im.width
+    return colors, data, sky_data
+
+
+def load_sky(path, where):
+    """A sky picture: RGB, at most RC_SKY_MAX_H rows (the view's height),
+    at most 1024 wide (it repeats around the view)."""
+    if not path.is_file():
+        raise BuildError(f"{where}: sky picture not found: {path}")
+    im = Image.open(path).convert("RGBA")
+    if im.width > 1024:
+        raise BuildError(f"{where}: the sky picture is {im.width} px wide; the most is 1024.")
+    if im.height > RC_SKY_MAX_H:
+        im = im.crop((0, 0, im.width, RC_SKY_MAX_H))
+    flat = Image.new("RGB", im.size, (0, 0, 0))
+    flat.paste(im, mask=im.split()[3])
+    return flat
 
 
 def hex_rgb(value, default, where):
@@ -1340,11 +1387,16 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
         if t not in tex_names:
             raise BuildError(f"{name}: wall texture \"{t}\" isn't in assets/textures.")
     tex_index = [tex_names.index(t) for t in used] or [0]
-    ceil_default = look.get("ceiling_height", 8)
-    if not isinstance(ceil_default, int) or isinstance(ceil_default, bool) or not 1 <= ceil_default <= 255:
-        raise BuildError(f"{name}: raycast \"ceiling_height\" must be 1-255.")
+    def setting(key, default, lo, hi):
+        v = look.get(key, default)
+        if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
+            raise BuildError(f"{name}: raycast \"{key}\" must be {lo}-{hi}.")
+        return v
+    ceil_default = setting("ceiling_height", 8, 1, 255)
+    floor_default = setting("floor_height", 0, 0, 254)
+    wall_height = setting("wall_height", 16, 1, 255)
     tex_rows = _char_rows(scene, "wall_textures", w, h, name)
-    floors = _int_rows(scene, "floor_heights", w, h, 0, name)
+    floors = _int_rows(scene, "floor_heights", w, h, floor_default, name)
     ceils = _int_rows(scene, "ceiling_heights", w, h, ceil_default, name)
     floor_flats = _char_rows(scene, "floor_flats", w, h, name)
     ceil_flats = _char_rows(scene, "ceiling_flats", w, h, name)
@@ -1368,12 +1420,15 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
             t = tex_index[t]
             f, c = floors[y][x], ceils[y][x]
             if grid[y * w + x] == COLLISION_CHARS["#"]:
-                c = f   # a solid tile is a wall
+                # A solid tile is a wall; its floor value is its top (what
+                # shows of it under the sky): wall_height above its floor.
+                f, c = min(255, f + wall_height), 0
             tex.append(t)
             fl.append(f)
             ce.append(c)
             fc.append(flat(floor_flats[y][x], RC_FLOOR, x, y, "floor_flats"))
-            cc.append(flat(ceil_flats[y][x], RC_CEIL, x, y, "ceiling_flats"))
+            # Ceiling height 255 is open sky.
+            cc.append(RC_SKY if c == 255 else flat(ceil_flats[y][x], RC_CEIL, x, y, "ceiling_flats"))
     return tex, fl, ce, fc, cc
 
 
@@ -1770,6 +1825,24 @@ def spawn_pools(scene, prefabs, custom_scripts, engine_values, where):
                 seen_scripts.add(sid)
                 queue.append(custom_scripts[sid])
     return pools
+
+
+def add_weapon(scene, where):
+    """First Person 3D: the weapon (raycast "weapon": a sprite name) is a
+    pinned actor, bottom centre, after the scene's own (scene["_weapon"]:
+    its index)."""
+    look = scene.get("raycast")
+    if scene.get("type") != "raycast" or not isinstance(look, dict) or not look.get("weapon"):
+        return
+    if not isinstance(look["weapon"], str):
+        raise BuildError(f"{where}: raycast \"weapon\" must be a sprite name.")
+    npcs = list(scene.get("npcs") or [])
+    if len(npcs) >= 16:
+        raise BuildError(f"{where}: the weapon is an actor too, and the scene already has 16.")
+    scene["_weapon"] = len(npcs)
+    npcs.append({"sprite": look["weapon"], "pinned": True, "x": 14, "y": 18, "direction": "down",
+                 "name": "_weapon"})
+    scene["npcs"] = npcs
 
 
 def add_spawn_pools(scene, prefabs, custom_scripts, engine_values, where):
@@ -3737,6 +3810,7 @@ def build(project_dir, out_dir):
     for (scene_file, scene), name in zip(scene_data_list, scene_names):
         add_spawn_pools(scene, prefabs, custom_scripts,
                         project_engine + json.dumps(scene.get("engine") or {}), name)
+        add_weapon(scene, name)
 
     # Shared name-resolution context for compile_events()/compile_script().
     # "npc_name_to_index"/"scene_npc_count"/"self_actor_index" and
@@ -4284,16 +4358,39 @@ def build(project_dir, out_dir):
         if scene_mode == M.MODES["raycast"]:
             if "raycast_textures" not in ctx:
                 tex_names, tex_images = load_wall_textures(project_dir)
-                tex_colors, tex_data = build_wall_textures(tex_images)
+                # Every 3D scene's sky picture, sharing the textures' colours.
+                sky_paths = []
+                for sf, sc in scene_data_list:
+                    sky_ref = (sc.get("raycast") or {}).get("sky") if isinstance(sc.get("raycast"), dict) else None
+                    if sc.get("type") == "raycast" and sky_ref:
+                        sp = (scenes_root(sf) / sky_ref).resolve()
+                        if sp not in sky_paths:
+                            sky_paths.append(sp)
+                sky_images = [load_sky(sp, f"sky {sp.name}") for sp in sky_paths]
+                tex_colors, tex_data, sky_data = build_wall_textures(tex_images, sky_images)
                 folder = project_dir / PROJECT_TEXTURES_DIR
                 files = [n for n in tex_names if (folder / f"{n}.png").is_file()]
-                ctx["raycast_textures"] = (tex_names, tex_colors, files)
+                skies = {}
+                for k, (sp, im, data) in enumerate(zip(sky_paths, sky_images, sky_data)):
+                    c_parts.append(c_array("uint8_t", f"raycast_sky{k}", data, "{}", im.height))
+                    skies[sp] = (f"raycast_sky{k}", im.width, im.height)
+                ctx["raycast_textures"] = (tex_names, tex_colors, files, skies)
                 c_parts.append(c_array("uint8_t", "raycast_textures", tex_data, "{}", 32))
-                print(f"  wall textures: {', '.join(tex_names)} ({len(tex_colors)} colours)")
-            tex_names, tex_colors, tex_files = ctx["raycast_textures"]
+                print(f"  wall textures: {', '.join(tex_names)}"
+                      f"{f' + {len(skies)} sky picture(s)' if skies else ''} ({len(tex_colors)} colours)")
+            tex_names, tex_colors, tex_files, skies = ctx["raycast_textures"]
             look = scene.get("raycast") or {}
             if not isinstance(look, dict):
                 raise BuildError(f"{name}: \"raycast\" must be an object.")
+            sky_ref, sky_w, sky_h = "0", 0, 0
+            if look.get("sky"):
+                sky_ref, sky_w, sky_h = skies[(scenes_root(scene_file) / look["sky"]).resolve()]
+            weapon = scene.get("_weapon", -1)
+            wdx = look.get("weapon_x", 0)
+            wdy = look.get("weapon_y", 0)
+            for k, v in (("weapon_x", wdx), ("weapon_y", wdy)):
+                if not isinstance(v, int) or isinstance(v, bool) or not -120 <= v <= 120:
+                    raise BuildError(f"{name}: raycast \"{k}\" must be -120 to 120 (px).")
             if w * h > 128 * 128:
                 raise BuildError(f"{name}: a First Person 3D scene can be at most 128x128 tiles in all.")
             flats = look.get("flats") or []
@@ -4306,6 +4403,8 @@ def build(project_dir, out_dir):
                 pal[1 + n + i] = gba_color(tuple(v * 5 // 8 for v in c))
             pal[RC_FLOOR] = gba_color(hex_rgb(look.get("floor"), "#3c3a36", f"{name}: raycast floor"))
             pal[RC_CEIL] = gba_color(hex_rgb(look.get("ceiling"), "#22242c", f"{name}: raycast ceiling"))
+            pal[RC_SKY_COLOR] = gba_color(hex_rgb(look.get("sky_color"), "#6c94d0", f"{name}: raycast sky_color"))
+            pal[RC_CROSSHAIR] = gba_color((255, 255, 255))
             for i, col in enumerate(flats):
                 pal[RC_CEIL + 1 + i] = gba_color(hex_rgb(col, "#000000", f"{name}: raycast flats"))
             tex, fl, ce, fc, cc = raycast_cells(scene, grid, w, h, tex_names, tex_files, len(flats), name)
@@ -4314,7 +4413,8 @@ def build(project_dir, out_dir):
             c_parts.append(f"static const uint16_t {ident}_rc_palette[240] = {{ " + ", ".join(map(str, pal)) + " };")
             c_parts.append(f"static const RaycastDef {ident}_raycast = {{ {ident}_rc_tex, {ident}_rc_floor, "
                            f"{ident}_rc_ceil, {ident}_rc_fcol, {ident}_rc_ccol, raycast_textures, "
-                           f"{len(tex_names)}, {ident}_rc_palette, {n} }};")
+                           f"{len(tex_names)}, {ident}_rc_palette, {n}, {sky_ref}, {sky_w}, {sky_h}, "
+                           f"{RC_SKY_COLOR}, {weapon}, {wdx}, {wdy} }};")
             raycast_ref = f"&{ident}_raycast"
 
         c_parts.append(f"const SceneDef scene_{ident} =")

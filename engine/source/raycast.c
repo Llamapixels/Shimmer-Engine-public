@@ -17,6 +17,8 @@
 #define MAX_SEGS    24                    /* clip windows kept per column, for actors */
 #define MAX_CELLS   (128 * 128)
 #define MAX_MOVERS  8
+#define SKY         255                   /* a cell's ceiling colour: the sky */
+#define CROSSHAIR   120                   /* palette: the crosshair's colour */
 
 #define SPRITE_PAL  128                   /* OBJ palette banks 0-6 copied to 128-239 */
 #define SPRITE_BANKS 7
@@ -44,7 +46,20 @@ static int cam_x, cam_y, cam_angle;   /* 1/256 px, 1024ths of a turn */
 static int cam_eye;                   /* eye height, Q12 cells */
 /* The camera a frame is being drawn from (it's drawn in two halves). */
 static int view_x, view_y, view_angle, view_eye;
-static int half;                      /* 0: next draw starts a frame */
+
+/* Engine options (raycast_set_options / raycast_set_body). */
+static int fov_q = 2731;              /* camera plane, Q12 (2/3: ~67 degrees) */
+static int turn_px = 641;             /* view columns in a full turn */
+static int fog_d = 0x7FFFFFFF;        /* walls farther than this (Q12) are darker */
+static int actor_turn = 1;            /* actors show their side / back */
+static int crosshair;
+static int eye_units = 4, step_units = 3, headroom_units = 5;
+/* Sky: the picture's first column at the view's left edge, and the
+ * picture's width in view columns per full turn. */
+static int sky_x0, sky_span;
+static int aim_next = -1, aimed = -1;
+static int scene_has_sky;            /* some cell shows the sky: render_sky() */
+static int draw_phase;               /* raycast_draw(): 0 starts a frame, 1 columns, 2 actors */
 
 /* Heights, 1/8 cell units: copied to RAM so doors and lifts can move. */
 /* Each cell packed in one word, so a ray reads one value per cell and
@@ -100,6 +115,8 @@ static uint8_t seg_n[VIEW_W];
 typedef struct
 {
     Entity *e;
+    int n;                 /* actor index */
+    int frame;             /* frame to show (turned to the camera) */
     int depth, screen_x, line, bottom;
 } Billboard;
 static Billboard boards[MAX_ACTORS];
@@ -192,13 +209,19 @@ void raycast_enter(const SceneDef *scene)
     rc = scene->raycast;
     map_w = scene->width;
     map_h = scene->height;
+    scene_has_sky = 0;
     for (int i = 0; i < map_w * map_h; i++)
+    {
         cells[i] = rc->floor_h[i] | (rc->ceil_h[i] << 8) | (rc->floor_col[i] << 16) | ((uint32_t)rc->ceil_col[i] << 24);
+        scene_has_sky |= rc->ceil_col[i] == SKY;
+    }
     mover_count = 0;
     active = 1;
     dirty = 1;
-    half = 0;
+    aimed = aim_next = -1;
+    raycast_set_options(1, 0, 1, 0);
     frame_ready = 0;
+    draw_phase = 0;
     entity_world_hidden = 1;
     setup_display();
 }
@@ -225,7 +248,8 @@ void raycast_restore(void)
         return;
     setup_display();
     dirty = 1;
-    half = 0;
+    draw_phase = 0;
+    frame_ready = 0;
 }
 
 void raycast_set_view(int x, int y, int angle)
@@ -242,12 +266,61 @@ void raycast_set_view(int x, int y, int angle)
 
 void raycast_set_eye(int floor)
 {
-    int eye = floor * 2 + 2048;   /* (1/256 units -> Q12 cells) + half a cell */
+    int eye = floor * 2 + (eye_units << 9);   /* 1/256 units -> Q12 cells, plus the eye height */
     if (eye != cam_eye)
     {
         cam_eye = eye;
         dirty = 1;
     }
+}
+
+static int solid_cell(int i);
+
+void raycast_set_body(int eye, int step, int headroom)
+{
+    eye_units = eye;
+    step_units = step;
+    headroom_units = headroom;
+}
+
+void raycast_set_options(int fov, int fog, int turn_actors, int show_crosshair)
+{
+    static const int16_t FOV_Q[3] = { 2048, 2731, 3482 };   /* plane: 1/2, 2/3, 0.85 */
+    static const int16_t TURN_PX[3] = { 813, 641, 535 };    /* VIEW_W * pi / atan(plane) */
+    static const int32_t FOG[3] = { 0x7FFFFFFF, 8 << 12, 4 << 12 };
+    fov = fov >= 0 && fov < 3 ? fov : 1;
+    fov_q = FOV_Q[fov];
+    turn_px = TURN_PX[fov];
+    fog_d = FOG[fog >= 0 && fog < 3 ? fog : 0];
+    actor_turn = turn_actors;
+    crosshair = show_crosshair;
+    sky_span = 0;
+    if (rc && rc->sky && rc->sky_w)
+    {
+        int k = (turn_px + rc->sky_w / 2) / rc->sky_w;   /* whole repeats a turn: no seam */
+        sky_span = rc->sky_w * (k < 1 ? 1 : k);
+    }
+    dirty = 1;
+}
+
+int raycast_aimed(void)
+{
+    return active ? aimed : -1;
+}
+
+int raycast_ceil_over(int x, int y, int w, int h)
+{
+    int low = 255;
+    for (int cy = y >> 3; cy <= (y + h - 1) >> 3; cy++)
+        for (int cx = x >> 3; cx <= (x + w - 1) >> 3; cx++)
+        {
+            if (cx < 0 || cy < 0 || cx >= map_w || cy >= map_h)
+                continue;
+            int i = cy * map_w + cx;
+            if (!solid_cell(i) && (int)CELL_CEIL(i) < low)
+                low = CELL_CEIL(i);
+        }
+    return low;
 }
 
 int raycast_angle(void)
@@ -289,10 +362,10 @@ int raycast_box_ok(int x, int y, int w, int h, int floor)
             if (solid_cell(i))
                 return 0;
             int cf = CELL_FLOOR(i), cc = CELL_CEIL(i);
-            if (cf - floor > RAYCAST_STEP)
+            if (cf - floor > step_units)
                 return 0;   /* too high to step up */
             int stand = cf > floor ? cf : floor;
-            if (cc - stand < RAYCAST_HEADROOM)
+            if (cc - stand < headroom_units)
                 return 0;   /* too low to fit under */
         }
     return 1;
@@ -381,6 +454,33 @@ static inline __attribute__((always_inline)) void fill(uint8_t *dst, int y0, int
         dst[row_off[y0]] = c;
 }
 
+/* The sky in this column: the picture's column (else its colour). Kept
+ * out of render()'s registers - it's only needed where the sky shows. */
+static const uint8_t *sky_column;
+
+__attribute__((section(".iwram"), long_call, target("arm"), noinline))
+static void fill_sky(uint8_t *dst, int y0, int y1)
+{
+    const uint8_t *col = sky_column;
+    if (!col)
+    {
+        fill(dst, y0, y1, rc->sky_col);
+        return;
+    }
+    int h = rc->sky_h;
+    for (; y0 < y1; y0++)
+        dst[row_off[y0]] = col[y0 < h ? y0 : h - 1];
+}
+
+/* A ceiling: its colour, or the sky (scenes with sky cells only). */
+static inline __attribute__((always_inline)) void fill_ceil(uint8_t *dst, int y0, int y1, uint8_t c, const int with_sky)
+{
+    if (!with_sky || c != SKY)
+        fill(dst, y0, y1, c);
+    else if (y0 < y1)
+        fill_sky(dst, y0, y1);
+}
+
 /* Rows y0..y1 of a wall face whose top (unclipped) is at row `top`:
  * one texture height per cell, `line` px. */
 static inline __attribute__((always_inline)) void face(uint8_t *dst, int y0, int y1, int top, int d,
@@ -402,14 +502,13 @@ static inline __attribute__((always_inline)) void face(uint8_t *dst, int y0, int
  * face) and narrows the column's open window; a solid cell ends it.
  * Positions and heights are Q12 cells.
  */
-__attribute__((section(".iwram"), long_call, target("arm"), noinline))
-static void render(int col0, int col1)
+static inline __attribute__((always_inline)) void render_columns(int col0, int col1, const int with_sky)
 {
     const int w = map_w, h = map_h;
     const uint8_t *texmap = rc->tex;
     const int darken = rc->dark, tex_count = rc->tex_count;
     const int dir_x = sin_tab[(view_angle + 256) & 1023], dir_y = sin_tab[view_angle & 1023];
-    const int plane_x = -dir_y * 2 / 3, plane_y = dir_x * 2 / 3;   /* ~67 degree view */
+    const int plane_x = (-dir_y * fov_q) >> 12, plane_y = (dir_x * fov_q) >> 12;
     const int pos_x = view_x * 2, pos_y = view_y * 2;              /* 1/256 px -> Q12 cells */
     const int map_x0 = pos_x >> 12, map_y0 = pos_y >> 12;
     const int eye = view_eye;
@@ -445,6 +544,15 @@ static void render(int col0, int col1)
         }
 
         uint8_t *dst = VIEW + (x >> 3) * 64 + (x & 7);
+        if (with_sky && rc->sky)
+        {
+            int sx = sky_x0 + x;
+            while (sx >= rc->sky_w)
+                sx -= rc->sky_w;
+            sky_column = rc->sky + sx * rc->sky_h;
+        }
+        else
+            sky_column = 0;
         int ci = (map_x0 >= 0 && map_y0 >= 0 && map_x0 < w && map_y0 < h) ? map_y0 * w + map_x0 : 0;
         uint32_t c_info = cells[ci];
         int c_floor = (c_info & 255) << 9, c_ceil = ((c_info >> 8) & 255) << 9;
@@ -476,7 +584,16 @@ static void render(int col0, int col1)
                 continue;   /* nothing changes here */
             int n_floor = out ? c_floor : (int)(n_info & 255) << 9;
             int n_ceil = out ? c_floor : (int)((n_info >> 8) & 255) << 9;
+            uint8_t n_cc = (uint8_t)(n_info >> 24);
             int solid = out || n_ceil <= n_floor;
+            if (with_sky && solid && c_cc == SKY && !out)
+            {
+                /* Under the sky a wall is a block as tall as its floor
+                 * value: what's behind it shows over it. */
+                solid = 0;
+                n_ceil = c_ceil;
+                n_cc = SKY;
+            }
 
             int d = side == 0 ? side_x - dd_x : side_y - dd_y;
             if (d < 64)
@@ -491,7 +608,7 @@ static void render(int col0, int col1)
                 fill(dst, a, b, c_fc);
                 a = near_c > ytop ? near_c : ytop;
                 b = yc < ybot ? yc : ybot;
-                fill(dst, a, b, c_cc);
+                fill_ceil(dst, a, b, c_cc, with_sky);
                 if (yf < ybot)
                     ybot = yf;
                 if (yc > ytop)
@@ -508,9 +625,19 @@ static void render(int col0, int col1)
             if ((side == 0 && ray_x > 0) || (side == 1 && ray_y < 0))
                 tex_x = TEX - 1 - tex_x;
             const uint8_t *col = rc->textures + (t * TEX + tex_x) * TEX;
-            int shade = side ? darken : 0;
+            int shade = (side || d > fog_d) ? darken : 0;
 
-            if (solid)
+            if (with_sky && solid && out && c_cc == SKY)
+            {
+                /* The edge of the world under the sky: sky down to the
+                 * horizon, endless ground below it. */
+                int h = HORIZON < ybot ? HORIZON : ybot;
+                fill_ceil(dst, ytop, h, SKY, with_sky);
+                fill(dst, h > ytop ? h : ytop, ybot, c_fc);
+                ytop = ybot;
+                closed = 1;
+            }
+            else if (solid)
             {
                 if (ytop < ybot)
                     face(dst, ytop > yc ? ytop : yc, ybot < yf ? ybot : yf, yc, d, col, shade);
@@ -521,6 +648,8 @@ static void render(int col0, int col1)
             {
                 int nyc = HORIZON - (((n_ceil - eye) * line) >> 12);
                 int nyf = HORIZON + (((eye - n_floor) * line) >> 12);
+                if (with_sky && c_cc == SKY && n_cc == SKY && nyc > ytop)
+                    nyc = ytop;   /* sky to sky: no wall between them */
                 if (n_ceil < c_ceil && nyc > ytop)
                 {
                     face(dst, ytop > yc ? ytop : yc, ybot < nyc ? ybot : nyc, yc, d, col, shade);
@@ -535,7 +664,7 @@ static void render(int col0, int col1)
                 c_ceil = n_ceil;
                 c_info = n_info;
                 c_fc = (uint8_t)(n_info >> 16);
-                c_cc = (uint8_t)(n_info >> 24);
+                c_cc = n_cc;
                 near_f = nyf;
                 near_c = nyc;
                 if (ytop >= ybot)
@@ -556,14 +685,38 @@ static void render(int col0, int col1)
             fill(dst, a, b, c_fc);
             a = near_c > ytop ? near_c : ytop;
             b = HORIZON < ybot ? HORIZON : ybot;
-            fill(dst, a, b, c_cc);
+            fill_ceil(dst, a, b, c_cc, with_sky);
         }
         seg_n[x] = (uint8_t)nseg;
     }
 }
 
+/* render_columns() twice: without any sky code (it costs the inner loop
+ * registers), and with it for scenes that have sky cells. */
+__attribute__((section(".iwram"), long_call, target("arm"), noinline))
+static void render_indoor(int col0, int col1)
+{
+    render_columns(col0, col1, 0);
+}
+
+__attribute__((section(".iwram"), long_call, target("arm"), noinline))
+static void render_sky(int col0, int col1)
+{
+    render_columns(col0, col1, 1);
+}
+
+
+
+static void render(int col0, int col1)
+{
+    if (scene_has_sky)
+        render_sky(col0, col1);
+    else
+        render_indoor(col0, col1);
+}
+
 /* An actor's current frame, decoded into the canvas. */
-static void decode_frame(const ASprite *spr)
+static void decode_frame(const ASprite *spr, int frame)
 {
     static const uint32_t zero = 0;
     static int dirty_top = 0, dirty_bottom = CANVAS;   /* rows the last actor used */
@@ -572,9 +725,9 @@ static void decode_frame(const ASprite *spr)
                    ((dirty_bottom - dirty_top) * CANVAS / 4) | (1 << 24));
     dirty_top = CANVAS;
     dirty_bottom = 0;
-    if (spr->current_frame < 0 || spr->current_frame >= spr->frame_count)
+    if (frame < 0 || frame >= spr->frame_count)
         return;
-    const ASpriteFrame *f = &spr->frames[spr->current_frame];
+    const ASpriteFrame *f = &spr->frames[frame];
     for (int o = 0; o < f->obj_count; o++)
     {
         int t = f->objs[o].dy + FOOT_Y, b = t + f->objs[o].h;
@@ -611,12 +764,35 @@ static void decode_frame(const ASprite *spr)
     }
 }
 
+/* The frame an actor shows seen from (vx, vy) away (the camera, minus
+ * its position): its front, back or a side, as if it faced that way -
+ * its own direction is left alone. */
+static int turned_frame(const Entity *e, int vx, int vy)
+{
+    static const int8_t FX[4] = { 0, 0, 1, -1 }, FY[4] = { 1, -1, 0, 0 };   /* down, up, right, left */
+    const SpriteDef *d = e->def;
+    int cur = e->sprite.current_frame;
+    if (!actor_turn || !d || e->extra_slot || e->anim_hold || e->anim_state >= d->state_count)
+        return cur;
+    int f = e->direction & 3;
+    vx >>= 8;
+    vy >>= 8;
+    int dot = FX[f] * vx + FY[f] * vy, cross = FX[f] * vy - FY[f] * vx;
+    int adot = dot < 0 ? -dot : dot, across = cross < 0 ? -cross : cross;
+    int rel = adot >= across ? (dot >= 0 ? DIR_DOWN : DIR_UP) : (cross > 0 ? DIR_RIGHT : DIR_LEFT);
+    int ai = d->state_maps[e->anim_state * ENTITY_STATE_SLOTS + (e->moving ? 4 : 0) + rel];
+    if (ai >= d->anim_count || !d->anims[ai].frame_count)
+        return cur;
+    const EntityAnimation *a = &d->anims[ai];
+    return a->frames[e->anim_frame % a->frame_count];
+}
+
 /* Every visible actor: where it is on screen (camera space, like the
  * walls), farthest first. 16 sprite pixels = one cell. */
 static void gather_actors(void)
 {
     const int dir_x = sin_tab[(view_angle + 256) & 1023], dir_y = sin_tab[view_angle & 1023];
-    const int plane_x = -dir_y * 2 / 3, plane_y = dir_x * 2 / 3;
+    const int plane_x = (-dir_y * fov_q) >> 12, plane_y = (dir_x * fov_q) >> 12;
     const int det = (plane_x * dir_y - dir_x * plane_y) >> 12;
     board_count = 0;
     if (!det)
@@ -635,6 +811,8 @@ static void gather_actors(void)
             continue;   /* behind the camera, or right on top of it */
         Billboard *b = &boards[board_count];
         b->e = e;
+        b->n = i;
+        b->frame = turned_frame(e, view_x - (ex << 8), view_y - (ey << 8));
         b->depth = ty;
         b->screen_x = (VIEW_W / 2) * (4096 + (int)(((int64_t)tx << 12) / ty)) >> 12;
         b->line = (VIEW_H << 12) / ty;
@@ -677,6 +855,8 @@ static void draw_actor(const Billboard *b)
             continue;
         const uint8_t *col = CANVAS_PX + (((x - left) * step) >> 16);
         uint8_t *dst = VIEW + (x >> 3) * 64 + (x & 7);
+        if (x == VIEW_W / 2 && y0 <= HORIZON && HORIZON < y1 && col[(((HORIZON - top) * step) >> 16) * CANVAS])
+            aim_next = b->n;   /* under the crosshair (nearest drawn last) */
         int v = (y0 - top) * step;
         for (int y = y0; y < y1; y++, v += step)
         {
@@ -688,42 +868,103 @@ static void draw_actor(const Billboard *b)
 }
 
 
+/* Lines since the last VBlank began (0-227): the main loop has until
+ * DEADLINE to finish before the next VBlank, or the game loses a frame. */
+#define DEADLINE 218
+#define COLUMN_CHUNK 8
+
+static int lines_since_vblank(void)
+{
+    int v = REG_VCOUNT;
+    return v >= 160 ? v - 160 : v + 68;
+}
+
+/* The crosshair, over the finished view. */
+static void draw_crosshair(void)
+{
+    static const int8_t CX[8] = { -3, -2, 2, 3, 0, 0, 0, 0 }, CY[8] = { 0, 0, 0, 0, -3, -2, 2, 3 };
+    for (int k = 0; k < 8; k++)
+    {
+        int x = VIEW_W / 2 + CX[k], y = HORIZON + CY[k];
+        VIEW[(x >> 3) * 64 + (x & 7) + row_off[y]] = CROSSHAIR;
+    }
+}
+
+/*
+ * A frame is drawn a few columns at a time, then the actors one at a time,
+ * for as long as this game frame has time left (the game itself always
+ * keeps its 60 frames a second), and carries on in the next. Simple views
+ * finish in one game frame, busy ones take two or three. Each chunk is
+ * started only if the last one of its kind would still fit.
+ */
 void raycast_draw(void)
 {
+
+    static int next_col, next_actor;
+    static int col_cost = 8, actor_cost = 4;   /* lines the last chunk / actor took */
     if (!active)
         return;
     tick_movers();
     if (frame_ready)
         return;
-    /* The second half of the frame started last time. */
-    if (half)
+    if (draw_phase == 0)
     {
-        render(VIEW_W / 2, VIEW_W);
-        gather_actors();
-        for (int i = 0; i < board_count; i++)
-        {
-            decode_frame(&boards[i].e->sprite);
-            draw_actor(&boards[i]);
-        }
-        half = 0;
-        frame_ready = 1;
-        return;
+        /* Actors move and animate: redraw every frame while there are any. */
+        if (world_npc_count() > 0)
+            dirty = 1;
+        if (!dirty)
+            return;
+        view_x = cam_x;
+        view_y = cam_y;
+        view_angle = cam_angle;
+        view_eye = cam_eye;
+        if (rc->sky && sky_span)
+            sky_x0 = (int)(((uint32_t)view_angle * (uint32_t)sky_span) >> 10) % rc->sky_w;
+        dirty = 0;
+        next_col = 0;
+        draw_phase = 1;
     }
-    /* Actors move and animate: redraw every frame while there are any. */
-    if (world_npc_count() > 0)
-        dirty = 1;
-    if (!dirty)
-        return;
-    /* A new frame, over two game frames (the game keeps its 60 a second):
-     * the left half now, the right half and the actors next time. */
-    view_x = cam_x;
-    view_y = cam_y;
-    view_angle = cam_angle;
-    view_eye = cam_eye;
-    dirty = 0;
-    render(0, VIEW_W / 2);
-    half = 1;
-    return;
+    int start = lines_since_vblank(), first = 1;
+    while (draw_phase == 1)
+    {
+        int t = lines_since_vblank();
+        if (!first && (t < start || t + col_cost > DEADLINE))
+            return;
+        int c1 = next_col + COLUMN_CHUNK < VIEW_W ? next_col + COLUMN_CHUNK : VIEW_W;
+        render(next_col, c1);
+        next_col = c1;
+        int took = lines_since_vblank() - t;
+        col_cost = took < 0 ? took + 228 : took;
+        first = 0;
+        if (next_col >= VIEW_W)
+        {
+            gather_actors();
+            aim_next = -1;
+            next_actor = 0;
+            draw_phase = 2;
+        }
+    }
+    while (draw_phase == 2)
+    {
+        if (next_actor >= board_count)
+        {
+            aimed = aim_next;
+            if (crosshair)
+                draw_crosshair();
+            frame_ready = 1;
+            draw_phase = 0;
+            return;
+        }
+        int t = lines_since_vblank();
+        if (!first && (t < start || t + actor_cost > DEADLINE))
+            return;
+        Billboard *b = &boards[next_actor++];
+        decode_frame(&b->e->sprite, b->frame);
+        draw_actor(b);
+        int took = lines_since_vblank() - t;
+        actor_cost = took < 0 ? took + 228 : took;
+        first = 0;
+    }
 }
 
 void raycast_vblank(void)

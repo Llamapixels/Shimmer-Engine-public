@@ -42,7 +42,12 @@ static int climbing, drop_timer;
 static int dash_timer, dash_cooldown, dash_vx, dash_vy;
 static int kb_timer;
 static int step_done;   /* Top Down grid: a step just finished */
-static int rc_floor, rc_fall;   /* First Person 3D: floor under the eye, 1/256 units */
+/* First Person 3D: the feet's height and speed up (1/256 units), on the
+ * ground?, head bob, the weapon (actor index, where it sits, its Fire /
+ * Alt Fire animation time left) and the time until the next shot. */
+static int rc_h, rc_vz, rc_ground, rc_bob_phase, rc_bob_amp;
+static int rc_weapon = -1, rc_weapon_x, rc_weapon_y, rc_weapon_timer, rc_fire_wait;
+static int rc_jump_v;
 static int kick_timer;                /* wall kick: gravity/steering off */
 static int kick_anim;                 /* frames left of the wall kick animation */
 static int was_grounded, was_sliding; /* for the land / wall slide sounds */
@@ -128,9 +133,35 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
         pos_y = player->y << 8;
         static const int16_t FACING[4] = { 256, 768, 0, 512 };   /* down, up, right, left */
         raycast_enter(scene);
-        rc_floor = raycast_floor_under(player->x, player->y, 6, 6) << 8;
-        rc_fall = 0;
-        raycast_set_eye(rc_floor);
+        raycast_set_body(MSET(RC_EYE), MSET(RC_STEP), MSET(RC_EYE) + 1);
+        raycast_set_options(MSET(RC_FOV), MSET(RC_FOG), MSET(RC_ACTOR_TURN), MSET(RC_CROSSHAIR));
+        rc_h = raycast_floor_under(player->x, player->y, 6, 6) << 8;
+        rc_vz = 0;
+        rc_ground = 1;
+        rc_bob_phase = rc_bob_amp = 0;
+        rc_fire_wait = rc_weapon_timer = 0;
+        /* Jump speed for the jump height: v = sqrt(2 g h). */
+        {
+            static const int16_t GRAV[3] = { 16, 24, 36 };
+            int g = GRAV[MSET(RC_GRAVITY) >= 0 && MSET(RC_GRAVITY) < 3 ? MSET(RC_GRAVITY) : 1];
+            int want = 2 * g * (MSET(RC_JUMP_HEIGHT) << 8), v = 0;
+            while ((v + 1) * (v + 1) <= want)
+                v++;
+            rc_jump_v = v + g / 2;
+        }
+        rc_weapon = scene->raycast ? scene->raycast->weapon : -1;
+        if (rc_weapon >= 0)
+        {
+            Entity *w = world_npc(rc_weapon);
+            if (w)
+            {
+                rc_weapon_x = w->x + scene->raycast->weapon_dx;
+                rc_weapon_y = w->y + scene->raycast->weapon_dy;
+            }
+            else
+                rc_weapon = -1;
+        }
+        raycast_set_eye(rc_h);
         raycast_set_view(pos_x + (3 << 8), pos_y + (3 << 8), FACING[player->direction & 3]);
     }
     else
@@ -1260,23 +1291,75 @@ static const ScriptEvent *shmup_update(Entity *p)
 /* ------------------------------------------------------------------ */
 /* First Person 3D                                                     */
 
+/* How long a weapon animation slot (Fire / Alt Fire) plays once. */
+static int slot_frames(const Entity *e, int slot)
+{
+    const SpriteDef *d = e->def;
+    if (!d || e->anim_state >= d->state_count)
+        return 0;
+    int ai = d->state_maps[e->anim_state * ENTITY_STATE_SLOTS + 8 + slot];
+    if (ai >= d->anim_count)
+        return 0;
+    const EntityAnimation *a = &d->anims[ai];
+    int speed = e->anim_speed ? e->anim_speed : (a->speed ? a->speed : ENTITY_ANIM_SPEED);
+    return a->frame_count * speed;
+}
+
+/* Fire (alt = 0) or Alt Fire: the weapon's animation, its sound and
+ * script, and (Fire) the actor under the crosshair is hit. */
+static void raycast_fire(int alt)
+{
+    if (rc_weapon >= 0)
+    {
+        Entity *w = world_npc(rc_weapon);
+        if (w && w->def)
+        {
+            entity_animate_slot(w, (Direction)w->direction, alt);
+            rc_weapon_timer = slot_frames(w, alt);
+        }
+    }
+    play_setting_sound(alt ? MS_RC_SOUND_ALT : MS_RC_SOUND_FIRE);
+    run_ability_script(alt ? MS_RC_ON_ALT_FIRE : MS_RC_ON_FIRE);
+    if (!alt && MSET(RC_HITSCAN))
+    {
+        int n = raycast_aimed();
+        if (n >= 0 && world_npc_def(n)->on_hit)
+            world_run_script(world_npc_def(n)->on_hit);
+    }
+}
+
 static const ScriptEvent *raycast_update(Entity *p)
 {
     static const int TURN[3] = { 6, 10, 16 };   /* 1024ths of a turn per frame */
     int angle = raycast_angle();
     int turn = TURN[MSET(RC_TURN) >= 0 && MSET(RC_TURN) < 3 ? MSET(RC_TURN) : 1];
-    angle = (angle + (input_held(INPUT_RIGHT) - input_held(INPUT_LEFT)) * turn) & 1023;
+    int lr = input_held(INPUT_RIGHT) - input_held(INPUT_LEFT);
+    int shoulder = input_held(INPUT_R) - input_held(INPUT_L);
+    int turning, strafe;
+    if (MSET(RC_CONTROLS) == 1)
+    {
+        /* Left / Right step sideways, L / R turn. */
+        turning = shoulder;
+        strafe = lr;
+    }
+    else
+    {
+        turning = lr;
+        strafe = MSET(RC_STRAFE) ? shoulder : 0;
+    }
+    angle = (angle + turning * turn) & 1023;
 
     int fwd = input_held(INPUT_UP) - input_held(INPUT_DOWN);
-    int strafe = MSET(RC_STRAFE) ? input_held(INPUT_R) - input_held(INPUT_L) : 0;
     int c = raycast_cos(angle), s = raycast_sin(angle);
-    int speed = MSET(RC_WALK);
+    int running = MSET(RC_RUN) && input_held(MSET(RC_RUN_BUTTON));
+    int speed = running ? MSET(RC_RUN_SPEED) : MSET(RC_WALK);
     int dx = ((fwd * c - strafe * s) * speed) >> 12;
     int dy = ((fwd * s + strafe * c) * speed) >> 12;
 
     /* Heights decide where it can go (steps, ledges, low ceilings);
      * actors still block. One pixel at a time per axis. */
-    int stand = rc_floor >> 8;
+    int stand = rc_h >> 8;
+    int ox = p->x, oy = p->y;
     pos_x += dx;
     while ((pos_x >> 8) != p->x)
     {
@@ -1299,33 +1382,97 @@ static const ScriptEvent *raycast_update(Entity *p)
         }
         p->y = ny;
     }
+    int walked = p->x != ox || p->y != oy;
 
-    /* Up steps (and lifts) at once; down ledges with a fall. */
+    /* Up and down: steps and lifts carry the feet up at once, small drops
+     * (stairs down, a lift going down) keep them on the floor, bigger
+     * ones fall; jumping. */
+    static const int16_t GRAV[3] = { 16, 24, 36 };
+    int g = GRAV[MSET(RC_GRAVITY) >= 0 && MSET(RC_GRAVITY) < 3 ? MSET(RC_GRAVITY) : 1];
     int under = raycast_floor_under(p->x, p->y, p->width, p->height) << 8;
-    if (under >= rc_floor)
+    int top = (raycast_ceil_over(p->x, p->y, p->width, p->height) - MSET(RC_EYE) - 1) << 8;
+    if (rc_ground)
     {
-        rc_floor = under;
-        rc_fall = 0;
-    }
-    else
-    {
-        rc_fall += 24;
-        rc_floor -= rc_fall;
-        if (rc_floor < under)
+        if (under >= rc_h || rc_h - under <= 256 * MSET(RC_STEP))
+            rc_h = under;
+        else
         {
-            rc_floor = under;
-            rc_fall = 0;
+            rc_ground = 0;
+            rc_vz = 0;
         }
     }
-    raycast_set_eye(rc_floor);
+    if (rc_ground && MSET(RC_JUMP) && input_pressed(MSET(RC_JUMP_BUTTON)))
+    {
+        rc_ground = 0;
+        rc_vz = rc_jump_v;
+        play_setting_sound(MS_RC_SOUND_JUMP);
+    }
+    if (!rc_ground)
+    {
+        rc_vz -= g;
+        rc_h += rc_vz;
+        if (rc_h > top && rc_vz > 0)
+        {
+            rc_h = top > under ? top : under;   /* head hits the ceiling */
+            rc_vz = 0;
+        }
+        if (rc_h <= under)
+        {
+            rc_h = under;
+            rc_vz = 0;
+            rc_ground = 1;
+        }
+    }
+
+    /* Head bob while walking on the ground. */
+    static const int16_t BOB[3] = { 0, 96, 192 };   /* 1/256 units */
+    int bob_max = BOB[MSET(RC_BOB) >= 0 && MSET(RC_BOB) < 3 ? MSET(RC_BOB) : 0];
+    int want = walked && rc_ground ? 256 : 0;
+    rc_bob_amp += rc_bob_amp < want ? 32 : rc_bob_amp > want ? -32 : 0;
+    if (rc_bob_amp)
+        rc_bob_phase = (rc_bob_phase + ((running ? 40 : 28) * speed >> 8)) & 1023;
+    int bob = (raycast_sin(rc_bob_phase * 2) * bob_max >> 12) * rc_bob_amp >> 8;
+    raycast_set_eye(rc_h + bob);
 
     /* The nearest of the four directions, for everything else that
      * reads the player's facing (projectiles, Set Actor Direction...). */
     int q = ((angle + 128) & 1023) >> 8;   /* 0 right, 1 down, 2 left, 3 up */
     static const Direction DIRS[4] = { DIR_RIGHT, DIR_DOWN, DIR_LEFT, DIR_UP };
-    entity_animate(p, DIRS[q], fwd || strafe);
+    entity_animate(p, DIRS[q], walked);
 
     raycast_set_view(pos_x + (p->width << 7), pos_y + (p->height << 7), angle);
+
+    /* The weapon: sways while walking, Fire / Alt Fire play once. */
+    if (rc_weapon >= 0)
+    {
+        Entity *w = world_npc(rc_weapon);
+        if (w)
+        {
+            int sway = MSET(RC_WEAPON_BOB) ? rc_bob_amp : 0;
+            w->x = rc_weapon_x + ((raycast_cos(rc_bob_phase) * 4 >> 12) * sway >> 8);
+            int up = raycast_sin(rc_bob_phase * 2);
+            w->y = rc_weapon_y + (((up < 0 ? -up : up) * 3 >> 12) * sway >> 8);
+            if (rc_weapon_timer > 0)
+            {
+                if (--rc_weapon_timer == 0)
+                    entity_animate(w, (Direction)w->direction, walked);
+            }
+            else
+                entity_animate(w, (Direction)w->direction, walked);
+        }
+    }
+    if (rc_fire_wait > 0)
+        rc_fire_wait--;
+    else if (MSET(RC_FIRE) && input_pressed(MSET(RC_FIRE_BUTTON)))
+    {
+        rc_fire_wait = MSET(RC_FIRE_RATE);
+        raycast_fire(0);
+    }
+    else if (MSET(RC_ALT_FIRE) && input_pressed(MSET(RC_ALT_BUTTON)))
+    {
+        rc_fire_wait = MSET(RC_FIRE_RATE);
+        raycast_fire(1);
+    }
 
     /* Talk to the actor just ahead. */
     if (input_pressed(MSET(RC_INTERACT)))

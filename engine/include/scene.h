@@ -165,6 +165,16 @@ typedef struct RaycastDef
                                  * layer's) */
     uint8_t dark;               /* added to a texture's colour on north and
                                  * south faces (its darker copy) */
+    /* The sky (ceiling colour 255): a picture of palette indices, column
+     * by column, sky_w x sky_h (0 = none: the colour sky_col). */
+    const uint8_t *sky;
+    uint16_t sky_w;
+    uint8_t sky_h;
+    uint8_t sky_col;
+    /* The first person weapon: an actor index (pinned), -1 = none, and
+     * its offset from bottom centre (px). */
+    int8_t weapon;
+    int8_t weapon_dx, weapon_dy;
 } RaycastDef;
 
 typedef struct

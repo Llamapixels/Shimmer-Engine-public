@@ -29,15 +29,22 @@ int raycast_angle(void);
 
 /*
  * Heights: every cell has a floor and a ceiling height in 1/8 cell units
- * (a ceiling at or below the floor is a solid wall). The player's eye is
- * half a cell above the floor under it; it steps up at most RAYCAST_STEP
- * and needs RAYCAST_HEADROOM under a ceiling.
+ * (a ceiling at or below the floor is a solid wall; under the sky a wall
+ * is a block as tall as its floor value). Ceiling colour 255 is the sky.
  */
-#define RAYCAST_STEP     3
-#define RAYCAST_HEADROOM 5
 
-/* The floor the eye stands on, in 1/256 units (it moves smoothly). */
+/* The player's eye height, how high it steps up and the room it needs
+ * under a ceiling, in units (defaults 4, 3, 5). */
+void raycast_set_body(int eye, int step, int headroom);
+/* Field of view (0 narrow, 1 normal, 2 wide), distance shading (0 off,
+ * 1 far, 2 near), actors turned to the camera, a crosshair. */
+void raycast_set_options(int fov, int fog, int turn_actors, int crosshair);
+/* The feet's height, in 1/256 units (the eye is above it). */
 void raycast_set_eye(int floor);
+/* Lowest ceiling over a box (px), in units. */
+int raycast_ceil_over(int x, int y, int w, int h);
+/* The actor under the crosshair in the last frame drawn, or -1. */
+int raycast_aimed(void);
 /* Highest floor under a box (px), in units. */
 int raycast_floor_under(int x, int y, int w, int h);
 /* Can a box (px) standing at `floor` (units) be here? */

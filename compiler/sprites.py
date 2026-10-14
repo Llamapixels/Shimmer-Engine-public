@@ -45,7 +45,7 @@ from PIL import Image
 
 ANIMATION_TYPES = (
     "fixed", "fixed_movement", "multi", "multi_movement",
-    "horizontal", "horizontal_movement", "platform_player", "cursor",
+    "horizontal", "horizontal_movement", "platform_player", "cursor", "fps_weapon",
 )
 SPRITE_MODES = {"8x8": 8, "8x16": 16}
 MAX_CANVAS = 256
@@ -205,7 +205,7 @@ def animation_map(anim_type, flip_left):
         moving = i >= 4
         if anim_type == "fixed":
             r = (0, False)
-        elif anim_type == "fixed_movement":
+        elif anim_type in ("fixed_movement", "fps_weapon"):
             r = (4 if moving else 0, False)
         elif anim_type == "multi":
             r = (0, True) if flip_left and i in (1, 5) else (i % 4, False)
@@ -503,6 +503,13 @@ def compile_sprite(sheet, image, where):
         def has_frames(ai):
             return 0 <= ai < len(anims) and any(f.get("tiles") for f in (anims[ai].get("frames") or []))
 
+        if st.get("animationType") == "fps_weapon":
+            # First Person 3D weapon: slots 8 / 9 are Fire (animation 2)
+            # and Alt Fire (3), played once when their buttons are pressed.
+            fire = engine_anim(2, False) if has_frames(2) else slots[0]
+            alt = engine_anim(3, False) if has_frames(3) else fire
+            cs.state_maps.append(slots + [fire, alt, slots[0], slots[0]])
+            continue
         for right_ai, left_ai in ((8, 9), (10, 11)):
             if is_platform and has_frames(right_ai):
                 slots.append(engine_anim(right_ai, False))
