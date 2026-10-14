@@ -254,6 +254,18 @@ export interface ActorSetDirectionEvent extends EventBase {
   direction: Direction;
 }
 
+/** A circle of light around an actor, the rest darker (dark caves). */
+export interface LightSetEvent extends EventBase {
+  type: "light_set";
+  on?: boolean;
+  radius?: number;
+  darkness?: number;
+  actors?: "visible" | "dark" | "hidden";
+  actor?: ActorRef;
+  flicker?: boolean;
+  speed?: number;
+}
+
 /** "Pause World" / "Resume World" (GBVM's lock / unlock). */
 export interface PauseWorldEvent extends EventBase {
   type: "pause_world";
@@ -1216,6 +1228,7 @@ export type ScriptEventJSON =
   | ActorLockDirectionEvent
   | SpawnPrefabEvent
   | TextHudCloseEvent
+  | LightSetEvent
   | PauseWorldEvent
   | ResumeWorldEvent
   | RaycastSetHeightsEvent

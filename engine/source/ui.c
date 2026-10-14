@@ -1,6 +1,7 @@
 #include <gba.h>
 #include <stdint.h>
 
+#include "light.h"
 #include "ui.h"
 #include "state.h"   /* var_get() - variables in screen text */
 
@@ -326,7 +327,7 @@ static void anim_stop(void)
     anim_t = -1;
     REG_DISPCNT &= ~WIN1_ENABLE;
     REG_BG1HOFS = 0;
-    if (ui_box_transition == UI_ANIM_FADE)
+    if (ui_box_transition == UI_ANIM_FADE && !light_on())
     {
         REG_BLDCNT = 0;
         REG_BLDALPHA = 0;
@@ -342,6 +343,8 @@ static void anim_show(int p)
     {
     case UI_ANIM_FADE:
     {
+        if (light_on())
+            return;   /* the light has the blend registers: no fade */
         int a = (p * 16) >> 8;
         REG_BLDCNT = (1 << 1) | (1 << 6) | (0x3D << 8);   /* BG1 over everything else */
         REG_BLDALPHA = (uint16_t)(a | ((16 - a) << 8));
@@ -383,7 +386,8 @@ static void anim_show(int p)
     REG_WIN1H = (uint16_t)((x1 << 8) | x2);
     REG_WIN1V = (uint16_t)((y1 << 8) | y2);
     REG_WININ = (uint16_t)((REG_WININ & 0x00FF) | WININ_W1_ALL);
-    REG_WINOUT = (uint16_t)((REG_WINOUT & 0xFF00) | WINOUT_NO_BG1);
+    /* Outside: as it is (the light may hide or darken things) minus BG1. */
+    REG_WINOUT = (uint16_t)((REG_WINOUT & 0xFF00) | (light_on() ? (REG_WINOUT & 0x3F & ~(1 << 1)) : WINOUT_NO_BG1));
     REG_DISPCNT |= WIN1_ENABLE;
 }
 

@@ -4,6 +4,7 @@
 
 #include "script.h"
 #include "dialogue.h"
+#include "light.h"
 #include "raycast.h"
 #include "audio.h"
 #include "music.h"
@@ -1134,6 +1135,10 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_RAYCAST_HEIGHTS:
             raycast_heights((const int16_t *)ev->ptr);
+            break;
+
+        case SCRIPT_LIGHT:
+            light_set((const int16_t *)ev->ptr);
             break;
 
         case SCRIPT_WORLD_LOCK:

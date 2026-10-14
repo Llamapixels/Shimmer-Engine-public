@@ -869,6 +869,48 @@ export const EVENT_DEFS: EventDef[] = [
     summary: () => "",
   }),
   def({
+    type: "light_set",
+    label: "Set Light",
+    category: "Screen",
+    description:
+      "A circle of light around an actor (the player by default) with everything else darker, like Pokemon's dark caves. " +
+      "Turn it off with \"Light on\" unticked. Each scene starts without one; dialogue boxes are never darkened. " +
+      "Not in First Person 3D.",
+    fields: [
+      { key: "on", label: "Light on", kind: "bool", defaultValue: true },
+      { key: "radius", label: "Radius (px)", kind: "int", min: 0, max: 255, defaultValue: 48, showIf: (e) => e.on !== false },
+      { key: "darkness", label: "Darkness (0-16)", kind: "int", min: 0, max: 16, defaultValue: 12, showIf: (e) => e.on !== false },
+      {
+        key: "actors",
+        label: "Actors outside the light",
+        kind: "select",
+        defaultValue: "visible",
+        options: [
+          { value: "visible", label: "Shown as normal" },
+          { value: "dark", label: "Darkened too" },
+          { value: "hidden", label: "Hidden" },
+        ],
+        showIf: (e) => e.on !== false,
+      },
+      { key: "actor", label: "Around", kind: "actor", defaultValue: "player", showIf: (e) => e.on !== false },
+      { key: "flicker", label: "Flickers like a torch", kind: "bool", defaultValue: false, showIf: (e) => e.on !== false },
+      {
+        key: "speed",
+        label: "Grow / shrink speed (px a frame, 0 = at once)",
+        kind: "int",
+        min: 0,
+        max: 64,
+        defaultValue: 0,
+        showIf: (e) => e.on !== false,
+      },
+    ],
+    create: () => ({ type: "light_set", on: true, radius: 48, darkness: 12 }),
+    summary: (ev) => {
+      const e = ev as unknown as { on?: boolean; radius?: number; darkness?: number };
+      return e.on === false ? "off" : `radius ${e.radius ?? 48}, darkness ${e.darkness ?? 12}`;
+    },
+  }),
+  def({
     type: "pause_world",
     label: "Pause World",
     category: "Scripts",

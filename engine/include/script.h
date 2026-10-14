@@ -429,6 +429,7 @@ typedef enum
     SCRIPT_TEXT_HUD_CLOSE,     /* take down a HUD text box */
     SCRIPT_RAYCAST_HEIGHTS,    /* ptr = int16_t[7], raycast_heights() */
     SCRIPT_WORLD_LOCK,         /* a = 1 pause the world for this script, 0 resume */
+    SCRIPT_LIGHT,              /* ptr = int16_t[7], light_set() */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

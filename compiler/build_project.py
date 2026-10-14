@@ -296,6 +296,14 @@ Event script types (used in "on_interact" and door "events" lists):
         A HUD box: drawn at once (first page only) and left up while the game
         carries on, until "text_hud_close", another text box or a scene change.
     { "type": "text_hud_close" }
+    { "type": "light_set", "on": true, "radius": 48, "darkness": 12,
+      "actors": "visible" | "dark" | "hidden", "actor": "player",
+      "flicker": false, "speed": 0 }
+        A circle of light around an actor (px radius), the rest darker
+        (darkness 0-16) - Pokemon's dark caves; "on": false takes it away.
+        Actors outside the light are shown, darkened or hidden. "speed":
+        px a frame the radius grows / shrinks to the new size (0 = at
+        once). Each scene starts without one. Not in First Person 3D.
     { "type": "pause_world" }   /   { "type": "resume_world" }
         Like GBVM's lock / unlock: until Resume World (or the script
         ends), only this script runs - other scripts, timers, projectiles,
@@ -2716,7 +2724,7 @@ PARITY_EVENT_TYPES = [
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
-    "pause_world", "resume_world",
+    "pause_world", "resume_world", "light_set",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3088,6 +3096,23 @@ def compile_parity_event(etype, ev, out, ctx, where):
         ident = _aux_ident(ctx, "heights")
         ctx["_aux"].append(("expr", ident, [x, y, rw, rh, floor, ceil, int(round(speed * 256))]))
         out.append(_instr("SCRIPT_RAYCAST_HEIGHTS", ptr=ident))
+
+    elif etype == "light_set":
+        on = ev.get("on", True)
+        if not isinstance(on, bool):
+            raise BuildError(f"{where}: \"on\" must be true or false.")
+        radius = resolve_small_int(ev.get("radius", 48), "radius", where, 0, 255)
+        darkness = resolve_small_int(ev.get("darkness", 12), "darkness", where, 0, 16)
+        modes = {"visible": 0, "dark": 1, "hidden": 2}
+        actors = ev.get("actors", "visible")
+        if actors not in modes:
+            raise BuildError(f"{where}: \"actors\" must be visible, dark or hidden.")
+        follow = resolve_actor(ev.get("actor", "player"), ctx, where)
+        flicker = 1 if ev.get("flicker", False) else 0
+        speed = resolve_small_int(ev.get("speed", 0), "speed", where, 0, 64)
+        ident = _aux_ident(ctx, "light")
+        ctx["_aux"].append(("expr", ident, [1 if on else 0, radius, darkness, modes[actors], follow, flicker, speed]))
+        out.append(_instr("SCRIPT_LIGHT", ptr=ident))
 
     elif etype in ("pause_world", "resume_world"):
         out.append(_instr("SCRIPT_WORLD_LOCK", a=1 if etype == "pause_world" else 0))
