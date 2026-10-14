@@ -98,11 +98,20 @@ class SheetImage:
         index_of = {}
         rows = []
         data = list(image.getdata())
+        # The GBA has no partial transparency: pixels under half opacity
+        # are see-through. A sprite drawn only in faint pixels (a glow, a
+        # soft bullet) would vanish, so then every pixel that shows at all
+        # counts.
+        cutoff = 128
+        if not any(p[3] >= 128 for p in data) and any(p[3] > 0 for p in data):
+            cutoff = 1
+            print(f"  note: sprite '{name}' is all semi-transparent pixels; drawn solid "
+                  "(the GBA has no partial transparency)")
         for y in range(self.height):
             row = []
             for x in range(self.width):
                 r, g, b, a = data[y * self.width + x]
-                if a < 128:
+                if a < cutoff:
                     row.append(0)
                     continue
                 rgb = (r, g, b)

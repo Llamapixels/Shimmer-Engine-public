@@ -314,7 +314,13 @@ int raycast_solid_at(int x, int y)
     int cx = x >> 3, cy = y >> 3;
     if (!active || cx < 0 || cy < 0 || cx >= map_w || cy >= map_h)
         return 0;
-    return solid_cell(cy * map_w + cx);
+    int i = cy * map_w + cx;
+    if (solid_cell(i))
+        return 1;
+    /* Projectiles fly at eye height: a raised block or a low ceiling
+     * there stops them too (a window's gap lets them through). */
+    int eye = cam_eye >> 9;
+    return (int)CELL_FLOOR(i) > eye || (int)CELL_CEIL(i) <= eye;
 }
 
 int raycast_aimed(void)
@@ -861,9 +867,9 @@ static int turned_frame(const Entity *e, int vx, int vy)
     return a->frames[e->anim_frame % a->frame_count];
 }
 
-/* One billboard for entity e (actor n, or -1 for a projectile drawn
- * `lift` above the floor), if it's in view. */
-static void add_board(Entity *e, int n, int lift, int32_t x, int32_t y, int dir_x, int dir_y, int plane_x, int plane_y, int det)
+/* One billboard for entity e (actor n, or -1 for a projectile), if it's
+ * in view. */
+static void add_board(Entity *e, int n, int32_t x, int32_t y, int dir_x, int dir_y, int plane_x, int plane_y, int det)
 {
     /* x, y: the footprint's top-left in 1/256 px (sub-pixel, so a
      * projectile right in front of the camera stays under the crosshair). */
@@ -878,8 +884,25 @@ static void add_board(Entity *e, int n, int lift, int32_t x, int32_t y, int dir_
     Billboard *b = &boards[board_count];
     b->e = e;
     b->n = n;
-    b->lift = lift;
     b->frame = turned_frame(e, view_x - (ex << 8), view_y - (ey << 8));
+    b->lift = 0;
+    if (n < 0 && b->frame >= 0 && b->frame < e->sprite.frame_count)
+    {
+        /* A projectile flies at eye height: the middle of its pixels (any
+         * size, wherever they sit in the sprite) a unit under the crosshair. */
+        const ASpriteFrame *f = &e->sprite.frames[b->frame];
+        int top = CANVAS, bot = 0;
+        for (int o = 0; o < f->obj_count; o++)
+        {
+            int t = FOOT_Y + f->objs[o].dy;
+            if (t < top)
+                top = t;
+            if (t + f->objs[o].h > bot)
+                bot = t + f->objs[o].h;
+        }
+        if (top < bot)
+            b->lift = (eye_units << 9) - 512 - (CANVAS - (top + bot) / 2) * 256;
+    }
     b->depth = ty;
     b->screen_x = (VIEW_W / 2) * (4096 + (int)(((int64_t)tx << 12) / ty)) >> 12;
     b->line = (VIEW_H << 12) / ty;
@@ -888,7 +911,7 @@ static void add_board(Entity *e, int n, int lift, int32_t x, int32_t y, int dir_
     int cx = ex >> 3, cy = ey >> 3;
     int fl = n < 0 ? view_eye - (eye_units << 9)
              : (cx >= 0 && cy >= 0 && cx < map_w && cy < map_h) ? (int)CELL_FLOOR(cy * map_w + cx) << 9 : 0;
-    b->bottom = HORIZON + (((view_eye - fl - lift) * b->line) >> 12);
+    b->bottom = HORIZON + (((view_eye - fl - b->lift) * b->line) >> 12);
     if (b->line < 1 || b->screen_x + b->line * 2 < 0 || b->screen_x - b->line * 2 >= VIEW_W)
         return;
     board_count++;
@@ -909,15 +932,14 @@ static void gather_actors(void)
         Entity *e = world_npc(i);
         if (!e || !e->solid || e->pinned || !e->sprite.visible)
             continue;
-        add_board(e, i, 0, e->x << 8, e->y << 8, dir_x, dir_y, plane_x, plane_y, det);
+        add_board(e, i, e->x << 8, e->y << 8, dir_x, dir_y, plane_x, plane_y, det);
     }
-    /* Projectiles fly at eye height: a sprite centred in its 16x16 cell
-     * (4 units up) sits a unit under the crosshair. */
+    /* Projectiles (at eye height, see add_board()). */
     Entity *shots[PROJECTILE_MAX];
     int32_t at[PROJECTILE_MAX * 2];
     int count = projectile_entities(shots, at, PROJECTILE_MAX);
     for (int i = 0; i < count && board_count < MAX_ACTORS; i++)
-        add_board(shots[i], -1, (eye_units << 9) - 2560, at[i * 2], at[i * 2 + 1], dir_x, dir_y, plane_x, plane_y, det);
+        add_board(shots[i], -1, at[i * 2], at[i * 2 + 1], dir_x, dir_y, plane_x, plane_y, det);
     for (int i = 1; i < board_count; i++)
         for (int j = i; j > 0 && boards[j].depth > boards[j - 1].depth; j--)
         {
