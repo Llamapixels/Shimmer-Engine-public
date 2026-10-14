@@ -49,6 +49,45 @@ export function sceneTextures(scene: SceneJSON): string[] {
 
 const RC_HEIGHT_KEY = { floor_h: "floor_heights", ceil_h: "ceiling_heights" } as const;
 const RC_CHAR_KEY = { walltex: "wall_textures", floor_flat: "floor_flats", ceil_flat: "ceiling_flats" } as const;
+/** Floor / ceiling layers: a colour in *_flats, or a texture ("t:name") in *_textures. */
+const RC_TEX_KEY = { floor_flat: "floor_textures", ceil_flat: "ceiling_textures" } as const;
+
+/** Floor / ceiling cells: "1"-"5" a colour, "t:name" a texture, null the
+ * scene's own colour. A texture clears the colour and the other way round. */
+function applySurface(scene: SceneJSON, layer: "floor_flat" | "ceil_flat", w: number, h: number, cells: Cells): SceneJSON {
+  const colours = resizeCollision(scene[RC_CHAR_KEY[layer]] ?? [], w, h).map((r) => r.split(""));
+  const texRows = resizeCollision(scene[RC_TEX_KEY[layer]] ?? [], w, h).map((r) => r.split(""));
+  let textures = sceneTextures(scene);
+  for (const [k, v] of cells) {
+    const x = k % w;
+    const y = Math.floor(k / w);
+    if (!colours[y] || x >= w) continue;
+    if (v !== null && v.startsWith("t:")) {
+      const name = v.slice(2);
+      let i = textures.indexOf(name);
+      if (i < 0 && textures.length < RC_TEX_CHARS.length) {
+        textures = [...textures, name];
+        i = textures.length - 1;
+      }
+      if (i < 0) continue;
+      texRows[y][x] = RC_TEX_CHARS[i];
+      colours[y][x] = ".";
+    } else {
+      texRows[y][x] = ".";
+      colours[y][x] = v ?? ".";
+    }
+  }
+  const next: SceneJSON = { ...scene };
+  const c = colours.map((r) => r.join(""));
+  const t = texRows.map((r) => r.join(""));
+  if (c.some((r) => /[^.]/.test(r))) next[RC_CHAR_KEY[layer]] = c;
+  else delete next[RC_CHAR_KEY[layer]];
+  if (t.some((r) => /[^.]/.test(r))) next[RC_TEX_KEY[layer]] = t;
+  else delete next[RC_TEX_KEY[layer]];
+  if (textures !== sceneTextures(scene) || (t.some((r) => /[^.]/.test(r)) && !scene.raycast?.textures))
+    next.raycast = { ...(scene.raycast ?? {}), textures };
+  return next;
+}
 
 /** The scene's floor and ceiling where none is painted. */
 export function rcDefaults(scene: SceneJSON): { floor: number; ceil: number } {
@@ -86,6 +125,7 @@ function applyShape(scene: SceneJSON, w: number, h: number, cells: Cells): Scene
 function applyRcCells(scene: SceneJSON, layer: RcLayer, w: number, h: number, cells: Cells): SceneJSON {
   if (!cells.size) return scene;
   if (layer === "shape") return applyShape(scene, w, h, cells);
+  if (layer === "floor_flat" || layer === "ceil_flat") return applySurface(scene, layer, w, h, cells);
   if (layer === "floor_h" || layer === "ceil_h") {
     const key = RC_HEIGHT_KEY[layer];
     const grid = resizePaletteMap((scene[key] ?? []) as (string | null)[][], w, h) as unknown as (number | null)[][];
@@ -134,6 +174,13 @@ function readRcCell(scene: SceneJSON, layer: RcLayer, x: number, y: number): Cel
   if (layer === "floor_h" || layer === "ceil_h") {
     const v = scene[RC_HEIGHT_KEY[layer]]?.[y]?.[x];
     return v === null || v === undefined ? null : String(v);
+  }
+  if (layer === "floor_flat" || layer === "ceil_flat") {
+    const t = scene[RC_TEX_KEY[layer]]?.[y]?.[x] ?? ".";
+    if (t !== ".") {
+      const name = sceneTextures(scene)[RC_TEX_CHARS.indexOf(t.toLowerCase())];
+      if (name) return `t:${name}`;
+    }
   }
   const ch = scene[RC_CHAR_KEY[layer]]?.[y]?.[x] ?? ".";
   if (ch === ".") return null;
@@ -295,7 +342,11 @@ export function brushValue(
     if (erase || !rc) return null;
     if (layer === "shape") return rc.shape_wall ? "wall" : `${rc.shape_floor},${rc.shape_ceil}`;
     if (layer === "walltex") return rc.walltex || null;
-    if (layer === "floor_flat" || layer === "ceil_flat") return rc[layer] > 0 ? String(rc[layer]) : null;
+    if (layer === "floor_flat" || layer === "ceil_flat") {
+      const tex = layer === "floor_flat" ? rc.floor_tex : rc.ceil_tex;
+      if (tex) return `t:${tex}`;
+      return rc[layer] > 0 ? String(rc[layer]) : null;
+    }
     return String(rc[layer]);
   }
   if (layer === "collision") return erase ? "." : collisionBrush;

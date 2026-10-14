@@ -388,6 +388,10 @@ export interface SceneJSON {
   wall_textures?: string[];
   floor_flats?: string[];
   ceiling_flats?: string[];
+  /** Per tile: a texture on the floor / ceiling ("0".."9", "a".."z" into
+   * raycast.textures; "." none - the colour shows). */
+  floor_textures?: string[];
+  ceiling_textures?: string[];
 }
 
 /** A reusable NPC/door starting point (GB Studio's "prefab"): dropping one

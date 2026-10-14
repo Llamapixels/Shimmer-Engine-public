@@ -1050,7 +1050,11 @@ export default function SceneCanvas() {
     } else if (layer === "floor_h") setRcBrush({ floor_h: v === null ? (data.raycast?.floor_height ?? 0) : Number(v) });
     else if (layer === "ceil_h") setRcBrush({ ceil_h: v === null ? (data.raycast?.ceiling_height ?? 8) : Number(v) });
     else if (layer === "walltex") setRcBrush({ walltex: v ?? "" });
-    else setRcBrush({ [layer]: v === null ? 0 : Number(v) });
+    else {
+      const texKey = layer === "floor_flat" ? "floor_tex" : "ceil_tex";
+      if (v?.startsWith("t:")) setRcBrush({ [texKey]: v.slice(2) });
+      else setRcBrush({ [layer]: v === null ? 0 : Number(v), [texKey]: "" });
+    }
   };
 
   /** A First Person 3D engine setting as a number (a choice's index). */

@@ -19,6 +19,7 @@
 #define MAX_CELLS   (128 * 128)
 #define MAX_MOVERS  8
 #define SKY         255                   /* a cell's ceiling colour: the sky */
+#define FLAT_TEX    200                   /* floor / ceiling colour 200+t: texture t */
 #define CROSSHAIR   120                   /* palette: the crosshair's colour */
 
 #define SPRITE_PAL  128                   /* OBJ palette banks 0-6 copied to 128-239 */
@@ -59,7 +60,7 @@ static int eye_units = 4, step_units = 3, headroom_units = 5;
  * picture's width in view columns per full turn. */
 static int sky_x0, sky_span;
 static int aim_next = -1, aimed = -1;
-static int scene_has_sky;            /* some cell shows the sky: render_sky() */
+static int scene_extras;              /* sky or textured floors: render_extras() */
 static int draw_phase;               /* raycast_draw(): 0 starts a frame, 1 columns, 2 actors */
 
 /* Heights, 1/8 cell units: copied to RAM so doors and lifts can move. */
@@ -103,6 +104,7 @@ static inline int line_of(int d)
 
 static int16_t sin_tab[1024] EWRAM_BSS;   /* Q12 */
 static uint16_t row_off[VIEW_H];   /* row y -> its offset in the tile buffer */
+static uint16_t row_dist[VIEW_H / 2];   /* textured floors: see fill_flat() (IWRAM: read per pixel) */
 static int tables_ready;
 
 /* After each height change a ray crossed: how far, and the rows still
@@ -161,6 +163,8 @@ static void build_tables(void)
         inv_small[v] = v ? (1 << 24) / v : (1 << 24);
         inv_big[v] = v >= 128 ? (1 << 24) / (v * 8 + 4) : (1 << 24) / 1024;
     }
+    for (int r = 0; r < VIEW_H / 2; r++)
+        row_dist[r] = (uint16_t)((2 * VIEW_H << 8) / (2 * r + 1));
     tables_ready = 1;
 }
 
@@ -211,11 +215,11 @@ void raycast_enter(const SceneDef *scene)
     rc = scene->raycast;
     map_w = scene->width;
     map_h = scene->height;
-    scene_has_sky = 0;
+    scene_extras = 0;
     for (int i = 0; i < map_w * map_h; i++)
     {
         cells[i] = rc->floor_h[i] | (rc->ceil_h[i] << 8) | (rc->floor_col[i] << 16) | ((uint32_t)rc->ceil_col[i] << 24);
-        scene_has_sky |= rc->ceil_col[i] == SKY;
+        scene_extras |= rc->ceil_col[i] >= FLAT_TEX || rc->floor_col[i] >= FLAT_TEX;
     }
     mover_count = 0;
     active = 1;
@@ -488,13 +492,54 @@ static void fill_sky(uint8_t *dst, int y0, int y1)
         dst[row_off[y0]] = col[y0 < h ? y0 : h - 1];
 }
 
-/* A ceiling: its colour, or the sky (scenes with sky cells only). */
-static inline __attribute__((always_inline)) void fill_ceil(uint8_t *dst, int y0, int y1, uint8_t c, const int with_sky)
+/* Textured floors and ceilings: this column's ray and the frame's camera
+ * (Q12); row_dist[r] (row r from the horizon) is the distance to a plane
+ * one cell from the eye: 2 * VIEW_H / (2r + 1), Q8. */
+static int flat_ray_x, flat_ray_y, flat_pos_x, flat_pos_y;
+
+/* Rows y0..y1 of a textured floor or ceiling `h` (Q12) below / above the
+ * eye: each pixel's spot on the plane, and that texel. */
+__attribute__((section(".iwram"), long_call, target("arm"), noinline))
+static void fill_flat(uint8_t *dst, int y0, int y1, int tex, int h)
 {
-    if (!with_sky || c != SKY)
+    const uint8_t *t = rc->textures + tex * TEX * TEX;
+    const int dark = rc->dark, fog = fog_d;
+    const int rx = flat_ray_x, ry = flat_ray_y, px = flat_pos_x, py = flat_pos_y;
+    /* 32-bit products only (no long multiplies): h in 1/256 cells. */
+    if (h < 0)
+        h = -h;
+    h >>= 4;
+    for (; y0 < y1; y0++)
+    {
+        int r = y0 >= HORIZON ? y0 - HORIZON : HORIZON - 1 - y0;
+        int d = (h * row_dist[r]) >> 4;                 /* Q12 */
+        int wx = px + ((rx * (d >> 4)) >> 8);
+        int wy = py + ((ry * (d >> 4)) >> 8);
+        uint8_t c = t[((wx >> 7) & (TEX - 1)) * TEX + ((wy >> 7) & (TEX - 1))];
+        dst[row_off[y0]] = (uint8_t)(d > fog ? c + dark : c);
+    }
+}
+
+/* A floor: its colour, or a texture (scenes with them only). */
+static inline __attribute__((always_inline)) void fill_floor(uint8_t *dst, int y0, int y1, uint8_t c, int h, const int extras)
+{
+    if (!extras || c < FLAT_TEX)
         fill(dst, y0, y1, c);
     else if (y0 < y1)
+        fill_flat(dst, y0, y1, c - FLAT_TEX, h);
+}
+
+/* A ceiling: its colour, a texture or the sky (scenes with them only). */
+static inline __attribute__((always_inline)) void fill_ceil(uint8_t *dst, int y0, int y1, uint8_t c, int h, const int extras)
+{
+    if (!extras || c < FLAT_TEX)
+        fill(dst, y0, y1, c);
+    else if (y0 >= y1)
+        return;
+    else if (c == SKY)
         fill_sky(dst, y0, y1);
+    else
+        fill_flat(dst, y0, y1, c - FLAT_TEX, h);
 }
 
 /* Rows y0..y1 of a wall face whose top (unclipped) is at row `top`:
@@ -518,7 +563,7 @@ static inline __attribute__((always_inline)) void face(uint8_t *dst, int y0, int
  * face) and narrows the column's open window; a solid cell ends it.
  * Positions and heights are Q12 cells.
  */
-static inline __attribute__((always_inline)) void render_columns(int col0, int col1, const int with_sky)
+static inline __attribute__((always_inline)) void render_columns(int col0, int col1, const int extras)
 {
     const int w = map_w, h = map_h;
     const uint8_t *texmap = rc->tex;
@@ -528,6 +573,11 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
     const int pos_x = view_x * 2, pos_y = view_y * 2;              /* 1/256 px -> Q12 cells */
     const int map_x0 = pos_x >> 12, map_y0 = pos_y >> 12;
     const int eye = view_eye;
+    if (extras)
+    {
+        flat_pos_x = pos_x;
+        flat_pos_y = pos_y;
+    }
 
     for (int x = col0; x < col1; x++)
     {
@@ -560,7 +610,12 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
         }
 
         uint8_t *dst = VIEW + (x >> 3) * 64 + (x & 7);
-        if (with_sky && rc->sky)
+        if (extras)
+        {
+            flat_ray_x = ray_x;
+            flat_ray_y = ray_y;
+        }
+        if (extras && rc->sky)
         {
             int sx = sky_x0 + x;
             while (sx >= rc->sky_w)
@@ -602,7 +657,7 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
             int n_ceil = out ? c_floor : (int)((n_info >> 8) & 255) << 9;
             uint8_t n_cc = (uint8_t)(n_info >> 24);
             int solid = out || n_ceil <= n_floor;
-            if (with_sky && solid && c_cc == SKY && !out)
+            if (extras && solid && c_cc == SKY && !out)
             {
                 /* Under the sky a wall is a block: a solid collision tile
                  * (ceiling 0) as tall as its floor value, anything else
@@ -624,10 +679,10 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
             /* The floor and ceiling of the stretch just crossed. */
             {
                 int a = yf > ytop ? yf : ytop, b = near_f < ybot ? near_f : ybot;
-                fill(dst, a, b, c_fc);
+                fill_floor(dst, a, b, c_fc, eye - c_floor, extras);
                 a = near_c > ytop ? near_c : ytop;
                 b = yc < ybot ? yc : ybot;
-                fill_ceil(dst, a, b, c_cc, with_sky);
+                fill_ceil(dst, a, b, c_cc, c_ceil - eye, extras);
                 if (yf < ybot)
                     ybot = yf;
                 if (yc > ytop)
@@ -646,13 +701,13 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
             const uint8_t *col = rc->textures + (t * TEX + tex_x) * TEX;
             int shade = (side || d > fog_d) ? darken : 0;
 
-            if (with_sky && solid && out && c_cc == SKY)
+            if (extras && solid && out && c_cc == SKY)
             {
                 /* The edge of the world under the sky: sky down to the
                  * horizon, endless ground below it. */
                 int h = HORIZON < ybot ? HORIZON : ybot;
-                fill_ceil(dst, ytop, h, SKY, with_sky);
-                fill(dst, h > ytop ? h : ytop, ybot, c_fc);
+                fill_ceil(dst, ytop, h, SKY, 0, extras);
+                fill_floor(dst, h > ytop ? h : ytop, ybot, c_fc, eye - c_floor, extras);
                 ytop = ybot;
                 closed = 1;
             }
@@ -667,7 +722,7 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
             {
                 int nyc = HORIZON - (((n_ceil - eye) * line) >> 12);
                 int nyf = HORIZON + (((eye - n_floor) * line) >> 12);
-                if (with_sky && c_cc == SKY && n_cc == SKY && nyc > ytop)
+                if (extras && c_cc == SKY && n_cc == SKY && nyc > ytop)
                     nyc = ytop;   /* sky to sky: no wall between them */
                 if (n_ceil < c_ceil && nyc > ytop)
                 {
@@ -701,10 +756,10 @@ static inline __attribute__((always_inline)) void render_columns(int col0, int c
         {
             /* Ran out of reach: floor and ceiling to the horizon. */
             int a = HORIZON > ytop ? HORIZON : ytop, b = near_f < ybot ? near_f : ybot;
-            fill(dst, a, b, c_fc);
+            fill_floor(dst, a, b, c_fc, eye - c_floor, extras);
             a = near_c > ytop ? near_c : ytop;
             b = HORIZON < ybot ? HORIZON : ybot;
-            fill_ceil(dst, a, b, c_cc, with_sky);
+            fill_ceil(dst, a, b, c_cc, c_ceil - eye, extras);
         }
         seg_n[x] = (uint8_t)nseg;
     }
@@ -719,7 +774,7 @@ static void render_indoor(int col0, int col1)
 }
 
 __attribute__((section(".iwram"), long_call, target("arm"), noinline))
-static void render_sky(int col0, int col1)
+static void render_extras(int col0, int col1)
 {
     render_columns(col0, col1, 1);
 }
@@ -728,8 +783,8 @@ static void render_sky(int col0, int col1)
 
 static void render(int col0, int col1)
 {
-    if (scene_has_sky)
-        render_sky(col0, col1);
+    if (scene_extras)
+        render_extras(col0, col1);
     else
         render_indoor(col0, col1);
 }

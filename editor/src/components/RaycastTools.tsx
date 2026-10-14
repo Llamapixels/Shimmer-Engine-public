@@ -91,8 +91,8 @@ export function RcLayerButtons({ layer, onPick }: { layer: RcLayer; onPick: (l: 
 const LAYER_HINT: Record<RcLayer, string> = {
   shape: "Walls, floors, steps, ledges, pits, windows, doors and open sky: floor and ceiling together",
   walltex: "Which texture a tile's sides show (walls, steps, ledges)",
-  floor_flat: "Floor colours: carpet, lava, water...",
-  ceil_flat: "Ceiling colours: lights, panels...",
+  floor_flat: "Floors: a texture (boards, tiles, grass...) or a colour (lava, water...)",
+  ceil_flat: "Ceilings: a texture (stone, panels...) or a colour (lights...)",
   floor_h: "Change only the floor height, leaving the ceiling",
   ceil_h: "Change only the ceiling height, leaving the floor",
 };
@@ -332,14 +332,15 @@ export function RcValuePanel({
     );
   }
 
+  const used = sceneTextures(scene);
+  const doImport = async () => {
+    setError(null);
+    const r = await window.api.importAssets({ rootPath, kind: "textures" });
+    if (!r.ok) setError(r.error);
+    else if (r.value) useProjectStore.setState({ assets: r.value });
+  };
+
   if (layer === "walltex") {
-    const used = sceneTextures(scene);
-    const doImport = async () => {
-      setError(null);
-      const r = await window.api.importAssets({ rootPath, kind: "textures" });
-      if (!r.ok) setError(r.error);
-      else if (r.value) useProjectStore.setState({ assets: r.value });
-    };
     const current = brush.walltex || used[0] || textures.names[0];
     return (
       <div className="rc-panel">
@@ -370,23 +371,51 @@ export function RcValuePanel({
 
   const flats = scene.raycast?.flats ?? [];
   const v = brush[layer];
+  const texKey = layer === "floor_flat" ? "floor_tex" : "ceil_tex";
+  const tex = brush[texKey];
   const base = layer === "floor_flat" ? scene.raycast?.floor ?? "#3c3a36" : scene.raycast?.ceiling ?? "#22242c";
+  const what = layer === "floor_flat" ? "floor" : "ceiling";
   return (
     <div className="rc-panel">
       <div className="rc-panel-row">
-        <button className={`brush-btn${v === 0 ? " brush-btn-active" : ""}`} onClick={() => setRcBrush({ [layer]: 0 })}>
+        <span className="rc-field-note">Colour</span>
+        <button className={`brush-btn${!tex && v === 0 ? " brush-btn-active" : ""}`} onClick={() => setRcBrush({ [layer]: 0, [texKey]: "" })}>
           <span className="scene-canvas-swatch" style={{ background: base }} />
           Scene's own
         </button>
         {flats.map((c, i) => (
-          <button key={i} className={`brush-btn${v === i + 1 ? " brush-btn-active" : ""}`} onClick={() => setRcBrush({ [layer]: i + 1 })}>
+          <button
+            key={i}
+            className={`brush-btn${!tex && v === i + 1 ? " brush-btn-active" : ""}`}
+            onClick={() => setRcBrush({ [layer]: i + 1, [texKey]: "" })}
+          >
             <span className="scene-canvas-swatch" style={{ background: c }} />
             {i + 1}
           </button>
         ))}
       </div>
+      <div className="rc-panel-row rc-texture-row">
+        <span className="rc-field-note">Texture</span>
+        {textures.names.map((n) => (
+          <button
+            key={n}
+            className={`rc-texture${tex === n ? " rc-texture-active" : ""}`}
+            onClick={() => setRcBrush({ [texKey]: n })}
+            title={n + (used.includes(n) ? "" : " (not used in this scene yet)")}
+          >
+            {textures.urls[n] ? <img src={textures.urls[n]} alt="" /> : <span className="rc-texture-missing" />}
+            <span>{n}</span>
+          </button>
+        ))}
+        <button className="btn btn-small" onClick={() => void doImport()}>
+          Import…
+        </button>
+      </div>
+      {error && <div className="rc-panel-error">{error}</div>}
       <div className="rc-panel-hint">
-        {flats.length ? "Colours for floors and ceilings: edit them in the scene's 3D settings." : "Add colours in the scene's 3D settings (Properties) first."}
+        Paint a colour or a texture on the {what} of tiles (the tops of steps, ledges and window sills too). Textured floors and ceilings
+        cost the GBA more than colours: a scene full of them redraws its view about 20 times a second instead of 30 (the game itself
+        stays at 60). Edit the colours in the scene's 3D settings.
       </div>
     </div>
   );

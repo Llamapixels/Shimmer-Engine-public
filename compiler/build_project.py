@@ -153,6 +153,10 @@ More scene settings (GB Studio's scene inspector):
     "floor_flats": ["..12.."], "ceiling_flats": [...]
                                    <- per tile: "1"-"5" one of "flats", "."
                                        the scene's floor / ceiling colour
+    "floor_textures": ["..00.."], "ceiling_textures": [...]
+                                   <- per tile: a texture on the floor /
+                                       ceiling ("0" the first of "textures",
+                                       "." none: the colour)
     "engine": {"pl_grav": 0.3}     <- this scene's own engine settings, over
                                        project.json "engine" (the full list
                                        is compiler/engine_settings.json)
@@ -1227,6 +1231,7 @@ RC_MAX_COLORS = 59         # texture and sky colours (each also gets a darker co
                            # 128-239 hold the actors' sprite palettes
 RC_SKY_COLOR, RC_CROSSHAIR = 119, 120   # palette: the sky colour, the crosshair
 RC_SKY = 255               # a cell's ceiling colour: the sky (ceiling height 255)
+RC_FLAT_TEX = 200          # a cell's floor / ceiling colour 200 + t: texture t
 RC_SKY_MAX_H = 80          # sky pictures: the view's height
 RC_TEX_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz"
 
@@ -1401,6 +1406,18 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
     ceils = _int_rows(scene, "ceiling_heights", w, h, ceil_default, name)
     floor_flats = _char_rows(scene, "floor_flats", w, h, name)
     ceil_flats = _char_rows(scene, "ceiling_flats", w, h, name)
+    floor_tex = _char_rows(scene, "floor_textures", w, h, name)
+    ceil_tex = _char_rows(scene, "ceiling_textures", w, h, name)
+
+    def flat_tex(ch, x, y, key):
+        """A textured floor / ceiling ("." none): its colour value."""
+        if ch == ".":
+            return None
+        i = RC_TEX_CHARS.index(ch.lower()) if ch.lower() in RC_TEX_CHARS else -1
+        if not 0 <= i < len(tex_index):
+            raise BuildError(f"{name}: \"{key}\" at ({x},{y}) uses texture {ch!r}, but the scene lists only "
+                             f"{len(tex_index)}.")
+        return RC_FLAT_TEX + tex_index[i]
 
     def flat(ch, default, x, y, key):
         if ch in ".0 ":
@@ -1437,9 +1454,11 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
             tex.append(t)
             fl.append(f)
             ce.append(c)
-            fc.append(flat(floor_flats[y][x], RC_FLOOR, x, y, "floor_flats"))
+            ft = flat_tex(floor_tex[y][x], x, y, "floor_textures")
+            ct = flat_tex(ceil_tex[y][x], x, y, "ceiling_textures")
+            fc.append(ft if ft is not None else flat(floor_flats[y][x], RC_FLOOR, x, y, "floor_flats"))
             # Ceiling height 255 is open sky.
-            cc.append(RC_SKY if sky else flat(ceil_flats[y][x], RC_CEIL, x, y, "ceiling_flats"))
+            cc.append(RC_SKY if sky else ct if ct is not None else flat(ceil_flats[y][x], RC_CEIL, x, y, "ceiling_flats"))
     return tex, fl, ce, fc, cc
 
 

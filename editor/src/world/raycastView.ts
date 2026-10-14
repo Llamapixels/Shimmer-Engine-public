@@ -23,8 +23,8 @@ export const RC_LAYER_LABEL: Record<RcLayer, string> = {
   floor_h: "Floor only",
   ceil_h: "Ceiling only",
   walltex: "Wall texture",
-  floor_flat: "Floor colour",
-  ceil_flat: "Ceiling colour",
+  floor_flat: "Floor",
+  ceil_flat: "Ceiling",
 };
 
 /** The compiler's built-in wall texture, as a 32x32 canvas. */
@@ -181,7 +181,19 @@ export function drawRcLayer(ctx: CanvasRenderingContext2D, s: SceneJSON, layer: 
       }
   } else {
     const rows = layer === "floor_flat" ? s.floor_flats : s.ceiling_flats;
+    const texRows = layer === "floor_flat" ? s.floor_textures : s.ceiling_textures;
+    const names = sceneTextures(s);
     const flats = s.raycast?.flats ?? [];
+    ctx.imageSmoothingEnabled = false;
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const t = texRows?.[y]?.[x] ?? ".";
+        if (t === "." || isRcWall(s, x, y)) continue;
+        const img = o.textures[names[RC_TEX_CHARS.indexOf(t.toLowerCase())] ?? ""];
+        ctx.globalAlpha = 0.85;
+        if (img) ctx.drawImage(img, x * S, y * S, S, S);
+        ctx.globalAlpha = 1;
+      }
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const ch = rows?.[y]?.[x] ?? ".";

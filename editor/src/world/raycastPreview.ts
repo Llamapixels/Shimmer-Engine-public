@@ -93,6 +93,9 @@ export interface RcMap {
   tex: (Pixels | null)[];
   fcol: Uint32Array;
   ccol: Uint32Array;
+  /** Textured floors / ceilings (null: the colour). */
+  ftex: (Pixels | null)[];
+  ctex: (Pixels | null)[];
   sky: Uint8Array;
   /** The texture past the map's edge (the scene's first). */
   edgeTex: Pixels | null;
@@ -116,6 +119,8 @@ export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<st
     tex: new Array(n),
     fcol: new Uint32Array(n),
     ccol: new Uint32Array(n),
+    ftex: new Array(n).fill(null),
+    ctex: new Array(n).fill(null),
     sky: new Uint8Array(n),
     edgeTex: textures[names[0] ?? ""] ?? null,
     skyColor: hexColor(look.sky_color, "#6c94d0"),
@@ -147,6 +152,12 @@ export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<st
       const cc = s.ceiling_flats?.[y]?.[x] ?? ".";
       m.fcol[i] = fc === "." ? floorC : flats[Number(fc) - 1] ?? floorC;
       m.ccol[i] = cc === "." ? ceilC : flats[Number(cc) - 1] ?? ceilC;
+      const texOf = (rows: string[] | undefined) => {
+        const ch = rows?.[y]?.[x] ?? ".";
+        return ch === "." ? null : textures[names[RC_TEX_CHARS.indexOf(ch.toLowerCase())] ?? ""] ?? null;
+      };
+      m.ftex[i] = texOf(s.floor_textures);
+      m.ctex[i] = sky ? null : texOf(s.ceiling_textures);
     }
   return m;
 }
@@ -204,6 +215,8 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
     let cFc = m.fcol[ci];
     let cCc = m.ccol[ci];
     let cSky = m.sky[ci] === 1;
+    let cFt = m.ftex[ci];
+    let cCt = m.ctex[ci];
     let ytop = 0;
     let ybot = VIEW_H;
     let nearF = VIEW_H;
@@ -214,7 +227,24 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
     const fill = (y0: number, y1: number, c: number) => {
       for (let y = Math.max(0, y0); y < Math.min(VIEW_H, y1); y++) out[y * VIEW_W + x] = c;
     };
-    const fillCeil = (y0: number, y1: number, c: number, isSky: boolean) => {
+    // Textured floors and ceilings: each pixel's spot on the plane `h`
+    // (eighths) below / above the eye, and that texel.
+    const fillFlat = (y0: number, y1: number, tex: Pixels, h: number) => {
+      for (let y = Math.max(0, y0); y < Math.min(VIEW_H, y1); y++) {
+        const r = y >= HORIZON ? y - HORIZON : HORIZON - 1 - y;
+        const d = ((Math.abs(h) / 8) * VIEW_H) / (r + 0.5);
+        const wx = cam.x + rayX * d;
+        const wy = cam.y + rayY * d;
+        const u = Math.floor((wx - Math.floor(wx)) * TEX);
+        const v = Math.floor((wy - Math.floor(wy)) * TEX);
+        const c = tex.data[v * TEX + u];
+        out[y * VIEW_W + x] = d > fogD ? darken(c) : c;
+      }
+    };
+    const fillFloor = (y0: number, y1: number, c: number, tex: Pixels | null, h: number) =>
+      tex ? fillFlat(y0, y1, tex, h) : fill(y0, y1, c);
+    const fillCeil = (y0: number, y1: number, c: number, isSky: boolean, tex: Pixels | null = null, h = 0) => {
+      if (!isSky && tex) return fillFlat(y0, y1, tex, h);
       if (!isSky) return fill(y0, y1, c);
       for (let y = Math.max(0, y0); y < Math.min(VIEW_H, y1); y++)
         out[y * VIEW_W + x] = sky ? sky.data[Math.min(y, sky.h - 1) * sky.w + skyCol] | 0xff000000 : m.skyColor;
@@ -247,7 +277,11 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
       let nCeil = outside ? cFloor : m.ceil[ni];
       let nSky = !outside && m.sky[ni] === 1;
       // Nothing changes here (a solid cell never matches an open one).
-      if (!outside && nFloor === cFloor && nCeil === cCeil && m.fcol[ni] === cFc && m.ccol[ni] === cCc && nSky === cSky) continue;
+      if (
+        !outside && nFloor === cFloor && nCeil === cCeil && m.fcol[ni] === cFc && m.ccol[ni] === cCc && nSky === cSky &&
+        m.ftex[ni] === cFt && m.ctex[ni] === cCt
+      )
+        continue;
       let solid = outside || nCeil <= nFloor;
       if (solid && cSky && !outside) {
         // Under the sky a wall is a block: a collision wall (ceiling 0) as
@@ -263,8 +297,8 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
       const yc = Math.floor(HORIZON - ((cCeil - eye) / 8) * line);
 
       // The floor and ceiling of the stretch just crossed.
-      fill(Math.max(yf, ytop), Math.min(nearF, ybot), cFc);
-      fillCeil(Math.max(nearC, ytop), Math.min(yc, ybot), cCc, cSky);
+      fillFloor(Math.max(yf, ytop), Math.min(nearF, ybot), cFc, cFt, eye - cFloor);
+      fillCeil(Math.max(nearC, ytop), Math.min(yc, ybot), cCc, cSky, cCt, cCeil - eye);
       if (yf < ybot) ybot = yf;
       if (yc > ytop) ytop = yc;
 
@@ -278,7 +312,7 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
         // The edge of the world under the sky: sky to the horizon, endless ground below.
         const hz = Math.min(HORIZON, ybot);
         fillCeil(ytop, hz, 0, true);
-        fill(Math.max(hz, ytop), ybot, cFc);
+        fillFloor(Math.max(hz, ytop), ybot, cFc, cFt, eye - cFloor);
         ytop = ybot;
         closed = true;
       } else if (solid) {
@@ -301,6 +335,8 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
         cCeil = nCeil;
         cFc = m.fcol[ni];
         cCc = m.ccol[ni];
+        cFt = m.ftex[ni];
+        cCt = nSky ? null : m.ctex[ni];
         cSky = nSky;
         nearF = nyf;
         nearC = nyc;
@@ -309,8 +345,8 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: View
       colSegs.push({ d, top: Math.max(0, Math.min(VIEW_H, ytop)), bot: Math.max(0, Math.min(VIEW_H, ybot)) });
     }
     if (!closed) {
-      fill(Math.max(HORIZON, ytop), Math.min(nearF, ybot), cFc);
-      fillCeil(Math.max(nearC, ytop), Math.min(HORIZON, ybot), cCc, cSky);
+      fillFloor(Math.max(HORIZON, ytop), Math.min(nearF, ybot), cFc, cFt, eye - cFloor);
+      fillCeil(Math.max(nearC, ytop), Math.min(HORIZON, ybot), cCc, cSky, cCt, cCeil - eye);
     }
     segs.push(colSegs);
   }

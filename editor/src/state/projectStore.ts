@@ -84,6 +84,9 @@ export interface RcBrush {
   walltex: string;
   floor_flat: number;
   ceil_flat: number;
+  /** Floor / ceiling layers painting a texture ("" = the colour above). */
+  floor_tex: string;
+  ceil_tex: string;
 }
 
 /** Tiles tool stamp: a rectangle of the background's own tiles. */
@@ -496,7 +499,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     paletteBrush: null,
     placingPrefabId: null,
     rcLayer: "shape",
-    rcBrush: { shape_floor: 0, shape_ceil: 8, shape_wall: false, floor_h: 0, ceil_h: 8, walltex: "", floor_flat: 1, ceil_flat: 1 },
+    rcBrush: { shape_floor: 0, shape_ceil: 8, shape_wall: false, floor_h: 0, ceil_h: 8, walltex: "", floor_flat: 1, ceil_flat: 1, floor_tex: "", ceil_tex: "" },
     tilePick: null,
     worldMap: false,
     dialogueView: false,
