@@ -27,6 +27,25 @@ int raycast_active(void);
 void raycast_set_view(int x, int y, int angle);
 int raycast_angle(void);
 
+/*
+ * Heights: every cell has a floor and a ceiling height in 1/8 cell units
+ * (a ceiling at or below the floor is a solid wall). The player's eye is
+ * half a cell above the floor under it; it steps up at most RAYCAST_STEP
+ * and needs RAYCAST_HEADROOM under a ceiling.
+ */
+#define RAYCAST_STEP     3
+#define RAYCAST_HEADROOM 5
+
+/* The floor the eye stands on, in 1/256 units (it moves smoothly). */
+void raycast_set_eye(int floor);
+/* Highest floor under a box (px), in units. */
+int raycast_floor_under(int x, int y, int w, int h);
+/* Can a box (px) standing at `floor` (units) be here? */
+int raycast_box_ok(int x, int y, int w, int h, int floor);
+/* "Set Cell Heights": p = x, y, w, h (cells), floor, ceiling (units,
+ * -1 = leave), speed (units per frame, Q8; 0 = at once). */
+void raycast_heights(const int16_t *p);
+
 /* Draw the view into the buffer, if it changed (once a frame at most). */
 void raycast_draw(void);
 

@@ -42,6 +42,7 @@ static int climbing, drop_timer;
 static int dash_timer, dash_cooldown, dash_vx, dash_vy;
 static int kb_timer;
 static int step_done;   /* Top Down grid: a step just finished */
+static int rc_floor, rc_fall;   /* First Person 3D: floor under the eye, 1/256 units */
 static int kick_timer;                /* wall kick: gravity/steering off */
 static int kick_anim;                 /* frames left of the wall kick animation */
 static int was_grounded, was_sliding; /* for the land / wall slide sounds */
@@ -127,6 +128,9 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
         pos_y = player->y << 8;
         static const int16_t FACING[4] = { 256, 768, 0, 512 };   /* down, up, right, left */
         raycast_enter(scene);
+        rc_floor = raycast_floor_under(player->x, player->y, 6, 6) << 8;
+        rc_fall = 0;
+        raycast_set_eye(rc_floor);
         raycast_set_view(pos_x + (3 << 8), pos_y + (3 << 8), FACING[player->direction & 3]);
     }
     else
@@ -1270,14 +1274,50 @@ static const ScriptEvent *raycast_update(Entity *p)
     int dx = ((fwd * c - strafe * s) * speed) >> 12;
     int dy = ((fwd * s + strafe * c) * speed) >> 12;
 
+    /* Heights decide where it can go (steps, ledges, low ceilings);
+     * actors still block. One pixel at a time per axis. */
+    int stand = rc_floor >> 8;
     pos_x += dx;
-    int tx = pos_x >> 8;
-    if (tx != p->x && move_axis(p, tx - p->x, 0))
-        pos_x = p->x << 8;
+    while ((pos_x >> 8) != p->x)
+    {
+        int nx = p->x + ((pos_x >> 8) > p->x ? 1 : -1);
+        if (!raycast_box_ok(nx, p->y, p->width, p->height, stand) || npc_in_way(p, nx, p->y))
+        {
+            pos_x = p->x << 8;
+            break;
+        }
+        p->x = nx;
+    }
     pos_y += dy;
-    int ty = pos_y >> 8;
-    if (ty != p->y && move_axis(p, 0, ty - p->y))
-        pos_y = p->y << 8;
+    while ((pos_y >> 8) != p->y)
+    {
+        int ny = p->y + ((pos_y >> 8) > p->y ? 1 : -1);
+        if (!raycast_box_ok(p->x, ny, p->width, p->height, stand) || npc_in_way(p, p->x, ny))
+        {
+            pos_y = p->y << 8;
+            break;
+        }
+        p->y = ny;
+    }
+
+    /* Up steps (and lifts) at once; down ledges with a fall. */
+    int under = raycast_floor_under(p->x, p->y, p->width, p->height) << 8;
+    if (under >= rc_floor)
+    {
+        rc_floor = under;
+        rc_fall = 0;
+    }
+    else
+    {
+        rc_fall += 24;
+        rc_floor -= rc_fall;
+        if (rc_floor < under)
+        {
+            rc_floor = under;
+            rc_fall = 0;
+        }
+    }
+    raycast_set_eye(rc_floor);
 
     /* The nearest of the four directions, for everything else that
      * reads the player's facing (projectiles, Set Actor Direction...). */

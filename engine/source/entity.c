@@ -3,7 +3,8 @@
 #include "entity.h"
 #include "collision.h"
 
-static Entity entities[ENTITY_MAX];
+/* In EWRAM: IWRAM's room goes to the First Person 3D view buffer. */
+static Entity entities[ENTITY_MAX] __attribute__((section(".sbss")));
 
 void entity_system_init(void)
 {

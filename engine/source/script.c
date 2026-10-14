@@ -4,6 +4,7 @@
 
 #include "script.h"
 #include "dialogue.h"
+#include "raycast.h"
 #include "audio.h"
 #include "music.h"
 #include "state.h"
@@ -1120,6 +1121,10 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_TEXT_HUD_CLOSE:
             dialogue_hud_close();
+            break;
+
+        case SCRIPT_RAYCAST_HEIGHTS:
+            raycast_heights((const int16_t *)ev->ptr);
             break;
 
         case SCRIPT_PROJECTILES:

@@ -150,8 +150,12 @@ typedef struct
 /* A First Person 3D scene's walls and look (engine/source/raycast.c). */
 typedef struct RaycastDef
 {
-    const uint8_t *walls;       /* width * height cells: 0 = open, else
-                                 * texture index + 1 */
+    /* width * height cells each: */
+    const uint8_t *tex;         /* texture of its faces */
+    const uint8_t *floor_h;     /* floor height, 1/8 cell units */
+    const uint8_t *ceil_h;      /* ceiling height (<= floor: a solid wall) */
+    const uint8_t *floor_col;   /* floor and ceiling palette indices */
+    const uint8_t *ceil_col;
     const uint8_t *textures;    /* tex_count 32x32 textures of palette
                                  * indices, column by column */
     uint8_t tex_count;
@@ -159,7 +163,6 @@ typedef struct RaycastDef
                                  * ceiling (128-239 are the actors', copied
                                  * from the OBJ palette; 240+ the dialogue
                                  * layer's) */
-    uint8_t floor, ceiling;     /* palette indices */
     uint8_t dark;               /* added to a texture's colour on north and
                                  * south faces (its darker copy) */
 } RaycastDef;

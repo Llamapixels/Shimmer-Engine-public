@@ -426,7 +426,8 @@ typedef enum
                                  * c = OBJ palette bank in this scene */
     SCRIPT_ACTOR_JUMP,         /* a = actor, b = speed (1/256 px per
                                  * frame), c = 1: even in the air */
-    SCRIPT_TEXT_HUD_CLOSE      /* take down a HUD text box */
+    SCRIPT_TEXT_HUD_CLOSE,     /* take down a HUD text box */
+    SCRIPT_RAYCAST_HEIGHTS     /* ptr = int16_t[7], raycast_heights() */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

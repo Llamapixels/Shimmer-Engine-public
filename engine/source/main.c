@@ -1266,6 +1266,11 @@ static int scene_to_index(const SceneDef *target)
 
 int main(void)
 {
+    /* Cartridge reads at 3/1 wait states with the prefetch buffer on (the
+     * power-on default is the slowest 4/2, no prefetch) - what nearly
+     * every GBA game sets first. Speeds up all code and data in ROM. */
+    *(volatile uint16_t *)0x04000204 = 0x4317;   /* WAITCNT */
+
     irqInit();
     irqEnable(IRQ_VBLANK);
 

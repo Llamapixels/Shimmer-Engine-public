@@ -276,6 +276,11 @@ Event script types (used in "on_interact" and door "events" lists):
         A HUD box: drawn at once (first page only) and left up while the game
         carries on, until "text_hud_close", another text box or a scene change.
     { "type": "text_hud_close" }
+    { "type": "raycast_set_heights", "x": 0, "y": 0, "width": 1, "height": 1,
+      "floor": 0 | null, "ceiling": 8 | null, "speed": 0.5 }
+        First Person 3D: move an area's floor and/or ceiling (1/8 tile
+        units; null = leave it) at speed units a frame (0 = at once).
+        Doors (raise the ceiling), lifts (move the floor), secret walls.
     { "type": "actor_remove", "actor": ... }
         Hides an actor and stops its on_update; a spawned copy can spawn again.
     { "type": "actor_set_sprite", "actor": ..., "sprite": "<name>" }
@@ -1266,26 +1271,79 @@ def hex_rgb(value, default, where):
     return tuple(int(v[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def raycast_walls(scene, grid, w, h, tex_count, name):
-    """Wall map: solid collision cells are walls, textured per
-    "wall_textures" (rows of "." or a texture's character, 0-9 then a-z)."""
-    rows = scene.get("wall_textures") or []
+RC_MAX_FLATS = 5           # extra floor / ceiling colours ("raycast": {"flats": [...]})
+RC_FLOOR, RC_CEIL = 121, 122   # palette: the scene's floor and ceiling colours, flats after
+
+
+def _char_rows(scene, key, w, h, name):
+    rows = scene.get(key) or []
+    if not isinstance(rows, list) or not all(isinstance(r, str) for r in rows):
+        raise BuildError(f"{name}: \"{key}\" must be a list of strings.")
+    return [(rows[y] if y < len(rows) else "").ljust(w, ".")[:w] for y in range(h)]
+
+
+def _int_rows(scene, key, w, h, default, name):
+    rows = scene.get(key)
+    if rows is None:
+        return [[default] * w for _ in range(h)]
     if not isinstance(rows, list):
-        raise BuildError(f"{name}: \"wall_textures\" must be a list of strings.")
-    walls = []
+        raise BuildError(f"{name}: \"{key}\" must be a list of rows of numbers.")
+    out = []
     for y in range(h):
-        row = rows[y] if y < len(rows) and isinstance(rows[y], str) else ""
+        row = rows[y] if y < len(rows) else []
+        if not isinstance(row, list):
+            raise BuildError(f"{name}: \"{key}\" row {y} must be a list of numbers.")
+        vals = []
         for x in range(w):
-            if grid[y * w + x] != COLLISION_CHARS["#"]:
-                walls.append(0)
-                continue
-            ch = row[x].lower() if x < len(row) else "."
+            v = row[x] if x < len(row) else default
+            if v is None:
+                v = default
+            if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= 255:
+                raise BuildError(f"{name}: \"{key}\" at ({x},{y}) must be a whole number 0-255 (1/8 tile units).")
+            vals.append(v)
+        out.append(vals)
+    return out
+
+
+def raycast_cells(scene, grid, w, h, tex_count, flat_count, name):
+    """Per-cell arrays for a First Person 3D scene: texture, floor height,
+    ceiling height (1/8 tile units), floor and ceiling colour. Solid
+    collision tiles are walls (ceiling = floor)."""
+    look = scene.get("raycast") or {}
+    ceil_default = look.get("ceiling_height", 8)
+    if not isinstance(ceil_default, int) or isinstance(ceil_default, bool) or not 1 <= ceil_default <= 255:
+        raise BuildError(f"{name}: raycast \"ceiling_height\" must be 1-255.")
+    tex_rows = _char_rows(scene, "wall_textures", w, h, name)
+    floors = _int_rows(scene, "floor_heights", w, h, 0, name)
+    ceils = _int_rows(scene, "ceiling_heights", w, h, ceil_default, name)
+    floor_flats = _char_rows(scene, "floor_flats", w, h, name)
+    ceil_flats = _char_rows(scene, "ceiling_flats", w, h, name)
+
+    def flat(ch, default, x, y, key):
+        if ch in ".0 ":
+            return default
+        if ch not in "12345" or int(ch) > flat_count:
+            raise BuildError(f"{name}: \"{key}\" at ({x},{y}) uses colour {ch!r}, but raycast \"flats\" "
+                             f"has {flat_count}.")
+        return RC_CEIL + int(ch)
+
+    tex, fl, ce, fc, cc = [], [], [], [], []
+    for y in range(h):
+        for x in range(w):
+            ch = tex_rows[y][x].lower()
             t = RC_TEX_CHARS.index(ch) if ch in RC_TEX_CHARS else 0
             if t >= tex_count:
                 raise BuildError(f"{name}: wall at ({x},{y}) uses texture {ch!r}, but there are only "
                                  f"{tex_count} in assets/textures.")
-            walls.append(t + 1)
-    return walls
+            f, c = floors[y][x], ceils[y][x]
+            if grid[y * w + x] == COLLISION_CHARS["#"]:
+                c = f   # a solid tile is a wall
+            tex.append(t)
+            fl.append(f)
+            ce.append(c)
+            fc.append(flat(floor_flats[y][x], RC_FLOOR, x, y, "floor_flats"))
+            cc.append(flat(ceil_flats[y][x], RC_CEIL, x, y, "ceiling_flats"))
+    return tex, fl, ce, fc, cc
 
 
 def parse_collision(rows, w, h, scene_name):
@@ -2519,7 +2577,7 @@ PARITY_EVENT_TYPES = [
     "actor_set_anim_speed", "actor_set_collisions", "actor_push",
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
-    "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close",
+    "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -2864,6 +2922,23 @@ def compile_parity_event(etype, ev, out, ctx, where):
         if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 < speed <= 8:
             raise BuildError(f"{where}: \"speed\" must be a number of pixels per frame, above 0 and up to 8.")
         out.append(_instr("SCRIPT_ACTOR_JUMP", a=idx, b=int(round(speed * 256)), c=1 if ev.get("anytime") else 0))
+
+    elif etype == "raycast_set_heights":
+        x = resolve_small_int(_require(ev, "x", where), "x", where, 0, 127)
+        y = resolve_small_int(_require(ev, "y", where), "y", where, 0, 127)
+        rw = resolve_small_int(ev.get("width", 1), "width", where, 1, 128)
+        rh = resolve_small_int(ev.get("height", 1), "height", where, 1, 128)
+
+        def height(key):
+            v = ev.get(key)
+            return -1 if v is None or v == "" else resolve_small_int(v, key, where, 0, 255)
+        floor, ceil = height("floor"), height("ceiling")
+        speed = ev.get("speed", 0.5)
+        if not isinstance(speed, (int, float)) or isinstance(speed, bool) or not 0 <= speed <= 16:
+            raise BuildError(f"{where}: \"speed\" must be 0 (at once) to 16 units a frame.")
+        ident = _aux_ident(ctx, "heights")
+        ctx["_aux"].append(("expr", ident, [x, y, rw, rh, floor, ceil, int(round(speed * 256))]))
+        out.append(_instr("SCRIPT_RAYCAST_HEIGHTS", ptr=ident))
 
     elif etype == "text_hud_close":
         out.append(_instr("SCRIPT_TEXT_HUD_CLOSE"))
@@ -4176,19 +4251,27 @@ def build(project_dir, out_dir):
             look = scene.get("raycast") or {}
             if not isinstance(look, dict):
                 raise BuildError(f"{name}: \"raycast\" must be an object.")
+            if w * h > 128 * 128:
+                raise BuildError(f"{name}: a First Person 3D scene can be at most 128x128 tiles in all.")
+            flats = look.get("flats") or []
+            if not isinstance(flats, list) or len(flats) > RC_MAX_FLATS:
+                raise BuildError(f"{name}: raycast \"flats\" must be a list of up to {RC_MAX_FLATS} colours.")
             n = len(tex_colors)
             pal = [0] * 240
             for i, c in enumerate(tex_colors):
                 pal[1 + i] = gba_color(c)
                 pal[1 + n + i] = gba_color(tuple(v * 5 // 8 for v in c))
-            floor_i, ceil_i = 2 * n + 1, 2 * n + 2
-            pal[floor_i] = gba_color(hex_rgb(look.get("floor"), "#3c3a36", f"{name}: raycast floor"))
-            pal[ceil_i] = gba_color(hex_rgb(look.get("ceiling"), "#22242c", f"{name}: raycast ceiling"))
-            walls = raycast_walls(scene, grid, w, h, len(tex_names), name)
-            c_parts.append(c_array("uint8_t", f"{ident}_rc_walls", walls, "{}", w))
+            pal[RC_FLOOR] = gba_color(hex_rgb(look.get("floor"), "#3c3a36", f"{name}: raycast floor"))
+            pal[RC_CEIL] = gba_color(hex_rgb(look.get("ceiling"), "#22242c", f"{name}: raycast ceiling"))
+            for i, col in enumerate(flats):
+                pal[RC_CEIL + 1 + i] = gba_color(hex_rgb(col, "#000000", f"{name}: raycast flats"))
+            tex, fl, ce, fc, cc = raycast_cells(scene, grid, w, h, len(tex_names), len(flats), name)
+            for suffix, arr in (("tex", tex), ("floor", fl), ("ceil", ce), ("fcol", fc), ("ccol", cc)):
+                c_parts.append(c_array("uint8_t", f"{ident}_rc_{suffix}", arr, "{}", w))
             c_parts.append(f"static const uint16_t {ident}_rc_palette[240] = {{ " + ", ".join(map(str, pal)) + " };")
-            c_parts.append(f"static const RaycastDef {ident}_raycast = {{ {ident}_rc_walls, raycast_textures, "
-                           f"{len(tex_names)}, {ident}_rc_palette, {floor_i}, {ceil_i}, {n} }};")
+            c_parts.append(f"static const RaycastDef {ident}_raycast = {{ {ident}_rc_tex, {ident}_rc_floor, "
+                           f"{ident}_rc_ceil, {ident}_rc_fcol, {ident}_rc_ccol, raycast_textures, "
+                           f"{len(tex_names)}, {ident}_rc_palette, {n} }};")
             raycast_ref = f"&{ident}_raycast"
 
         c_parts.append(f"const SceneDef scene_{ident} =")
