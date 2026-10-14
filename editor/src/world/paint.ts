@@ -34,7 +34,7 @@ function resizePaletteMap(rows: (string | null)[][], w: number, h: number): (str
 
 /** First Person 3D: wall_textures characters, "0" = raycast.textures[0]. */
 export const RC_TEX_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
-export const RC_LAYERS: RcLayer[] = ["floor_h", "ceil_h", "walltex", "floor_flat", "ceil_flat"];
+export const RC_LAYERS: RcLayer[] = ["shape", "walltex", "floor_flat", "ceil_flat", "floor_h", "ceil_h"];
 export const isRcLayer = (l: PaintLayer): l is RcLayer => (RC_LAYERS as string[]).includes(l);
 
 /** The project's wall textures (what a scene with no raycast.textures
@@ -50,7 +50,42 @@ export function sceneTextures(scene: SceneJSON): string[] {
 const RC_HEIGHT_KEY = { floor_h: "floor_heights", ceil_h: "ceiling_heights" } as const;
 const RC_CHAR_KEY = { walltex: "wall_textures", floor_flat: "floor_flats", ceil_flat: "ceiling_flats" } as const;
 
+/** The scene's floor and ceiling where none is painted. */
+export function rcDefaults(scene: SceneJSON): { floor: number; ceil: number } {
+  return { floor: scene.raycast?.floor_height ?? 0, ceil: scene.raycast?.ceiling_height ?? 8 };
+}
+
+/** "Shape" cells: "wall" (a solid collision tile), "floor,ceiling", or
+ * null (the scene's defaults). Heights equal to the defaults are stored
+ * as null, so changing the defaults moves them. */
+function applyShape(scene: SceneJSON, w: number, h: number, cells: Cells): SceneJSON {
+  const d = rcDefaults(scene);
+  const coll: Cells = new Map();
+  const floors: Cells = new Map();
+  const ceils: Cells = new Map();
+  for (const [k, v] of cells) {
+    const x = k % w;
+    const y = Math.floor(k / w);
+    const was = scene.collision?.[y]?.[x] ?? ".";
+    if (v === "wall") {
+      coll.set(k, "#");
+      floors.set(k, null);
+      ceils.set(k, null);
+      continue;
+    }
+    if (was === "#") coll.set(k, ".");
+    const [f, c] = v === null ? [d.floor, d.ceil] : v.split(",").map(Number);
+    floors.set(k, f === d.floor ? null : String(f));
+    ceils.set(k, c === d.ceil ? null : String(c));
+  }
+  let next = applyCells(scene, "collision", w, h, coll);
+  next = applyRcCells(next, "floor_h", w, h, floors);
+  return applyRcCells(next, "ceil_h", w, h, ceils);
+}
+
 function applyRcCells(scene: SceneJSON, layer: RcLayer, w: number, h: number, cells: Cells): SceneJSON {
+  if (!cells.size) return scene;
+  if (layer === "shape") return applyShape(scene, w, h, cells);
   if (layer === "floor_h" || layer === "ceil_h") {
     const key = RC_HEIGHT_KEY[layer];
     const grid = resizePaletteMap((scene[key] ?? []) as (string | null)[][], w, h) as unknown as (number | null)[][];
@@ -91,6 +126,11 @@ function applyRcCells(scene: SceneJSON, layer: RcLayer, w: number, h: number, ce
 }
 
 function readRcCell(scene: SceneJSON, layer: RcLayer, x: number, y: number): CellValue {
+  if (layer === "shape") {
+    if (scene.collision?.[y]?.[x] === "#") return "wall";
+    const d = rcDefaults(scene);
+    return `${scene.floor_heights?.[y]?.[x] ?? d.floor},${scene.ceiling_heights?.[y]?.[x] ?? d.ceil}`;
+  }
   if (layer === "floor_h" || layer === "ceil_h") {
     const v = scene[RC_HEIGHT_KEY[layer]]?.[y]?.[x];
     return v === null || v === undefined ? null : String(v);
@@ -253,6 +293,7 @@ export function brushValue(
 ): CellValue {
   if (isRcLayer(layer)) {
     if (erase || !rc) return null;
+    if (layer === "shape") return rc.shape_wall ? "wall" : `${rc.shape_floor},${rc.shape_ceil}`;
     if (layer === "walltex") return rc.walltex || null;
     if (layer === "floor_flat" || layer === "ceil_flat") return rc[layer] > 0 ? String(rc[layer]) : null;
     return String(rc[layer]);

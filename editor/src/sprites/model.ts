@@ -49,6 +49,7 @@ export const ANIMATION_TYPE_GROUPS: { label: string; types: { type: SpriteAnimat
   },
   { label: "Platformer", types: [{ type: "platform_player", label: "Platformer Player" }] },
   { label: "Point and click", types: [{ type: "cursor", label: "Cursor" }] },
+  { label: "First Person 3D", types: [{ type: "fps_weapon", label: "First Person Weapon" }] },
 ];
 
 export function spriteModeHeight(mode: SpriteMode | undefined): number {
@@ -96,6 +97,8 @@ export function visibleAnimations(type: SpriteAnimationType, flipLeft: boolean):
     }
     case "cursor":
       return pick([0, 1], { 0: "Idle", 1: "Hover" });
+    case "fps_weapon":
+      return pick([0, 4, 2, 3], { 0: "Idle", 4: "Walking", 2: "Fire", 3: "Alt Fire" });
     default:
       return pick(flipLeft ? [0, 2, 3, 4, 6, 7] : [0, 1, 2, 3, 4, 5, 6, 7]);
   }
@@ -114,7 +117,7 @@ export function animationMap(type: SpriteAnimationType, flipLeft: boolean): { in
     const moving = i >= 4;
     let r: [number, boolean];
     if (type === "fixed") r = [0, false];
-    else if (type === "fixed_movement") r = [moving ? 4 : 0, false];
+    else if (type === "fixed_movement" || type === "fps_weapon") r = [moving ? 4 : 0, false];
     else if (type === "multi") r = flipLeft && (i === 1 || i === 5) ? [0, true] : [i % 4, false];
     else if (type === "horizontal") r = flipLeft ? [0, i % 2 !== 0] : [i % 2, false];
     else if (type === "horizontal_movement") {

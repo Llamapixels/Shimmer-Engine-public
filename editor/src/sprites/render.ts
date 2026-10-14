@@ -45,3 +45,24 @@ export function drawActor(
   });
   return true;
 }
+
+/** Frame `frame` (wrapping) of animation `animIndex` of a sheet's first
+ * state, drawn like drawActor() (the First Person weapon's Fire / Alt Fire). */
+export function drawAnimationFrame(
+  ctx: CanvasRenderingContext2D,
+  img: SpriteImage,
+  sheet: SpriteSheetJSON,
+  animIndex: number,
+  frame: number,
+  x: number,
+  y: number,
+  scale: number,
+): boolean {
+  const anim = sheet.states[0]?.animations[animIndex];
+  const frames = anim?.frames ?? [];
+  const f = frames.length ? frames[frame % frames.length] : undefined;
+  if (!f || !f.tiles.length) return false;
+  const a = canvasAnchor(sheet);
+  drawTiles(ctx, img, f.tiles, sheet.spriteMode, x + a.x * scale, y + a.y * scale, scale, {});
+  return true;
+}

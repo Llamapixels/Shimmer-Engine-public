@@ -69,11 +69,16 @@ export type PaintLayer = "collision" | "palette" | "tiles" | "front" | RcLayer;
 /** First Person 3D layers: floor / ceiling height, wall texture, floor /
  * ceiling colour (scene floor_heights, ceiling_heights, wall_textures,
  * floor_flats, ceiling_flats). */
-export type RcLayer = "floor_h" | "ceil_h" | "walltex" | "floor_flat" | "ceil_flat";
+export type RcLayer = "shape" | "floor_h" | "ceil_h" | "walltex" | "floor_flat" | "ceil_flat";
 
 /** What the 3D tool paints on each of its layers: heights in 1/8 tiles,
  * a texture name, a colour number (1-5; 0 = the scene's own). */
 export interface RcBrush {
+  /** "Shape": floor and ceiling together (ceiling 255 = open sky), or a
+   * wall (a solid collision tile). */
+  shape_floor: number;
+  shape_ceil: number;
+  shape_wall: boolean;
   floor_h: number;
   ceil_h: number;
   walltex: string;
@@ -490,8 +495,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     tileStamp: null,
     paletteBrush: null,
     placingPrefabId: null,
-    rcLayer: "floor_h",
-    rcBrush: { floor_h: 2, ceil_h: 12, walltex: "", floor_flat: 1, ceil_flat: 1 },
+    rcLayer: "shape",
+    rcBrush: { shape_floor: 0, shape_ceil: 8, shape_wall: false, floor_h: 0, ceil_h: 8, walltex: "", floor_flat: 1, ceil_flat: 1 },
     tilePick: null,
     worldMap: false,
     dialogueView: false,

@@ -63,7 +63,9 @@ export type SpriteAnimationType =
   | "horizontal"
   | "horizontal_movement"
   | "platform_player"
-  | "cursor";
+  | "cursor"
+  /** First Person 3D weapon: Idle (0), Walking (4), Fire (2), Alt Fire (3). */
+  | "fps_weapon";
 
 export type SpriteMode = "8x8" | "8x16";
 
@@ -295,6 +297,19 @@ export interface RaycastLookJSON {
   /** Wall textures this scene uses (assets/textures names); wall_textures
    * "0" is the first. Default: every texture in the folder. */
   textures?: string[];
+  /** Floor height of tiles with none set (default 0). */
+  floor_height?: number;
+  /** How tall solid collision tiles stand under the sky (default 16). */
+  wall_height?: number;
+  /** The sky (ceiling height 255): a picture (scenes-relative path, like
+   * `background`) repeating around the view, else this colour. */
+  sky?: string;
+  sky_color?: string;
+  /** The first person weapon: a sprite (its Fire / Alt Fire animations
+   * play on the fire buttons), and how far from bottom centre (px). */
+  weapon?: string;
+  weapon_x?: number;
+  weapon_y?: number;
 }
 
 export interface TimerJSON {

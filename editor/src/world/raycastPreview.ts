@@ -1,32 +1,43 @@
 /*
  * The editor's First Person 3D preview: the engine's renderer
  * (engine/source/raycast.c) redone in floating point - same rules for
- * heights, faces, textures, colours and actors, so what it shows is what
- * the GBA shows - and the engine's walking rules (steps, headroom).
+ * heights, faces, textures, colours, the sky and actors, so what it shows
+ * is what the GBA shows - and the engine's walking rules (steps, headroom).
  */
 
 import type { SceneJSON } from "../../shared/projectTypes";
-import { RC_TEX_CHARS, sceneTextures } from "./paint";
-import { ceilAt, floorAt, RC_EYE, RC_HEADROOM, RC_STEP } from "./raycastView";
+import { rcDefaults, RC_TEX_CHARS, sceneTextures } from "./paint";
+import { ceilAt, floorAt, RC_DEFAULT_WALL, RC_SKY } from "./raycastView";
 
 export const VIEW_W = 120;
 export const VIEW_H = 80;
 const HORIZON = VIEW_H / 2;
 const TEX = 32;
 const MAX_STEPS = 64;
-/** The camera plane: a ~67 degree view, as the engine's. */
-const PLANE = 2 / 3;
+/** Field of view choices (engine settings rc_fov): the camera plane. */
+const FOV_PLANE = [0.5, 2 / 3, 0.85];
+/** Distance shading (rc_fog): walls farther than this (tiles) are darker. */
+const FOG_DIST = [Infinity, 8, 4];
 
 export interface Camera {
   /** Position in tiles (cells), angle in radians (0 = right, +y = down). */
   x: number;
   y: number;
   angle: number;
-  /** Floor the eye stands on, in 1/8 tiles. */
+  /** The feet's height, in 1/8 tiles (the eye is above it). */
   floor: number;
 }
 
-/** A texture or actor frame as pixels (0 = see-through for actors). */
+/** The engine settings the view uses. */
+export interface ViewOptions {
+  eye: number;
+  step: number;
+  fov: number;
+  fog: number;
+  crosshair: boolean;
+}
+
+/** A texture, sky or actor frame as pixels (alpha < 128 = see-through). */
 export interface Pixels {
   w: number;
   h: number;
@@ -37,16 +48,19 @@ export interface Billboard {
   /** Footprint centre, in tiles. */
   x: number;
   y: number;
-  /** The 64x64 actor canvas (16 px a tile, footprint at 24, 48). */
-  px: Pixels;
+  /** Which way it faces (actors turn to the camera). */
+  facing: "down" | "up" | "right" | "left";
+  /** The 64x64 actor canvas (16 px a tile, footprint at 24, 48), per
+   * facing shown. */
+  px: Record<"down" | "up" | "right" | "left", Pixels>;
 }
 
 const pixelCache = new WeakMap<object, Pixels>();
 
-/** An image's pixels (cached per image). */
+/** An image's pixels, at w x h (cached per image). */
 export function pixelsOf(img: CanvasImageSource & { width: number | SVGAnimatedLength; height: number | SVGAnimatedLength }, w = TEX, h = TEX): Pixels {
   const hit = pixelCache.get(img);
-  if (hit) return hit;
+  if (hit && hit.w === w && hit.h === h) return hit;
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -70,7 +84,7 @@ const darken = (c: number) =>
   (0xff << 24) | ((((c >> 16) & 255) * 5) >> 3 << 16) | ((((c >> 8) & 255) * 5) >> 3 << 8) | (((c & 255) * 5) >> 3);
 
 /** The scene as the engine sees it: per cell floor / ceiling (units),
- * texture and colours. */
+ * texture, colours and whether its ceiling is the sky. */
 export interface RcMap {
   w: number;
   h: number;
@@ -79,14 +93,18 @@ export interface RcMap {
   tex: (Pixels | null)[];
   fcol: Uint32Array;
   ccol: Uint32Array;
+  sky: Uint8Array;
+  skyColor: number;
+  skyPx: Pixels | null;
 }
 
-export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<string, Pixels>): RcMap {
+export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<string, Pixels>, skyPx: Pixels | null): RcMap {
   const names = sceneTextures(s);
   const look = s.raycast ?? {};
   const floorC = hexColor(look.floor, "#3c3a36");
   const ceilC = hexColor(look.ceiling, "#22242c");
   const flats = (look.flats ?? []).map((c) => hexColor(c, "#000000"));
+  const wallH = look.wall_height ?? RC_DEFAULT_WALL;
   const n = w * h;
   const m: RcMap = {
     w,
@@ -96,13 +114,26 @@ export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<st
     tex: new Array(n),
     fcol: new Uint32Array(n),
     ccol: new Uint32Array(n),
+    sky: new Uint8Array(n),
+    skyColor: hexColor(look.sky_color, "#6c94d0"),
+    skyPx,
   };
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      const f = floorAt(s, x, y);
+      let f = floorAt(s, x, y);
+      let c = ceilAt(s, x, y);
+      const sky = c >= RC_SKY;
+      // Open sky: a ceiling drawn as the sky, as high as the walls (compiler).
+      if (sky) c = Math.min(254, Math.max(rcDefaults(s).floor + wallH, f + 16));
+      // A solid tile: its floor value is its top (what shows under the sky).
+      if (s.collision?.[y]?.[x] === "#") {
+        f = Math.min(255, f + wallH);
+        c = 0;
+      }
       m.floor[i] = f;
-      m.ceil[i] = s.collision?.[y]?.[x] === "#" ? f : ceilAt(s, x, y);
+      m.ceil[i] = c;
+      m.sky[i] = sky ? 1 : 0;
       const ch = s.wall_textures?.[y]?.[x] ?? ".";
       const t = ch === "." ? 0 : Math.max(0, RC_TEX_CHARS.indexOf(ch.toLowerCase()));
       m.tex[i] = textures[names[t] ?? ""] ?? null;
@@ -116,18 +147,36 @@ export function buildMap(s: SceneJSON, w: number, h: number, textures: Record<st
 
 const isSolid = (m: RcMap, i: number) => m.ceil[i] <= m.floor[i];
 
+/** Which way an actor facing `facing` looks seen from (vx, vy) away: its
+ * front ("down"), back ("up") or a side - the engine's turned_frame(). */
+export function turnedFacing(facing: Billboard["facing"], vx: number, vy: number): Billboard["facing"] {
+  const F = { down: [0, 1], up: [0, -1], right: [1, 0], left: [-1, 0] }[facing];
+  const dot = F[0] * vx + F[1] * vy;
+  const cross = F[0] * vy - F[1] * vx;
+  if (Math.abs(dot) >= Math.abs(cross)) return dot >= 0 ? "down" : "up";
+  return cross > 0 ? "right" : "left";
+}
+
 /** Draws the view into `out` (VIEW_W x VIEW_H, ABGR). */
-export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint32Array) {
+export function renderView(m: RcMap, cam: Camera, actors: Billboard[], opt: ViewOptions, turnActors: boolean, out: Uint32Array) {
   out.fill(0xff000000);
+  const plane = FOV_PLANE[opt.fov] ?? FOV_PLANE[1];
+  const fogD = FOG_DIST[opt.fog] ?? Infinity;
   const dirX = Math.cos(cam.angle);
   const dirY = Math.sin(cam.angle);
-  const planeX = -dirY * PLANE;
-  const planeY = dirX * PLANE;
-  const eye = cam.floor + RC_EYE;
+  const planeX = -dirY * plane;
+  const planeY = dirX * plane;
+  const eye = cam.floor + opt.eye;
   const segs: { d: number; top: number; bot: number }[][] = [];
   const mx0 = Math.floor(cam.x);
   const my0 = Math.floor(cam.y);
   const inMap = (x: number, y: number) => x >= 0 && y >= 0 && x < m.w && y < m.h;
+  // The sky picture repeats a whole number of times a turn, like the engine.
+  const turnPx = (VIEW_W * Math.PI) / Math.atan(plane);
+  const sky = m.skyPx;
+  const skySpan = sky ? sky.w * Math.max(1, Math.round(turnPx / sky.w)) : 0;
+  const a = ((cam.angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const skyX0 = sky ? Math.floor((a / (2 * Math.PI)) * skySpan) % sky.w : 0;
 
   for (let x = 0; x < VIEW_W; x++) {
     const camX = (2 * x + 1) / VIEW_W - 1;
@@ -141,12 +190,14 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
     const stepY = rayY < 0 ? -1 : 1;
     let sideX = rayX < 0 ? (cam.x - mapX) * ddX : (mapX + 1 - cam.x) * ddX;
     let sideY = rayY < 0 ? (cam.y - mapY) * ddY : (mapY + 1 - cam.y) * ddY;
+    const skyCol = sky ? (skyX0 + x) % sky.w : 0;
 
     const ci = inMap(mx0, my0) ? my0 * m.w + mx0 : 0;
     let cFloor = m.floor[ci];
     let cCeil = m.ceil[ci];
     let cFc = m.fcol[ci];
     let cCc = m.ccol[ci];
+    let cSky = m.sky[ci] === 1;
     let ytop = 0;
     let ybot = VIEW_H;
     let nearF = VIEW_H;
@@ -156,6 +207,11 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
 
     const fill = (y0: number, y1: number, c: number) => {
       for (let y = Math.max(0, y0); y < Math.min(VIEW_H, y1); y++) out[y * VIEW_W + x] = c;
+    };
+    const fillCeil = (y0: number, y1: number, c: number, isSky: boolean) => {
+      if (!isSky) return fill(y0, y1, c);
+      for (let y = Math.max(0, y0); y < Math.min(VIEW_H, y1); y++)
+        out[y * VIEW_W + x] = sky ? sky.data[Math.min(y, sky.h - 1) * sky.w + skyCol] | 0xff000000 : m.skyColor;
     };
     const face = (y0: number, y1: number, top: number, line: number, col: Pixels | null, texX: number, shade: boolean) => {
       for (let y = Math.max(0, y0); y < Math.min(VIEW_H, y1); y++) {
@@ -179,13 +235,20 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
         mapY += stepY;
         side = 1;
       }
-      const out_ = !inMap(mapX, mapY);
-      const ni = out_ ? 0 : mapY * m.w + mapX;
-      const nFloor = out_ ? cFloor : m.floor[ni];
-      const nCeil = out_ ? cFloor : m.ceil[ni];
+      const outside = !inMap(mapX, mapY);
+      const ni = outside ? 0 : mapY * m.w + mapX;
+      let nFloor = outside ? cFloor : m.floor[ni];
+      let nCeil = outside ? cFloor : m.ceil[ni];
+      let nSky = !outside && m.sky[ni] === 1;
       // Nothing changes here (a solid cell never matches an open one).
-      if (!out_ && nFloor === cFloor && nCeil === cCeil && m.fcol[ni] === cFc && m.ccol[ni] === cCc) continue;
-      const solid = out_ || nCeil <= nFloor;
+      if (!outside && nFloor === cFloor && nCeil === cCeil && m.fcol[ni] === cFc && m.ccol[ni] === cCc && nSky === cSky) continue;
+      let solid = outside || nCeil <= nFloor;
+      if (solid && cSky && !outside) {
+        // Under the sky a wall is a block as tall as its floor value.
+        solid = false;
+        nCeil = cCeil;
+        nSky = true;
+      }
       const d = Math.max(1 / 64, side === 0 ? sideX - ddX : sideY - ddY);
       const line = VIEW_H / d;
       const yf = Math.floor(HORIZON + ((eye - cFloor) / 8) * line);
@@ -193,23 +256,31 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
 
       // The floor and ceiling of the stretch just crossed.
       fill(Math.max(yf, ytop), Math.min(nearF, ybot), cFc);
-      fill(Math.max(nearC, ytop), Math.min(yc, ybot), cCc);
+      fillCeil(Math.max(nearC, ytop), Math.min(yc, ybot), cCc, cSky);
       if (yf < ybot) ybot = yf;
       if (yc > ytop) ytop = yc;
 
-      const tex = out_ ? null : m.tex[ni];
+      const tex = outside ? null : m.tex[ni];
       const wall = side === 0 ? cam.y + d * rayY : cam.x + d * rayX;
       let texX = Math.floor((wall - Math.floor(wall)) * TEX);
       if ((side === 0 && rayX > 0) || (side === 1 && rayY < 0)) texX = TEX - 1 - texX;
-      const shade = side === 1;
+      const shade = side === 1 || d > fogD;
 
-      if (solid) {
+      if (solid && outside && cSky) {
+        // The edge of the world under the sky: sky to the horizon, endless ground below.
+        const hz = Math.min(HORIZON, ybot);
+        fillCeil(ytop, hz, 0, true);
+        fill(Math.max(hz, ytop), ybot, cFc);
+        ytop = ybot;
+        closed = true;
+      } else if (solid) {
         if (ytop < ybot) face(Math.max(ytop, yc), Math.min(ybot, yf), yc, line, tex, texX, shade);
         ytop = ybot;
         closed = true;
       } else {
-        const nyc = Math.floor(HORIZON - ((nCeil - eye) / 8) * line);
+        let nyc = Math.floor(HORIZON - ((nCeil - eye) / 8) * line);
         const nyf = Math.floor(HORIZON + ((eye - nFloor) / 8) * line);
+        if (cSky && nSky && nyc > ytop) nyc = ytop;   // sky to sky: no wall between them
         if (nCeil < cCeil && nyc > ytop) {
           face(Math.max(ytop, yc), Math.min(ybot, nyc), yc, line, tex, texX, shade);
           ytop = nyc;
@@ -222,6 +293,7 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
         cCeil = nCeil;
         cFc = m.fcol[ni];
         cCc = m.ccol[ni];
+        cSky = nSky;
         nearF = nyf;
         nearC = nyc;
         if (ytop >= ybot) closed = true;
@@ -230,7 +302,7 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
     }
     if (!closed) {
       fill(Math.max(HORIZON, ytop), Math.min(nearF, ybot), cFc);
-      fill(Math.max(nearC, ytop), Math.min(HORIZON, ybot), cCc);
+      fillCeil(Math.max(nearC, ytop), Math.min(HORIZON, ybot), cCc, cSky);
     }
     segs.push(colSegs);
   }
@@ -239,20 +311,21 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
   // open at its distance.
   const det = planeX * dirY - dirX * planeY;
   const boards = actors
-    .map((a) => {
-      const sx = a.x - cam.x;
-      const sy = a.y - cam.y;
+    .map((b) => {
+      const sx = b.x - cam.x;
+      const sy = b.y - cam.y;
       const tx = (dirY * sx - dirX * sy) / det;
       const ty = (-planeY * sx + planeX * sy) / det;
-      return { a, tx, ty };
+      return { b, tx, ty };
     })
     .filter((b) => b.ty > 1 / 16)
     .sort((p, q) => q.ty - p.ty);
-  for (const { a, tx, ty } of boards) {
+  for (const { b, tx, ty } of boards) {
+    const px = b.px[turnActors ? turnedFacing(b.facing, cam.x - b.x, cam.y - b.y) : b.facing];
     const screenX = (VIEW_W / 2) * (1 + tx / ty);
     const line = VIEW_H / ty;
-    const cx = Math.floor(a.x);
-    const cy = Math.floor(a.y);
+    const cx = Math.floor(b.x);
+    const cy = Math.floor(b.y);
     const fl = inMap(cx, cy) ? m.floor[cy * m.w + cx] : 0;
     const bottom = Math.floor(HORIZON + ((eye - fl) / 8) * line);
     const span = line * 4;
@@ -266,15 +339,19 @@ export function renderView(m: RcMap, cam: Camera, actors: Billboard[], out: Uint
         wt = s.top;
         wb = s.bot;
       }
-      const u = Math.floor(((x - left) / span) * a.px.w);
-      if (u < 0 || u >= a.px.w) continue;
+      const u = Math.floor(((x - left) / span) * px.w);
+      if (u < 0 || u >= px.w) continue;
       for (let y = Math.max(wt, Math.ceil(top)); y < Math.min(wb, bottom); y++) {
-        const v = Math.floor(((y - top) / span) * a.px.h);
-        const c = a.px.data[v * a.px.w + u];
+        const v = Math.floor(((y - top) / span) * px.h);
+        const c = px.data[v * px.w + u];
         if (c >>> 24 >= 128) out[y * VIEW_W + x] = c;
       }
     }
   }
+
+  if (opt.crosshair)
+    for (const [dx, dy] of [[-3, 0], [-2, 0], [2, 0], [3, 0], [0, -3], [0, -2], [0, 2], [0, 3]])
+      out[(HORIZON + dy) * VIEW_W + VIEW_W / 2 + dx] = 0xffffffff;
 }
 
 /** Highest floor under a box (tiles), as raycast_floor_under(). */
@@ -290,14 +367,14 @@ function floorUnder(m: RcMap, x: number, y: number, half: number): number {
 }
 
 /** Can the player's box stand here, from `floor`? (raycast_box_ok()) */
-function boxOk(m: RcMap, x: number, y: number, half: number, floor: number): boolean {
+function boxOk(m: RcMap, x: number, y: number, half: number, floor: number, opt: ViewOptions): boolean {
   for (let cy = Math.floor(y - half); cy <= Math.floor(y + half - 1e-6); cy++)
     for (let cx = Math.floor(x - half); cx <= Math.floor(x + half - 1e-6); cx++) {
       if (cx < 0 || cy < 0 || cx >= m.w || cy >= m.h) return false;
       const i = cy * m.w + cx;
       if (isSolid(m, i)) return false;
-      if (m.floor[i] - floor > RC_STEP) return false;
-      if (m.ceil[i] - Math.max(m.floor[i], floor) < RC_HEADROOM) return false;
+      if (m.floor[i] - floor > opt.step) return false;
+      if (m.ceil[i] - Math.max(m.floor[i], floor) < opt.eye + 1) return false;
     }
   return true;
 }
@@ -305,27 +382,26 @@ function boxOk(m: RcMap, x: number, y: number, half: number, floor: number): boo
 /** The player is 6x6 px: 3/8 of a tile either side of its centre. */
 const HALF = 3 / 8;
 
-/** Moves the camera by (fwd, side) tiles, sliding along walls, and lets
- * it step up and fall like the engine's player. */
-export function walk(m: RcMap, cam: Camera, fwd: number, side: number): Camera {
+/** Moves the camera by (fwd, side) tiles, sliding along walls. */
+export function walk(m: RcMap, cam: Camera, fwd: number, side: number, opt: ViewOptions): Camera {
   const dx = Math.cos(cam.angle) * fwd - Math.sin(cam.angle) * side;
   const dy = Math.sin(cam.angle) * fwd + Math.cos(cam.angle) * side;
   let { x, y } = cam;
-  if (boxOk(m, x + dx, y, HALF, cam.floor)) x += dx;
-  if (boxOk(m, x, y + dy, HALF, cam.floor)) y += dy;
+  if (boxOk(m, x + dx, y, HALF, cam.floor, opt)) x += dx;
+  if (boxOk(m, x, y + dy, HALF, cam.floor, opt)) y += dy;
   return { ...cam, x, y };
 }
 
-/** The floor under the camera: up at once, down falling by `fall`. */
-export function settle(m: RcMap, cam: Camera, fall: number): Camera {
+/** The floor under the camera: up at once, small drops kept, bigger ones fall by `fall`. */
+export function settle(m: RcMap, cam: Camera, fall: number, opt: ViewOptions): Camera {
   const under = floorUnder(m, cam.x, cam.y, HALF);
-  if (under >= cam.floor) return { ...cam, floor: under };
+  if (under >= cam.floor || cam.floor - under <= opt.step) return { ...cam, floor: under };
   return { ...cam, floor: Math.max(under, cam.floor - fall) };
 }
 
 export function startCamera(m: RcMap, s: SceneJSON): Camera {
   const p = s.player_start ?? { x: 1, y: 1 };
   const angle = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 }[s.player_start_direction ?? "down"] ?? 0;
-  const cam = { x: p.x + 3 / 8, y: p.y + 3 / 8, angle, floor: 0 };
+  const cam = { x: p.x + 3 / 8, y: p.y + 3 / 8, angle, floor: rcDefaults(s).floor };
   return { ...cam, floor: floorUnder(m, cam.x, cam.y, HALF) };
 }

@@ -384,3 +384,23 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* First Person 3D settings (RaycastLookEditor). */
+.rc-look-grid {
+  display: grid;
+  grid-template-columns: auto 64px 1fr;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.rc-look-grid select {
+  width: 100%;
+}
+
+.rc-look-check,
+.rc-look-swatch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}

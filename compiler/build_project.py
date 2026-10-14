@@ -1419,6 +1419,12 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
                                  f"{len(tex_index)}.")
             t = tex_index[t]
             f, c = floors[y][x], ceils[y][x]
+            sky = c == 255
+            if sky:
+                # Open sky is a ceiling drawn as the sky, as high as the
+                # walls (so window tops and building fronts line up with
+                # them), and always some room above the floor.
+                c = min(254, max(floor_default + wall_height, f + 16))
             if grid[y * w + x] == COLLISION_CHARS["#"]:
                 # A solid tile is a wall; its floor value is its top (what
                 # shows of it under the sky): wall_height above its floor.
@@ -1428,7 +1434,7 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
             ce.append(c)
             fc.append(flat(floor_flats[y][x], RC_FLOOR, x, y, "floor_flats"))
             # Ceiling height 255 is open sky.
-            cc.append(RC_SKY if c == 255 else flat(ceil_flats[y][x], RC_CEIL, x, y, "ceiling_flats"))
+            cc.append(RC_SKY if sky else flat(ceil_flats[y][x], RC_CEIL, x, y, "ceiling_flats"))
     return tex, fl, ce, fc, cc
 
 

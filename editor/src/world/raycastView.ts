@@ -6,9 +6,12 @@
 
 import type { SceneJSON } from "../../shared/projectTypes";
 import type { RcLayer } from "../state/projectStore";
-import { RC_TEX_CHARS, sceneTextures } from "./paint";
+import { rcDefaults, RC_TEX_CHARS, sceneTextures } from "./paint";
 
 export const RC_DEFAULT_CEILING = 8;
+/** Ceiling height 255: open sky. */
+export const RC_SKY = 255;
+export const RC_DEFAULT_WALL = 16;
 /** Engine limits (engine/include/raycast.h), in 1/8 tiles. */
 export const RC_EYE = 4;
 export const RC_STEP = 3;
@@ -16,8 +19,9 @@ export const RC_HEADROOM = 5;
 export const RC_MAX_FLATS = 5;
 
 export const RC_LAYER_LABEL: Record<RcLayer, string> = {
-  floor_h: "Floor height",
-  ceil_h: "Ceiling height",
+  shape: "Shape",
+  floor_h: "Floor only",
+  ceil_h: "Ceiling only",
   walltex: "Wall texture",
   floor_flat: "Floor colour",
   ceil_flat: "Ceiling colour",
@@ -52,16 +56,25 @@ export function bricksCanvas(): HTMLCanvasElement {
 }
 
 export function floorAt(s: SceneJSON, x: number, y: number): number {
-  return s.floor_heights?.[y]?.[x] ?? 0;
+  return s.floor_heights?.[y]?.[x] ?? rcDefaults(s).floor;
 }
 
 export function ceilAt(s: SceneJSON, x: number, y: number): number {
-  return s.ceiling_heights?.[y]?.[x] ?? s.raycast?.ceiling_height ?? RC_DEFAULT_CEILING;
+  return s.ceiling_heights?.[y]?.[x] ?? rcDefaults(s).ceil;
 }
 
 /** A wall in the game: a solid collision tile, or no room under the ceiling. */
 export function isRcWall(s: SceneJSON, x: number, y: number): boolean {
   return s.collision?.[y]?.[x] === "#" || ceilAt(s, x, y) <= floorAt(s, x, y);
+}
+
+/** Heights in eighths of a tile, as words: "1½ tiles". */
+export function tilesText(units: number): string {
+  const whole = Math.floor(Math.abs(units) / 8);
+  const rest = Math.abs(units) % 8;
+  const frac = ["", "⅛", "¼", "⅜", "½", "⅝", "¾", "⅞"][rest];
+  const n = whole === 0 && frac ? frac : `${whole}${frac}`;
+  return `${units < 0 ? "-" : ""}${n} tile${whole === 1 && !frac ? "" : "s"}`;
 }
 
 function heightColor(v: number, ceiling: boolean): string {
@@ -94,7 +107,32 @@ export function drawRcLayer(ctx: CanvasRenderingContext2D, s: SceneJSON, layer: 
   ctx.lineWidth = 2;
   ctx.strokeStyle = "rgba(0,0,0,.85)";
 
-  if (layer === "floor_h" || layer === "ceil_h") {
+  if (layer === "shape") {
+    const d = rcDefaults(s);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const wall = isRcWall(s, x, y);
+        const c = ceilAt(s, x, y);
+        ctx.fillStyle = wall ? "rgba(255, 64, 64, 0.55)" : heightColor(floorAt(s, x, y) - d.floor + 6, false);
+        ctx.fillRect(x * S, y * S, S, S);
+        if (!wall && c >= RC_SKY && S >= 8) {
+          ctx.fillStyle = "rgba(140, 200, 255, 0.55)";
+          ctx.fillRect(x * S, y * S, S, Math.max(2, S / 6));
+        } else if (!wall && c - floorAt(s, x, y) < 5 && S >= 8) {
+          ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+          ctx.fillRect(x * S, y * S, S, Math.max(2, S / 6));
+        }
+      }
+    ctx.fillStyle = "#fff";
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        if (isRcWall(s, x, y)) continue;
+        const f = floorAt(s, x, y);
+        const c = ceilAt(s, x, y);
+        const changed = s.floor_heights?.[y]?.[x] != null || s.ceiling_heights?.[y]?.[x] != null;
+        label(S >= 24 ? `${f}/${c >= RC_SKY ? "sky" : c}` : String(f), x, y, !changed);
+      }
+  } else if (layer === "floor_h" || layer === "ceil_h") {
     const ceiling = layer === "ceil_h";
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {

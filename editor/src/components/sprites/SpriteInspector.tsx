@@ -337,7 +337,7 @@ function StateSection({ sheet, state, img }: { sheet: SpriteSheetJSON; state: Sp
           ))}
         </select>
       </FieldRow>
-      {!["fixed", "fixed_movement", "cursor"].includes(state.animationType) && (
+      {!["fixed", "fixed_movement", "cursor", "fps_weapon"].includes(state.animationType) && (
         <label className="spr-check">
           <input
             type="checkbox"

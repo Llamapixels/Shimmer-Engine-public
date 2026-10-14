@@ -29,7 +29,7 @@ import { type EngineValue, modeLabel, settingsForMode, settingValue } from "../e
 import "./PropertiesPanel.css";
 import Icon from "./common/Icon";
 import { RC_TEX_CHARS, sceneTextures } from "../world/paint";
-import { RC_DEFAULT_CEILING, RC_MAX_FLATS } from "../world/raycastView";
+import { RC_DEFAULT_CEILING, RC_DEFAULT_WALL, RC_MAX_FLATS, RC_SKY, tilesText } from "../world/raycastView";
 import Chevron from "./common/Chevron";
 
 const DIRECTIONS: Direction[] = ["down", "up", "left", "right"];
@@ -202,7 +202,15 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
 
         <FieldRow label="Type" hint={SCENE_TYPES.find((t) => t.id === (data.type ?? "topdown"))?.hint}>
           <div className="type-row">
-            <select value={data.type ?? "topdown"} onChange={(e) => patch({ type: e.target.value === "topdown" ? undefined : (e.target.value as SceneType) })}>
+            <select
+              value={data.type ?? "topdown"}
+              onChange={(e) => {
+                const type = e.target.value === "topdown" ? undefined : (e.target.value as SceneType);
+                // A new 3D scene: ground a tile up (room for pits), walls two tiles high.
+                if (type === "raycast" && !data.raycast) patch({ type, raycast: { floor_height: 8, ceiling_height: 24 } });
+                else patch({ type });
+              }}
+            >
               {SCENE_TYPES.filter((t) => t.id !== "adventure" || data.type === "adventure").map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.label}
@@ -530,20 +538,110 @@ function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
       };
     });
 
+  const ground = look.floor_height ?? 0;
+  const ceiling = look.ceiling_height ?? RC_DEFAULT_CEILING;
+  const outdoors = ceiling >= RC_SKY;
+  const skies = (assets?.backgrounds ?? []).map((a) => ({ ref: backgroundRefFor(a.relPath), label: a.fileName }));
+  const sprites = (assets?.sprites ?? []).map((a) => a.name);
+
   return (
     <div className="rc-look">
-      <FieldRow label="3D floor and ceiling" hint="The colours of floors and ceilings with none painted.">
-        <div className="type-row">
-          <input type="color" value={hex(look.floor, "#3c3a36")} onChange={(e) => set({ floor: e.target.value }, "floor")} title="Floor" />
-          <input type="color" value={hex(look.ceiling, "#22242c")} onChange={(e) => set({ ceiling: e.target.value }, "ceiling")} title="Ceiling" />
-          <span className="field-hint-inline">Ceiling height</span>
+      <FieldRow
+        label="3D ground and ceiling"
+        hint="Every tile you haven't painted a shape on. Heights are in eighths of a tile: 8 is one tile, one texture high."
+      >
+        <div className="rc-look-grid">
+          <span>Ground</span>
+          <NumberInput value={ground} min={0} max={254} onChange={(n) => set({ floor_height: n })} title="Floor height of unpainted tiles" />
+          <span className="field-hint-inline">{ground ? "pits can go below it" : "pits need a ground above 0"}</span>
+          <span>Ceiling</span>
+          {outdoors ? (
+            <span className="field-hint-inline">open sky</span>
+          ) : (
+            <NumberInput value={ceiling} min={1} max={254} onChange={(n) => set({ ceiling_height: n })} title="Ceiling height of unpainted tiles" />
+          )}
+          <label className="rc-look-check">
+            <input
+              type="checkbox"
+              checked={outdoors}
+              onChange={(e) => set({ ceiling_height: e.target.checked ? RC_SKY : ground + 16 })}
+            />
+            Outdoors (sky)
+          </label>
+          {!outdoors && (
+            <>
+              <span />
+              <span className="field-hint-inline" style={{ gridColumn: "span 2" }}>
+                {tilesText(ceiling - ground)} of room
+              </span>
+            </>
+          )}
+          <span>Wall height</span>
           <NumberInput
-            value={look.ceiling_height ?? RC_DEFAULT_CEILING}
+            value={look.wall_height ?? RC_DEFAULT_WALL}
             min={1}
             max={255}
-            onChange={(n) => set({ ceiling_height: n })}
-            title="Ceiling height of tiles with none painted, in eighths of a tile (8 = one tile)"
+            onChange={(n) => set({ wall_height: n })}
+            title="Under open sky, solid tiles stand this tall above their floor (indoors they reach the ceiling)"
           />
+          <span className="field-hint-inline">walls under the sky</span>
+        </div>
+      </FieldRow>
+      <FieldRow label="3D colours" hint="Floors and ceilings with no colour painted, and the sky when there's no sky picture.">
+        <div className="type-row">
+          <label className="rc-look-swatch" title="Floor">
+            <input type="color" value={hex(look.floor, "#3c3a36")} onChange={(e) => set({ floor: e.target.value }, "floor")} />
+            Floor
+          </label>
+          <label className="rc-look-swatch" title="Ceiling">
+            <input type="color" value={hex(look.ceiling, "#22242c")} onChange={(e) => set({ ceiling: e.target.value }, "ceiling")} />
+            Ceiling
+          </label>
+          <label className="rc-look-swatch" title="Sky">
+            <input type="color" value={hex(look.sky_color, "#6c94d0")} onChange={(e) => set({ sky_color: e.target.value }, "sky_color")} />
+            Sky
+          </label>
+        </div>
+      </FieldRow>
+      <FieldRow
+        label="Sky picture"
+        hint="Shown wherever there's open sky (Outdoors, or the Open sky shape). A PNG from Backgrounds, up to 80 px tall (the 3D view is 120×80, doubled on screen); it repeats sideways and turns with the view - 160, 320 or 640 px wide fit a full turn exactly. Its colours share the 59 with the wall textures."
+      >
+        <select value={look.sky ?? ""} onChange={(e) => set({ sky: e.target.value || undefined })}>
+          <option value="">None (the sky colour)</option>
+          {look.sky && !skies.some((o) => o.ref === look.sky) && <option value={look.sky}>{look.sky} (missing)</option>}
+          {skies.map((o) => (
+            <option key={o.ref} value={o.ref}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </FieldRow>
+      <FieldRow
+        label="Weapon"
+        hint="A sprite held at the bottom of the screen. Make it a First Person Weapon sprite: Idle, Walking, Fire and Alt Fire animations. The fire buttons are in this scene type's engine settings."
+      >
+        <div className="rc-look-grid">
+          <span>Sprite</span>
+          <select value={look.weapon ?? ""} onChange={(e) => set({ weapon: e.target.value || undefined })} style={{ gridColumn: "span 2" }}>
+            <option value="">None</option>
+            {look.weapon && !sprites.includes(look.weapon) && <option value={look.weapon}>{look.weapon} (missing)</option>}
+            {sprites.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          {look.weapon && (
+            <>
+              <span>Offset</span>
+              <div className="type-row" style={{ gridColumn: "span 2" }}>
+                <NumberInput value={look.weapon_x ?? 0} min={-120} max={120} onChange={(n) => set({ weapon_x: n || undefined })} title="Right (px)" />
+                <NumberInput value={look.weapon_y ?? 0} min={-120} max={120} onChange={(n) => set({ weapon_y: n || undefined })} title="Down (px)" />
+                <span className="field-hint-inline">px from bottom centre</span>
+              </div>
+            </>
+          )}
         </div>
       </FieldRow>
       <FieldRow label={`More colours (${flats.length}/${RC_MAX_FLATS})`} hint="Paint them on floors and ceilings with the 3D tool: lava, water, carpet, lights.">
@@ -584,8 +682,8 @@ function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
             <button className="btn btn-small" onClick={() => setRcLayer("walltex")}>
               Paint textures
             </button>
-            <button className="btn btn-small" onClick={() => setRcLayer("floor_h")}>
-              Paint heights
+            <button className="btn btn-small" onClick={() => setRcLayer("shape")}>
+              Paint shapes
             </button>
           </div>
         </div>

@@ -24,8 +24,9 @@ import {
 } from "../world/paint";
 import { drawRcLayer, RC_LAYER_LABEL } from "../world/raycastView";
 import type { Camera } from "../world/raycastPreview";
-import RaycastPreview from "./RaycastPreview";
-import { RcLayerButtons, RcValuePanel, useTextureImages } from "./RaycastTools";
+import RaycastPreview, { type PreviewSettings } from "./RaycastPreview";
+import { RcLayerButtons, RcValuePanel, useTextureImages, type RcBody, type StairsRequest } from "./RaycastTools";
+import { SETTING_BY_KEY, settingValue, type EngineValue } from "../engine/engineSettings";
 import "./SceneCanvas.css";
 import Icon, { type IconName } from "./common/Icon";
 import Chevron from "./common/Chevron";
@@ -951,8 +952,9 @@ export default function SceneCanvas() {
       return;
     }
     // 3D tool: [ and ] lower / raise the height it paints.
-    if (tool === "rc" && (rcLayer === "floor_h" || rcLayer === "ceil_h") && (e.key === "[" || e.key === "]")) {
-      setRcBrush({ [rcLayer]: Math.max(0, Math.min(255, rcBrush[rcLayer] + (e.key === "]" ? 1 : -1))) });
+    if (tool === "rc" && (rcLayer === "floor_h" || rcLayer === "ceil_h" || rcLayer === "shape") && (e.key === "[" || e.key === "]")) {
+      const key = rcLayer === "shape" ? "shape_floor" : rcLayer;
+      setRcBrush({ [key]: Math.max(0, Math.min(254, rcBrush[key] + (e.key === "]" ? 1 : -1))) });
       return;
     }
     const match = tools.find((x) => x.key.toLowerCase() === k);
@@ -1039,10 +1041,58 @@ export default function SceneCanvas() {
   /** Alt-click with the 3D tool: paint with what's under the cursor. */
   const pickRc = (layer: RcLayer, x: number, y: number) => {
     const v = readCell(data, layer, x, y);
-    if (layer === "floor_h") setRcBrush({ floor_h: v === null ? 0 : Number(v) });
+    if (layer === "shape") {
+      if (v === "wall") setRcBrush({ shape_wall: true });
+      else if (v) {
+        const [f, c] = v.split(",").map(Number);
+        setRcBrush({ shape_wall: false, shape_floor: f, shape_ceil: c });
+      }
+    } else if (layer === "floor_h") setRcBrush({ floor_h: v === null ? (data.raycast?.floor_height ?? 0) : Number(v) });
     else if (layer === "ceil_h") setRcBrush({ ceil_h: v === null ? (data.raycast?.ceiling_height ?? 8) : Number(v) });
     else if (layer === "walltex") setRcBrush({ walltex: v ?? "" });
     else setRcBrush({ [layer]: v === null ? 0 : Number(v) });
+  };
+
+  /** A First Person 3D engine setting as a number (a choice's index). */
+  const rcSetting = (key: string): number => {
+    const v = settingValue(key, projectJson?.engine as Record<string, EngineValue> | undefined, data.engine);
+    if (typeof v === "boolean") return v ? 1 : 0;
+    if (typeof v === "string") {
+      const i = SETTING_BY_KEY[key]?.options?.indexOf(v) ?? -1;
+      return i >= 0 ? i : Number(v) || 0;
+    }
+    return v;
+  };
+  /** The player's eye and step heights (engine settings). */
+  const rcBody: RcBody = { eye: rcSetting("rc_eye"), step: rcSetting("rc_step") };
+  const rcPreview: PreviewSettings = {
+    ...rcBody,
+    fov: rcSetting("rc_fov"),
+    fog: rcSetting("rc_fog"),
+    crosshair: !!rcSetting("rc_crosshair"),
+    walk: rcSetting("rc_walk") / 8,
+    run: rcSetting("rc_run") ? rcSetting("rc_run_speed") / 8 : null,
+    turn: rcSetting("rc_turn"),
+    gravity: rcSetting("rc_gravity"),
+    jump: rcSetting("rc_jump") ? rcSetting("rc_jump_height") : null,
+    turnActors: !!rcSetting("rc_actor_turn"),
+    weaponBob: !!rcSetting("rc_weapon_bob"),
+  };
+
+  /** Stairs across the selected area, each tile `rise` above the last. */
+  const makeStairs = (r: StairsRequest) => {
+    if (!selRect) return;
+    const cells: Cells = new Map();
+    const sky = rcBrush.shape_ceil >= 255;
+    for (let y = selRect.y; y < selRect.y + selRect.h; y++)
+      for (let x = selRect.x; x < selRect.x + selRect.w; x++) {
+        const i =
+          r.dir === "right" ? x - selRect.x : r.dir === "left" ? selRect.x + selRect.w - 1 - x : r.dir === "down" ? y - selRect.y : selRect.y + selRect.h - 1 - y;
+        const f = Math.min(254, r.from + r.rise * i);
+        const c = sky ? 255 : Math.min(254, Math.max(rcBrush.shape_ceil, f + rcBody.eye + 1));
+        cells.set(y * tileW + x, `${f},${c}`);
+      }
+    updateScene(sceneId, (s) => applyCells(s, "shape", tileW, tileH, cells));
   };
 
   const keyFn = (layer: PaintLayer) => (x: number, y: number) => cellKey(data, layer, x, y, tileKeys, tileW);
@@ -1516,13 +1566,24 @@ export default function SceneCanvas() {
             sheets={sheets}
             project={projectJson}
             playerSprite={playerSprite}
+            settings={rcPreview}
             camera={rcCam}
             onCamera={setRcCam}
             onClose={() => setShowPreview(false)}
           />
         )}
         {tool === "rc" && !tilePick && rootPath && (
-          <RcValuePanel scene={data} layer={rcLayer} brush={rcBrush} textures={textures} rootPath={rootPath} />
+          <RcValuePanel
+            scene={data}
+            sceneId={sceneId}
+            layer={rcLayer}
+            brush={rcBrush}
+            textures={textures}
+            rootPath={rootPath}
+            body={rcBody}
+            canStairs={brushShape === "selection" && !!selRect && rcLayer === "shape"}
+            onStairs={makeStairs}
+          />
         )}
         <div
           ref={scrollRef}

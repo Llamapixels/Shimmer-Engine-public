@@ -467,9 +467,6 @@
   font-size: 12px;
 }
 
-.rc-height-input {
-  width: 56px;
-}
 
 .rc-texture-row {
   max-height: 140px;
@@ -562,4 +559,114 @@
 
 .rc-preview-canvas-focus {
   box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* 3D tool: the Shape brush. */
+.rc-panel input:not([type="checkbox"]),
+.rc-num {
+  background: var(--bg-1);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+
+.rc-num {
+  width: 52px;
+  text-align: center;
+}
+
+.rc-shape {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.rc-shape-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rc-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rc-field > span:first-child {
+  width: 52px;
+  color: var(--text-secondary);
+}
+
+.rc-field-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding-left: 4px;
+}
+
+.rc-field-sky {
+  color: #8cc8ff;
+}
+
+.rc-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.rc-panel-note {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: normal;
+  border-left: 2px solid var(--accent);
+  padding-left: 6px;
+}
+
+.rc-diagram {
+  flex: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+}
+
+.rc-diagram-sky {
+  fill: #20283a;
+}
+
+.rc-diagram-grid {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.rc-diagram-floor {
+  fill: #6b5a44;
+}
+
+.rc-diagram-ceil {
+  fill: #4a4f5e;
+}
+
+.rc-diagram-wall {
+  fill: #a04848;
+}
+
+.rc-diagram-player {
+  fill: #ffd23f;
+}
+
+.rc-diagram-eye {
+  fill: #20283a;
+}
+
+.rc-diagram-step {
+  stroke: rgba(255, 210, 63, 0.5);
+  stroke-dasharray: 3 3;
+}
+
+.rc-diagram-text {
+  fill: #8cc8ff;
+  font-size: 11px;
 }
