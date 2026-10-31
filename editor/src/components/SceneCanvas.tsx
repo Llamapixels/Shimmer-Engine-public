@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import type { BgLayerJSON, DoorJSON, NoteJSON, NpcJSON, ProjectJSON, SceneJSON } from "../../shared/projectTypes";
+import { PREFAB_DRAG_TYPE, prefabDropTile } from "../world/prefabs";
 import { sceneName, useProjectStore, type Brush, type BrushShape, type PaintLayer, type RcLayer, type TileStamp, type Tool } from "../state/projectStore";
 import { loadSpriteImage, type SpriteImage } from "../sprites/image";
 import { playerSpriteName, type Facing } from "../sprites/model";
@@ -1315,7 +1316,11 @@ export default function SceneCanvas() {
     if (e.button !== 0) return;
 
     if (tool === "placePrefab") {
-      if (placingPrefabId) placePrefab(sceneId, placingPrefabId, t.x, t.y);
+      const prefab = prefabs.find((p) => p.id === placingPrefabId);
+      if (prefab) {
+        const tile = prefabDropTile(e, e.currentTarget.getBoundingClientRect(), tileW, tileH, prefab);
+        if (tile) placePrefab(sceneId, prefab.id, tile.x, tile.y);
+      }
       return;
     }
     if (tool === "npc") {
@@ -1782,6 +1787,21 @@ export default function SceneCanvas() {
             }}
             onContextMenu={onContextMenu}
             tabIndex={0}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes(PREFAB_DRAG_TYPE)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              const id = e.dataTransfer.getData(PREFAB_DRAG_TYPE);
+              if (!id) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const prefab = prefabs.find((p) => p.id === id);
+              if (!prefab) return;
+              const tile = prefabDropTile(e, e.currentTarget.getBoundingClientRect(), tileW, tileH, prefab);
+              if (tile) placePrefab(sceneId, id, tile.x, tile.y);
+            }}
             data-testid="scene-canvas"
           />
           {ctxMenu && (

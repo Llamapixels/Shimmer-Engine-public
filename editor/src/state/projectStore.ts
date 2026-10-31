@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { migrateProjectSprites } from "../sprites/model";
+import { prefabCopy } from "../world/prefabs";
 import type { AssetListing } from "../../shared/ipc";
 import type { EventScript, ScriptArg } from "../../shared/eventTypes";
 import type {
@@ -308,7 +309,8 @@ interface ProjectState {
   addDoor: (sceneId: string, door: DoorJSON) => void;
   /** Drop a prefab's template onto a scene at (x, y), as a real NPC or
    * door (a one-time copy, not a live link - see PrefabJSON). */
-  placePrefab: (sceneId: string, prefabId: string, x: number, y: number) => void;
+  placePrefab: (sceneId: string, prefabId: string, x: number, y: number) => boolean;
+  addPrefabSpawn: (sceneId: string, prefabId: string) => void;
   deleteSelected: () => void;
   undo: () => void;
   redo: () => void;
@@ -857,32 +859,38 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     placePrefab: (sceneId, prefabId, x, y) => {
       const { project } = get();
-      if (!project) return;
-      const prefab = (project.project.prefabs ?? []).find((p) => p.id === prefabId);
-      if (!prefab) return;
-
-      if (prefab.kind === "npc") {
-        const t = prefab.template as Partial<NpcJSON>;
-        const npc: NpcJSON = { sprite: "player", direction: "down", movement: "static", ...t, x, y };
-        let index = 0;
-        get().updateScene(sceneId, (s) => {
-          const npcs = [...(s.npcs ?? []), npc];
-          index = npcs.length - 1;
-          return { ...s, npcs };
-        });
-        set({ selection: { kind: "npc", sceneId, index } });
-      } else {
-        const t = prefab.template as Partial<DoorJSON>;
-        const door: DoorJSON = { width: 1, height: 1, ...t, x, y };
-        let index = 0;
-        get().updateScene(sceneId, (s) => {
-          const doors = [...(s.doors ?? []), door];
-          index = doors.length - 1;
-          return { ...s, doors };
-        });
-        set({ selection: { kind: "door", sceneId, index } });
+      const rec = project?.scenes.find((s) => s.fileId === sceneId);
+      const prefab = project?.project.prefabs?.find((p) => p.id === prefabId);
+      if (!project || !rec || !prefab || !Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0) return false;
+      if (prefab.kind === "npc" && (rec.data.npcs?.length ?? 0) >= 16) {
+        set({ error: "This scene already has 16 actors. Remove an actor before placing another prefab. Scripted spawn pools also count toward the build limit." });
+        return false;
       }
-      set({ placingPrefabId: null, tool: "select" });
+      const copy = prefabCopy(prefab, rec.data, x, y, project.project.playerSprite || "player");
+      const index = copy.kind === "npc" ? rec.data.npcs?.length ?? 0 : rec.data.doors?.length ?? 0;
+      get().updateScene(sceneId, (s) => copy.kind === "npc"
+        ? { ...s, npcs: [...(s.npcs ?? []), copy.value] }
+        : { ...s, doors: [...(s.doors ?? []), copy.value] });
+      set({ activeSceneId: sceneId, selection: { kind: copy.kind, sceneId, index },
+        placingPrefabId: null, tool: "select", section: "world", error: null });
+      return true;
+    },
+
+    addPrefabSpawn: (sceneId, prefabId) => {
+      const { project } = get();
+      const rec = project?.scenes.find((s) => s.fileId === sceneId);
+      const prefab = project?.project.prefabs?.find((p) => p.id === prefabId);
+      if (!rec || prefab?.kind !== "npc") return;
+      if ((rec.data.npcs?.length ?? 0) >= 16) {
+        set({ error: "This scene already has 16 placed actors, leaving no slot for Spawn Prefab. Remove an actor first." });
+        return;
+      }
+      get().updateScene(sceneId, (s) => ({ ...s, on_init: [...(s.on_init ?? []), {
+        type: "spawn_prefab", prefab: prefabId, max: 1, at: "tile",
+        x: s.player_start?.x ?? 0, y: s.player_start?.y ?? 0,
+      }] }));
+      set({ activeSceneId: sceneId, selection: { kind: "scene", sceneId }, section: "world",
+        placingPrefabId: null, tool: "select" });
     },
 
     deleteSelected: () => {

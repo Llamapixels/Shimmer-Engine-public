@@ -68,8 +68,8 @@ typedef struct
                               * can't be talked to */
     uint8_t move_speed;      /* px per frame, wandering and scripted moves */
     uint8_t anim_speed;      /* VBlanks per animation frame, 0 = sprite's */
-    uint8_t collision_group; /* 0 = none, 1-3: touching the player runs
-                              * on_hit (else the scene's player_hit[g-1]) */
+    uint8_t collision_group; /* 0 = none, 5 = pickup, 1-4: target membership
+                              * and the scene player-hit fallback group */
     const ScriptEvent *on_hit;
     const ScriptEvent *on_update;   /* looping background thread, 0 = none */
     uint8_t platform;        /* Platformer: stand on it (only blocks from
@@ -81,6 +81,15 @@ typedef struct
     uint8_t spawn_pool;      /* 1 = a "Spawn Prefab" copy: starts hidden, and
                               * its On Update starts when it's spawned */
     const ScriptEvent *on_spawn;   /* spawn_pool: runs when spawned */
+    const ScriptEvent *on_player_hit; /* 0 inherits the scene's handler */
+    uint8_t player_hit_disabled;
+    uint8_t projectile_hit_disabled; /* bit 0-3: initial disabled hit groups 1-4 */
+    const ScriptEvent *hit_groups[4]; /* incoming projectile group; empty = no action */
+    uint8_t non_solid;
+    uint8_t collisions_disabled;
+    uint8_t interaction_disabled;
+    const ScriptEvent *on_collect; /* safe, once-per-instance pickup collection */
+    uint8_t collect_touch_disabled; /* collect via explicit script events instead */
 } NpcDef;
 
 /*
@@ -235,7 +244,7 @@ typedef struct
 
     uint8_t player_sprite;      /* index into sprite_defs[] for the player
                                   * here, 0xFF = the project's default */
-    const ScriptEvent *player_hit[3];   /* GB Studio's scene "On Player
+    const ScriptEvent *player_hit[4];   /* GB Studio's scene "On Player
                                           * Hit" per collision group */
     ParallaxLayer parallax[3];
     uint8_t parallax_count;     /* 0 = no parallax */

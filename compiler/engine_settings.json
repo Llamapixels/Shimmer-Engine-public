@@ -99,13 +99,13 @@
     { "key": "sh_player_speed", "mode": "shmup", "group": "Player", "label": "Player speed", "unit": "speed", "default": 1.5, "min": 0.25, "max": 6 },
     { "key": "sh_lock_perpendicular", "mode": "shmup", "group": "Player", "label": "Only move across the scroll", "unit": "bool", "default": 0, "desc": "e.g. only up/down in a side-scroller." },
     { "key": "sh_triggers_on_screen", "mode": "shmup", "group": "Triggers", "label": "Triggers fire when they scroll on screen", "unit": "bool", "default": 0, "desc": "Otherwise they fire when the player touches them." },
-    { "key": "sh_wall_hit_group", "mode": "shmup", "group": "Player", "label": "Hitting a wall counts as a hit from group", "unit": "choice", "options": ["None", "1", "2", "3"], "default": 0 },
+    { "key": "sh_wall_hit_group", "mode": "shmup", "group": "Player", "label": "Hitting a wall counts as a hit from group", "unit": "choice", "options": ["None", "1", "2", "3", "4"], "default": 0 },
 
     { "key": "pc_speed", "mode": "pointnclick", "group": "Cursor", "label": "Cursor speed", "unit": "speed", "default": 1.5, "min": 0.25, "max": 6 },
     { "key": "pc_interact", "mode": "pointnclick", "group": "Cursor", "label": "Click button", "unit": "button", "default": "a" },
 
     { "key": "hit_invincible", "mode": "all", "group": "Getting hit", "label": "Invincible after a hit (frames)", "unit": "frames", "default": 60, "min": 0, "max": 255, "extra": true, "desc": "The player blinks and can't be hit again for this long." },
-    { "key": "damage_tile_group", "mode": "all", "group": "Getting hit", "label": "Damage tiles hit as group", "unit": "choice", "options": ["None", "1", "2", "3"], "default": 1, "extra": true, "desc": "Touching a Damage collision tile runs the scene's On Player Hit for this group." },
+    { "key": "damage_tile_group", "mode": "all", "group": "Getting hit", "label": "Damage tiles hit as group", "unit": "choice", "options": ["None", "1", "2", "3", "4"], "default": 1, "extra": true, "desc": "Touching a Damage collision tile runs the scene's On Player Hit for this group." },
     { "key": "dialogue_pauses_world", "mode": "all", "group": "Dialogue", "label": "Pause the world during dialogue", "unit": "bool", "default": 0, "extra": true, "desc": "While a dialogue box is open, other scripts (actors walking about, background and timer scripts) wait until it closes. Off: the world keeps moving, so you're never truly safe." },
     { "key": "pl_crouch_height", "mode": "platform", "group": "Walking", "label": "Crouch height (px)", "unit": "pixels", "default": 0, "min": 0, "max": 64, "if": "pl_crouch", "extra": true, "desc": "How tall the collision box is while crouching, from the feet up. 0 = the same as standing. The player can't stand up under a ceiling that's too low. The Sprites editor shows it on the crouch state." },
     { "key": "pl_state_crouch", "mode": "platform", "group": "Walking", "label": "Crouch animation", "unit": "state", "anim": "crouch", "default": "", "if": "pl_crouch", "extra": true, "desc": "Which of the player sprite's animation states to show. Auto uses a state named \"crouch\" if the sprite has one." },

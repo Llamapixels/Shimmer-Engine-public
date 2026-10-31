@@ -25,8 +25,9 @@ export function sceneScripts(scene: SceneJSON): (EventScript | undefined)[] {
     scene.on_player_hit?.["1"],
     scene.on_player_hit?.["2"],
     scene.on_player_hit?.["3"],
+    scene.on_player_hit?.["4"],
     ...(scene.doors ?? []).flatMap((d) => [d.events, d.on_leave]),
-    ...(scene.npcs ?? []).flatMap((n) => [n.on_interact, n.on_init, n.on_update, n.on_hit]),
+    ...(scene.npcs ?? []).flatMap((n) => [n.on_interact, n.on_init, n.on_update, n.on_hit, n.on_player_hit, n.on_hit_1, n.on_hit_2, n.on_hit_3, n.on_hit_4, n.on_collect]),
     ...(scene.timers ?? []).map((t) => t.script),
   ];
 }
@@ -346,7 +347,7 @@ function mapSceneEvents(
   if (scene.on_init) next.on_init = mapScript(scene.on_init);
   if (scene.on_player_hit) {
     const hit = { ...scene.on_player_hit };
-    for (const g of ["1", "2", "3"] as const) if (hit[g]) hit[g] = mapScript(hit[g]);
+    for (const g of ["1", "2", "3", "4"] as const) if (hit[g]) hit[g] = mapScript(hit[g]);
     next.on_player_hit = hit;
   }
   if (scene.doors) {
@@ -370,7 +371,7 @@ function mapSceneEvents(
   if (scene.npcs) {
     next.npcs = scene.npcs.map((n) => {
       let nn = n;
-      for (const key of ["on_interact", "on_init", "on_update", "on_hit"] as const) {
+      for (const key of ["on_interact", "on_init", "on_update", "on_hit", "on_player_hit", "on_hit_1", "on_hit_2", "on_hit_3", "on_hit_4", "on_collect"] as const) {
         const cur = n[key];
         if (!cur) continue;
         const e = mapScript(cur);
@@ -407,7 +408,13 @@ const PREFAB_SCRIPTS = [
   ["on_interact", "On Interact"],
   ["on_init", "On Init"],
   ["on_update", "On Update"],
-  ["on_hit", "On Hit"],
+  ["on_hit", "Legacy On Hit"],
+  ["on_player_hit", "On Player Hit"],
+  ["on_hit_1", "On Hit 1"],
+  ["on_hit_2", "On Hit 2"],
+  ["on_hit_3", "On Hit 3"],
+  ["on_hit_4", "On Hit 4"],
+  ["on_collect", "On Collect"],
 ] as const;
 
 /** An actor prefab's scripts, with labels. */
@@ -438,7 +445,7 @@ export function labeledScripts(scene: SceneJSON): { label: string; script: Event
   const out: { label: string; script: EventScript | undefined; target: RefPlace["target"] }[] = [
     { label: "On Init", script: scene.on_init, target: { kind: "scene" } },
   ];
-  for (const g of ["1", "2", "3"] as const)
+  for (const g of ["1", "2", "3", "4"] as const)
     out.push({ label: `On Player Hit (group ${g})`, script: scene.on_player_hit?.[g], target: { kind: "scene" } });
   (scene.timers ?? []).forEach((t, i) => out.push({ label: `Timer ${t.name || i + 1}`, script: t.script, target: { kind: "scene" } }));
   (scene.doors ?? []).forEach((d, i) => {
@@ -450,7 +457,11 @@ export function labeledScripts(scene: SceneJSON): { label: string; script: Event
     out.push({ label: `${who} On Interact`, script: n.on_interact, target: { kind: "npc", index: i } });
     out.push({ label: `${who} On Init`, script: n.on_init, target: { kind: "npc", index: i } });
     out.push({ label: `${who} On Update`, script: n.on_update, target: { kind: "npc", index: i } });
-    out.push({ label: `${who} On Hit`, script: n.on_hit, target: { kind: "npc", index: i } });
+    out.push({ label: `${who} Legacy On Hit`, script: n.on_hit, target: { kind: "npc", index: i } });
+    out.push({ label: `${who} On Collect`, script: n.on_collect, target: { kind: "npc", index: i } });
+    out.push({ label: `${who} On Player Hit`, script: n.on_player_hit, target: { kind: "npc", index: i } });
+    for (const g of [1, 2, 3, 4] as const)
+      out.push({ label: `${who} On Hit ${g}`, script: n[`on_hit_${g}`], target: { kind: "npc", index: i } });
   });
   return out;
 }

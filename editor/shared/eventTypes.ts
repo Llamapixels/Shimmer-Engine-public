@@ -12,7 +12,7 @@ export type Direction = "down" | "up" | "right" | "left";
 
 export type SoundEffect = "blip" | "door" | "save" | "item";
 
-export type ProjectileTarget = "actors" | "group1" | "group2" | "group3" | "player";
+export type ProjectileTarget = "actors" | "group1" | "group2" | "group3" | "group4" | "player";
 
 export type ButtonName =
   | "a"
@@ -348,8 +348,8 @@ export interface ActorMoveToEvent extends EventBase {
   y: number;
 }
 
-/** "state" is a state name of the actor's sprite ("Default" for the
- * first) or a 0-based index into its states. */
+/** A named state resolves on the actor's current sprite at runtime.
+ * "Default"/"" selects state 0. Numeric values remain sheet-local indices. */
 export interface ActorSetStateEvent extends EventBase {
   type: "actor_set_state";
   actor: ActorRef;
@@ -944,6 +944,34 @@ export interface ActorScaleByEvent extends EventBase {
   y: VarOrLiteral;
 }
 
+export interface ActorSetSolidEvent extends EventBase {
+  type: "actor_set_solid";
+  actor: ActorRef;
+  enabled: boolean;
+}
+export interface ActorSetInteractionEvent extends EventBase {
+  type: "actor_set_interaction";
+  actor: ActorRef;
+  enabled: boolean;
+}
+export interface ActorSetCollisionGroupEvent extends EventBase {
+  type: "actor_set_collision_group";
+  actor: ActorRef;
+  group: number | "none" | "group1" | "group2" | "group3" | "group4" | "pickup";
+}
+
+export interface ActorCollectEvent extends EventBase {
+  type: "actor_collect";
+  actor: ActorRef;
+}
+
+export interface ActorSetHitResponseEvent extends EventBase {
+  type: "actor_set_hit_response";
+  actor: ActorRef;
+  response: "contact" | "group1" | "group2" | "group3" | "group4" | "all";
+  enabled: boolean;
+}
+
 export interface ActorSetCollisionsEvent extends EventBase {
   type: "actor_set_collisions";
   actor: ActorRef;
@@ -1236,6 +1264,11 @@ export type ScriptEventJSON =
   | ActorSetSpriteEvent
   | ActorJumpEvent
   | TextClearEvent
+  | ActorSetSolidEvent
+  | ActorSetInteractionEvent
+  | ActorSetCollisionGroupEvent
+  | ActorCollectEvent
+  | ActorSetHitResponseEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent
   | IfActorAtPositionEvent

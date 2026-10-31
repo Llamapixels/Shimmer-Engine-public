@@ -227,14 +227,36 @@ export interface NpcJSON {
   move_speed?: number;
   /** Frames per animation frame, 0 = the sprite's own speed. */
   anim_speed?: number;
-  /** 0 = none. 1-3: touching the player runs on_hit, or else the
-   * scene's on_player_hit for this group. */
+  /** 0 = none. 1-4: projectile target membership and scene player-hit fallback.
+   * The incoming projectile's group selects on_hit_1 through on_hit_4. */
   collision_group?: number;
+  /** Solid to player; default follows scene: platforms in platformer, solid elsewhere. */
+  solid?: boolean;
+  /** Tile/movement collision master switch; independent of interaction and damage. */
+  collisions?: boolean;
+  interact_enabled?: boolean;
+  /** Pickup-group touch script, once per actor instance. */
+  on_collect?: EventScript;
+  /** Default true. False requires Collect Actor, e.g. from On Interact. */
+  collect_on_touch?: boolean;
   /** Run as this actor when the scene starts, before the scene's on_init. */
   on_init?: EventScript;
   /** Loops in the background (at most once per frame) while the scene is up. */
   on_update?: EventScript;
+  /** Legacy default for projectile groups without an explicit handler. */
   on_hit?: EventScript;
+  on_hit_1?: EventScript;
+  on_hit_2?: EventScript;
+  on_hit_3?: EventScript;
+  on_hit_4?: EventScript;
+  /** Undefined inherits the scene handler; [] explicitly disables it. */
+  on_player_hit?: EventScript;
+  player_hit_enabled?: boolean;
+  /** Initial incoming-group responses; false preserves the script but disables hits. */
+  hit_1_enabled?: boolean;
+  hit_2_enabled?: boolean;
+  hit_3_enabled?: boolean;
+  hit_4_enabled?: boolean;
   /** Platformer scenes: the player can stand on it (it only blocks from
    * above) and rides along when it moves. */
   platform?: boolean;
@@ -350,7 +372,7 @@ export interface SceneJSON {
   layers?: BgLayerJSON[];
   on_init?: EventScript;
   /** GB Studio's "On Player Hit", per actor collision group. */
-  on_player_hit?: { "1"?: EventScript; "2"?: EventScript; "3"?: EventScript };
+  on_player_hit?: { "1"?: EventScript; "2"?: EventScript; "3"?: EventScript; "4"?: EventScript };
   /** The player's own actor settings in this scene, like an NPC's. */
   player?: PlayerJSON;
   doors?: DoorJSON[];

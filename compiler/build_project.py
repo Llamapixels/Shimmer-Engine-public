@@ -95,15 +95,25 @@ Scene JSON NPC format:
                                            shoves it along (else it just
                                            overlaps, and the player can walk
                                            out)
-            "collision_group": 1,      <- optional 1-3: touching the player
-                                           runs "on_hit", or else the
-                                           scene's "on_player_hit" for it
+            "collision_group": 1,      <- optional 1-4: touching the player
+                                           runs the scene's
+                                           "on_player_hit" for it
             "on_init": [ ... ],        <- optional, runs as this NPC when
                                            the scene starts, before the
                                            scene's own on_init
             "on_update": [ ... ],      <- optional, loops in a background
                                            thread (at most once a frame)
-            "on_hit": [ ... ],         <- optional, see collision_group
+            "on_hit": [ ... ],         <- optional legacy fallback for missing
+                                           on_hit_1 through on_hit_4
+            "on_hit_1": [ ... ],       <- incoming projectile group 1 (also 3D fire)
+            "on_hit_2": [ ... ],       <- incoming projectile group 2
+            "on_hit_3": [ ... ],       <- incoming projectile group 3
+            "on_hit_4": [ ... ],       <- incoming projectile group 4
+                                           Explicit [] means no hit action.
+            "on_player_hit": [ ... ],  <- optional actor contact override; Self
+                                           is this actor. Missing uses scene;
+                                           [] disables the damage response.
+            "player_hit_enabled": true, <- false disables player contact damage
             "platform": true,          <- optional, Platformer scenes: the
                                            player stands on it and rides it
             "on_interact": [ ... ]     <- optional, full event script (see
@@ -125,7 +135,7 @@ More scene settings (GB Studio's scene inspector):
         {"rows": 4, "speed": 2},          >> speed (0 = normal, 1-8, or
         {"speed": 0}                      "fixed"); the last band runs to
     ],                                    the bottom of the screen
-    "on_player_hit": {"1": [...], "2": [...], "3": [...]}
+    "on_player_hit": {"1": [...], "2": [...], "3": [...], "4": [...]}
                                    <- runs when the player touches an NPC
                                        of that collision group
     "player": {"on_init": [...], "on_update": [...], "anim_speed": 8,
@@ -267,7 +277,7 @@ Event script types (used in "on_interact" and door "events" lists):
       "offset_x": 0, "offset_y": 0 }
         Fire a sprite in a straight line (angle: degrees, 0 = right, 90 =
         up; lifetime 0 = until it leaves the screen). hits: "actors" (any
-        with a collision group), "group1".."group3", or "player" (runs the
+        with a collision group), "group1".."group4", or "player" (runs the
         scene's on_player_hit for "group") - or a list of them. front: drawn
         in front of the player and actors.
         More options: "path": "straight" | "wave" | "arc_high" | "arc_low" |
@@ -1650,7 +1660,7 @@ PLAYER_ACTOR_INDEX = -2
 
 
 # "hits" names -> projectile.h's PROJ_P_TARGET bits (bit 0 player, bit g group g).
-PROJECTILE_TARGETS = {"player": 1, "group1": 2, "group2": 4, "group3": 8, "actors": 14}
+PROJECTILE_TARGETS = {"player": 1, "group1": 2, "group2": 4, "group3": 8, "group4": 16, "actors": 30}
 # Custom script inputs ("params"), written "@name" inside the script.
 PARAM_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 PARAM_KINDS = ("actor", "variable", "number")
@@ -1771,7 +1781,7 @@ def compile_projectile(ev, ctx, where):
         if h not in PROJECTILE_TARGETS:
             raise BuildError(f"{where}: \"hits\" must be one or a list of: {', '.join(PROJECTILE_TARGETS)}.")
         target |= PROJECTILE_TARGETS[h]
-    group = resolve_small_int(ev.get("group", 1), "group", where, 1, 3)
+    group = resolve_small_int(ev.get("group", 1), "group", where, 1, 4)
     flags = ((1 if ev.get("pierce") else 0) | (2 if ev.get("through_walls") else 0) | (4 if ev.get("front") else 0)
              | (8 if ev.get("follow") else 0) | (16 if ev.get("bounce_actors") else 0)
              | (32 if ev.get("mirror_offset") else 0)
@@ -1952,8 +1962,8 @@ def resolve_actor(ref, ctx, where):
     if ref == "self":
         if ctx.get("self_actor_index") is None:
             raise BuildError(
-                f"{where}: \"self\" only works inside an NPC's own "
-                "on_interact script.")
+                f"{where}: \"self\" needs an actor-owned script context. "
+                "Pass an actor input when calling a reusable script from a scene.")
         return ctx["self_actor_index"]
 
     if ref == "player":
@@ -2400,8 +2410,16 @@ def compile_events(events, out, ctx, where):
 
         elif etype == "actor_set_state":
             idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)
-            state_idx = resolve_state(idx, _require(ev, "state", ev_where), ctx, ev_where)
-            out.append(_instr("SCRIPT_ACTOR_SET_STATE", a=idx, b=state_idx))
+            ref = _require(ev, "state", ev_where)
+            if isinstance(ref, str) and ref and ref.lower() != "default":
+                known = ctx.get("all_state_names", set())
+                if "\0" in ref or ref not in known:
+                    raise BuildError(f"{ev_where}: unknown animation state '{ref}'. "
+                                     f"Project states: {', '.join(sorted(known)) or 'Default only'}")
+                out.append(_instr("SCRIPT_ACTOR_SET_STATE_NAME", a=idx, text=c_string_literal(ref.encode("utf-8").decode("latin1"))))
+            else:
+                state_idx = 0 if isinstance(ref, str) else resolve_state(idx, ref, ctx, ev_where)
+                out.append(_instr("SCRIPT_ACTOR_SET_STATE", a=idx, b=state_idx))
 
         elif etype == "actor_set_animate":
             idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)
@@ -2722,7 +2740,7 @@ PARITY_EVENT_TYPES = [
     "input_script_remove", "music_routine", "actor_set_position_vars",
     "actor_move_to_vars", "actor_set_position_relative",
     "actor_move_relative", "actor_set_frame_var", "actor_set_move_speed",
-    "actor_set_anim_speed", "actor_set_collisions", "actor_push",
+    "actor_set_anim_speed", "actor_set_collisions", "actor_set_hit_response", "actor_set_solid", "actor_set_interaction", "actor_set_collision_group", "actor_collect", "actor_push",
     "actor_transform", "actor_rotate_by", "actor_scale_by", "player_set_sprite",
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
@@ -3169,6 +3187,44 @@ def compile_parity_event(etype, ev, out, ctx, where):
             else:
                 vals.append(resolve_small_int(v, key, where, -175, 175))
         out.append(_instr("SCRIPT_ACTOR_SCALE_BY", a=idx, b=vals[0], c=vals[1], d=flags))
+
+    elif etype in ("actor_set_solid", "actor_set_interaction"):
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        enabled = ev.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise BuildError(f"{where}: enabled must be true or false.")
+        opcode = "SCRIPT_ACTOR_SET_SOLID" if etype == "actor_set_solid" else "SCRIPT_ACTOR_SET_INTERACTION"
+        out.append(_instr(opcode, a=idx, b=int(enabled)))
+
+    elif etype == "actor_collect":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        if idx == PLAYER_ACTOR_INDEX:
+            raise BuildError(f"{where}: Collect Actor needs a pickup actor, not Player.")
+        out.append(_instr("SCRIPT_ACTOR_COLLECT", a=idx))
+
+    elif etype == "actor_set_collision_group":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        if idx == PLAYER_ACTOR_INDEX:
+            raise BuildError(f"{where}: collision group membership belongs to NPC actors, not Player.")
+        value = ev.get("group", "none")
+        names = {"none": 0, "group1": 1, "group2": 2, "group3": 3, "group4": 4, "pickup": 5}
+        if isinstance(value, str):
+            if value not in names:
+                raise BuildError(f"{where}: unknown actor collision group '{value}'.")
+            value = names[value]
+        group = resolve_small_int(value, "group", where, 0, 5)
+        out.append(_instr("SCRIPT_ACTOR_COLLISION_GROUP", a=idx, b=group))
+
+    elif etype == "actor_set_hit_response":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        responses = {"contact": 1, "group1": 2, "group2": 4, "group3": 8, "group4": 16, "all": 31}
+        response = ev.get("response", "all")
+        if not isinstance(response, str) or response not in responses:
+            raise BuildError(f"{where}: unknown hit response '{response}'. Use: {', '.join(responses)}.")
+        enabled = ev.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise BuildError(f"{where}: enabled must be true or false.")
+        out.append(_instr("SCRIPT_ACTOR_HIT_RESPONSE", a=idx, b=responses[response], c=int(enabled)))
 
     elif etype == "actor_set_collisions":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
@@ -3939,6 +3995,13 @@ def build(project_dir, out_dir):
     compiled_sprites = compile_project_sprites(project, project_dir, sprite_names)
     ctx["sprite_index"] = {n: i for i, n in enumerate(sprite_names)}
     ctx["sprite_state_names"] = {n: cs.state_names for n, cs in compiled_sprites.items()}
+    ctx["all_state_names"] = {n for cs in compiled_sprites.values() for n in cs.state_names if n}
+    for sheet in project.get("spriteSheets") or []:
+        if isinstance(sheet, dict):
+            for state in sheet.get("states") or []:
+                if isinstance(state, dict) and isinstance(state.get("name"), str) and state["name"]:
+                    ctx["all_state_names"].add(state["name"])
+
 
     # -----------------------------------------------------------------------
     # Build C output.
@@ -4246,9 +4309,9 @@ def build(project_dir, out_dir):
         # "On Player Hit" per collision group.
         player_hit = scene.get("on_player_hit") or {}
         if not isinstance(player_hit, dict):
-            raise BuildError(f"{name}: \"on_player_hit\" must be an object: {{\"1\": [...], \"2\": [...], \"3\": [...]}}.")
+            raise BuildError(f"{name}: \"on_player_hit\" must be an object: {{\"1\": [...], \"2\": [...], \"3\": [...], \"4\": [...]}}.")
         player_hit_refs = []
-        for g in ("1", "2", "3"):
+        for g in ("1", "2", "3", "4"):
             events = player_hit.get(g)
             if events:
                 hit_ident = f"{ident}_player_hit{g}_script"
@@ -4353,7 +4416,7 @@ def build(project_dir, out_dir):
                 pinned = 1 if npc.get("pinned") else 0
                 move_speed = resolve_small_int(npc.get("move_speed", 1), "move_speed", where, 1, 8)
                 anim_speed = resolve_small_int(npc.get("anim_speed", 0), "anim_speed", where, 0, 255)
-                group = resolve_small_int(npc.get("collision_group", 0), "collision_group", where, 0, 3)
+                group = resolve_small_int(npc.get("collision_group", 0), "collision_group", where, 0, 5)
 
                 hit_ref = "0"
                 if npc.get("on_hit"):
@@ -4362,6 +4425,55 @@ def build(project_dir, out_dir):
                     instructions = compile_script(_script_list(npc["on_hit"], f"{where} \"on_hit\""), ctx, f"{where} on_hit")
                     ctx["self_actor_index"] = None
                     emit_script(c_parts, hit_ref, instructions)
+
+                # Each incoming projectile group has an independent actor script.
+                # Missing keys inherit the legacy On Hit; explicit [] opts out.
+                hit_groups = []
+                for g in range(1, 5):
+                    key = f"on_hit_{g}"
+                    ref = hit_ref
+                    if key in npc:
+                        events = _script_list(npc[key], f"{where} {key}")
+                        ref = "0"
+                        if events:
+                            ref = f"{ident}_npc{j}_hit{g}_script"
+                            ctx["self_actor_index"] = j
+                            emit_script(c_parts, ref, compile_script(events, ctx, f"{where} {key}"))
+                            ctx["self_actor_index"] = None
+                    hit_groups.append(ref)
+                contact_ref = "0"
+                if "on_player_hit" in npc:
+                    contact_ref = f"{ident}_npc{j}_player_hit_script"
+                    ctx["self_actor_index"] = j
+                    emit_script(c_parts, contact_ref, compile_script(
+                        _script_list(npc["on_player_hit"], f"{where} on_player_hit"), ctx, f"{where} on_player_hit"))
+                    ctx["self_actor_index"] = None
+                contact_enabled = npc.get("player_hit_enabled", True)
+                if not isinstance(contact_enabled, bool):
+                    raise BuildError(f"{where}: player_hit_enabled must be true or false.")
+
+                projectile_disabled = 0
+                for g in range(1, 5):
+                    enabled = npc.get(f"hit_{g}_enabled", True)
+                    if not isinstance(enabled, bool):
+                        raise BuildError(f"{where}: hit_{g}_enabled must be true or false.")
+                    if not enabled:
+                        projectile_disabled |= 1 << (g - 1)
+
+                solid_default = bool(npc.get("platform")) if scene_mode == M.MODES["platform"] else True
+                physical = {}
+                for key, default in (("solid", solid_default), ("collisions", True), ("interact_enabled", True), ("collect_on_touch", True)):
+                    physical[key] = npc.get(key, default)
+                    if not isinstance(physical[key], bool):
+                        raise BuildError(f"{where}: {key} must be true or false.")
+                collect_ref = "0"
+                if "on_collect" in npc:
+                    ctx["self_actor_index"] = j
+                    collect_events = _script_list(npc["on_collect"], f"{where} on_collect")
+                    if collect_events:
+                        collect_ref = f"{ident}_npc{j}_collect_script"
+                        emit_script(c_parts, collect_ref, compile_script(collect_events, ctx, f"{where} on_collect"))
+                    ctx["self_actor_index"] = None
 
                 # "On Update": loops for as long as the scene is up, one
                 # pass per frame at most.
@@ -4382,7 +4494,10 @@ def build(project_dir, out_dir):
                     f"{pinned}, {move_speed}, {anim_speed}, {group}, {hit_ref}, {update_ref}, "
                     f"{1 if npc.get('platform') else 0}, {1 if npc.get('above_player') else 0}, "
                     f"{1 if npc.get('push_player') else 0}, {1 if npc.get('lock_direction') else 0}, "
-                    f"{1 if npc.get('gravity') else 0}, {1 if npc.get('_pool') else 0}, {spawn_ref} }},")
+                    f"{1 if npc.get('gravity') else 0}, {1 if npc.get('_pool') else 0}, {spawn_ref}, "
+                    f"{contact_ref}, {0 if contact_enabled else 1}, {projectile_disabled}, {{ {', '.join(hit_groups)} }}, "
+                    f"{int(not physical['solid'])}, {int(not physical['collisions'])}, "
+                    f"{int(not physical['interact_enabled'])}, {collect_ref}, {int(not physical['collect_on_touch'])} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")

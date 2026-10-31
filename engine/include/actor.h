@@ -89,6 +89,8 @@ int actor_step_toward_ex(int index, int target_x, int target_y, int type, int co
  * started with).
  */
 void actor_set_state(int index, int state_index);
+/* Resolve a named state against the actor's current sprite sheet. Missing = no-op. */
+void actor_set_state_name(int index, const char *name);
 
 /* Turn per-frame animation stepping on/off for an actor using authored
  * states - while off, it holds whatever frame is currently shown. */
@@ -138,6 +140,17 @@ void actor_scale_by(int index, int dx, int dy);
 /* Collisions on/off (see Entity.collide): off = walks through walls
  * and doesn't block, or get blocked by, other actors. */
 void actor_set_collisions(int index, int enabled);
+void actor_set_solid(int index, int enabled);
+void actor_set_interaction(int index, int enabled);
+/* NPC only. Switching to PICKUP is harmless and non-blocking immediately. */
+#define ACTOR_GROUP_PICKUP 5
+void actor_set_collision_group(int index, int group);
+/* 1 scheduled, 0 not collectable, -1 retry when a script thread is available. */
+int actor_collect(int index);
+
+/* Response mask: bit 0 actor contact, bits 1-4 incoming groups; all = 31.
+ * This does not change solidity, visibility or the authored scripts. */
+void actor_set_hit_response(int index, int mask, int enabled);
 
 /*
  * "Push Actor Away From Player": works out where the actor ends up

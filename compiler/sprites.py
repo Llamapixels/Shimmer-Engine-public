@@ -279,6 +279,8 @@ def check_sheet(sheet, where):
         if st.get("animationType", "multi_movement") not in ANIMATION_TYPES:
             raise SpriteError(f"{swhere}: unknown animationType '{st.get('animationType')}'.")
         name = st.get("name", "")
+        if not isinstance(name, str) or "\0" in name:
+            raise SpriteError(f"{swhere}: state names must be strings without null characters.")
         if name in names:
             raise SpriteError(f"{swhere}: two states are called '{name or 'Default'}'.")
         names.add(name)
@@ -591,9 +593,15 @@ def emit_sprite(cs, ident, source_name):
         out.append(f"static const uint8_t {states_ref}[{len(named)}] = {{ {', '.join(map(str, named))} }};")
     platform_mask = sum(1 << i for i, t in enumerate(cs.state_types) if t == "platform_player" and i < 32)
     cursor_mask = sum(1 << i for i, t in enumerate(cs.state_types) if t == "cursor" and i < 32)
+    def name_literal(name):
+        return '"' + ''.join(chr(b) if 32 <= b < 127 and b not in (34, 92)
+                             else f"\\{b:03o}" for b in name.encode("utf-8")) + '"'
+    ordered_names = [name for name, _ in sorted(cs.state_names.items(), key=lambda entry: entry[1])]
+    out.append(f"static const char *const {ident}_state_names[{len(ordered_names)}] = {{ "
+               + ", ".join(name_literal(name) for name in ordered_names) + " };")
     bx, by, bw, bh = cs.bounds
     init = (f"{{ {ident + '_frames' if frames else '0'}, {len(cs.frames)}, {cs.max_objs}, {cs.max_vram}, "
             f"{ident}_anims, {len(cs.anims)}, {ident}_maps, {len(cs.state_maps)}, "
             f"{bx}, {by}, {bw}, {bh}, {ident}_palette, {states_ref}, 0x{platform_mask:X}u, 0x{cursor_mask:X}u, "
-            f"{cs.pivot[0]}, {cs.pivot[1]} }}")
+            f"{cs.pivot[0]}, {cs.pivot[1]}, {ident}_state_names }}")
     return "\n\n".join(out), init

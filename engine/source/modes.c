@@ -223,6 +223,7 @@ static int npc_overlap(Entity *p, int x, int y, Entity *n)
  * blocks moving further in, so the player can always walk back out. */
 static int npc_in_way(Entity *p, int nx, int ny)
 {
+    if (!p->blocks_player) return 0;
     for (int i = 0; i < world_npc_count(); i++)
     {
         if (!world_npc_solid(i))
@@ -349,12 +350,12 @@ static const ScriptEvent *touching_actor_script(Entity *p)
     int pw = p->col_w + 4, ph = p->col_h + 4;
     for (int i = 0; i < world_npc_count(); i++)
     {
-        if (!world_npc_solid(i) || !world_npc_def(i)->on_interact)
-            continue;
+        const ScriptEvent *script = world_npc_interact_script(i);
+        if (!script) continue;
         Entity *n = world_npc(i);
         int x0 = n->x + n->col_ox, y0 = n->y + n->col_oy;
         if (px < x0 + n->col_w && px + pw > x0 && py < y0 + n->col_h && py + ph > y0)
-            return world_npc_def(i)->on_interact;
+            return script;
     }
     return 0;
 }
@@ -778,7 +779,8 @@ static const ScriptEvent *platform_update(Entity *p)
     int jump_btn = MSET(PL_JUMP_BUTTON);
 
     /* Carried by a moving platform. */
-    if (standing_on >= 0 && standing_on < world_npc_count())
+    if (p->collide && p->blocks_player && standing_on >= 0 &&
+        standing_on < world_npc_count() && world_npc_solid(standing_on))
     {
         Entity *n = world_npc(standing_on);
         int dx = n->x - standing_x, dy = n->y - standing_y;
@@ -1425,7 +1427,9 @@ static const ScriptEvent *shmup_update(Entity *p)
     pos_x = p->x << 8;
     pos_y = p->y << 8;
 
-    if ((hit_x || hit_y || crushed) && MSET(SH_WALL_HIT_GROUP) && cur_scene)
+    if ((hit_x || hit_y || crushed) && MSET(SH_WALL_HIT_GROUP) >= 1 &&
+        MSET(SH_WALL_HIT_GROUP) <= 4 && cur_scene &&
+        !(p->hit_disabled & (1 << MSET(SH_WALL_HIT_GROUP))))
         world_player_hit(cur_scene->player_hit[MSET(SH_WALL_HIT_GROUP) - 1], p->x + dx * 8, p->y + dy * 8);
 
     use_named_state(p, -1);
@@ -1492,8 +1496,9 @@ static void raycast_fire(int alt)
     if (!alt && MSET(RC_HITSCAN))
     {
         int n = raycast_aimed();
-        if (n >= 0 && world_npc_def(n)->on_hit)
-            world_run_script(world_npc_def(n)->on_hit);
+        const ScriptEvent *hit = world_npc_hit_script(n, 1);
+        if (hit && hit->op != SCRIPT_END)
+            world_run_script(hit);
     }
 }
 
@@ -1649,8 +1654,8 @@ static const ScriptEvent *raycast_update(Entity *p)
         int cx = p->x + p->width / 2 + ((c * 10) >> 12);
         int cy = p->y + p->height / 2 + ((s * 10) >> 12);
         int i = world_npc_at(cx, cy);
-        if (i >= 0 && world_npc_def(i)->on_interact)
-            return world_npc_def(i)->on_interact;
+        const ScriptEvent *script = world_npc_interact_script(i);
+        if (script) return script;
     }
     return 0;
 }
@@ -1691,7 +1696,7 @@ static const ScriptEvent *pointnclick_update(Entity *p)
 
     /* The cursor's tip is its top-left corner. */
     int n = world_npc_at(p->x, p->y);
-    const ScriptEvent *npc_script = n >= 0 ? world_npc_def(n)->on_interact : 0;
+    const ScriptEvent *npc_script = world_npc_interact_script(n);
     const DoorDef *door = npc_script ? 0 : door_at(p->x, p->y);
     int hover = npc_script || door;
 

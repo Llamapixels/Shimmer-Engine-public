@@ -430,6 +430,12 @@ typedef enum
     SCRIPT_RAYCAST_HEIGHTS,    /* ptr = int16_t[7], raycast_heights() */
     SCRIPT_WORLD_LOCK,         /* a = 1 pause the world for this script, 0 resume */
     SCRIPT_LIGHT,              /* ptr = int16_t[7], light_set() */
+    SCRIPT_ACTOR_HIT_RESPONSE, /* a = actor, b = response mask (actor.h), c = enabled */
+    SCRIPT_ACTOR_SET_SOLID,       /* a = actor, b = enabled */
+    SCRIPT_ACTOR_SET_INTERACTION, /* a = actor, b = enabled */
+    SCRIPT_ACTOR_COLLISION_GROUP, /* a = NPC, b = group 0-5 (5 = pickup) */
+    SCRIPT_ACTOR_SET_STATE_NAME, /* a = actor, str = state name; current sprite lookup */
+    SCRIPT_ACTOR_COLLECT, /* a = NPC; run its On Collect once if it is a pickup */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

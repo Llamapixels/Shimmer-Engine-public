@@ -30,9 +30,14 @@ engine/data/uge_songs.*
 editor/toolchain-bundle/
 editor/release/
 **/build/rom/
+tests/build/
+tests/native/*.exe
 
 # Private API docs, kept local (never published)
 /api/
 
 # Devlogs are posted on itch.io, not kept in the repo
 DEVLOG.md
+
+# Generated regression previews
+tests/fixtures/**/build/

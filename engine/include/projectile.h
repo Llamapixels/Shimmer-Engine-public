@@ -47,7 +47,7 @@ enum { PROJ_LAND_VANISH, PROJ_LAND_STICK, PROJ_LAND_LINGER };
 /* projectiles_command(). */
 enum { PROJ_CMD_RECALL, PROJ_CMD_REMOVE };
 
-/* PROJ_P_TARGET: bit 0 = the player, bit g = actors in collision group g (1-3). */
+/* PROJ_P_TARGET: bit 0 = the player, bit g = actors in collision group g (1-4). */
 #define PROJ_TARGET_PLAYER 1
 #define PROJ_FLAG_PIERCE   1     /* keeps going after a hit */
 #define PROJ_FLAG_WALLS    2     /* flies through walls */

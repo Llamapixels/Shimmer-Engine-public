@@ -1,0 +1,8 @@
+{
+  "name": "Hit Detection Regression",
+  "start_scene": "start",
+  "variables": [
+    "player_hits",
+    "actor_hits"
+  ]
+}

@@ -21,7 +21,7 @@ import type { SceneJSON, SceneRecord, ScriptParam } from "../../shared/projectTy
 import CommitInput from "../components/common/CommitInput";
 import NamedListSelect from "../components/common/NamedListSelect";
 import NumberInput from "../components/common/NumberInput";
-import { playerSpriteName } from "../sprites/model";
+import { projectStateNames } from "./customScriptModel";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import { buttonName, type FieldDef } from "./eventCatalog";
 import Icon from "../components/common/Icon";
@@ -38,6 +38,8 @@ export interface ScriptEnv {
   allowSelf: boolean;
   /** A custom script's inputs, usable as "@name". */
   params?: ScriptParam[];
+  /** Add a scene-independent actor input and return its @reference. */
+  addActorInput?: () => string | undefined;
 }
 
 const paramRefs = (env: ScriptEnv, ...kinds: ScriptParam["kind"][]) =>
@@ -249,7 +251,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       });
       const found = choices.some((c) => encode(c.value) === encode(value));
       return (
-        <select
+        <div className="script-field-combo"><select
           className={!found ? "select-invalid" : undefined}
           value={encode(value)}
           onChange={(e) => patch({ [field.key]: JSON.parse(e.target.value) })}
@@ -265,6 +267,11 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             </option>
           ))}
         </select>
+        {env.addActorInput && <button className="btn btn-small" onClick={() => {
+          const input = env.addActorInput?.();
+          if (input) patch({ [field.key]: input });
+        }}>+ Actor input</button>}
+        </div>
       );
     }
 
@@ -455,7 +462,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
     case "checks": {
       // A plain string is an older single choice; "actors" = every group.
       const raw = Array.isArray(value) ? (value as string[]) : typeof value === "string" ? [value] : [];
-      const selected = new Set(raw.flatMap((v) => (v === "actors" ? ["group1", "group2", "group3"] : [v])));
+      const selected = new Set(raw.flatMap((v) => (v === "actors" ? ["group1", "group2", "group3", "group4"] : [v])));
       const options = field.options ?? [];
       return (
         <div className="chips">
@@ -726,48 +733,19 @@ export function FieldControl({ field, ev, env, patch }: Props) {
     }
 
     case "state": {
-      // "self" can't be resolved to a sprite without knowing which NPC's
-      // own script is being edited (ScriptEnv doesn't carry that) - fall
-      // back to a plain text field for it, validated (against every
-      // sprite's states) is a compile-time-only check either way.
-      const actorRef = rec.actor;
-      const npcs = env.scene.npcs ?? [];
-      const playerSprite = project ? playerSpriteName(project) : "player";
-      let spriteName: string | undefined;
-      if (actorRef === "player") spriteName = env.scene.player_sprite || playerSprite;
-      else if (actorRef !== "self") {
-        const npc = typeof actorRef === "number" ? npcs[actorRef] : npcs.find((n) => n.name === actorRef);
-        spriteName = npc?.sprite || playerSprite;
-      }
-      // A sprite with no entry has just the default state.
-      const stateNames = spriteName
-        ? (spriteSheets.find((s) => s.name === spriteName)?.states ?? [{ name: "" }]).map((st) => st.name || "Default")
-        : [];
-      if (actorRef === "self" || stateNames.length === 0) {
-        return (
-          <input
-            value={String(value ?? "")}
-            placeholder="state name"
-            onChange={(e) => patch({ [field.key]: e.target.value }, true)}
-          />
-        );
-      }
+      const names = projectStateNames(spriteSheets);
+      const numeric = typeof value === "number";
       const cur = String(value ?? "");
-      const found = stateNames.includes(cur) || (cur.toLowerCase() === "default" && stateNames.includes("Default"));
-      return (
-        <select
-          className={!found ? "select-invalid" : undefined}
-          value={found && cur.toLowerCase() === "default" ? "Default" : cur}
-          onChange={(e) => patch({ [field.key]: e.target.value })}
-        >
-          {!found && <option value={cur}>{cur ? `${cur} (missing!)` : "Choose a state…"}</option>}
-          {stateNames.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      );
+      const current = numeric ? value : !cur || cur.toLowerCase() === "default" ? "" : cur;
+      const found = numeric || !current || names.includes(String(current));
+      return <select className={!found ? "select-invalid" : undefined}
+        title="Named states use the actor's current sprite sheet, including sprite changes. A state absent from that sheet leaves the animation unchanged."
+        value={JSON.stringify(current)} onChange={(e) => patch({ [field.key]: JSON.parse(e.target.value) })}>
+        <option value={JSON.stringify("")}>Default</option>
+        {numeric && <option value={JSON.stringify(value)}>State index {value as number} (legacy)</option>}
+        {!found && <option value={JSON.stringify(cur)}>{cur} (not in project)</option>}
+        {names.map((name) => <option key={name} value={JSON.stringify(name)}>{name}</option>)}
+      </select>;
     }
 
     case "cutscene": {

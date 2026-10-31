@@ -472,34 +472,40 @@ void projectiles_update(int move, int camera_x, int camera_y)
             if (s->target & PROJ_TARGET_PLAYER)
             {
                 Entity *p = world_player();
-                if (p && p->solid && overlaps(e, p))
+                if (p && p->active && p->solid && s->group >= 1 && s->group <= 4 &&
+                    !(p->hit_disabled & (1 << s->group)) && overlaps(e, p))
                 {
-                    const ScriptEvent *script = scene && s->group >= 1 && s->group <= 3 ? scene->player_hit[s->group - 1] : 0;
-                    world_player_hit(script, e->x + 8, e->y + 8);
-                    hit = 1;
+                    const ScriptEvent *script = scene && s->group >= 1 && s->group <= 4 ? scene->player_hit[s->group - 1] : 0;
+                    if (script && script->op != SCRIPT_END)
+                    {
+                        world_player_hit(script, e->x + 8, e->y + 8);
+                        hit = 1;
+                    }
                 }
             }
             if (!hit && ((s->target & ~PROJ_TARGET_PLAYER) || (s->flags & PROJ_FLAG_ACTOR_BOUNCE)))
             {
                 for (int n = 0; n < world_npc_count() && !hit; n++)
                 {
-                    const NpcDef *d = world_npc_def(n);
-                    if (n == s->source || !world_npc_solid(n))
-                        continue;
-                    int damages = d->collision_group && ((s->target >> d->collision_group) & 1) &&
-                                  !((s->hit_npcs >> n) & 1);
-                    if (!damages && !(s->flags & PROJ_FLAG_ACTOR_BOUNCE))
-                        continue;
                     Entity *npc = world_npc(n);
+                    if (n == s->source || !world_npc_active(n))
+                        continue;
+                    const ScriptEvent *handler = world_npc_hit_script(n, s->group);
+                    int damages = handler && handler->op != SCRIPT_END &&
+                                  npc->collision_group >= 1 && npc->collision_group <= 4 && ((s->target >> npc->collision_group) & 1) &&
+                                  !((s->hit_npcs >> n) & 1);
+                    int bounces = (s->flags & PROJ_FLAG_ACTOR_BOUNCE) && world_npc_solid(n);
+                    if (!damages && !bounces)
+                        continue;
                     if (!overlaps(e, npc))
                         continue;
                     if (damages)
                     {
                         s->hit_npcs |= (uint16_t)(1u << n);
-                        world_run_script(d->on_hit);
+                        world_run_script(handler);
                         hit = 1;
                     }
-                    if ((s->flags & PROJ_FLAG_ACTOR_BOUNCE) && !s->landed && !s->returning)
+                    if (bounces && !s->landed && !s->returning)
                     {
                         /* Bounce off it along the side it was hit from. */
                         int cx = (e->x + 8) - (npc->x + npc->width / 2);

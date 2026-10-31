@@ -1,5 +1,6 @@
 #include <gba.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "input.h"
 #include "sprite.h"
@@ -181,10 +182,18 @@ static void setup_player_palette(const SceneDef *scene)
     sprite_load_palette(PLAYER_PALETTE, player_sprite_for(scene)->palette);
 }
 
-/*
- * Destroy all current NPC entities, then spawn the ones defined
- * by the scene. Loads each sprite's OBJ palette as needed.
- */
+/* Restore authored collision and collection state for a fresh instance. */
+static void reset_npc_collision(Entity *e, const NpcDef *def)
+{
+    e->hit_disabled = def->player_hit_disabled | (def->projectile_hit_disabled << 1);
+    e->blocks_player = !def->non_solid;
+    e->collide = !def->collisions_disabled;
+    e->interaction_disabled = def->interaction_disabled;
+    e->collision_group = def->collision_group;
+    e->pickup_collected = 0;
+}
+
+/* Rebuild scene entities and load their sprite palettes. */
 static void scene_entities_load(const SceneDef *scene)
 {
     /* Tear down the previous scene's NPCs. */
@@ -203,6 +212,7 @@ static void scene_entities_load(const SceneDef *scene)
      * player's, which is set up again first since each scene can give
      * the player a different sprite. */
     projectiles_reset();
+    if (g_player) g_player->hit_disabled = 0;
     if (scene_sprite_marked)
         sprite_alloc_reset(scene_sprite_mark);
     if (g_player)
@@ -232,6 +242,7 @@ static void scene_entities_load(const SceneDef *scene)
             break;
 
         e->solid = 1;
+        reset_npc_collision(e, def);
         e->direction = def->direction;
         e->pinned = def->pinned;
         e->dir_locked = def->lock_direction;
@@ -335,13 +346,13 @@ static const ScriptEvent *check_npc_interact(Entity *player)
         Entity *npc = npc_entities[i];
         /* Hidden (actor_set_visible(i, 0)) NPCs are fully "not
          * there" - not just invisible, not talkable either. */
-        if (!npc || !npc->solid || npc->pinned)
-            continue;
+        const ScriptEvent *script = world_npc_interact_script(i);
+        if (!script) continue;
 
         if (cx >= npc->x && cx < npc->x + npc->width &&
             cy >= npc->y && cy < npc->y + npc->height)
         {
-            return npc_defs[i]->on_interact;
+            return script;
         }
     }
 
@@ -365,7 +376,7 @@ static void npcs_push_player(Entity *player)
         int dy = n->y - npc_prev_y[i];
         npc_prev_x[i] = n->x;
         npc_prev_y[i] = n->y;
-        if (!npc_defs[i]->push_player || (!dx && !dy) || !world_npc_solid(i) || !player->collide ||
+        if (!npc_defs[i]->push_player || (!dx && !dy) || !world_npc_solid(i) || !player->collide || !player->blocks_player ||
             dx > 8 || dx < -8 || dy > 8 || dy < -8)
             continue;
         int px = player->x + player->col_ox, py = player->y + player->col_oy;
@@ -380,35 +391,48 @@ static void npcs_push_player(Entity *player)
 }
 
 /*
- * Collision groups: the first frame the player touches (overlaps, or
- * stands right against) an NPC in group 1-3, run that NPC's on_hit, or
- * failing that the scene's "On Player Hit" script for the group.
+ * Contact uses an actor's On Player Hit override, or the scene handler.
+ * An actor's On Hit belongs to projectile hits, not player contact.
  */
 static void check_npc_hits(Entity *player)
 {
     const SceneDef *scene = scene_current();
-    int px = player->x + player->col_ox - 1;
-    int py = player->y + player->col_oy - 1;
-    int pw = player->col_w + 2;
-    int ph = player->col_h + 2;
+    int px = player->x + player->col_ox;
+    int py = player->y + player->col_oy;
 
     for (int i = 0; i < npc_count_active; i++)
     {
         Entity *npc = npc_entities[i];
         const NpcDef *def = npc_defs[i];
         int touching = 0;
-        if (npc && npc->solid && !npc->pinned && def->collision_group && !def->platform)
+        if (player->active && player->solid && world_npc_active(i) &&
+            npc->collision_group == ACTOR_GROUP_PICKUP && !npc->pickup_collected &&
+            !def->collect_touch_disabled && def->on_collect && def->on_collect->op != SCRIPT_END)
         {
+            int nx = npc->x + npc->col_ox, ny = npc->y + npc->col_oy;
+            if (px < nx + npc->col_w && px + player->col_w > nx &&
+                py < ny + npc->col_h && py + player->col_h > ny)
+            {
+                actor_collect(i);
+            }
+        }
+        if (player->active && player->solid && !(player->hit_disabled & 1) &&
+            world_npc_active(i) && !(npc->hit_disabled & 1) &&
+            npc->collision_group >= 1 && npc->collision_group <= 4 && !def->platform)
+        {
+            /* Blocking actors stop at the edge; non-blocking actors
+             * must actually overlap the player's authored hitbox. */
+            int reach = player->collide && player->blocks_player && world_npc_solid(i) ? 1 : 0;
             int nx = npc->x + npc->col_ox;
             int ny = npc->y + npc->col_oy;
-            touching = px < nx + npc->col_w && px + pw > nx &&
-                       py < ny + npc->col_h && py + ph > ny;
+            touching = px - reach < nx + npc->col_w && px + player->col_w + reach > nx &&
+                       py - reach < ny + npc->col_h && py + player->col_h + reach > ny;
         }
         if (touching && !npc_touching[i])
         {
-            const ScriptEvent *found = def->on_hit;
+            const ScriptEvent *found = def->on_player_hit;
             if (!found && scene)
-                found = scene->player_hit[def->collision_group - 1];
+                found = scene->player_hit[npc->collision_group - 1];
             world_player_hit(found, npc->x + npc->width / 2, npc->y + npc->height / 2);
         }
         npc_touching[i] = (uint8_t)touching;
@@ -421,7 +445,8 @@ static void check_damage_tiles(Entity *player)
 {
     int group = MSET(DAMAGE_TILE_GROUP);
     const SceneDef *scene = scene_current();
-    if (!group || !scene || !player->solid)
+    if (group < 1 || group > 4 || !scene || !player->solid ||
+        (player->hit_disabled & (1 << group)))
         return;
     int x0 = player->x + player->col_ox, y0 = player->y + player->col_oy;
     int x1 = x0 + player->col_w - 1, y1 = y0 + player->col_h - 1;
@@ -439,21 +464,20 @@ static int invincible_timer = 0;
 
 void world_player_hit(const ScriptEvent *script, int from_x, int from_y)
 {
-    if (invincible_timer > 0 || !g_player)
+    if (!script || script->op == SCRIPT_END || invincible_timer > 0 ||
+        !g_player || !g_player->active || !g_player->solid)
         return;
     invincible_timer = MSET(HIT_INVINCIBLE);
     modes_player_hit(g_player, from_x, from_y);
     world_run_script(script);
 }
 
-void world_run_script(const ScriptEvent *script)
+int world_run_script(const ScriptEvent *script)
 {
-    if (!script)
-        return;
-    if (script_active())
-        script_thread_start(script);
-    else
-        script_start(script);
+    if (!script || script->op == SCRIPT_END) return 0;
+    if (script_active()) return script_thread_start(script) != 0;
+    script_start(script);
+    return 1;
 }
 
 /* The player blinks while invincible. */
@@ -471,10 +495,33 @@ Entity *world_player(void) { return g_player; }
 Entity *world_npc(int index) { return index >= 0 && index < npc_count_active ? npc_entities[index] : 0; }
 const NpcDef *world_npc_def(int index) { return npc_defs[index]; }
 
-int world_npc_solid(int index)
+int world_npc_active(int index)
 {
     Entity *n = world_npc(index);
-    return n && n->solid && !n->pinned && n->collide;
+    return n && n->active && n->solid && !n->pinned;
+}
+
+int world_npc_solid(int index)
+{
+    return world_npc_active(index) && world_npc(index)->collide &&
+           world_npc(index)->blocks_player && world_npc(index)->collision_group != ACTOR_GROUP_PICKUP;
+}
+
+const ScriptEvent *world_npc_interact_script(int index)
+{
+    if (!world_npc_active(index) || world_npc(index)->interaction_disabled ||
+        (g_player && g_player->interaction_disabled)) return 0;
+    const ScriptEvent *script = npc_defs[index]->on_interact;
+    return script && script->op != SCRIPT_END ? script : 0;
+}
+
+const ScriptEvent *world_npc_hit_script(int index, int group)
+{
+    if (!world_npc_active(index) || group < 1 || group > 4 ||
+        world_npc(index)->collision_group == ACTOR_GROUP_PICKUP)
+        return 0;
+    const NpcDef *def = npc_defs[index];
+    return (world_npc(index)->hit_disabled & (1 << group)) ? 0 : def->hit_groups[group - 1];
 }
 
 int world_npc_at(int x, int y)
@@ -482,7 +529,7 @@ int world_npc_at(int x, int y)
     for (int i = 0; i < npc_count_active; i++)
     {
         Entity *n = npc_entities[i];
-        if (!n || !n->solid || n->pinned)
+        if (!world_npc_interact_script(i))
             continue;
         if (x >= n->x && x < n->x + n->width && y >= n->y && y < n->y + n->height)
             return i;
@@ -608,6 +655,7 @@ int actor_spawn(const int16_t *p)
         e->sub_y = 0;
         e->grounded = 0;
         e->script_state = 0;
+        reset_npc_collision(e, def);
         e->dir_locked = 0;
         int dir = p[SPAWN_P_DIR] < 4 ? p[SPAWN_P_DIR] : at ? at->direction : def->direction;
         entity_animate(e, (Direction)dir, 0);
@@ -701,7 +749,7 @@ static void npc_fall(Entity *e)
 void actor_set_state(int index, int state_index)
 {
     Entity *e = entity_for_actor(index);
-    if (!e)
+    if (!e || !e->def || state_index < 0 || state_index >= e->def->state_count)
         return;
 
     /* The player's movement mode picks its state every frame; remember
@@ -709,6 +757,18 @@ void actor_set_state(int index, int state_index)
     if (index == PLAYER_ACTOR_INDEX)
         e->script_state = state_index > 0 ? (uint8_t)(state_index + 1) : 0;
     entity_set_anim_state(e, state_index);
+}
+
+void actor_set_state_name(int index, const char *name)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e || !e->def || !e->def->state_names || !name) return;
+    for (int state = 0; state < e->def->state_count; state++)
+        if (e->def->state_names[state] && strcmp(e->def->state_names[state], name) == 0)
+        {
+            actor_set_state(index, state);
+            return;
+        }
 }
 
 void actor_set_animate(int index, int enabled)
@@ -903,6 +963,61 @@ void actor_scale_by(int index, int dx, int dy)
         entity_set_transform(e, e->angle, e->scale_x + dx, e->scale_y + dy);
 }
 
+void actor_set_solid(int index, int enabled)
+{
+    Entity *e = entity_for_actor(index);
+    if (e) e->blocks_player = !!enabled;
+}
+
+void actor_set_interaction(int index, int enabled)
+{
+    Entity *e = entity_for_actor(index);
+    if (e) e->interaction_disabled = !enabled;
+}
+
+int actor_collect(int index)
+{
+    if (!world_npc_active(index)) return 0;
+    Entity *e = world_npc(index);
+    const ScriptEvent *script = npc_defs[index]->on_collect;
+    if (e->collision_group != ACTOR_GROUP_PICKUP || e->pickup_collected ||
+        !script || script->op == SCRIPT_END) return 0;
+    e->pickup_collected = 1;
+    if (world_run_script(script)) return 1;
+    e->pickup_collected = 0;
+    return -1;
+}
+
+void actor_set_collision_group(int index, int group)
+{
+    Entity *e = world_npc(index);
+    if (!e || group < 0 || group > ACTOR_GROUP_PICKUP || e->collision_group == group) return;
+    e->collision_group = (uint8_t)group;
+    e->pickup_collected = 0;
+    npc_touching[index] = 0;
+    if (group == ACTOR_GROUP_PICKUP)
+    {
+        e->blocks_player = 0;
+        e->hit_disabled = 31;
+    }
+}
+
+void actor_set_hit_response(int index, int mask, int enabled)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e) return;
+    mask &= 31;
+    int before = e->hit_disabled;
+    if (enabled) e->hit_disabled &= (uint8_t)~mask;
+    else e->hit_disabled |= (uint8_t)mask;
+    /* A changed contact response starts a fresh contact edge. */
+    int contact_changed = (before ^ e->hit_disabled) & 1;
+    if (contact_changed && index >= 0 && index < npc_count_active)
+        npc_touching[index] = 0;
+    else if (contact_changed && index == PLAYER_ACTOR_INDEX)
+        for (int i = 0; i < npc_count_active; i++) npc_touching[i] = 0;
+}
+
 void actor_set_collisions(int index, int enabled)
 {
     Entity *e = entity_for_actor(index);
@@ -990,7 +1105,8 @@ int game_load_slot(int slot)
 typedef struct
 {
     int16_t x, y;
-    uint8_t direction, visible, anim_state, script_state, anim_enabled, move_speed, collide;
+    uint8_t direction, visible, anim_state, script_state, anim_enabled, move_speed, collide, hit_disabled;
+    uint8_t blocks_player, interaction_disabled, collision_group, pickup_collected;
 } ActorSnap;
 
 static struct
@@ -1022,6 +1138,11 @@ static void snap_actor(ActorSnap *s, const Entity *e)
     s->anim_enabled = e->anim_enabled;
     s->move_speed = e->move_speed;
     s->collide = e->collide;
+    s->hit_disabled = e->hit_disabled;
+    s->blocks_player = e->blocks_player;
+    s->interaction_disabled = e->interaction_disabled;
+    s->collision_group = e->collision_group;
+    s->pickup_collected = e->pickup_collected;
 }
 
 static void unsnap_actor(int index, Entity *e, const ActorSnap *s)
@@ -1030,6 +1151,11 @@ static void unsnap_actor(int index, Entity *e, const ActorSnap *s)
     e->y = s->y;
     e->move_speed = s->move_speed;
     e->collide = s->collide;
+    e->hit_disabled = s->hit_disabled;
+    e->blocks_player = s->blocks_player;
+    e->interaction_disabled = s->interaction_disabled;
+    e->collision_group = s->collision_group;
+    e->pickup_collected = s->pickup_collected;
     e->script_state = s->script_state;
     entity_set_anim_state(e, s->anim_state);
     e->anim_enabled = s->anim_enabled;

@@ -708,6 +708,10 @@ static void thread_step(ScriptThread *t, int is_main)
             start_move(t, ev->a, ev->b, ev->c);
             return;
 
+        case SCRIPT_ACTOR_SET_STATE_NAME:
+            actor_set_state_name(ev->a, ev->str);
+            break;
+
         case SCRIPT_ACTOR_SET_STATE:
             actor_set_state(ev->a, ev->b);
             break;
@@ -1108,6 +1112,14 @@ static void thread_step(ScriptThread *t, int is_main)
             actor_spawn((const int16_t *)ev->ptr);
             break;
 
+        case SCRIPT_ACTOR_COLLECT:
+            if (actor_collect(ev->a) < 0)
+            {
+                t->ip--; /* no reward lost when background threads are full */
+                return;
+            }
+            break;
+
         case SCRIPT_ACTOR_REMOVE:
         {
             const ScriptEvent *base;
@@ -1170,6 +1182,20 @@ static void thread_step(ScriptThread *t, int is_main)
         case SCRIPT_ACTOR_SCALE_BY:
             actor_scale_by(ev->a, (ev->d & 1) ? var_get(ev->b) : ev->b,
                            (ev->d & 2) ? var_get(ev->c) : ev->c);
+            break;
+
+        case SCRIPT_ACTOR_SET_SOLID:
+            actor_set_solid(ev->a, ev->b);
+            break;
+        case SCRIPT_ACTOR_SET_INTERACTION:
+            actor_set_interaction(ev->a, ev->b);
+            break;
+        case SCRIPT_ACTOR_COLLISION_GROUP:
+            actor_set_collision_group(ev->a, ev->b);
+            break;
+
+        case SCRIPT_ACTOR_HIT_RESPONSE:
+            actor_set_hit_response(ev->a, ev->b, ev->c);
             break;
 
         case SCRIPT_ACTOR_SET_COLLISIONS:

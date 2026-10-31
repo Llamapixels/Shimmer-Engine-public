@@ -437,7 +437,7 @@ export const EVENT_DEFS: EventDef[] = [
     category: "Engine",
     description:
       "Fire a sprite from an actor: straight, in a wave, in an arc (axes, spears, bombs) or as a boomerang. It runs the On Hit " +
-      "script of the actor it hits (or the scene's On Player Hit when it hits the player). It can bounce off walls (pool balls), " +
+      "1-4 script matching its projectile group on the actor it hits (or the scene's On Player Hit when it hits the player). It can bounce off walls (pool balls), " +
       "stick where it lands until recalled (Recall Projectiles), or linger there a while (a fire on the ground). Speed 0 with " +
       "\"Follows the thrower\" makes a melee hitbox. Attach it to a button with Attach Script To Button to shoot.",
     fields: [
@@ -543,10 +543,11 @@ export const EVENT_DEFS: EventDef[] = [
           { value: "group1", label: "Group 1" },
           { value: "group2", label: "Group 2" },
           { value: "group3", label: "Group 3" },
+          { value: "group4", label: "Group 4" },
           { value: "player", label: "Player" },
         ],
       },
-      { key: "group", label: "Hits the player as group", kind: "int", min: 1, max: 3 },
+      { key: "group", label: "Projectile collision group", kind: "int", min: 1, max: 4 },
       { key: "pierce", label: "Keeps going after a hit", kind: "bool" },
       { key: "through_walls", label: "Flies through walls", kind: "bool" },
       { key: "front", label: "Drawn in front of the player", kind: "bool" },
@@ -561,7 +562,7 @@ export const EVENT_DEFS: EventDef[] = [
       angle: 0,
       speed: 3,
       lifetime: 0,
-      hits: ["group1", "group2", "group3"],
+      hits: ["group1", "group2", "group3", "group4"],
       group: 1,
       mirror_offset: true,
     }),
@@ -1069,7 +1070,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Set Actor State",
     category: "Actors",
     description:
-      "Switch the player or an NPC to one of its sprite's animation states (define states in the Sprites view). " +
+      "Switch the player or an NPC to a named state on its current sprite sheet, including after sprite changes. States defined anywhere in the project are available; missing states on the current sheet leave it unchanged. Actor inputs work in custom scripts. " +
       "On the player the state sticks - the movement mode's own run/jump states won't replace it - until you set Default again.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
@@ -1895,6 +1896,78 @@ export const EVENT_DEFS: EventDef[] = [
     ],
     create: (c) => ({ type: "actor_scale_by", actor: c.firstActor ?? "self", x: 10, y: 10 }),
     summary: (ev) => `${actorLabel(ev.actor)} ${valLabel(ev.x)}% × ${valLabel(ev.y)}%`,
+  }),
+  def({
+    type: "actor_set_solid",
+    label: "Set Actor Solid",
+    category: "Actors",
+    description: "Change whether this actor blocks the player, keeping tile collisions, interaction and damage independent. For Player, controls blocking by NPCs. Pickups never block.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "enabled", label: "Enabled", kind: "bool" },
+    ],
+    create: (c) => ({ type: "actor_set_solid", actor: c.firstActor ?? "self", enabled: false }),
+    summary: (ev) => `${actorLabel(ev.actor)} solid ${ev.enabled ? "on" : "off"}`,
+  }),
+  def({
+    type: "actor_set_interaction",
+    label: "Set Actor Interaction",
+    category: "Actors",
+    description: "Enable or disable On Interact without changing solidity or damage. For Player, enables or disables interaction with actors. Pickup collection is separate.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "enabled", label: "Enabled", kind: "bool" },
+    ],
+    create: (c) => ({ type: "actor_set_interaction", actor: c.firstActor ?? "self", enabled: false }),
+    summary: (ev) => `${actorLabel(ev.actor)} interaction ${ev.enabled ? "on" : "off"}`,
+  }),
+  def({
+    type: "actor_collect",
+    label: "Collect Actor",
+    category: "Actors",
+    description: "Collect a Pickup actor by running its On Collect script once. Use Self from its On Interact script for button-based collection, with Collect on touch disabled. Award the item or score in On Collect, then Remove Actor (Self). Other groups and already collected actors are ignored.",
+    fields: [{ key: "actor", label: "Pickup actor", kind: "actor" }],
+    create: (c) => ({ type: "actor_collect", actor: c.firstActor ?? "self" }),
+    summary: (ev) => `collect ${actorLabel(ev.actor)}`,
+  }),
+  def({
+    type: "actor_set_collision_group",
+    label: "Set Actor Collision Group",
+    category: "Actors",
+    description: "Change an NPC's target group during play. Pickup immediately makes it harmless and non-blocking, and collects once on overlap using On Collect. Tile collisions, interaction and scripts are preserved. Player cannot be assigned an NPC group. Returning to combat requires re-enabling the desired hit responses and solidity.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "group", label: "Group", kind: "select", options: [
+        { value: "none", label: "None" },
+        { value: "group1", label: "Group 1" },
+        { value: "group2", label: "Group 2" },
+        { value: "group3", label: "Group 3" },
+        { value: "group4", label: "Group 4" },
+        { value: "pickup", label: "Pickup (safe)" },
+      ] },
+    ],
+    create: (c) => ({ type: "actor_set_collision_group", actor: c.firstActor ?? "self", group: "pickup" }),
+    summary: (ev) => `${actorLabel(ev.actor)} group ${(ev.group === 5 || ev.group === "pickup") ? "Pickup" : ev.group}`,
+  }),
+  def({
+    type: "actor_set_hit_response",
+    label: "Set Actor Hit Response",
+    category: "Actors",
+    description: "Enable or disable player contact, an incoming hit group, or all damage responses without changing movement collisions or deleting scripts. For Player, contact controls actor contact; groups control incoming projectiles, damage tiles and wall hits. Enabling an empty handler does not create a damage response.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "response", label: "Response", kind: "select", options: [
+        { value: "contact", label: "Player contact" },
+        { value: "group1", label: "Incoming group 1" },
+        { value: "group2", label: "Incoming group 2" },
+        { value: "group3", label: "Incoming group 3" },
+        { value: "group4", label: "Incoming group 4" },
+        { value: "all", label: "All hit responses" },
+      ] },
+      { key: "enabled", label: "Enabled", kind: "bool" },
+    ],
+    create: (c) => ({ type: "actor_set_hit_response", actor: c.firstActor ?? "self", response: "all", enabled: false }),
+    summary: (ev) => `${actorLabel(ev.actor)} ${ev.response} hit response ${ev.enabled ? "on" : "off"}`,
   }),
   def({
     type: "actor_set_collisions",

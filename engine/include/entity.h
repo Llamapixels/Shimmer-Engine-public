@@ -75,6 +75,7 @@ typedef struct
     /* Centre of the canvas relative to the footprint: the point the
      * sprite rotates and scales around. */
     int16_t pivot_x, pivot_y;
+    const char *const *state_names; /* indexed by this sheet's local state order */
 } SpriteDef;
 
 typedef struct
@@ -88,7 +89,7 @@ typedef struct
     int y;
     int width;
     int height;
-    int solid;
+    int solid; /* legacy presence/visibility flag; blocks_player controls solidity */
 
     uint8_t direction;      /* Direction */
     uint8_t moving;         /* moved this frame? */
@@ -133,6 +134,11 @@ typedef struct
     uint8_t move_speed;
     uint8_t anim_speed;
     uint8_t collide;
+    uint8_t blocks_player; /* independent of tile/movement collision */
+    uint8_t interaction_disabled;
+    uint8_t collision_group; /* 0 none, 1-4 combat, 5 pickup */
+    uint8_t pickup_collected;
+    uint8_t hit_disabled; /* bit 0: actor contact; bits 1-4: incoming hit groups */
 
     /* Pinned (GB Studio's actor "pin" toggle): x/y are screen pixels,
      * so the actor stays put on screen whatever the camera does. */

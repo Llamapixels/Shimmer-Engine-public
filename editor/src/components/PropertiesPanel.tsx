@@ -18,6 +18,7 @@ import type {
 import ScriptEditor, { type ScriptUpdater } from "../script/ScriptEditor";
 import type { ScriptEnv } from "../script/ScriptFields";
 import { countRefs } from "../script/scriptRefs";
+import { nextActorInputName } from "../script/customScriptModel";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import { BackgroundSelect, backgroundRefFor, MusicSelect, SpriteSelect } from "./common/AssetSelect";
 import CommitInput from "./common/CommitInput";
@@ -69,7 +70,7 @@ export default function PropertiesPanel() {
 
   if (selection.kind === "prefab") {
     return (
-      <div className="properties-panel">
+      <div className="properties-panel" key={`prefab:${selection.id}`}>
         <PrefabProps id={selection.id} scenes={project.scenes} />
       </div>
     );
@@ -108,7 +109,7 @@ export default function PropertiesPanel() {
 
 function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string }[]; value: T; onChange: (t: T) => void }) {
   return (
-    <div className="panel-tabs" role="tablist">
+    <div className={`panel-tabs${tabs.length > 4 ? " panel-tabs-wrap" : ""}`} role="tablist">
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -163,7 +164,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
   const renameScene = useProjectStore((s) => s.renameScene);
   const playerSprite = useProjectStore((s) => s.project?.project.playerSprite) || "player";
   const [tab, setTab] = useState<"init" | "hit" | "timers">("init");
-  const [hitGroup, setHitGroup] = useState<"1" | "2" | "3">("1");
+  const [hitGroup, setHitGroup] = useState<"1" | "2" | "3" | "4">("1");
   const [showEngine, setShowEngine] = useState(false);
   const data = scene.data;
   const id = scene.fileId;
@@ -295,7 +296,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
         {tab === "hit" && (
           <>
             <div className="seg seg-wide script-subtabs">
-              {(["1", "2", "3"] as const).map((g) => (
+              {(["1", "2", "3", "4"] as const).map((g) => (
                 <button key={g} className={hitGroup === g ? "seg-on" : ""} onClick={() => setHitGroup(g)}>
                   Group {g}
                   {data.on_player_hit?.[g]?.length ? ` (${data.on_player_hit[g]!.length})` : ""}
@@ -307,7 +308,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
               value={data.on_player_hit?.[hitGroup]}
               onChange={onHit}
               env={hitEnv}
-              emptyHint={`Runs when the player touches an actor in collision group ${hitGroup} (unless that actor has its own On Hit script).`}
+              emptyHint={`Runs when the player touches an actor in collision group ${hitGroup}, unless that actor overrides or disables its player-hit response.`}
             />
           </>
         )}
@@ -324,7 +325,7 @@ function PlayerProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecor
   const updateScene = useProjectStore((s) => s.updateScene);
   const playerSprite = useProjectStore((s) => s.project?.project.playerSprite) || "player";
   const [tab, setTab] = useState<"init" | "update" | "hit">("init");
-  const [hitGroup, setHitGroup] = useState<"1" | "2" | "3">("1");
+  const [hitGroup, setHitGroup] = useState<"1" | "2" | "3" | "4">("1");
   const data = scene.data;
   const id = scene.fileId;
   const player: PlayerJSON = data.player ?? {};
@@ -361,7 +362,7 @@ function PlayerProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecor
       key ? `hit${hitGroup}:${key}` : undefined,
     );
   const count = (s: EventScript | undefined) => (s?.length ? ` (${s.length})` : "");
-  const hitCount = (["1", "2", "3"] as const).reduce((n, g) => n + (data.on_player_hit?.[g]?.length ?? 0), 0);
+  const hitCount = (["1", "2", "3", "4"] as const).reduce((n, g) => n + (data.on_player_hit?.[g]?.length ?? 0), 0);
 
   return (
     <>
@@ -434,7 +435,7 @@ function PlayerProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecor
         {tab === "hit" ? (
           <>
             <div className="seg seg-wide script-subtabs">
-              {(["1", "2", "3"] as const).map((g) => (
+              {(["1", "2", "3", "4"] as const).map((g) => (
                 <button key={g} className={hitGroup === g ? "seg-on" : ""} onClick={() => setHitGroup(g)}>
                   Group {g}
                   {count(data.on_player_hit?.[g])}
@@ -446,7 +447,7 @@ function PlayerProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecor
               value={data.on_player_hit?.[hitGroup]}
               onChange={onHit}
               env={hitEnv}
-              emptyHint={`Runs when the player touches an actor in collision group ${hitGroup} (unless that actor has its own On Hit script). Same as the scene's On Player Hit.`}
+              emptyHint={`Runs when the player touches an actor in collision group ${hitGroup}, unless that actor overrides or disables its player-hit response. Same as the scene's On Player Hit.`}
             />
           </>
         ) : (
@@ -1396,7 +1397,96 @@ function DoorProps({ scene, scenes, index }: { scene: SceneRecord; scenes: Scene
 const MOVE_SPEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
 const ANIM_SPEEDS = [0, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32];
 
-type ActorTab = "interact" | "init" | "update" | "hit";
+const ACTOR_SCRIPT_KEYS = {
+  interact: "on_interact", init: "on_init", update: "on_update", hit: "on_hit",
+  collect: "on_collect", playerHit: "on_player_hit", hit1: "on_hit_1", hit2: "on_hit_2", hit3: "on_hit_3", hit4: "on_hit_4",
+} as const;
+type ActorTab = keyof typeof ACTOR_SCRIPT_KEYS;
+
+function ActorCollisionOptions({ actor, patch }: {
+  actor: Partial<NpcJSON>; patch: (value: Partial<NpcJSON>) => void;
+}) {
+  const pickup = actor.collision_group === 5;
+  return <>
+    <FieldRow label="Solid to player" hint="Auto: only platforms block in platformer scenes; actors block by default in other scenes. Solid blocks on all sides unless Platform makes it one-way. Pickups never block.">
+      <select disabled={pickup} value={pickup ? "no" : actor.solid === undefined ? "auto" : actor.solid ? "yes" : "no"}
+        onChange={(e) => patch({ solid: e.target.value === "auto" ? undefined : e.target.value === "yes" })}>
+        <option value="auto">Auto (follows scene)</option>
+        <option value="yes">Solid</option>
+        <option value="no">Non-solid</option>
+      </select>
+    </FieldRow>
+    <FieldRow label="Movement collisions" hint="Tile collisions and the movement collision master switch. Off bypasses tiles and actor blocking, while interaction and hit responses remain separate. Non-solid actors can keep this on to fall onto the ground.">
+      <label className="script-field-bool">
+        <input type="checkbox" checked={actor.collisions !== false}
+          onChange={(e) => patch({ collisions: e.target.checked })} />
+        Enabled
+      </label>
+    </FieldRow>
+    <FieldRow label="Interaction" hint="Enables On Interact independently of solidity and damage. On Collect for pickups is separate.">
+      <label className="script-field-bool">
+        <input type="checkbox" checked={actor.interact_enabled !== false}
+          onChange={(e) => patch({ interact_enabled: e.target.checked })} />
+        Enabled
+      </label>
+    </FieldRow>
+  </>;
+}
+
+function ActorHitOptions({ actor, tab, patch }: {
+  actor: Partial<NpcJSON>; tab: ActorTab; patch: (value: Partial<NpcJSON>) => void;
+}) {
+  if (tab === "collect") return <div className="pickup-setup">
+    {actor.collision_group !== 5 ? <>
+      <p className="view-note">On Collect runs only for Pickup actors. Make this actor a pickup first.</p>
+      <button className="btn btn-primary" onClick={() => patch({ collision_group: 5 })}>Make this actor a Pickup</button>
+    </> : <p className="view-note">This actor is a safe pickup. In the game, walk the player into it to collect it automatically when Collect on touch is enabled.</p>}
+    <FieldRow label="Collect on touch">
+      <label className="script-field-bool">
+        <input type="checkbox" checked={actor.collect_on_touch !== false}
+          onChange={(e) => patch({ collect_on_touch: e.target.checked })} />
+        Collect when the player overlaps this actor
+      </label>
+    </FieldRow>
+    <p className="view-note">Put the item/score reward below, followed by Remove Actor → Self.
+      For button-based collection, turn off Collect on touch and add Collect Actor → Self to On Interact.
+      Other scripts can also use Collect Actor. The reward runs once per actor instance.</p>
+  </div>;
+  if (tab === "playerHit") return <>
+    <FieldRow label="Player contact">
+      <label className="script-field-bool">
+        <input type="checkbox" checked={actor.player_hit_enabled !== false}
+          onChange={(e) => patch({ player_hit_enabled: e.target.checked })} />
+        Enable player-hit response
+      </label>
+    </FieldRow>
+    <FieldRow label="Contact script" hint="Self is this actor. Target Player for player damage. An empty custom script disables contact damage.">
+      <label className="script-field-bool">
+        <input type="checkbox" checked={actor.on_player_hit === undefined}
+          onChange={(e) => patch({ on_player_hit: e.target.checked ? undefined : [] })} />
+        Use scene/player handler
+      </label>
+    </FieldRow>
+  </>;
+  if (tab === "hit1" || tab === "hit2" || tab === "hit3" || tab === "hit4") {
+    const key = ACTOR_SCRIPT_KEYS[tab];
+    const enabledKey = `hit_${tab.slice(3)}_enabled` as "hit_1_enabled" | "hit_2_enabled" | "hit_3_enabled" | "hit_4_enabled";
+    return <><FieldRow label="Hit response">
+      <label className="script-field-bool">
+        <input type="checkbox" checked={actor[enabledKey] !== false}
+          onChange={(e) => patch({ [enabledKey]: e.target.checked })} />
+        Enable incoming group {tab.slice(3)}
+      </label>
+    </FieldRow><FieldRow label="Projectile script" hint="The projectile must target this actor's collision group. Its own projectile group selects this tab. Empty custom scripts have no damage effect and do not consume projectiles; solid-actor bouncing is independent.">
+      <label className="script-field-bool">
+        <input type="checkbox" checked={actor[key] === undefined}
+          onChange={(e) => patch({ [key]: e.target.checked ? undefined : [] })} />
+        Use legacy On Hit script
+      </label>
+    </FieldRow></>;
+  }
+  return null;
+}
 
 function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneRecord[]; index: number }) {
   const updateScene = useProjectStore((s) => s.updateScene);
@@ -1445,7 +1535,7 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
   // A plain-dialogue NPC has no script; never let a late script edit add one.
   const onInteract: ScriptUpdater = (fn, key) =>
     setNpc((n) => (n.on_interact === undefined ? n : withScript(n, "on_interact", fn)), key ? `script:${key}` : undefined);
-  const scriptKey = { init: "on_init", update: "on_update", hit: "on_hit" } as const;
+  const scriptKey = ACTOR_SCRIPT_KEYS;
   const onOther: ScriptUpdater = (fn, key) => {
     if (tab === "interact") return;
     const k = scriptKey[tab];
@@ -1561,7 +1651,7 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
 
         <FieldRow
           label="Pushes the player"
-          hint="When this actor moves into the player, it shoves the player along (walls stop it). Off: it walks over the player, who can step out of the way. To let the player walk through it, turn its collisions off with Set Actor Collisions."
+          hint="When this actor moves into the player, it shoves the player along (walls stop it). Off: it walks over the player, who can step out of the way. To let the player walk through it while keeping tile collisions, set Solid to player to Non-solid."
         >
           <label className="script-field-bool">
             <input type="checkbox" checked={!!npc.push_player} onChange={(e) => patchNpc({ push_player: e.target.checked || undefined })} />
@@ -1587,25 +1677,14 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
           </FieldRow>
         )}
 
-        <FieldRow
-          label="Collision group"
-          hint={group ? `Touching the player runs this actor's On Hit script, or else the scene's On Player Hit for group ${group}.` : undefined}
-        >
-          <div className="seg seg-wide">
-            {[0, 1, 2, 3].map((g) => (
-              <button
-                key={g}
-                className={group === g ? "seg-on" : ""}
-                onClick={(e) => {
-                  e.preventDefault();
-                  patchNpc({ collision_group: g || undefined });
-                }}
-              >
-                {g === 0 ? "None" : g}
-              </button>
-            ))}
-          </div>
-        </FieldRow>
+      <ActorCollisionOptions actor={npc} patch={patchNpc} />
+      <FieldRow label="Collision group" hint={group === 5 ? "Pickup: harmless, non-blocking and ignored by projectiles. On Collect runs once on overlap." : "Groups 1-4 select projectile targets and the scene player-hit fallback. Incoming projectile groups choose On Hit 1-4."}>
+        <select value={group} onChange={(e) => patchNpc({ collision_group: Number(e.target.value) || undefined })}>
+          <option value={0}>None</option>
+          {[1, 2, 3, 4].map((g) => <option key={g} value={g}>Group {g}</option>)}
+          <option value={5}>Pickup (safe)</option>
+        </select>
+      </FieldRow>
       </div>
 
       <Tabs
@@ -1613,7 +1692,13 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
           { id: "interact", label: `On Interact${count(npc.on_interact)}` },
           { id: "init", label: `On Init${count(npc.on_init)}` },
           { id: "update", label: `On Update${count(npc.on_update)}` },
-          { id: "hit", label: `On Hit${count(npc.on_hit)}` },
+          { id: "collect", label: `On Collect${count(npc.on_collect)}` },
+          { id: "playerHit", label: `On Player Hit${count(npc.on_player_hit)}` },
+          { id: "hit1", label: `On Hit 1${count(npc.on_hit_1)}` },
+          { id: "hit2", label: `On Hit 2${count(npc.on_hit_2)}` },
+          { id: "hit3", label: `On Hit 3${count(npc.on_hit_3)}` },
+          { id: "hit4", label: `On Hit 4${count(npc.on_hit_4)}` },
+          { id: "hit", label: `Legacy On Hit${count(npc.on_hit)}` },
         ]}
         value={tab}
         onChange={setTab}
@@ -1647,18 +1732,25 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
             )}
           </>
         )}
-        {tab !== "interact" && (
+        <ActorHitOptions actor={npc} tab={tab} patch={patchNpc} />
+        {tab !== "interact" && !(tab === "playerHit" && npc.on_player_hit === undefined) && (
           <ScriptEditor
             key={tab}
             value={npc[scriptKey[tab]]}
             onChange={onOther}
             env={env}
             emptyHint={
-              tab === "init"
+              tab === "collect"
+                ? "Pickup group only: runs once when the player's hitbox overlaps this actor. Self is the pickup. Add the reward and Remove Actor (Self) to collect it."
+                : tab === "init"
                 ? "Runs as this actor when the scene starts, before the scene's own On Init."
                 : tab === "update"
                   ? "Runs over and over in the background while the scene is on screen (at most once a frame) - e.g. patrol back and forth."
-                  : "Runs when the player touches this actor. Needs a collision group (above)."
+                  : tab === "playerHit"
+                    ? "Runs when this actor touches the player. Self is this actor; target Player for player damage."
+                    : tab === "hit"
+                      ? "Default projectile-hit script for groups set to use Legacy On Hit. Empty scripts have no damage effect."
+                      : "Runs for the incoming projectile group shown on this tab. First Person 3D shooting uses group 1. Empty custom scripts have no damage effect."
             }
           />
         )}
@@ -1672,6 +1764,16 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
  * index, no "self"). Editing it reuses the exact same ScriptEditor as
  * every other script list. Other scripts call it with the "Call Script"
  * event, which the compiler inline-expands at compile time. */
+function addCustomActorInput(id: string): string | undefined {
+  const store = useProjectStore.getState();
+  const entry = store.project?.project.customScripts?.find((s) => s.id === id);
+  if (!entry) return;
+  const params = entry.params ?? [];
+  const name = nextActorInputName(params);
+  store.setCustomScriptParams(id, [...params, { name, kind: "actor" }]);
+  return `@${name}`;
+}
+
 function CustomScriptProps({ id }: { id: string }) {
   const project = useProjectStore((s) => s.project)!;
   const updateCustomScript = useProjectStore((s) => s.updateCustomScript);
@@ -1688,6 +1790,7 @@ function CustomScriptProps({ id }: { id: string }) {
       scenes: project.scenes,
       allowSelf: false,
       params: entry?.params,
+      addActorInput: () => addCustomActorInput(id),
     }),
     [id, project.scenes, entry?.params],
   );
@@ -1733,6 +1836,9 @@ function CustomScriptProps({ id }: { id: string }) {
           time, so editing it here updates every place that calls it - but a script that calls itself, directly or
           through another script, is a compile error.
         </p>
+        <p className="view-note">Use + Actor input in an actor field to create Actor A, B and so on.
+          Each Call Script chooses a scene actor or Player for that input. Named animation states
+          follow that actor's current sprite sheet, including after a sprite change.</p>
       </div>
       <div className="panel-section-title">Inputs</div>
       <div className="properties-body">
@@ -1820,6 +1926,9 @@ function ScriptParamsEditor({ id, params }: { id: string; params: ScriptParam[] 
           </button>
         </div>
       ))}
+      <button className="btn btn-small" onClick={() => addCustomActorInput(id)}>
+        + Actor input
+      </button>
       <button className="btn btn-small" onClick={add}>
         + Add input
       </button>
@@ -1934,6 +2043,8 @@ function PrefabProps({ id, scenes }: { id: string; scenes: SceneRecord[] }) {
   const setSelection = useProjectStore((s) => s.setSelection);
   const setPlacingPrefab = useProjectStore((s) => s.setPlacingPrefab);
   const tool = useProjectStore((s) => s.tool);
+  const activeSceneId = useProjectStore((s) => s.activeSceneId);
+  const addPrefabSpawn = useProjectStore((s) => s.addPrefabSpawn);
   const placingPrefabId = useProjectStore((s) => s.placingPrefabId);
   const prefab = (project.project.prefabs ?? []).find((p) => p.id === id);
 
@@ -1976,21 +2087,28 @@ function PrefabProps({ id, scenes }: { id: string; scenes: SceneRecord[] }) {
           />
         </FieldRow>
 
+        <div className="prefab-actions">
+          <button className={`btn${placing ? " btn-primary" : ""}`} onClick={() => setPlacingPrefab(placing ? null : id)}>
+            {placing ? "Cancel placement" : "Place on map"}
+          </button>
+          {prefab.kind === "npc" && <button className="btn" disabled={!activeSceneId}
+            onClick={() => activeSceneId && addPrefabSpawn(activeSceneId, id)}>
+            Add Spawn Prefab to scene start
+          </button>}
+        </div>
+        <p className="view-note">Drag this prefab from the sidebar onto a scene in either map view,
+          or click Place on map and choose a tile. Placed actors/triggers are independent copies.</p>
+        {prefab.kind === "npc" && <p className="view-note">Spawn Prefab is also available in Add Event → Actors.
+          The button above adds one to <b>{scenes.find((s) => s.fileId === activeSceneId)?.data.name || "the active scene"}</b>'s On Init,
+          at its player start tile. You can edit its position and maximum count there.</p>}
+
         {prefab.kind === "npc" ? (
           <NpcPrefabFields id={id} template={prefab.template as Partial<NpcJSON>} patch={patch} scenes={scenes} />
         ) : (
           <DoorPrefabFields template={prefab.template as Partial<DoorJSON>} patch={patch} names={names} />
         )}
 
-        <button className={`btn${placing ? " btn-primary" : ""}`} onClick={() => setPlacingPrefab(placing ? null : id)}>
-          {placing ? "Click a tile on the canvas (or click again to cancel)" : `Place ${prefab.kind === "npc" ? "NPC" : "door"}`}
-        </button>
-        <p className="view-note">
-          Placing copies these defaults into a brand-new {prefab.kind === "npc" ? "NPC" : "door"} on the active scene -
-          it's a starting point, not a live link, so editing the prefab afterwards never changes ones already placed.
-          {prefab.kind === "npc" &&
-            " Actor prefabs can also appear while the game runs, with the Spawn Prefab event: those always use the prefab as it is now."}
-        </p>
+
       </div>
     </>
   );
@@ -2013,7 +2131,7 @@ function NpcPrefabFields({
     () => ({ rootId: `prefab:${id}:${tab}`, sceneId: "__prefab__", scene: { background: "" }, scenes, allowSelf: true }),
     [id, tab, scenes],
   );
-  const scriptKey = { interact: "on_interact", init: "on_init", update: "on_update", hit: "on_hit" } as const;
+  const scriptKey = ACTOR_SCRIPT_KEYS;
   // Script edits apply to the prefab as it is in the store right now.
   const onScript: ScriptUpdater = (fn) => {
     const cur = (useProjectStore.getState().project?.project.prefabs ?? []).find((p) => p.id === id);
@@ -2084,24 +2202,13 @@ function NpcPrefabFields({
       {flag("above_player", "Draw above player", "Draw this actor over the player instead of under it.")}
       {flag("lock_direction", "Lock facing direction", "Keeps facing the same way while it moves.")}
       {flag("push_player", "Pushes the player", "When it moves into the player, it shoves the player along.")}
-      <FieldRow
-        label="Collision group"
-        hint={group ? `Touching the player runs its On Hit, or else the scene's On Player Hit for group ${group}.` : undefined}
-      >
-        <div className="seg seg-wide">
-          {[0, 1, 2, 3].map((g) => (
-            <button
-              key={g}
-              className={group === g ? "seg-on" : ""}
-              onClick={(e) => {
-                e.preventDefault();
-                patch({ collision_group: g || undefined });
-              }}
-            >
-              {g === 0 ? "None" : g}
-            </button>
-          ))}
-        </div>
+      <ActorCollisionOptions actor={template} patch={patch} />
+      <FieldRow label="Collision group" hint={group === 5 ? "Pickup: harmless, non-blocking and ignored by projectiles. On Collect runs once on overlap." : "Groups 1-4 select projectile targets and the scene player-hit fallback. Incoming projectile groups choose On Hit 1-4."}>
+        <select value={group} onChange={(e) => patch({ collision_group: Number(e.target.value) || undefined })}>
+          <option value={0}>None</option>
+          {[1, 2, 3, 4].map((g) => <option key={g} value={g}>Group {g}</option>)}
+          <option value={5}>Pickup (safe)</option>
+        </select>
       </FieldRow>
       {template.on_interact === undefined && (
         <FieldRow label="Dialogue" hint="A simple On Interact text. Add events in the On Interact tab below for a full script instead.">
@@ -2118,27 +2225,40 @@ function NpcPrefabFields({
           { id: "interact", label: `On Interact${count(template.on_interact)}` },
           { id: "init", label: `On Init${count(template.on_init)}` },
           { id: "update", label: `On Update${count(template.on_update)}` },
-          { id: "hit", label: `On Hit${count(template.on_hit)}` },
+          { id: "collect", label: `On Collect${count(template.on_collect)}` },
+          { id: "playerHit", label: `On Player Hit${count(template.on_player_hit)}` },
+          { id: "hit1", label: `On Hit 1${count(template.on_hit_1)}` },
+          { id: "hit2", label: `On Hit 2${count(template.on_hit_2)}` },
+          { id: "hit3", label: `On Hit 3${count(template.on_hit_3)}` },
+          { id: "hit4", label: `On Hit 4${count(template.on_hit_4)}` },
+          { id: "hit", label: `Legacy On Hit${count(template.on_hit)}` },
         ]}
         value={tab}
         onChange={setTab}
       />
       <div className="properties-script">
-        <ScriptEditor
+        <ActorHitOptions actor={template} tab={tab} patch={patch} />
+        {!(tab === "playerHit" && template.on_player_hit === undefined) && <ScriptEditor
           key={tab}
           value={template[scriptKey[tab]]}
           onChange={onScript}
           env={env}
           emptyHint={
-            tab === "interact"
+            tab === "collect"
+              ? "Pickup group only: runs once on overlap. Give the reward and Remove Actor (Self). Empty scripts do nothing."
+              : tab === "interact"
               ? "Runs when the player talks to it (replaces the Dialogue above). Events can target it as “Self”."
               : tab === "init"
                 ? "Runs as this actor when its scene starts - or, for a spawned copy, the moment it's spawned."
                 : tab === "update"
                   ? "Runs over and over in the background while it's in the scene (from its spawn, for spawned copies)."
-                  : "Runs when the player touches it. Needs a collision group (above)."
+                  : tab === "playerHit"
+                    ? "Runs when this actor touches the player. Self is this actor; target Player for player damage."
+                    : tab === "hit"
+                      ? "Default projectile-hit script for groups set to use Legacy On Hit. Empty scripts have no damage effect."
+                      : "Runs for the incoming projectile group shown on this tab. Empty custom scripts have no damage effect."
           }
-        />
+        />}
       </div>
     </>
   );

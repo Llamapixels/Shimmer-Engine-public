@@ -119,3 +119,6 @@
   stroke: #ff7ab8;
 }
 
+
+
+.world-map-scene-prefab-drop { outline: 3px solid var(--accent); outline-offset: 2px; }

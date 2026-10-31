@@ -5,6 +5,7 @@ import FolderTree from "./common/FolderTree";
 import PopoverMenu from "./common/PopoverMenu";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import "./Navigator.css";
+import { PREFAB_DRAG_TYPE } from "../world/prefabs";
 import Icon from "./common/Icon";
 import Chevron from "./common/Chevron";
 import UsedIn from "./UsedIn";
@@ -552,6 +553,7 @@ function PrefabsSection() {
   const setSelection = useProjectStore((s) => s.setSelection);
   const setSection = useProjectStore((s) => s.setSection);
   const removePrefab = useProjectStore((s) => s.removePrefab);
+  const setPlacingPrefab = useProjectStore((s) => s.setPlacingPrefab);
 
   if (prefabs.length === 0) {
     return <div className="navigator-empty">No prefabs yet. Use + to add a reusable NPC or door template.</div>;
@@ -569,6 +571,12 @@ function PrefabsSection() {
           return (
             <div
               key={p.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(PREFAB_DRAG_TYPE, p.id);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              title="Drag onto a scene, or use Place to choose a tile"
               className={`navigator-item${isSelected ? " navigator-item-selected" : ""}`}
               onClick={() => {
                 setSection("world");
@@ -581,6 +589,12 @@ function PrefabsSection() {
               <span className="navigator-item-label" title={p.name}>
                 {leaf}
               </span>
+              <button className="navigator-item-action" title="Place this prefab on the map" onClick={(e) => {
+                e.stopPropagation();
+                setSection("world");
+                setSelection({ kind: "prefab", id: p.id });
+                setPlacingPrefab(p.id);
+              }}>Place</button>
               <button
                 className="navigator-item-delete"
                 title="Delete prefab"

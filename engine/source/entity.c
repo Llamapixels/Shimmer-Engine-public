@@ -30,6 +30,11 @@ Entity *entity_create(EntityType type, int x, int y, int width, int height)
         e->width = width;
         e->height = height;
         e->solid = 1;
+        e->hit_disabled = 0;
+        e->blocks_player = 1;
+        e->interaction_disabled = 0;
+        e->collision_group = 0;
+        e->pickup_collected = 0;
         e->direction = DIR_DOWN;
         e->moving = 0;
         e->def = 0;

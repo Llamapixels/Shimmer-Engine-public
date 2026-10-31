@@ -413,3 +413,6 @@
   font: inherit;
   padding: 0 4px;
 }
+
+.navigator-item-action { background: var(--bg-3); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 11px; padding: 2px 6px; cursor: pointer; }
+.navigator-item-action:hover { background: var(--bg-4); }

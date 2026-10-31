@@ -6,7 +6,7 @@
  * select it (its properties show on the right). Lines show where Change
  * Scene events and doors lead (toggle with "Connections").
  */
-import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type DragEvent as ReactDragEvent } from "react";
 
 import type { NpcJSON, ProjectJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import { loadSpriteImage, type SpriteImage } from "../sprites/image";
@@ -14,6 +14,7 @@ import { playerSpriteName, type Facing } from "../sprites/model";
 import { drawActor, sheetFor } from "../sprites/render";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import "./WorldMap.css";
+import { PREFAB_DRAG_TYPE, prefabDropTile } from "../world/prefabs";
 
 const TILE = 8;
 const GAP = 64;   /* px between scenes laid out automatically */
@@ -64,7 +65,7 @@ function sceneLinks(rec: SceneRecord): RawLink[] {
     for (const e of switchEvents(d.events)) out.push({ to: e.scene, sx: cx, sy: cy, dx: e.x * TILE, dy: e.y * TILE, kind: "door" });
   }
   for (const n of s.npcs ?? []) {
-    const evs = switchEvents([n.on_interact, n.on_init, (n as { on_update?: unknown }).on_update, (n as { on_hit?: unknown }).on_hit]);
+    const evs = switchEvents([n.on_interact, n.on_init, (n as { on_update?: unknown }).on_update, (n as { on_hit?: unknown }).on_hit, n.on_player_hit, n.on_hit_1, n.on_hit_2, n.on_hit_3, n.on_hit_4, n.on_collect]);
     for (const e of evs) out.push({ to: e.scene, sx: n.x * TILE + 8, sy: n.y * TILE + 8, dx: e.x * TILE, dy: e.y * TILE, kind: "actor" });
   }
   const rest: Partial<SceneJSON> = { ...s, doors: undefined, npcs: undefined };
@@ -159,6 +160,7 @@ const ActorSprite = memo(function ActorSprite({
 /** What a scene card asks the map to do (one stable object, so cards
  * only redraw when their own scene changes). */
 interface CardActions {
+  drop: (e: ReactDragEvent, rec: SceneRecord) => void;
   down: (e: ReactPointerEvent, rec: SceneRecord, i: number) => void;
   open: (rec: SceneRecord) => void;
   select: (rec: SceneRecord, kind: "npc" | "door", index: number) => void;
@@ -178,7 +180,9 @@ const SceneCard = memo(function SceneCard({
   project,
   playerSprite,
   actions,
+  placing,
 }: {
+  placing: boolean;
   rec: SceneRecord;
   index: number;
   x: number;
@@ -193,10 +197,24 @@ const SceneCard = memo(function SceneCard({
   playerSprite: string;
   actions: CardActions;
 }) {
+  const [prefabHover, setPrefabHover] = useState(false);
   return (
     <div
-      className={`world-map-scene${active ? " world-map-scene-active" : ""}`}
+      className={`world-map-scene${active ? " world-map-scene-active" : ""}${prefabHover ? " world-map-scene-prefab-drop" : ""}`}
       style={{ transform: `translate(${x}px, ${y}px)`, width: img?.w ?? 240, height: img?.h ?? 160 }}
+      onPointerDownCapture={(e) => {
+        if (placing && e.button === 0) { e.stopPropagation(); actions.down(e, rec, index); }
+      }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(PREFAB_DRAG_TYPE)) return;
+        e.preventDefault(); e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+        setPrefabHover(true);
+      }}
+      onDragLeave={(e) => {
+        if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) setPrefabHover(false);
+      }}
+      onDrop={(e) => { setPrefabHover(false); actions.drop(e, rec); }}
       onPointerDown={(e) => actions.down(e, rec, index)}
       onDoubleClick={() => actions.open(rec)}
     >
@@ -246,6 +264,10 @@ function readPref(key: string, fallback: boolean): boolean {
 
 export default function WorldMap() {
   const project = useProjectStore((s) => s.project);
+  const tool = useProjectStore((s) => s.tool);
+  const placingPrefabId = useProjectStore((s) => s.placingPrefabId);
+  const setPlacingPrefab = useProjectStore((s) => s.setPlacingPrefab);
+  const placePrefab = useProjectStore((s) => s.placePrefab);
   const activeSceneId = useProjectStore((s) => s.activeSceneId);
   const setActiveScene = useProjectStore((s) => s.setActiveScene);
   const setWorldMap = useProjectStore((s) => s.setWorldMap);
@@ -260,6 +282,12 @@ export default function WorldMap() {
     [scenes, playerSprite],
   );
   const sheets = useSpriteSheets(project?.rootPath ?? null, spriteNames);
+  useEffect(() => {
+    if (tool !== "placePrefab") return;
+    const cancel = (e: KeyboardEvent) => { if (e.key === "Escape") setPlacingPrefab(null); };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [tool, setPlacingPrefab]);
 
   const [zoom, setZoom] = useState(0.5);
   const [pan, setPan] = useState({ x: 40, y: 40 });
@@ -363,8 +391,19 @@ export default function WorldMap() {
     setZoom(next);
   };
 
+  const placeAt = (e: { clientX: number; clientY: number; currentTarget: EventTarget & Element }, rec: SceneRecord, id: string) => {
+    const prefab = project?.project.prefabs?.find((p) => p.id === id);
+    if (!prefab) return;
+    const size = sizeOf(rec);
+    const tile = prefabDropTile(e, e.currentTarget.getBoundingClientRect(), size.w / TILE, size.h / TILE, prefab);
+    if (tile) placePrefab(rec.fileId, id, tile.x, tile.y);
+  };
   const onDown = (e: ReactPointerEvent, rec?: SceneRecord, i?: number) => {
     e.stopPropagation();
+    if (tool === "placePrefab" && placingPrefabId && rec && e.button === 0) {
+      placeAt(e, rec, placingPrefabId);
+      return;
+    }
     (e.target as Element).setPointerCapture?.(e.pointerId);
     if (rec && i !== undefined && e.button === 0) {
       const p = pos(rec, i);
@@ -407,6 +446,12 @@ export default function WorldMap() {
 
   const actionsRef = useRef<CardActions>(null!);
   actionsRef.current = {
+    drop: (e, rec) => {
+      const id = e.dataTransfer.getData(PREFAB_DRAG_TYPE);
+      if (!id) return;
+      e.preventDefault(); e.stopPropagation();
+      placeAt(e, rec, id);
+    },
     down: (e, rec, i) => onDown(e, rec, i),
     open: (rec) => {
       setActiveScene(rec.fileId);
@@ -419,6 +464,7 @@ export default function WorldMap() {
   };
   const actions = useMemo<CardActions>(
     () => ({
+      drop: (e, rec) => actionsRef.current.drop(e, rec),
       down: (e, rec, i) => actionsRef.current.down(e, rec, i),
       open: (rec) => actionsRef.current.open(rec),
       select: (rec, kind, index) => actionsRef.current.select(rec, kind, index),
@@ -468,7 +514,10 @@ export default function WorldMap() {
           />
           Connections
         </label>
-        <span className="world-map-hint">Drag scenes to arrange them · double-click one to open it · wheel to zoom</span>
+        {tool === "placePrefab" && placingPrefabId ? <>
+          <span className="world-map-hint">Click a scene tile to place {project?.project.prefabs?.find((p) => p.id === placingPrefabId)?.name ?? "prefab"}</span>
+          <button className="btn btn-small" onClick={() => setPlacingPrefab(null)}>Cancel placement</button>
+        </> : <span className="world-map-hint">Drag prefabs onto scenes · drag scenes to arrange · double-click to open · wheel to zoom</span>}
       </div>
       <div
         ref={boxRef}
@@ -499,6 +548,7 @@ export default function WorldMap() {
                   project={project.project}
                   playerSprite={playerSprite}
                   actions={actions}
+                  placing={tool === "placePrefab" && !!placingPrefabId}
                 />
               );
             })}
