@@ -181,6 +181,8 @@ export interface UiSettingsJSON {
   boxTransitionFrames?: number;
   /** Holding B rushes text along (default true). */
   skipWithB?: boolean;
+  /** HUD boxes and Draw Text turn see-through while the player is behind them (default true). */
+  hudSeeThrough?: boolean;
   /** Sound a text box opens with: "blip" (default), "none", a built-in or a WAV name. */
   textSound?: string;
   /** Sound simple door triggers play: "door" (default), "none", a built-in or a WAV name. */

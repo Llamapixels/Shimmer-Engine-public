@@ -442,6 +442,7 @@ typedef enum
     SCRIPT_INPUT_LOCK,          /* a = 1 player controls / 2 all game input, b = 1 enable, 0 disable */
     SCRIPT_ACTOR_UPDATE,        /* a = NPC, b = 0 start / 1 pause / 2 resume / 3 stop its On Update */
     SCRIPT_ACTOR_KNOCKBACK,     /* ptr = int16_t[6], actor_knockback(); a = 1 wait until it's over */
+    SCRIPT_ACTOR_TRANSPARENT,   /* a = actor, b = on, c = opacity 1-15 (0 = keep) */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

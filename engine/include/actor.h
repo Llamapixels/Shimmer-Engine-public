@@ -107,6 +107,10 @@ void actor_set_update_paused(int index, int paused);
  * direction), direction, speed (1/256 px a frame), frames, 0 }. The push
  * slows evenly to a stop and stops at walls. */
 void actor_knockback(const int16_t *p);
+
+/* "Set Actor Transparency": see-through on/off; `opacity` 1-15 (of 16) is
+ * shared by every see-through actor (the GBA has one blend level). */
+void actor_set_transparent(int index, int on, int opacity);
 int actor_knockback_active(int index);
 int actor_anim_done(int index);
 

@@ -146,6 +146,10 @@ export default function DialogueCard() {
         <SoundChoice value={ui.doorSound ?? "door"} onChange={(v) => setUi({ doorSound: v })} />
       </label>
       <label className="settings-field settings-check">
+        <input type="checkbox" checked={ui.hudSeeThrough !== false} onChange={(e) => setUi({ hudSeeThrough: e.target.checked })} />
+        HUD boxes and Draw Text turn see-through while the player is behind them
+      </label>
+      <label className="settings-field settings-check">
         <input type="checkbox" checked={ui.skipWithB !== false} onChange={(e) => setUi({ skipWithB: e.target.checked })} />
         Hold B to skip through text (shows each page at once and turns it after a moment)
       </label>

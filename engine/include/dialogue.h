@@ -52,6 +52,8 @@ void dialogue_hud_close(void);
  * scene to show it again; text 0 = none. */
 typedef struct { const char *text; int options, place, portrait; } DialogueHudSnap;
 void dialogue_hud_snapshot(DialogueHudSnap *out);
+/* Is a HUD box (Keep on screen) up? */
+int dialogue_hud_up(void);
 void dialogue_hud_restore(const DialogueHudSnap *in);
 
 /* "Focus" for the next box (text, choice or menu) until it closes:

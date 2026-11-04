@@ -634,6 +634,11 @@ void dialogue_show_ex(const char *text, int options, int place)
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 
+int dialogue_hud_up(void)
+{
+    return mode == MODE_HUD;
+}
+
 void dialogue_hud_snapshot(DialogueHudSnap *out)
 {
     *out = hud_now;

@@ -731,6 +731,61 @@ void actor_knockback(const int16_t *p)
     npc_kb_left[i] = npc_kb_total[i] = (uint8_t)(p[4] > 255 ? 255 : p[4]);
 }
 
+/* See-through actors / HUD (blend_update): the shared opacity, and how
+ * many actors are see-through. */
+static int obj_opacity = 8;
+
+void actor_set_transparent(int index, int on, int opacity)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e)
+        return;
+    e->sprite.see_through = on ? 1 : 0;
+    if (opacity >= 1 && opacity <= 15)
+        obj_opacity = opacity;
+}
+
+static int any_see_through(void)
+{
+    if (g_player && g_player->sprite.see_through)
+        return 1;
+    for (int i = 0; i < npc_count_active; i++)
+        if (npc_entities[i] && npc_entities[i]->sprite.see_through)
+            return 1;
+    return 0;
+}
+
+/* The blend registers for see-through actors and the see-through HUD,
+ * when no other effect (fades, lights, dialogue focus) is using them. */
+static uint16_t blend_written;
+static void blend_update(void)
+{
+    if (REG_BLDCNT != 0 && REG_BLDCNT != blend_written)
+        return;   /* another effect has them */
+    int hud = 0;
+    if (ui_hud_see_through && g_player && g_player->sprite.visible && !dialogue_active())
+    {
+        int px = g_player->x - camera_get_display_x(), py = g_player->y - camera_get_display_y();
+        hud = ui_text_overlaps(px, py, g_player->width, g_player->height, dialogue_hud_up());
+    }
+    uint16_t cnt = 0, alpha = 0;
+    if (hud)
+    {
+        cnt = (1 << 1) | (1 << 6) | (0x3D << 8);   /* BG1 over everything else */
+        alpha = 6 | (10 << 8);
+    }
+    else if (any_see_through())
+    {
+        cnt = 0x3F << 8;                           /* see-through OBJs blend with all layers */
+        alpha = (uint16_t)(obj_opacity | ((16 - obj_opacity) << 8));
+    }
+    if (cnt == blend_written && cnt == 0)
+        return;
+    REG_BLDCNT = cnt;
+    REG_BLDALPHA = alpha;
+    blend_written = cnt;
+}
+
 int actor_knockback_active(int index)
 {
     return index >= 0 && index < npc_count_active && npc_kb_left[index] > 0;
@@ -1921,6 +1976,7 @@ int main(void)
 
         /* First Person 3D: draw the view for the next VBlank. */
         light_update();
+        blend_update();
         raycast_draw();
     }
 

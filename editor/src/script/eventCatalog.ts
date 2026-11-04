@@ -2074,6 +2074,22 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => playerStateSummary(ev.state, ev.when),
   }),
   def({
+    type: "actor_set_transparent",
+    label: "Set Actor Transparency",
+    category: "Actors",
+    description:
+      "Make an actor (or the player) see-through, or solid again - ghosts, invincibility, hiding in grass. The GBA has one blend " +
+      "level, so every see-through actor shows at the opacity set last. Screen fades, lights and dialogue focus take over the " +
+      "blending while they run.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      { key: "enabled", label: "See-through", kind: "bool" },
+      { key: "opacity", label: "Opacity %", kind: "int", min: 5, max: 95, defaultValue: 50, showIf: (e) => e.enabled !== false },
+    ],
+    create: (c) => ({ type: "actor_set_transparent", actor: c.firstActor ?? "self", enabled: true, opacity: 50 }),
+    summary: (ev) => `${actorLabel(ev.actor)} ${ev.enabled ? `see-through (${ev.opacity ?? 50}%)` : "solid"}`,
+  }),
+  def({
     type: "actor_knockback",
     label: "Knock Back Actor",
     category: "Actors",

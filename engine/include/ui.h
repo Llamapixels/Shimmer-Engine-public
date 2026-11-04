@@ -156,6 +156,12 @@ typedef struct
     uint8_t col, row, framed;
     uint16_t frames_left;
 } UiLabelSnap;
+/* Does the screen text (Draw Text), or the box when `with_box`, cover any
+ * of this screen rectangle (pixels)? */
+int ui_text_overlaps(int x, int y, int w, int h, int with_box);
+/* Settings > Dialogue: HUD / screen text turns see-through over the player. */
+extern const uint8_t ui_hud_see_through;
+
 void ui_labels_snapshot(UiLabelSnap out[UI_LABEL_MAX]);
 void ui_labels_restore(const UiLabelSnap in[UI_LABEL_MAX]);
 

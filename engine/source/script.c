@@ -1197,6 +1197,10 @@ static void thread_step(ScriptThread *t, int is_main)
             t->play_once_started = 0;
             break;
 
+        case SCRIPT_ACTOR_TRANSPARENT:
+            actor_set_transparent(ev->a, ev->b, ev->c);
+            break;
+
         case SCRIPT_ACTOR_KNOCKBACK:
         {
             const int16_t *p = (const int16_t *)ev->ptr;

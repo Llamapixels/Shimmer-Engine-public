@@ -994,6 +994,14 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** An actor see-through or solid again; opacity 5-95 % is shared by all. */
+export interface ActorSetTransparentEvent extends EventBase {
+  type: "actor_set_transparent";
+  actor: ActorRef;
+  enabled: boolean;
+  opacity?: number;
+}
+
 /** Push an actor away (from the player, an actor, or in a direction). */
 export interface ActorKnockbackEvent extends EventBase {
   type: "actor_knockback";
@@ -1349,6 +1357,7 @@ export type ScriptEventJSON =
   | InputLockEvent
   | ActorUpdateEvent
   | ActorKnockbackEvent
+  | ActorSetTransparentEvent
   | ActorSetHitResponseEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

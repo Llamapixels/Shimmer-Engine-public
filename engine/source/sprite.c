@@ -222,6 +222,7 @@ void sprite_init(
     sprite->pivot_x = 8;
     sprite->pivot_y = 8;
     sprite->on_top = 0;
+    sprite->see_through = 0;
 
     if (max_objs > ASPRITE_MAX_OBJS)
         max_objs = ASPRITE_MAX_OBJS;
@@ -418,7 +419,8 @@ static void write_affine_objs(ASprite *sprite, const ASpriteFrame *f, uint8_t co
             continue;
         }
 
-        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | (o->attr0 & 0xC000) | ADV_ATTR0_AFFINE_DOUBLE | obj_mosaic;
+        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | (o->attr0 & 0xC000) | ADV_ATTR0_AFFINE_DOUBLE | obj_mosaic |
+                           (sprite->see_through ? 0x0400 : 0);
         ADV_OAM[oam * 4 + 1] = (uint16_t)(x & 0x1FF) | (o->attr1 & 0xC000) | (uint16_t)(m << 9);
         ADV_OAM[oam * 4 + 2] =
             (uint16_t)((sprite->tile_index + o->tile_offset) & 0x3FF) |
@@ -465,7 +467,8 @@ static void write_objs(ASprite *sprite, int screen_x, int screen_y)
             continue;
         }
 
-        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | o->attr0 | obj_mosaic;   /* 4bpp, normal mode */
+        ADV_OAM[oam * 4] = (uint16_t)(y & 0xFF) | o->attr0 | obj_mosaic |   /* 4bpp */
+                           (sprite->see_through ? 0x0400 : 0);                /* semi-transparent */
         ADV_OAM[oam * 4 + 1] = (uint16_t)(x & 0x1FF) | o->attr1;
         ADV_OAM[oam * 4 + 2] =
             (uint16_t)((sprite->tile_index + o->tile_offset) & 0x3FF) |

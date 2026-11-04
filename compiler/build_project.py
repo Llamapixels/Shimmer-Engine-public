@@ -2786,7 +2786,7 @@ PARITY_EVENT_TYPES = [
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
     "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
-    "actor_knockback",
+    "actor_knockback", "actor_set_transparent",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3258,6 +3258,14 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "actor_set_transparent":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        on = ev.get("enabled", True)
+        if not isinstance(on, bool):
+            raise BuildError(f"{where}: \"enabled\" must be true or false.")
+        opacity = resolve_small_int(ev.get("opacity", 50), "opacity", where, 5, 95)
+        out.append(_instr("SCRIPT_ACTOR_TRANSPARENT", a=idx, b=int(on), c=max(1, min(15, round(opacity * 16 / 100)))))
 
     elif etype == "actor_knockback":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)

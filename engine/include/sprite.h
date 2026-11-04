@@ -68,6 +68,7 @@ typedef struct
     uint8_t scale_x, scale_y;   /* percent */
     int16_t pivot_x, pivot_y;   /* rotation centre, relative to x/y */
     uint8_t on_top;             /* drawn over the dialogue box (priority 0) */
+    uint8_t see_through;        /* semi-transparent (GBA OBJ blend mode) */
 } ASprite;
 
 void sprite_system_init(void);

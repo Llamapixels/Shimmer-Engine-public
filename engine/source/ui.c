@@ -696,6 +696,23 @@ void ui_label_draw(int slot, int col, int row, const char *text, int framed, int
     REG_DISPCNT |= BG1_ENABLE;
 }
 
+static int rect_hit(int x, int y, int w, int h, int col, int row, int cols, int rows)
+{
+    return x < (col + cols) * 8 && x + w > col * 8 && y < (row + rows) * 8 && y + h > row * 8;
+}
+
+int ui_text_overlaps(int x, int y, int w, int h, int with_box)
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+    {
+        const Label *l = &labels[s];
+        int e = l->framed ? 2 : 0;
+        if (l->active && rect_hit(x, y, w, h, l->col, l->row, l->cols + e, l->lines + e))
+            return 1;
+    }
+    return with_box && box_top >= 0 && rect_hit(x, y, w, h, box_left, box_top, box_cols, box_rows);
+}
+
 void ui_labels_snapshot(UiLabelSnap out[UI_LABEL_MAX])
 {
     for (int s = 0; s < UI_LABEL_MAX; s++)
