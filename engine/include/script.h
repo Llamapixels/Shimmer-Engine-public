@@ -438,6 +438,7 @@ typedef enum
     SCRIPT_ACTOR_COLLECT, /* a = NPC; run its On Collect once if it is a pickup */
     SCRIPT_PLAYER_STATE_SCRIPT, /* a = PSTATE_*, b = PSTATE_ON_START/DURING/END, ptr = script (0 removes) */
     SCRIPT_PLAYER_STATE_VAR,    /* a = variable: the platformer player's PSTATE_* */
+    SCRIPT_INPUT_LOCK,          /* a = 1 player controls / 2 all game input, b = 1 enable, 0 disable */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */
@@ -534,6 +535,10 @@ void script_snapshot_restore(int slot);
 int script_thread_start(const ScriptEvent *script);
 /* Is background thread `handle` still running `script`? */
 int script_thread_running(int handle, const ScriptEvent *script);
+
+/* "Enable / Disable Input": bit 0 = the player's controls are off, bit 1
+ * = Attach Script To Button scripts too. Stays across scenes. */
+int script_input_locked(void);
 
 /* Is the main script running (including paused on dialogue or a
  * SCRIPT_WAIT)? */

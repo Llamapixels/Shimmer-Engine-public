@@ -991,6 +991,13 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** Player controls (or all game input) off / back on. */
+export interface InputLockEvent extends EventBase {
+  type: "input_lock";
+  scope: "player" | "all";
+  enabled: boolean;
+}
+
 export interface PlayerStateVarEvent extends EventBase {
   type: "player_state_var";
   var: string;
@@ -1315,6 +1322,7 @@ export type ScriptEventJSON =
   | PlayerStateScriptEvent
   | PlayerStateScriptRemoveEvent
   | PlayerStateVarEvent
+  | InputLockEvent
   | ActorSetHitResponseEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

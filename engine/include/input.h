@@ -42,4 +42,8 @@ int input_down(uint16_t key);
  * (dialogue uses it so one press can't skip a box or open another). */
 void input_block_presses(int frames);
 
+/* While on, every input query reads "nothing pressed" (main.c wraps the
+ * player's movement in it for "Disable Player Input"). */
+void input_mute(int on);
+
 #endif

@@ -2058,6 +2058,29 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => playerStateSummary(ev.state, ev.when),
   }),
   def({
+    type: "input_lock",
+    label: "Enable / Disable Input",
+    category: "Timing & Input",
+    description:
+      "Turn the player's controls off (or back on) while the game keeps running - gravity, knockback and scripts carry on. " +
+      "\"All game input\" also stops Attach Script To Button scripts. Text boxes, choices and Wait For Button still read the " +
+      "buttons, so a script can always wait for a press. (Pause World stops the player too, while it's on.)",
+    fields: [
+      {
+        key: "scope",
+        label: "Input",
+        kind: "select",
+        options: [
+          { value: "player", label: "Player controls" },
+          { value: "all", label: "All game input (player and button scripts)" },
+        ],
+      },
+      { key: "enabled", label: "Enabled", kind: "bool" },
+    ],
+    create: () => ({ type: "input_lock", scope: "player", enabled: false }),
+    summary: (ev) => `${ev.scope === "all" ? "all input" : "player controls"} ${ev.enabled ? "on" : "off"}`,
+  }),
+  def({
     type: "player_state_var",
     label: "Store Player State In Variable",
     category: "Actors",

@@ -6,6 +6,7 @@
 static uint16_t current_keys = 0;
 static uint16_t previous_keys = 0;
 static int block_frames = 0;
+static int muted = 0;   /* input_mute() */
 
 /* Buttons whose presses input_block_presses() swallows (the d-pad still
  * works, so walking and menu cursors aren't held up). */
@@ -43,24 +44,29 @@ void input_update(void)
     }
 }
 
+void input_mute(int on)
+{
+    muted = on;
+}
+
 uint16_t input_held_mask(void)
 {
-    return current_keys;
+    return muted ? 0 : current_keys;
 }
 
 int input_held(uint16_t key)
 {
-    return (current_keys & key) != 0;
+    return !muted && (current_keys & key) != 0;
 }
 
 int input_pressed(uint16_t key)
 {
-    return (current_keys & key) && !(previous_keys & key);
+    return !muted && (current_keys & key) && !(previous_keys & key);
 }
 
 int input_released(uint16_t key)
 {
-    return !(current_keys & key) && (previous_keys & key);
+    return !muted && !(current_keys & key) && (previous_keys & key);
 }
 
 int input_down(uint16_t key)

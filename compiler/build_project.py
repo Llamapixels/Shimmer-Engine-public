@@ -2780,7 +2780,7 @@ PARITY_EVENT_TYPES = [
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
-    "player_state_script", "player_state_script_remove", "player_state_var",
+    "player_state_script", "player_state_script_remove", "player_state_var", "input_lock",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3246,6 +3246,12 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "input_lock":
+        scope = str(ev.get("scope", "player"))
+        if scope not in ("player", "all"):
+            raise BuildError(f"{where}: \"scope\" must be player or all.")
+        out.append(_instr("SCRIPT_INPUT_LOCK", a=1 if scope == "player" else 2, b=1 if ev.get("enabled", False) else 0))
 
     elif etype == "player_state_var":
         out.append(_instr("SCRIPT_PLAYER_STATE_VAR", a=resolve_var(_require(ev, "var", where), ctx, where)))

@@ -171,6 +171,13 @@ int script_thread_start(const ScriptEvent *script)
     return 0;
 }
 
+static int input_lock_bits;
+
+int script_input_locked(void)
+{
+    return input_lock_bits;
+}
+
 int script_thread_running(int handle, const ScriptEvent *script)
 {
     return handle >= 1 && handle < THREAD_COUNT && threads[handle].ip && threads[handle].base == script;
@@ -1169,6 +1176,17 @@ static void thread_step(ScriptThread *t, int is_main)
         case SCRIPT_PLAYER_STATE_SCRIPT:
             modes_set_state_script(ev->a, ev->b, (const ScriptEvent *)ev->ptr);
             break;
+
+        case SCRIPT_INPUT_LOCK:
+        {
+            /* "All input" covers the player's controls too. */
+            int bits = ev->a == 2 ? 3 : 1;
+            if (ev->b)
+                input_lock_bits &= ~bits;
+            else
+                input_lock_bits |= bits;
+            break;
+        }
 
         case SCRIPT_PLAYER_STATE_VAR:
             var_set(ev->a, (int16_t)modes_player_state());

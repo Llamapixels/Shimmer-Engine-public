@@ -1599,8 +1599,8 @@ int main(void)
                 break;
             }
 
-            /* "Attach Script To Button" scripts. */
-            if (script_check_input())
+            /* "Attach Script To Button" scripts (not while all input is off). */
+            if (!(script_input_locked() & 2) && script_check_input())
                 break;
 
             /* "Line Of Sight": an actor just saw the player. */
@@ -1612,7 +1612,11 @@ int main(void)
              * built-in pause menu: games attach one to START themselves
              * (Attach Script To Button). */
             npcs_push_player(player);
+            /* "Disable Player Input": the scene type still runs (gravity,
+             * knockback...) but sees no buttons. */
+            input_mute(script_input_locked() & 1);
             const ScriptEvent *action = modes_update(player);
+            input_mute(0);
 
             /* Wander, then sync the camera (follows the player by
              * default, or whatever a script has it locked to - see
