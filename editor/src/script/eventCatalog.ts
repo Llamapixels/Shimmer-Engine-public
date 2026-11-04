@@ -2074,6 +2074,30 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => playerStateSummary(ev.state, ev.when),
   }),
   def({
+    type: "actor_update",
+    label: "Control Actor On Update",
+    category: "Actors",
+    description:
+      "Start, pause, resume or stop an actor's On Update script, and its wandering. Pause freezes it where it is (mid-move " +
+      "included) and Resume carries on from there; Stop ends it, and Start runs it again from the top.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      {
+        key: "action",
+        label: "Action",
+        kind: "select",
+        options: [
+          { value: "pause", label: "Pause" },
+          { value: "resume", label: "Resume" },
+          { value: "stop", label: "Stop" },
+          { value: "start", label: "Start (from the top if stopped)" },
+        ],
+      },
+    ],
+    create: (c) => ({ type: "actor_update", actor: c.firstActor ?? "self", action: "pause" }),
+    summary: (ev) => `${ev.action} ${actorLabel(ev.actor)}'s On Update`,
+  }),
+  def({
     type: "input_lock",
     label: "Enable / Disable Input",
     category: "Timing & Input",

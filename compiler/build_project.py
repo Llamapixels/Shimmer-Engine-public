@@ -2785,7 +2785,7 @@ PARITY_EVENT_TYPES = [
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
-    "player_state_script", "player_state_script_remove", "player_state_var", "input_lock",
+    "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3257,6 +3257,16 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "actor_update":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        if idx == PLAYER_ACTOR_INDEX:
+            raise BuildError(f"{where}: the player has no actor On Update (use the scene's Player tab).")
+        action = str(ev.get("action", "pause"))
+        actions = ["start", "pause", "resume", "stop"]
+        if action not in actions:
+            raise BuildError(f"{where}: \"action\" must be one of: {', '.join(actions)}.")
+        out.append(_instr("SCRIPT_ACTOR_UPDATE", a=idx, b=actions.index(action)))
 
     elif etype == "input_lock":
         scope = str(ev.get("scope", "player"))

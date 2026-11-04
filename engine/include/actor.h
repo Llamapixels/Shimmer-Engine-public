@@ -95,6 +95,13 @@ void actor_set_state_name(int index, const char *name);
  * and stop on the last; actor_anim_done() says when it's there (also 1
  * for a one-frame or unknown animation, so a script never waits forever). */
 void actor_play_once(int index);
+
+/* "Actor On Update" control: the NPC's On Update script and the thread
+ * running it (0 = none), and setting that thread. Paused also stops its
+ * wandering (actor_set_update_paused). */
+int actor_update_thread(int index, const ScriptEvent **base);
+void actor_set_update_thread(int index, int handle);
+void actor_set_update_paused(int index, int paused);
 int actor_anim_done(int index);
 
 /* Turn per-frame animation stepping on/off for an actor using authored

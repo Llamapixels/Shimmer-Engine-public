@@ -994,6 +994,13 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** Start / pause / resume / stop an NPC's On Update script (and its wandering). */
+export interface ActorUpdateEvent extends EventBase {
+  type: "actor_update";
+  actor: ActorRef;
+  action: "start" | "pause" | "resume" | "stop";
+}
+
 /** Player controls (or all game input) off / back on. */
 export interface InputLockEvent extends EventBase {
   type: "input_lock";
@@ -1326,6 +1333,7 @@ export type ScriptEventJSON =
   | PlayerStateScriptRemoveEvent
   | PlayerStateVarEvent
   | InputLockEvent
+  | ActorUpdateEvent
   | ActorSetHitResponseEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

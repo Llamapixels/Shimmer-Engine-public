@@ -38,6 +38,7 @@ typedef struct
     const ScriptEvent *base;    /* start of the running script */
     const ScriptEvent *ip;      /* next instruction; 0 = not running */
     uint8_t play_once_started;  /* SCRIPT_ACTOR_PLAY_ONCE is waiting */
+    uint8_t paused;             /* "Pause Actor On Update": skipped until resumed */
     int wait_frames;
 
     /* SCRIPT_ACTOR_MOVE_TO and friends: which actor is mid-walk and
@@ -150,6 +151,7 @@ static void thread_begin(ScriptThread *t, const ScriptEvent *script)
     t->fade_waiting = 0;
     t->move_flags = 0;
     t->play_once_started = 0;
+    t->paused = 0;
 }
 
 void script_start(const ScriptEvent *script)
@@ -482,7 +484,7 @@ static void start_move(ScriptThread *t, int actor, int x, int y)
  * it's still waiting on something. */
 static void thread_step(ScriptThread *t, int is_main)
 {
-    if (!t->ip)
+    if (!t->ip || t->paused)
         return;
 
     if (t->owns_dialogue)
@@ -1194,6 +1196,41 @@ static void thread_step(ScriptThread *t, int is_main)
             }
             t->play_once_started = 0;
             break;
+
+        case SCRIPT_ACTOR_UPDATE:
+        {
+            const ScriptEvent *base;
+            int h = actor_update_thread(ev->a, &base);
+            int alive = base && h > 0 && h < THREAD_COUNT && threads[h].ip && threads[h].base == base;
+            if (ev->b == 0)          /* start (from the top if it had stopped) */
+            {
+                if (!alive && base)
+                    actor_set_update_thread(ev->a, script_thread_start(base));
+                else if (alive)
+                    threads[h].paused = 0;
+                actor_set_update_paused(ev->a, 0);
+            }
+            else if (ev->b == 2)     /* resume */
+            {
+                if (alive)
+                    threads[h].paused = 0;
+                actor_set_update_paused(ev->a, 0);
+            }
+            else                     /* pause / stop */
+            {
+                actor_set_update_paused(ev->a, 1);
+                if (alive && ev->b == 1)
+                    threads[h].paused = 1;
+                if (alive && ev->b == 3)
+                {
+                    threads[h].ip = 0;
+                    actor_set_update_thread(ev->a, 0);
+                    if (&threads[h] == t)
+                        return;   /* it stopped itself */
+                }
+            }
+            break;
+        }
 
         case SCRIPT_INPUT_LOCK:
         {

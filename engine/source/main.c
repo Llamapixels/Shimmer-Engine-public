@@ -123,6 +123,7 @@ static int           scene_sprite_marked = 0;
 static uint8_t npc_touching[NPC_MAX];
 static uint8_t npc_dormant[NPC_MAX];   /* spawn_pool copy not spawned yet */
 static uint8_t npc_thread[NPC_MAX];    /* thread its On Update runs in */
+static uint8_t npc_update_paused[NPC_MAX];   /* "Actor On Update" paused / stopped: no wandering */
 /* Each NPC's position last frame, for "Pushes the player". */
 static int npc_prev_x[NPC_MAX], npc_prev_y[NPC_MAX];
 
@@ -263,6 +264,7 @@ static void scene_entities_load(const SceneDef *scene)
         npc_prev_y[npc_count_active] = e->y;
         npc_touching[npc_count_active] = 0;
         npc_thread[npc_count_active] = 0;
+        npc_update_paused[npc_count_active] = 0;
         npc_dormant[npc_count_active] = def->spawn_pool;
         if (def->spawn_pool)
         {
@@ -675,6 +677,27 @@ int actor_spawn(const int16_t *p)
         return i;
     }
     return -1;
+}
+
+int actor_update_thread(int index, const ScriptEvent **base)
+{
+    *base = 0;
+    if (index < 0 || index >= npc_count_active || !npc_entities[index])
+        return 0;
+    *base = npc_defs[index]->on_update;
+    return npc_thread[index];
+}
+
+void actor_set_update_thread(int index, int handle)
+{
+    if (index >= 0 && index < npc_count_active)
+        npc_thread[index] = (uint8_t)handle;
+}
+
+void actor_set_update_paused(int index, int paused)
+{
+    if (index >= 0 && index < npc_count_active)
+        npc_update_paused[index] = (uint8_t)(paused ? 1 : 0);
 }
 
 int actor_remove(int index, const ScriptEvent **base)
@@ -1654,7 +1677,8 @@ int main(void)
                     /* Hidden actors (actor_set_visible(i, 0)) stand
                      * still, not shuffling around off-screen while
                      * they're "not there". */
-                    if (npc_defs[i]->movement && npc_entities[i]->solid && !npc_entities[i]->pinned)
+                    if (npc_defs[i]->movement && npc_entities[i]->solid && !npc_entities[i]->pinned &&
+                        !npc_update_paused[i])
                         update_wandering_npc(i);
                     if (npc_entities[i]->gravity && npc_entities[i]->solid && !npc_entities[i]->pinned)
                         npc_fall(npc_entities[i]);
