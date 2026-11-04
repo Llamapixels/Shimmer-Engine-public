@@ -32,6 +32,8 @@ void entity_set_anim_state(Entity *e, int state) {
     if (e && e->def && state >= 0 && state < e->def->state_count) e->anim_state = state;
 }
 void entity_animate(Entity *e, Direction d, int moving) { (void)e; (void)d; (void)moving; }
+void sprite_load_palette(int bank, const uint16_t *palette) { (void)bank; (void)palette; }
+void entity_change_sprite(Entity *e, const SpriteDef *def, int bank) { e->def = def; (void)bank; }
 int sprite_sin(int angle) { (void)angle; return 0; }
 int16_t var_get(int index) { (void)index; return 0; }
 
