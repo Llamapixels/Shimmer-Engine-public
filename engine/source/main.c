@@ -1116,6 +1116,8 @@ typedef struct
     int16_t x, y;
     uint8_t direction, visible, anim_state, script_state, anim_enabled, move_speed, collide, hit_disabled;
     uint8_t blocks_player, interaction_disabled, collision_group, pickup_collected;
+    const SpriteDef *def;   /* the sheet it wore (Set Actor / Player Sprite) */
+    uint8_t bank;
 } ActorSnap;
 
 static struct
@@ -1126,7 +1128,14 @@ static struct
     /* full = 1: actors, scripts and timers were saved too. */
     uint8_t full;
     uint8_t npc_count;
+    /* Always kept: the player's sheet, screen text and a HUD box. */
+    const SpriteDef *player_def;
+    UiLabelSnap labels[UI_LABEL_MAX];
+    DialogueHudSnap hud;
 } scene_stack[SCENE_STACK_MAX];
+/* The stack slot whose sheet / screen text the scene switch in progress
+ * puts back (-1 = none). */
+static int pending_ui_restore = -1;
 static ActorSnap snap_npcs[SCENE_STACK_MAX][NPC_MAX] EWRAM_BSS;
 static ActorSnap snap_player[SCENE_STACK_MAX] EWRAM_BSS;
 static int snap_timer_left[SCENE_STACK_MAX][MAX_TIMERS] EWRAM_BSS;
@@ -1152,6 +1161,8 @@ static void snap_actor(ActorSnap *s, const Entity *e)
     s->interaction_disabled = e->interaction_disabled;
     s->collision_group = e->collision_group;
     s->pickup_collected = e->pickup_collected;
+    s->def = e->def;
+    s->bank = e->sprite.palette_bank;
 }
 
 static void unsnap_actor(int index, Entity *e, const ActorSnap *s)
@@ -1165,6 +1176,11 @@ static void unsnap_actor(int index, Entity *e, const ActorSnap *s)
     e->interaction_disabled = s->interaction_disabled;
     e->collision_group = s->collision_group;
     e->pickup_collected = s->pickup_collected;
+    if (s->def && s->def != e->def && index != PLAYER_ACTOR_INDEX)
+    {
+        sprite_load_palette(s->bank, s->def->palette);
+        entity_change_sprite(e, s->def, s->bank);
+    }
     e->script_state = s->script_state;
     entity_set_anim_state(e, s->anim_state);
     e->anim_enabled = s->anim_enabled;
@@ -1182,6 +1198,9 @@ void game_scene_push(int full, int exclude_thread)
     scene_stack[n].y = (int16_t)g_player->y;
     scene_stack[n].dir = g_player->direction;
     scene_stack[n].full = full ? 1 : 0;
+    scene_stack[n].player_def = g_player->def;
+    ui_labels_snapshot(scene_stack[n].labels);
+    dialogue_hud_snapshot(&scene_stack[n].hud);
     if (full)
     {
         scene_stack[n].npc_count = (uint8_t)npc_count_active;
@@ -1209,6 +1228,7 @@ int game_scene_pop(int all, const ScriptEvent *on_return)
     int i = all ? 0 : scene_stack_count - 1;
     scene_stack_count = i;
     pending_return_script = on_return;
+    pending_ui_restore = i;
     pending_restore = scene_stack[i].full ? i : -1;
     script_request_scene_switch(scene_stack[i].scene, scene_stack[i].x,
                                 scene_stack[i].y, scene_stack[i].dir);
@@ -1692,6 +1712,18 @@ int main(void)
             /* Like GB Studio, a new scene shows the player again (a title
              * screen that hid it mustn't leave it hidden in the level). */
             actor_set_visible(PLAYER_ACTOR_INDEX, 1);
+
+            /* Back from a stored scene: the player's sheet, screen text and
+             * HUD box as they were. */
+            if (pending_ui_restore >= 0 && scene_stack[pending_ui_restore].scene == (uint8_t)pending_switch_scene)
+            {
+                int s = pending_ui_restore;
+                if (scene_stack[s].player_def && scene_stack[s].player_def != player->def)
+                    player_set_sprite((int)(scene_stack[s].player_def - sprite_defs), 0);
+                ui_labels_restore(scene_stack[s].labels);
+                dialogue_hud_restore(&scene_stack[s].hud);
+            }
+            pending_ui_restore = -1;
 
             /* Back from a "real pause": everyone where they were. */
             if (pending_restore >= 0 && scene_stack[pending_restore].scene == (uint8_t)pending_switch_scene)

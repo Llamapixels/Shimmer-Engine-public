@@ -40,6 +40,8 @@ typedef struct
 {
     uint8_t active, framed, col, row, cols, lines;
     uint16_t frames_left;   /* 0 = stays until cleared */
+    const char *text;       /* what was drawn, and where it was asked for */
+    uint8_t want_col, want_row;
 } Label;
 static Label labels[UI_LABEL_MAX];
 static uint32_t label_canvas[UI_LABEL_MAX][LABEL_TILES][8] EWRAM_BSS;
@@ -672,6 +674,9 @@ void ui_label_draw(int slot, int col, int row, const char *text, int framed, int
     if (row + lines + 2 * e > SCREEN_ROWS) row = SCREEN_ROWS - lines - 2 * e;
 
     Label *l = &labels[slot];
+    l->text = text;
+    l->want_col = (uint8_t)col;
+    l->want_row = (uint8_t)row;
     l->framed = (uint8_t)e;
     l->col = (uint8_t)col;
     l->row = (uint8_t)row;
@@ -689,6 +694,26 @@ void ui_label_draw(int slot, int col, int row, const char *text, int framed, int
     l->active = 1;
     label_put(slot);
     REG_DISPCNT |= BG1_ENABLE;
+}
+
+void ui_labels_snapshot(UiLabelSnap out[UI_LABEL_MAX])
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+    {
+        const Label *l = &labels[s];
+        out[s].text = l->active ? l->text : 0;
+        out[s].col = l->want_col;
+        out[s].row = l->want_row;
+        out[s].framed = l->framed;
+        out[s].frames_left = l->frames_left;
+    }
+}
+
+void ui_labels_restore(const UiLabelSnap in[UI_LABEL_MAX])
+{
+    for (int s = 0; s < UI_LABEL_MAX; s++)
+        if (in[s].text)
+            ui_label_draw(s, in[s].col, in[s].row, in[s].text, in[s].framed, in[s].frames_left);
 }
 
 void ui_label_clear(int slot)

@@ -48,6 +48,12 @@ void dialogue_set_extras(int portrait, int auto_frames, int bubble_actor);
 /* Take down a HUD box (DIALOGUE_OPT_HUD), if one is up. */
 void dialogue_hud_close(void);
 
+/* The HUD box on screen (text, options, place, portrait), for a stored
+ * scene to show it again; text 0 = none. */
+typedef struct { const char *text; int options, place, portrait; } DialogueHudSnap;
+void dialogue_hud_snapshot(DialogueHudSnap *out);
+void dialogue_hud_restore(const DialogueHudSnap *in);
+
 /* "Focus" for the next box (text, choice or menu) until it closes:
  * DIALOGUE_FOCUS_DIM darkens and DIALOGUE_FOCUS_BLUR pixelates
  * (mosaic) everything but the box. 0 = off. */

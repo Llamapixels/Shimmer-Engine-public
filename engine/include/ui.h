@@ -147,4 +147,14 @@ void ui_label_clear_area(int col, int row, int width, int height);
 /* Once per frame: labels with a time limit. */
 void ui_labels_tick(void);
 
+/* What a stored scene remembers of the screen text, to draw it again. */
+typedef struct
+{
+    const char *text;   /* 0 = slot unused */
+    uint8_t col, row, framed;
+    uint16_t frames_left;
+} UiLabelSnap;
+void ui_labels_snapshot(UiLabelSnap out[UI_LABEL_MAX]);
+void ui_labels_restore(const UiLabelSnap in[UI_LABEL_MAX]);
+
 #endif

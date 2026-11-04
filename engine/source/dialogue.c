@@ -68,6 +68,7 @@ static int auto_frames;          /* closes / turns by itself after this, 0 = wai
 static int auto_timer, skip_timer;
 #define PORTRAIT_BANK 15         /* a portrait borrows this OBJ palette bank */
 static ASprite portrait;
+static DialogueHudSnap hud_now;   /* the HUD box up now (text 0 = none) */
 static int portrait_on, portrait_pending;
 static uint16_t portrait_saved_pal[16];
 
@@ -578,6 +579,10 @@ void dialogue_show_ex(const char *text, int options, int place)
         return;   /* a real box is up: it wins */
     }
     mode = hud ? MODE_HUD : MODE_TEXT;
+    hud_now.text = hud ? text : 0;
+    hud_now.options = options;
+    hud_now.place = place;
+    hud_now.portrait = next_portrait;
     int framed = !(options & DIALOGUE_OPT_NO_FRAME);
     auto_frames = next_auto;
     auto_timer = skip_timer = 0;
@@ -629,8 +634,24 @@ void dialogue_show_ex(const char *text, int options, int place)
     input_block_presses(DIALOGUE_INPUT_DELAY);
 }
 
+void dialogue_hud_snapshot(DialogueHudSnap *out)
+{
+    *out = hud_now;
+    if (mode != MODE_HUD)
+        out->text = 0;
+}
+
+void dialogue_hud_restore(const DialogueHudSnap *in)
+{
+    if (!in->text || (mode != MODE_NONE && mode != MODE_HUD))
+        return;
+    dialogue_set_extras(in->portrait, 0, DIALOGUE_NO_ACTOR);
+    dialogue_show_ex(in->text, in->options, in->place);
+}
+
 void dialogue_hud_close(void)
 {
+    hud_now.text = 0;
     if (mode != MODE_HUD)
         return;
     mode = MODE_NONE;
