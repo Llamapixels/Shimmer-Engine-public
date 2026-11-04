@@ -103,6 +103,11 @@ static void apply_state_map(Entity *e)
 
 void entity_set_sprite(Entity *entity, const SpriteDef *def, int palette_bank)
 {
+    entity_set_sprite_reserve(entity, def, palette_bank, 0, 0);
+}
+
+void entity_set_sprite_reserve(Entity *entity, const SpriteDef *def, int palette_bank, int objs, int vram)
+{
     if (entity == 0 || def == 0)
         return;
     entity->def = def;
@@ -110,7 +115,8 @@ void entity_set_sprite(Entity *entity, const SpriteDef *def, int palette_bank)
     entity->anim_index = -1;
     entity->anim_hold = 0;
     sprite_init(&entity->sprite, entity->x, entity->y, def->frames, def->frame_count,
-                def->max_objs, def->max_vram_tiles, palette_bank);
+                objs > def->max_objs ? objs : def->max_objs,
+                vram > def->max_vram_tiles ? vram : def->max_vram_tiles, palette_bank);
     entity_set_collision_box(entity, def->col_ox, def->col_oy, def->col_w, def->col_h);
     entity_set_transform(entity, entity->angle, entity->scale_x, entity->scale_y);
     apply_state_map(entity);

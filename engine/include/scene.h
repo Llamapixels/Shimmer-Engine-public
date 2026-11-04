@@ -35,6 +35,9 @@ typedef struct
  */
 extern const SpriteDef sprite_defs[];
 extern const uint8_t player_sprite_index;
+/* The most OBJs / VRAM tiles any sheet the player can wear needs. */
+extern const uint8_t player_sprite_max_objs;
+extern const uint16_t player_sprite_max_vram;
 
 /*
  * One NPC placed in a scene. x/y are in pixels (already multiplied

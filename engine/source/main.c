@@ -218,7 +218,8 @@ static void scene_entities_load(const SceneDef *scene)
     if (g_player)
     {
         setup_player_palette(scene);
-        entity_set_sprite(g_player, player_sprite_for(scene), PLAYER_PALETTE);
+        entity_set_sprite_reserve(g_player, player_sprite_for(scene), PLAYER_PALETTE,
+                                  player_sprite_max_objs, player_sprite_max_vram);
     }
 
     if (!scene->npcs || scene->npc_count == 0)

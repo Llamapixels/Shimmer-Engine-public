@@ -167,6 +167,10 @@ void entity_set_sprite(Entity *entity, const SpriteDef *def, int palette_bank);
 /* Like entity_set_sprite(), for an entity that already has a sprite:
  * reuses its sprite memory when the new sheet fits ("Set Player
  * Sprite" mid-scene). */
+/* entity_set_sprite(), reserving at least this many OBJs / VRAM tiles (so
+ * a later entity_change_sprite() to a bigger sheet keeps its slots). */
+void entity_set_sprite_reserve(Entity *entity, const SpriteDef *def, int palette_bank, int objs, int vram);
+
 void entity_change_sprite(Entity *entity, const SpriteDef *def, int palette_bank);
 
 /* Set facing and whether the entity is walking; picks the matching

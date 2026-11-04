@@ -4118,6 +4118,14 @@ def build(project_dir, out_dir):
     c_parts.extend(sprite_inits)
     c_parts.append("};")
     c_parts.append(f"const uint8_t player_sprite_index = {sprite_names.index(player_sprite)};")
+    # The player keeps room for the biggest sheet it can switch to (scene
+    # player sprites, Set Player Sprite), so a switch never moves it into
+    # sprite slots drawn under the actors.
+    player_sheets = {player_sprite, *player_swaps,
+                     *(s.get("player_sprite") for _, s in scene_data_list if s.get("player_sprite"))}
+    player_sheets = [n for n in player_sheets if n in compiled_sprites]
+    c_parts.append(f"const uint8_t player_sprite_max_objs = {max(compiled_sprites[n].max_objs for n in player_sheets)};")
+    c_parts.append(f"const uint16_t player_sprite_max_vram = {max(compiled_sprites[n].max_vram for n in player_sheets)};")
     c_parts.append("")
 
     # Emit the item_names[] table (index = inventory bit). Declared with
@@ -4786,6 +4794,8 @@ def build(project_dir, out_dir):
         "extern const SceneDef *const scenes[SCENE_COUNT];",
         "extern const SpriteDef       sprite_defs[SPRITE_COUNT];",
         "extern const uint8_t         player_sprite_index;",
+        "extern const uint8_t         player_sprite_max_objs;",
+        "extern const uint16_t        player_sprite_max_vram;",
         "extern const char *const      item_names[];",
         "",
         "#endif",
