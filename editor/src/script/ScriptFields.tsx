@@ -201,7 +201,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       const preset = v === "stop" || v === 0 || ANIM_SPEED_PRESETS.some((p) => p.value === v);
       const units = (rec.__units as Record<string, string> | undefined) ?? {};
       return (
-        <div className="script-field-combo">
+        <div className="script-field-stack">
           <select
             value={preset ? String(v) : "custom"}
             onChange={(e) => {
@@ -1218,7 +1218,7 @@ function DurationInput({
     if (n !== frames) onChange(n);
   };
   return (
-    <div className="script-field-combo">
+    <div className="duration-combo">
       <input
         type="text"
         inputMode="decimal"

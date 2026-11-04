@@ -246,7 +246,7 @@ const SCENE_RETURN_FIELDS: FieldDef[] = [
   { key: "transition", label: "Transition", kind: "select", defaultValue: "fade_black", options: SCENE_TRANSITION_OPTIONS },
   {
     key: "transition_frames",
-    label: "Length (effects look best at half a second or more)",
+    label: "Length",
     kind: "duration",
     min: 1,
     max: 255,
@@ -1262,7 +1262,7 @@ export const EVENT_DEFS: EventDef[] = [
       },
       {
         key: "transition_frames",
-        label: "Length (effects look best at half a second or more)",
+        label: "Length",
         kind: "duration",
         min: 1,
         max: 255,
