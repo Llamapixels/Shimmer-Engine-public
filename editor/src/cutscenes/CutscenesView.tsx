@@ -341,7 +341,9 @@ function ImportDialog({
   const threshold = QUALITY.find((q) => q.id === quality)!.threshold;
   // A rough guess before converting (real video varies a lot).
   const guess = useMemo(() => {
-    const perFrame = (mode === "full" ? 38400 : 9600) * (threshold === 0 ? 0.22 : threshold < 5 ? 0.14 : 0.09);
+    // Fractions of a raw frame, from real conversions (the first guesses
+    // came out about half the finished size).
+    const perFrame = (mode === "full" ? 38400 : 9600) * (threshold === 0 ? 0.44 : threshold < 5 ? 0.28 : 0.18);
     return Math.round(length * fps * perFrame + (withAudio ? length * AUDIO_RATE : 0));
   }, [mode, fps, threshold, length, withAudio]);
 
