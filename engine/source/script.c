@@ -1479,7 +1479,7 @@ static int actor_sees_player(const SightWatch *w)
 {
     Entity *n = world_npc(w->actor);
     Entity *p = world_player();
-    if (!n || !p || !world_npc_solid(w->actor) || !p->sprite.visible)
+    if (!n || !p || !world_npc_active(w->actor) || !p->sprite.visible)
         return 0;
     int len = w->range * 8;
     int x0 = n->x + n->col_ox, y0 = n->y + n->col_oy;

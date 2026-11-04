@@ -1934,7 +1934,7 @@ export const EVENT_DEFS: EventDef[] = [
     type: "actor_set_collision_group",
     label: "Set Actor Collision Group",
     category: "Actors",
-    description: "Change an NPC's target group during play. Pickup immediately makes it harmless and non-blocking, and collects once on overlap using On Collect. Tile collisions, interaction and scripts are preserved. Player cannot be assigned an NPC group. Returning to combat requires re-enabling the desired hit responses and solidity.",
+    description: "Change an NPC's target group during play. Pickup immediately makes it harmless and non-blocking, and collects once on overlap using On Collect. Tile collisions, interaction and scripts are preserved. Player cannot be assigned an NPC group. Switching back to a combat group restores its solidity and hit responses.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
       { key: "group", label: "Group", kind: "select", options: [

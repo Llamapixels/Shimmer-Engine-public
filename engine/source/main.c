@@ -994,12 +994,10 @@ void actor_set_collision_group(int index, int group)
     if (!e || group < 0 || group > ACTOR_GROUP_PICKUP || e->collision_group == group) return;
     e->collision_group = (uint8_t)group;
     e->pickup_collected = 0;
+    /* Pickups never block or take hits (world_npc_solid and
+     * world_npc_hit_script check the group), so solidity and hit responses
+     * are kept and come back if it's turned back into an enemy. */
     npc_touching[index] = 0;
-    if (group == ACTOR_GROUP_PICKUP)
-    {
-        e->blocks_player = 0;
-        e->hit_disabled = 31;
-    }
 }
 
 void actor_set_hit_response(int index, int mask, int enabled)
