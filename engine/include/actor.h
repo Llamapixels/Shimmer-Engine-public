@@ -91,6 +91,11 @@ int actor_step_toward_ex(int index, int target_x, int target_y, int type, int co
 void actor_set_state(int index, int state_index);
 /* Resolve a named state against the actor's current sprite sheet. Missing = no-op. */
 void actor_set_state_name(int index, const char *name);
+/* After setting a state: play its animation once (from the first frame)
+ * and stop on the last; actor_anim_done() says when it's there (also 1
+ * for a one-frame or unknown animation, so a script never waits forever). */
+void actor_play_once(int index);
+int actor_anim_done(int index);
 
 /* Turn per-frame animation stepping on/off for an actor using authored
  * states - while off, it holds whatever frame is currently shown. */

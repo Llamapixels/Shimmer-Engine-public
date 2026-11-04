@@ -772,6 +772,32 @@ void actor_set_state_name(int index, const char *name)
         }
 }
 
+void actor_play_once(int index)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e)
+        return;
+    e->anim_once = 1;
+    e->anim_done = 0;
+    e->anim_frame = 0;
+    e->anim_timer = 0;
+    e->anim_enabled = 1;
+    if (e->def && e->anim_index >= 0)
+    {
+        const EntityAnimation *a = &e->def->anims[e->anim_index];
+        if (a->frame_count > 0)
+            sprite_show_frame(&e->sprite, a->frames[0]);
+    }
+}
+
+int actor_anim_done(int index)
+{
+    Entity *e = entity_for_actor(index);
+    if (!e || !e->anim_once || !e->def || e->anim_index < 0)
+        return 1;
+    return e->anim_done || e->def->anims[e->anim_index].frame_count < 2;
+}
+
 void actor_set_animate(int index, int enabled)
 {
     Entity *e = entity_for_actor(index);

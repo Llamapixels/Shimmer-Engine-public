@@ -438,6 +438,7 @@ typedef enum
     SCRIPT_ACTOR_COLLECT, /* a = NPC; run its On Collect once if it is a pickup */
     SCRIPT_PLAYER_STATE_SCRIPT, /* a = PSTATE_*, b = PSTATE_ON_START/DURING/END, ptr = script (0 removes) */
     SCRIPT_PLAYER_STATE_VAR,    /* a = variable: the platformer player's PSTATE_* */
+    SCRIPT_ACTOR_PLAY_ONCE,     /* a = actor: its state's animation once; b = 1 wait until done */
     SCRIPT_INPUT_LOCK,          /* a = 1 player controls / 2 all game input, b = 1 enable, 0 disable */
 } ScriptOp;
 

@@ -37,6 +37,7 @@ typedef struct
 {
     const ScriptEvent *base;    /* start of the running script */
     const ScriptEvent *ip;      /* next instruction; 0 = not running */
+    uint8_t play_once_started;  /* SCRIPT_ACTOR_PLAY_ONCE is waiting */
     int wait_frames;
 
     /* SCRIPT_ACTOR_MOVE_TO and friends: which actor is mid-walk and
@@ -148,6 +149,7 @@ static void thread_begin(ScriptThread *t, const ScriptEvent *script)
     t->camera_panning = 0;
     t->fade_waiting = 0;
     t->move_flags = 0;
+    t->play_once_started = 0;
 }
 
 void script_start(const ScriptEvent *script)
@@ -1175,6 +1177,21 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_PLAYER_STATE_SCRIPT:
             modes_set_state_script(ev->a, ev->b, (const ScriptEvent *)ev->ptr);
+            break;
+
+        case SCRIPT_ACTOR_PLAY_ONCE:
+            /* First run: start it. While waiting: retry until it's done. */
+            if (!t->play_once_started)
+            {
+                actor_play_once(ev->a);
+                t->play_once_started = 1;
+            }
+            if (ev->b && !actor_anim_done(ev->a))
+            {
+                t->ip--;
+                return;
+            }
+            t->play_once_started = 0;
             break;
 
         case SCRIPT_INPUT_LOCK:

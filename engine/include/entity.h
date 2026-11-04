@@ -109,6 +109,8 @@ typedef struct
     int16_t sub_y;          /* gravity: 1/256 px left over */
     uint8_t anim_hold;      /* a script picked a frame: keep it until the
                              * actor's direction or moving flag changes */
+    uint8_t anim_once;      /* "Set Actor State" play once: stop on the last frame */
+    uint8_t anim_done;      /* ... and it got there */
     uint8_t script_state;   /* 0, or state + 1: "Set Actor State" chose a
                              * non-default state for the player, so the
                              * movement mode's own states (run, jump...)

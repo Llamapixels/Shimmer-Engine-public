@@ -2450,6 +2450,9 @@ def compile_events(events, out, ctx, where):
             else:
                 state_idx = 0 if isinstance(ref, str) else resolve_state(idx, ref, ctx, ev_where)
                 out.append(_instr("SCRIPT_ACTOR_SET_STATE", a=idx, b=state_idx))
+            if ev.get("once"):
+                # Play it once, stopping on its last frame (and wait for that).
+                out.append(_instr("SCRIPT_ACTOR_PLAY_ONCE", a=idx, b=1 if ev.get("wait") else 0))
 
         elif etype == "actor_set_animate":
             idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)

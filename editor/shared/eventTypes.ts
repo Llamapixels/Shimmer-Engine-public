@@ -366,6 +366,9 @@ export interface ActorMoveToEvent extends EventBase {
 export interface ActorSetStateEvent extends EventBase {
   type: "actor_set_state";
   actor: ActorRef;
+  /** Play the animation once, stopping on its last frame (and wait for it). */
+  once?: boolean;
+  wait?: boolean;
   state: string | number;
 }
 

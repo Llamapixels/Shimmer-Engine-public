@@ -1179,9 +1179,11 @@ export const EVENT_DEFS: EventDef[] = [
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
       { key: "state", label: "State", kind: "state" },
+      { key: "once", label: "Play the animation once (stop on its last frame)", kind: "bool", defaultValue: false },
+      { key: "wait", label: "Wait until it has played", kind: "bool", defaultValue: false, showIf: (e) => !!e.once },
     ],
     create: (c) => ({ type: "actor_set_state", actor: c.firstActor ?? "self", state: "" }),
-    summary: (ev) => `${actorLabel(ev.actor)} → state "${ev.state}"`,
+    summary: (ev) => `${actorLabel(ev.actor)} → state "${ev.state}"${ev.once ? (ev.wait ? ", once (waits)" : ", once") : ""}`,
   }),
   def({
     type: "actor_set_animate",

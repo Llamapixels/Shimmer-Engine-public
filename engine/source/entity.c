@@ -42,6 +42,8 @@ Entity *entity_create(EntityType type, int x, int y, int width, int height)
         e->anim_index = -1;
         e->anim_frame = 0;
         e->anim_timer = 0;
+        e->anim_once = 0;
+        e->anim_done = 0;
         e->anim_enabled = 1;
         e->anim_hold = 0;
         e->dir_locked = 0;
@@ -191,6 +193,8 @@ void entity_set_anim_state(Entity *entity, int state)
     entity->anim_state = (uint8_t)state;
     entity->anim_hold = 0;
     entity->anim_enabled = 1;
+    entity->anim_once = 0;
+    entity->anim_done = 0;
     apply_state_map(entity);
 }
 
@@ -239,6 +243,11 @@ static void step_animation(Entity *e)
     if (a->frame_count < 2)
         return;
     uint8_t speed = e->anim_speed ? e->anim_speed : a->speed ? a->speed : ENTITY_ANIM_SPEED;
+    if (e->anim_once && e->anim_frame + 1 >= a->frame_count)
+    {
+        e->anim_done = 1;   /* played once: stays on the last frame */
+        return;
+    }
     if (++e->anim_timer < speed)
         return;
     e->anim_timer = 0;
