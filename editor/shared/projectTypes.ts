@@ -224,6 +224,12 @@ export interface NpcJSON {
   y: number;
   direction?: Direction;
   movement?: NpcMovement;
+  /** Wander: % of turns spent standing still (default 50). */
+  wander_stop_pct?: number;
+  /** Wander: frames each stop lasts, 0 = half a second to 1.5 s at random. */
+  wander_stop_frames?: number;
+  /** Wander: tiles per walk, 0 = walks for half a second to 1.5 s. */
+  wander_step_tiles?: number;
   name?: string;
   /** Shorthand: compiles to a single "text" on_interact event. */
   dialogue?: string;

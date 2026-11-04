@@ -93,6 +93,10 @@ typedef struct
     uint8_t interaction_disabled;
     const ScriptEvent *on_collect; /* safe, once-per-instance pickup collection */
     uint8_t collect_touch_disabled; /* collect via explicit script events instead */
+    /* Wander settings: % of turns spent standing (0-100), frames each
+     * stop lasts (0 = 30-89 at random), tiles per walk (0 = walks for
+     * 30-89 frames). */
+    uint8_t wander_stop_pct, wander_stop_frames, wander_step_tiles;
 } NpcDef;
 
 /*

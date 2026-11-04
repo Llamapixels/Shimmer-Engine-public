@@ -4616,7 +4616,10 @@ def build(project_dir, out_dir):
                     f"{1 if npc.get('gravity') else 0}, {1 if npc.get('_pool') else 0}, {spawn_ref}, "
                     f"{contact_ref}, {0 if contact_enabled else 1}, {projectile_disabled}, {{ {', '.join(hit_groups)} }}, "
                     f"{int(not physical['solid'])}, {int(not physical['collisions'])}, "
-                    f"{int(not physical['interact_enabled'])}, {collect_ref}, {int(not physical['collect_on_touch'])} }},")
+                    f"{int(not physical['interact_enabled'])}, {collect_ref}, {int(not physical['collect_on_touch'])}, "
+                    f"{resolve_small_int(npc.get('wander_stop_pct', 50), 'wander_stop_pct', where, 0, 100)}, "
+                    f"{resolve_small_int(npc.get('wander_stop_frames', 0), 'wander_stop_frames', where, 0, 255)}, "
+                    f"{resolve_small_int(npc.get('wander_step_tiles', 0), 'wander_step_tiles', where, 0, 32)} }},")
 
             c_parts.append(
                 f"static const NpcDef {ident}_npcs[{npc_count}] =")

@@ -1417,6 +1417,41 @@ const ACTOR_SCRIPT_KEYS = {
 } as const;
 type ActorTab = keyof typeof ACTOR_SCRIPT_KEYS;
 
+/** Wander settings: how often and how long it stops, how far it walks. */
+function WanderOptions({ actor, patch }: { actor: Partial<NpcJSON>; patch: (value: Partial<NpcJSON>) => void }) {
+  return <>
+    <FieldRow label="Stops" hint="How many of its turns it spends standing still instead of walking.">
+      <select value={actor.wander_stop_pct ?? 50} onChange={(e) => patch({ wander_stop_pct: Number(e.target.value) === 50 ? undefined : Number(e.target.value) })}>
+        {[0, 10, 25, 50, 75, 90].map((v) => (
+          <option key={v} value={v}>
+            {v === 0 ? "Never" : `${v}% of the time`}
+          </option>
+        ))}
+      </select>
+    </FieldRow>
+    <FieldRow label="Each stop lasts">
+      <select value={actor.wander_stop_frames ?? 0} onChange={(e) => patch({ wander_stop_frames: Number(e.target.value) || undefined })}>
+        <option value={0}>0.5 to 1.5 s (random)</option>
+        {[15, 30, 60, 90, 120, 180, 240].map((v) => (
+          <option key={v} value={v}>
+            {+(v / 60).toFixed(2)} s
+          </option>
+        ))}
+      </select>
+    </FieldRow>
+    <FieldRow label="Each walk">
+      <select value={actor.wander_step_tiles ?? 0} onChange={(e) => patch({ wander_step_tiles: Number(e.target.value) || undefined })}>
+        <option value={0}>0.5 to 1.5 s (random)</option>
+        {[1, 2, 3, 4, 6, 8].map((v) => (
+          <option key={v} value={v}>
+            {v} tile{v === 1 ? "" : "s"}
+          </option>
+        ))}
+      </select>
+    </FieldRow>
+  </>;
+}
+
 function ActorCollisionOptions({ actor, patch }: {
   actor: Partial<NpcJSON>; patch: (value: Partial<NpcJSON>) => void;
 }) {
@@ -1647,6 +1682,7 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
             ))}
           </select>
         </FieldRow>
+        {npc.movement === "wander" && <WanderOptions actor={npc} patch={patchNpc} />}
 
         <FieldRow label="Draw above player" hint="The player is normally drawn on top of every actor. Turn this on to draw this actor over the player instead.">
           <label className="script-field-bool">
@@ -2189,6 +2225,7 @@ function NpcPrefabFields({
             ))}
           </select>
         </FieldRow>
+        {template.movement === "wander" && <WanderOptions actor={template} patch={patch} />}
       </div>
       <div className="field-row-pair">
         <FieldRow label="Movement speed">

@@ -129,6 +129,7 @@ static int npc_prev_x[NPC_MAX], npc_prev_y[NPC_MAX];
 
 static uint16_t npc_wander_timer[NPC_MAX];
 static uint8_t  npc_wander_dir[NPC_MAX];     /* Direction */
+static uint16_t npc_wander_left[NPC_MAX];    /* px left on a "tiles per walk" step */
 static uint8_t  npc_wander_moving[NPC_MAX];  /* 0 = idling, 1 = walking */
 
 /*
@@ -290,10 +291,17 @@ static void update_wandering_npc(int i)
     else
     {
         uint32_t r = rng_next();
+        const NpcDef *def = npc_defs[i];
 
-        npc_wander_moving[i] = (uint8_t)(r & 1u);
-        npc_wander_dir[i]    = (uint8_t)((r >> 1) & 3u);
-        npc_wander_timer[i]  = (uint16_t)(30 + (r % 60));
+        npc_wander_moving[i] = (uint8_t)((r % 100) >= def->wander_stop_pct);
+        npc_wander_dir[i]    = (uint8_t)((r >> 8) & 3u);
+        npc_wander_timer[i]  = (uint16_t)(30 + ((r >> 12) % 60));
+        if (!npc_wander_moving[i] && def->wander_stop_frames)
+            npc_wander_timer[i] = def->wander_stop_frames;
+        /* A walk of a set number of tiles ends when it's covered them. */
+        npc_wander_left[i] = (uint16_t)(def->wander_step_tiles * 8);
+        if (npc_wander_moving[i] && def->wander_step_tiles)
+            npc_wander_timer[i] = 0xFFFF;
 
         if (!npc_wander_moving[i])
             entity_animate(npc, (Direction)npc_wander_dir[i], 0);
@@ -314,6 +322,13 @@ static void update_wandering_npc(int i)
         npc->x = nx;
         npc->y = ny;
         moved = 1;
+        if (npc_wander_left[i])
+        {
+            int step = npc->move_speed ? npc->move_speed : 1;
+            npc_wander_left[i] = npc_wander_left[i] > step ? (uint16_t)(npc_wander_left[i] - step) : 0;
+            if (!npc_wander_left[i])
+                npc_wander_timer[i] = 0;   /* covered its tiles: pick again */
+        }
     }
     else
     {
