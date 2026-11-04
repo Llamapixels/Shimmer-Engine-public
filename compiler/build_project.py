@@ -4036,6 +4036,17 @@ def build(project_dir, out_dir):
         raise BuildError(str(e)) from None
     for f in ctx["ui"]["fonts"]:
         print(f"  font: {f['name']} ({'fixed' if f['fixed'] else 'variable'} width, {len(f['widths'])} characters)")
+    # The sound a text box / choice / menu opens with (Settings > Dialogue):
+    # -1 none, a built-in SoundEffect, or 256 + a WAV's index.
+    text_sound = str((project.get("ui") or {}).get("textSound") or "blip")
+    if text_sound == "none":
+        ctx["ui"]["text_sound"] = -1
+    elif text_sound in ctx["wav_names"]:
+        ctx["ui"]["text_sound"] = 256 + ctx["wav_names"].index(text_sound)
+    elif text_sound in SOUND_NAME_TO_CONST:
+        ctx["ui"]["text_sound"] = list(SOUND_NAME_TO_CONST).index(text_sound)
+    else:
+        raise BuildError(f"Settings > Dialogue: unknown text box sound '{text_sound}'.")
 
     # -----------------------------------------------------------------------
     # Sprites: the player's plus every NPC's (see compiler/sprites.py).
@@ -4410,8 +4421,10 @@ def build(project_dir, out_dir):
                 where = f"{name}: door {di}"
 
                 if "target_scene" in door:
-                    events = [
-                        {"type": "play_sound", "sound": "door"},
+                    # The door's own sound, else the project's (Settings),
+                    # "none" = silent.
+                    sound = door.get("sound") or (project.get("ui") or {}).get("doorSound") or "door"
+                    events = ([] if sound == "none" else [{"type": "play_sound", "sound": sound}]) + [
                         {"type": "switch_scene",
                          "scene": door["target_scene"],
                          "x": door.get("target_x", 0),

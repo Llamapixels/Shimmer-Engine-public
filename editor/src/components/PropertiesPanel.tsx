@@ -19,6 +19,7 @@ import ScriptEditor, { type ScriptUpdater } from "../script/ScriptEditor";
 import type { ScriptEnv } from "../script/ScriptFields";
 import { countRefs } from "../script/scriptRefs";
 import { nextActorInputName } from "../script/customScriptModel";
+import { SoundChoice } from "./views/DialogueCard";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import { BackgroundSelect, backgroundRefFor, MusicSelect, SpriteSelect } from "./common/AssetSelect";
 import CommitInput from "./common/CommitInput";
@@ -1229,20 +1230,23 @@ function TimerScript({ scene, scenes, index }: { scene: SceneRecord; scenes: Sce
 // Door
 // ---------------------------------------------------------------------------
 
-function warpToScript(door: DoorJSON): EventScript {
+function warpToScript(door: DoorJSON, projectSound: string): EventScript {
+  const sound = door.sound || projectSound;
   return [
-    { type: "play_sound", sound: "door" },
+    ...(sound === "none" ? [] : [{ type: "play_sound" as const, sound: sound as never }]),
     { type: "switch_scene", scene: door.target_scene ?? "", x: door.target_x ?? 0, y: door.target_y ?? 0 },
   ];
 }
 
 /** If a custom script is exactly what the warp shorthand compiles to,
  * it can go back to the shorthand without losing anything. */
-function scriptAsWarp(events: EventScript | undefined): Pick<DoorJSON, "target_scene" | "target_x" | "target_y"> | null {
-  if (!events || events.length !== 2) return null;
-  const [a, b] = events as ScriptEventJSON[];
-  if (a.type !== "play_sound" || a.sound !== "door" || b.type !== "switch_scene") return null;
-  return { target_scene: b.scene, target_x: b.x ?? 0, target_y: b.y ?? 0 };
+function scriptAsWarp(events: EventScript | undefined): Pick<DoorJSON, "target_scene" | "target_x" | "target_y" | "sound"> | null {
+  if (!events || events.length < 1 || events.length > 2) return null;
+  const list = events as ScriptEventJSON[];
+  const b = list[list.length - 1];
+  const a = list.length === 2 ? list[0] : null;
+  if ((a && a.type !== "play_sound") || b.type !== "switch_scene") return null;
+  return { target_scene: b.scene, target_x: b.x ?? 0, target_y: b.y ?? 0, sound: a ? String(a.sound) : "none" };
 }
 
 function DoorProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneRecord[]; index: number }) {
@@ -1272,6 +1276,7 @@ function DoorProps({ scene, scenes, index }: { scene: SceneRecord; scenes: Scene
 
   const isWarp = door.events === undefined;
   const names = scenes.map(sceneName);
+  const projectDoorSound = useProjectStore.getState().project?.project.ui?.doorSound || "door";
 
   const toScript = () =>
     setDoor((d) => {
@@ -1279,7 +1284,9 @@ function DoorProps({ scene, scenes, index }: { scene: SceneRecord; scenes: Scene
       void _a;
       void _b;
       void _c;
-      return { ...rest, events: warpToScript(d) };
+      const { sound: _s, ...rest2 } = rest;
+      void _s;
+      return { ...rest2, events: warpToScript(d, projectDoorSound) };
     });
 
   const toWarp = () => {
@@ -1353,6 +1360,13 @@ function DoorProps({ scene, scenes, index }: { scene: SceneRecord; scenes: Scene
                 <NumberInput value={door.target_x ?? 0} min={0} onChange={(v) => patchDoor({ target_x: v }, "tx")} />
                 <NumberInput value={door.target_y ?? 0} min={0} onChange={(v) => patchDoor({ target_y: v }, "ty")} />
               </div>
+            </FieldRow>
+            <FieldRow label="Sound">
+              <SoundChoice
+                value={door.sound ?? ""}
+                onChange={(v) => patchDoor({ sound: v || undefined })}
+                extra={{ value: "", label: `Project's door sound (${projectDoorSound})` }}
+              />
             </FieldRow>
           </>
         )}

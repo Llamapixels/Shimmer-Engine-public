@@ -137,6 +137,14 @@ export default function DialogueCard() {
           />
         </label>
       )}
+      <label className="settings-field">
+        Sound when a text box opens
+        <SoundChoice value={ui.textSound ?? "blip"} onChange={(v) => setUi({ textSound: v })} />
+      </label>
+      <label className="settings-field">
+        Sound simple door triggers play (each trigger can choose its own)
+        <SoundChoice value={ui.doorSound ?? "door"} onChange={(v) => setUi({ doorSound: v })} />
+      </label>
       <label className="settings-field settings-check">
         <input type="checkbox" checked={ui.skipWithB !== false} onChange={(e) => setUi({ skipWithB: e.target.checked })} />
         Hold B to skip through text (shows each page at once and turns it after a moment)
@@ -157,5 +165,32 @@ export default function DialogueCard() {
         Speed events change them for the rest of the game.
       </p>
     </div>
+  );
+}
+
+/** None, a built-in sound or a WAV from assets/sounds. */
+export function SoundChoice({ value, onChange, extra }: { value: string; onChange: (v: string) => void; extra?: { value: string; label: string } }) {
+  const wavs = useProjectStore((s) => s.assets?.sounds ?? []);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      {extra && <option value={extra.value}>{extra.label}</option>}
+      <option value="none">None (silent)</option>
+      <optgroup label="Built in">
+        {["blip", "door", "save", "item"].map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </optgroup>
+      {wavs.length > 0 && (
+        <optgroup label="WAV (assets/sounds)">
+          {wavs.map((w) => (
+            <option key={w.name} value={w.name}>
+              {w.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </select>
   );
 }

@@ -594,7 +594,10 @@ static void thread_step(ScriptThread *t, int is_main)
                 dialogue_set_focus(ev->c & 3);
                 dialogue_show_menu(ev->str, ev->a);
             }
-            audio_play_blip();
+            if (ui_text_sound >= 256)
+                wav_play(ui_text_sound - 256, 0, 0);
+            else if (ui_text_sound >= 0)
+                play_sound_effect(ui_text_sound);
             t->owns_dialogue = 1;
             return;
 

@@ -43,6 +43,8 @@ extern const uint8_t ui_box_transition_frames;
 /* Settings > Dialogue: holding B rushes text along; the project has
  * portraits (their sprite block is kept free). */
 extern const uint8_t ui_text_skip_b;
+/* Sound a dialogue box opens with: -1 none, a SoundEffect, 256 + a WAV. */
+extern const int16_t ui_text_sound;
 extern const uint8_t ui_portraits_used;
 
 enum

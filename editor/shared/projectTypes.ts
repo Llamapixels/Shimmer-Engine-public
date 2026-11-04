@@ -181,6 +181,10 @@ export interface UiSettingsJSON {
   boxTransitionFrames?: number;
   /** Holding B rushes text along (default true). */
   skipWithB?: boolean;
+  /** Sound a text box opens with: "blip" (default), "none", a built-in or a WAV name. */
+  textSound?: string;
+  /** Sound simple door triggers play: "door" (default), "none", a built-in or a WAV name. */
+  doorSound?: string;
 }
 
 export interface DoorJSON {
@@ -190,6 +194,8 @@ export interface DoorJSON {
   height?: number;
   /** Simple-warp shorthand - mutually exclusive with "events". */
   target_scene?: string;
+  /** Simple warp: its sound ("none" = silent); unset = the project's door sound. */
+  sound?: string;
   target_x?: number;
   target_y?: number;
   /** Custom on_enter script - mutually exclusive with target_scene. */
