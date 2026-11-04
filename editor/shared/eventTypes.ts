@@ -994,6 +994,28 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** The playtime clock. */
+export interface PlaytimeEvent extends EventBase {
+  type: "playtime";
+  action: "start" | "pause" | "reset" | "add" | "subtract";
+  seconds?: number;
+}
+
+export interface PlaytimeReadEvent extends EventBase {
+  type: "playtime_read";
+  hours?: string;
+  minutes?: string;
+  seconds?: string;
+}
+
+/** Persistent data groups, apart from the save slots. */
+export interface PersistEvent extends EventBase {
+  type: "persist";
+  action: "save" | "load" | "clear" | "store_var" | "load_var";
+  group?: number;
+  var?: string;
+}
+
 /** An actor see-through or solid again; opacity 5-95 % is shared by all. */
 export interface ActorSetTransparentEvent extends EventBase {
   type: "actor_set_transparent";
@@ -1358,6 +1380,9 @@ export type ScriptEventJSON =
   | ActorUpdateEvent
   | ActorKnockbackEvent
   | ActorSetTransparentEvent
+  | PlaytimeEvent
+  | PlaytimeReadEvent
+  | PersistEvent
   | ActorSetHitResponseEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

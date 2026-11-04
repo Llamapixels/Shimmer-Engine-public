@@ -2591,11 +2591,78 @@ export const EVENT_DEFS: EventDef[] = [
 
   // Save data
   def({
+    type: "playtime",
+    label: "Playtime Clock",
+    category: "Save Data",
+    description:
+      "The playtime clock counts while the game runs (from the start), and is saved and loaded with the game. Pause and " +
+      "resume it (e.g. while a menu is open), reset it, or add or take away time. Read it with Store Playtime In Variables.",
+    fields: [
+      {
+        key: "action",
+        label: "Action",
+        kind: "select",
+        options: [
+          { value: "pause", label: "Pause" },
+          { value: "start", label: "Start / resume" },
+          { value: "reset", label: "Reset to 0" },
+          { value: "add", label: "Add time" },
+          { value: "subtract", label: "Take away time" },
+        ],
+      },
+      { key: "seconds", label: "Seconds", kind: "int", min: 0, max: 32767, showIf: (e) => e.action === "add" || e.action === "subtract" },
+    ],
+    create: () => ({ type: "playtime", action: "pause" }),
+    summary: (ev) => (ev.action === "add" || ev.action === "subtract" ? `${ev.action} ${ev.seconds ?? 0}s` : ev.action),
+  }),
+  def({
+    type: "playtime_read",
+    label: "Store Playtime In Variables",
+    category: "Save Data",
+    description:
+      "Put the playtime clock in variables: hours, minutes (0-59) and seconds (0-59). Leave hours out to get total minutes, " +
+      "or both to get total seconds (up to 32767).",
+    fields: [
+      { key: "hours", label: "Hours", kind: "variable" },
+      { key: "minutes", label: "Minutes", kind: "variable" },
+      { key: "seconds", label: "Seconds", kind: "variable" },
+    ],
+    create: (c) => ({ type: "playtime_read", hours: "", minutes: "", seconds: c.variables[0] ?? "" }),
+    summary: (ev) => [ev.hours, ev.minutes, ev.seconds].map((v) => (v ? `$${v}` : "-")).join(" : "),
+  }),
+  def({
+    type: "persist",
+    label: "Persistent Data",
+    category: "Save Data",
+    description:
+      "Data kept apart from the save slots: settings, unlockables, best times. Starting a new game or clearing a save " +
+      "leaves it alone. Four groups (0-3). Save stores every variable and the playtime; Store / Load Variable does one " +
+      "variable (loading a variable the group doesn't have leaves it as it is).",
+    fields: [
+      {
+        key: "action",
+        label: "Action",
+        kind: "select",
+        options: [
+          { value: "store_var", label: "Store variable" },
+          { value: "load_var", label: "Load variable" },
+          { value: "save", label: "Save all variables and playtime" },
+          { value: "load", label: "Load all it has" },
+          { value: "clear", label: "Clear the group" },
+        ],
+      },
+      { key: "group", label: "Group", kind: "int", min: 0, max: 3 },
+      { key: "var", label: "Variable", kind: "variable", showIf: (e) => e.action === "store_var" || e.action === "load_var" },
+    ],
+    create: (c) => ({ type: "persist", action: "store_var", group: 0, var: c.variables[0] ?? "" }),
+    summary: (ev) => `${String(ev.action).replace("_", " ")} (group ${ev.group ?? 0})${ev.var && String(ev.action).endsWith("var") ? ` $${ev.var}` : ""}`,
+  }),
+  def({
     type: "data_save",
     label: "Save Data",
     category: "Save Data",
     description: "Save the game (variables, flags, items, scene and position) to a slot.",
-    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 7 }],
     create: () => ({ type: "data_save", slot: 0 }),
     summary: (ev) => `slot ${ev.slot}`,
   }),
@@ -2604,7 +2671,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Load Data",
     category: "Save Data",
     description: "Load a save slot and go to its scene. Ends the script if the slot has a save; otherwise carries on.",
-    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 7 }],
     create: () => ({ type: "data_load", slot: 0 }),
     summary: (ev) => `slot ${ev.slot}`,
   }),
@@ -2613,7 +2680,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Clear Data",
     category: "Save Data",
     description: "Delete the save in a slot.",
-    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 7 }],
     create: () => ({ type: "data_clear", slot: 0 }),
     summary: (ev) => `slot ${ev.slot}`,
   }),
@@ -2622,7 +2689,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "If Data Saved",
     category: "Save Data",
     description: "Run Then if a save slot holds a save.",
-    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 2 }],
+    fields: [{ key: "slot", label: "Slot", kind: "int", min: 0, max: 7 }],
     branches: IF_BRANCHES,
     create: () => ({ type: "if_data_saved", slot: 0, then: [], else: [] }),
     summary: (ev) => `slot ${ev.slot}`,
@@ -2633,7 +2700,7 @@ export const EVENT_DEFS: EventDef[] = [
     category: "Save Data",
     description: "Copy a variable's value out of a save slot without loading it (0 if the slot is empty).",
     fields: [
-      { key: "slot", label: "Slot", kind: "int", min: 0, max: 2 },
+      { key: "slot", label: "Slot", kind: "int", min: 0, max: 7 },
       { key: "source", label: "Saved variable", kind: "variable" },
       { key: "var", label: "Store in", kind: "variable" },
     ],

@@ -545,9 +545,9 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
         scene_pop / scene_pop_all also take "transition" and
         "transition_frames" (as switch_scene) and "script": events run
         once the scene is back.
-    { "type": "data_save" | "data_load" | "data_clear", "slot": 0-2 }
-    { "type": "if_data_saved", "slot": 0-2, ... }
-    { "type": "data_peek", "slot": 0-2, "source": "<var in the save>",
+    { "type": "data_save" | "data_load" | "data_clear", "slot": 0-7 }
+    { "type": "if_data_saved", "slot": 0-7, ... }
+    { "type": "data_peek", "slot": 0-7, "source": "<var in the save>",
       "var": "<var to store it in>" }
     { "type": "sprites_show" }   { "type": "sprites_hide" }
     { "type": "palette_set", "target": "background" | "sprite", "bank": 0-15,
@@ -2706,7 +2706,8 @@ COMPARE_TO_EXPR = {
 
 TIMER_SCRIPT_SLOTS = 4          # script.c's TIMER_SLOTS
 MUSIC_ROUTINES = 16
-SAVE_SLOT_COUNT = 3             # save.h's SAVE_SLOT_COUNT
+SAVE_SLOT_COUNT = 8             # save.h's SAVE_SLOT_COUNT
+PERSIST_GROUPS = 4              # save.h's PERSIST_GROUPS
 PALETTE_TARGETS = {"background": 0, "sprite": 1}
 HEX_COLOR_RE = re.compile(r"^#?([0-9a-fA-F]{6})$")
 
@@ -2786,7 +2787,7 @@ PARITY_EVENT_TYPES = [
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
     "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
-    "actor_knockback", "actor_set_transparent",
+    "actor_knockback", "actor_set_transparent", "playtime", "playtime_read", "persist",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3258,6 +3259,28 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "playtime":
+        ops = ["start", "pause", "reset", "add", "subtract"]
+        op = str(ev.get("action", "start"))
+        if op not in ops:
+            raise BuildError(f"{where}: \"action\" must be one of: {', '.join(ops)}.")
+        seconds = resolve_small_int(ev.get("seconds", 0), "seconds", where, 0, 32767)
+        out.append(_instr("SCRIPT_PLAYTIME", a=ops.index(op), b=seconds))
+
+    elif etype == "playtime_read":
+        def var_or_skip(key):
+            return resolve_var(ev[key], ctx, where) if ev.get(key) else -1
+        out.append(_instr("SCRIPT_PLAYTIME_READ", a=var_or_skip("hours"), b=var_or_skip("minutes"), c=var_or_skip("seconds")))
+
+    elif etype == "persist":
+        ops = ["save", "load", "clear", "store_var", "load_var"]
+        op = str(ev.get("action", "save"))
+        if op not in ops:
+            raise BuildError(f"{where}: \"action\" must be one of: {', '.join(ops)}.")
+        group = resolve_small_int(ev.get("group", 0), "group", where, 0, PERSIST_GROUPS - 1)
+        var = resolve_var(_require(ev, "var", where), ctx, where) if op in ("store_var", "load_var") else 0
+        out.append(_instr("SCRIPT_PERSIST", a=ops.index(op), b=group, c=var))
 
     elif etype == "actor_set_transparent":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)

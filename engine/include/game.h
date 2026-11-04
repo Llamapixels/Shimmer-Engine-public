@@ -29,6 +29,15 @@ int  game_load_slot(int slot);
 void game_scene_push(int full, int exclude_thread);
 /* `on_return` (may be 0) runs once the scene is back. */
 int  game_scene_pop(int all, const ScriptEvent *on_return);
+
+/* The playtime clock (frames; counts while running, saved with the game):
+ * op 0 start/resume, 1 pause, 2 reset to 0, 3 add `seconds`, 4 subtract. */
+void game_playtime(int op, int seconds);
+uint32_t game_playtime_frames(void);
+/* Persistent data: op 0 save all variables + playtime to `group`, 1 load
+ * them, 2 clear the group, 3 store variable `var`, 4 load variable `var`
+ * (left as it is if the group has no value for it). */
+void game_persist(int op, int group, int var);
 void game_scene_reset(void);
 
 #endif

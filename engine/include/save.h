@@ -24,12 +24,31 @@ typedef struct
     int16_t  player_y;
     uint8_t  player_direction;
     int16_t  variables[MAX_VARIABLES]; /* see "variables" in project.json */
+    uint32_t playtime;         /* frames on the playtime clock */
     uint8_t  checksum;         /* set by save_write - ignore when filling this in */
 } SaveData;
 
+/* Persistent data: kept apart from the save slots, so starting a new game
+ * or clearing a save leaves it (settings, unlockables, total playtime). */
+#define PERSIST_GROUPS 4
+typedef struct
+{
+    uint32_t magic;
+    int16_t  variables[MAX_VARIABLES];
+    uint8_t  stored[MAX_VARIABLES / 8];   /* bit per variable: has a value here */
+    uint32_t playtime;
+    uint8_t  has_playtime;
+    uint8_t  checksum;
+} PersistData;
+
+/* Reads a group (0 = empty or broken: everything cleared), writes it back. */
+int  persist_read(int group, PersistData *data);
+void persist_write(int group, const PersistData *data);
+void persist_clear(int group);
+
 /* Save slots (GB Studio's Save/Load/Clear Data events pick one of
  * these). The pause menu's SAVE and boot-time resume use slot 0. */
-#define SAVE_SLOT_COUNT 3
+#define SAVE_SLOT_COUNT 8
 
 void save_write_slot(int slot, const SaveData *data);
 int  save_read_slot(int slot, SaveData *data);   /* 1 = valid save */

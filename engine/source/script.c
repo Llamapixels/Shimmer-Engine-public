@@ -1197,6 +1197,24 @@ static void thread_step(ScriptThread *t, int is_main)
             t->play_once_started = 0;
             break;
 
+        case SCRIPT_PLAYTIME:
+            game_playtime(ev->a, ev->b);
+            break;
+
+        case SCRIPT_PLAYTIME_READ:
+        {
+            uint32_t s = game_playtime_frames() / 60;
+            uint32_t h = s / 3600;
+            if (ev->a >= 0) var_set(ev->a, (int16_t)(h > 32767 ? 32767 : h));
+            if (ev->b >= 0) var_set(ev->b, (int16_t)(ev->a >= 0 ? (s / 60) % 60 : (s / 60 > 32767 ? 32767 : s / 60)));
+            if (ev->c >= 0) var_set(ev->c, (int16_t)(ev->b >= 0 ? s % 60 : (s > 32767 ? 32767 : s)));
+            break;
+        }
+
+        case SCRIPT_PERSIST:
+            game_persist(ev->a, ev->b, ev->c);
+            break;
+
         case SCRIPT_ACTOR_TRANSPARENT:
             actor_set_transparent(ev->a, ev->b, ev->c);
             break;

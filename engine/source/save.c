@@ -45,6 +45,58 @@ static volatile uint8_t *slot_base(int slot)
     return SRAM_BASE + slot * SLOT_STRIDE;
 }
 
+/* Persistent groups live after the save slots, one stripe each. */
+#define PERSIST_MAGIC 0x50534441u
+_Static_assert(sizeof(PersistData) <= SLOT_STRIDE, "PersistData outgrew its SRAM stripe");
+_Static_assert((SAVE_SLOT_COUNT + PERSIST_GROUPS) * SLOT_STRIDE <= 32768, "SRAM is 32KB");
+
+static volatile uint8_t *persist_base(int group)
+{
+    if (group < 0 || group >= PERSIST_GROUPS)
+        group = 0;
+    return SRAM_BASE + (SAVE_SLOT_COUNT + group) * SLOT_STRIDE;
+}
+
+static uint8_t persist_checksum(const PersistData *data)
+{
+    const uint8_t *bytes = (const uint8_t *)data;
+    uint8_t sum = 0;
+    for (uint32_t i = 0; i < offsetof(PersistData, checksum); i++)
+        sum += bytes[i];
+    return sum;
+}
+
+int persist_read(int group, PersistData *data)
+{
+    uint8_t *bytes = (uint8_t *)data;
+    volatile uint8_t *src = persist_base(group);
+    for (uint32_t i = 0; i < sizeof(PersistData); i++)
+        bytes[i] = src[i];
+    if (data->magic == PERSIST_MAGIC && data->checksum == persist_checksum(data))
+        return 1;
+    for (uint32_t i = 0; i < sizeof(PersistData); i++)
+        bytes[i] = 0;
+    return 0;
+}
+
+void persist_write(int group, const PersistData *data)
+{
+    PersistData copy = *data;
+    copy.magic = PERSIST_MAGIC;
+    copy.checksum = persist_checksum(&copy);
+    const uint8_t *bytes = (const uint8_t *)&copy;
+    volatile uint8_t *dst = persist_base(group);
+    for (uint32_t i = 0; i < sizeof(PersistData); i++)
+        dst[i] = bytes[i];
+}
+
+void persist_clear(int group)
+{
+    volatile uint8_t *dst = persist_base(group);
+    for (uint32_t i = 0; i < sizeof(uint32_t); i++)
+        dst[i] = 0;
+}
+
 void save_write(const SaveData *data)
 {
     save_write_slot(0, data);

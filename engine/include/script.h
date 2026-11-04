@@ -443,6 +443,9 @@ typedef enum
     SCRIPT_ACTOR_UPDATE,        /* a = NPC, b = 0 start / 1 pause / 2 resume / 3 stop its On Update */
     SCRIPT_ACTOR_KNOCKBACK,     /* ptr = int16_t[6], actor_knockback(); a = 1 wait until it's over */
     SCRIPT_ACTOR_TRANSPARENT,   /* a = actor, b = on, c = opacity 1-15 (0 = keep) */
+    SCRIPT_PLAYTIME,            /* a = op (game_playtime), b = seconds */
+    SCRIPT_PLAYTIME_READ,       /* a/b/c = variables for hours/minutes/seconds (-1 = skip) */
+    SCRIPT_PERSIST,             /* a = op, b = group, c = variable (game_persist) */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

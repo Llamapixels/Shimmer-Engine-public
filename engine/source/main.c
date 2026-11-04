@@ -1253,8 +1253,70 @@ int game_scene_index(void)
     return scene_to_index(scene_current());
 }
 
+/* The playtime clock: frames, and whether it's counting. */
+static uint32_t playtime_frames;
+static int playtime_running = 1;
+
+void game_playtime(int op, int seconds)
+{
+    uint32_t f = (uint32_t)(seconds < 0 ? 0 : seconds) * 60;
+    if (op == 0) playtime_running = 1;
+    else if (op == 1) playtime_running = 0;
+    else if (op == 2) playtime_frames = 0;
+    else if (op == 3) playtime_frames += f;
+    else if (op == 4) playtime_frames = playtime_frames > f ? playtime_frames - f : 0;
+}
+
+uint32_t game_playtime_frames(void)
+{
+    return playtime_frames;
+}
+
+static PersistData persist_buf EWRAM_BSS;
+
+void game_persist(int op, int group, int var)
+{
+    if (op == 2)
+    {
+        persist_clear(group);
+        return;
+    }
+    persist_read(group, &persist_buf);
+    const int16_t *vars = state_variables();
+    if (op == 0)
+    {
+        for (int i = 0; i < MAX_VARIABLES; i++)
+            persist_buf.variables[i] = vars[i];
+        for (int i = 0; i < MAX_VARIABLES / 8; i++)
+            persist_buf.stored[i] = 0xFF;
+        persist_buf.playtime = playtime_frames;
+        persist_buf.has_playtime = 1;
+        persist_write(group, &persist_buf);
+    }
+    else if (op == 1)
+    {
+        for (int i = 0; i < MAX_VARIABLES; i++)
+            if (persist_buf.stored[i >> 3] & (1 << (i & 7)))
+                var_set(i, persist_buf.variables[i]);
+        if (persist_buf.has_playtime)
+            playtime_frames = persist_buf.playtime;
+    }
+    else if (op == 3 && var >= 0 && var < MAX_VARIABLES)
+    {
+        persist_buf.variables[var] = vars[var];
+        persist_buf.stored[var >> 3] |= (uint8_t)(1 << (var & 7));
+        persist_write(group, &persist_buf);
+    }
+    else if (op == 4 && var >= 0 && var < MAX_VARIABLES)
+    {
+        if (persist_buf.stored[var >> 3] & (1 << (var & 7)))
+            var_set(var, persist_buf.variables[var]);
+    }
+}
+
 static void fill_save(SaveData *save_data)
 {
+    save_data->playtime = playtime_frames;
     save_data->flags = state_flags();
     save_data->inventory = state_inventory();
     save_data->scene_index = (uint8_t)scene_to_index(scene_current());
@@ -1283,6 +1345,7 @@ int game_load_slot(int slot)
         return 0;
 
     state_init(save_data.flags, save_data.inventory, save_data.variables);
+    playtime_frames = save_data.playtime;
     script_request_scene_switch(save_data.scene_index, save_data.player_x,
                                 save_data.player_y, save_data.player_direction);
     return 1;
@@ -1977,6 +2040,8 @@ int main(void)
         /* First Person 3D: draw the view for the next VBlank. */
         light_update();
         blend_update();
+        if (playtime_running)
+            playtime_frames++;
         raycast_draw();
     }
 
