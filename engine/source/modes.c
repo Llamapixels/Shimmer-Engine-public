@@ -57,6 +57,7 @@ static int coyote, jump_buffer, hold_timer, air_jumps, wall_jumps;
 static int climbing, drop_timer;
 static int dash_timer, dash_cooldown, dash_vx, dash_vy;
 static int kb_timer;
+static int kb_total, kb_vx, kb_vy;   /* free-movement knockback: its length and starting speed */
 static int step_done;   /* Top Down grid: a step just finished */
 /* First Person 3D: the feet's height and speed up (1/256 units), on the
  * ground?, head bob, the weapon (actor index, where it sits, its Fire /
@@ -1302,9 +1303,12 @@ static const ScriptEvent *free_update(Entity *p, const FreeMove *c)
 
     if (kb_timer > 0)
     {
+        /* Slows evenly to a stop over the knockback time (the walking
+         * deceleration has nothing to do with it). */
         kb_timer--;
-        vel_x = approach(vel_x, 0, dec / 2);
-        vel_y = approach(vel_y, 0, dec / 2);
+        int total = kb_total > 0 ? kb_total : 1;
+        vel_x = kb_vx * kb_timer / total;
+        vel_y = kb_vy * kb_timer / total;
     }
     else if (dash_timer > 0)
     {
@@ -1844,6 +1848,9 @@ void modes_player_hit(Entity *p, int from_x, int from_y)
         /* Mostly along the axis it came from. */
         vel_x = dxs >= dys / 2 ? away_x * kb_vel : 0;
         vel_y = dys >= dxs / 2 ? away_y * kb_vel : 0;
+        kb_total = kb_timer;
+        kb_vx = vel_x;
+        kb_vy = vel_y;
         dash_timer = 0;
         run_ability_script(adv ? MS_AD_ON_KNOCKBACK : MS_TD_ON_KNOCKBACK);
     }
