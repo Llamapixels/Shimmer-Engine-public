@@ -23,7 +23,7 @@ import NamedListSelect from "../components/common/NamedListSelect";
 import NumberInput from "../components/common/NumberInput";
 import { projectStateNames } from "./customScriptModel";
 import { sceneName, useProjectStore } from "../state/projectStore";
-import { buttonName, type FieldDef } from "./eventCatalog";
+import { ANIM_SPEED_PRESETS, buttonName, MOVE_SPEED_PRESETS, type FieldDef } from "./eventCatalog";
 import Icon from "../components/common/Icon";
 import DialogueBoxPreview from "../components/common/DialogueBoxPreview";
 
@@ -178,6 +178,72 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           extra={field.kind === "variable" ? paramRefs(env, "variable") : undefined}
         />
       );
+
+    case "duration": {
+      // Stored in frames; shown in seconds or frames (the choice is kept on the event).
+      const units = (rec.__units as Record<string, string> | undefined) ?? {};
+      return (
+        <DurationInput
+          frames={typeof value === "number" ? value : 0}
+          min={field.min}
+          max={field.max}
+          seconds={units[field.key] !== "frames"}
+          onChange={(n) => patch({ [field.key]: n }, true)}
+          onUnits={(secs) => patch({ __units: { ...units, [field.key]: secs ? "seconds" : "frames" } })}
+        />
+      );
+    }
+
+    case "animSpeed": {
+      const v = value === "stop" ? "stop" : typeof value === "number" ? value : 0;
+      const preset = v === "stop" || v === 0 || ANIM_SPEED_PRESETS.some((p) => p.value === v);
+      const units = (rec.__units as Record<string, string> | undefined) ?? {};
+      return (
+        <div className="script-field-combo">
+          <select
+            value={preset ? String(v) : "custom"}
+            onChange={(e) => {
+              const s = e.target.value;
+              patch({ [field.key]: s === "stop" ? "stop" : s === "custom" ? 10 : Number(s) });
+            }}
+          >
+            <option value="stop">Stopped</option>
+            {ANIM_SPEED_PRESETS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+            <option value="0">Sprite's own speed</option>
+            <option value="custom">Custom…</option>
+          </select>
+          {!preset && typeof v === "number" && (
+            <DurationInput
+              frames={v}
+              min={1}
+              max={255}
+              seconds={units[field.key] === "seconds"}
+              onChange={(n) => patch({ [field.key]: n }, true)}
+              onUnits={(secs) => patch({ __units: { ...units, [field.key]: secs ? "seconds" : "frames" } })}
+              suffix="per frame"
+            />
+          )}
+        </div>
+      );
+    }
+
+    case "moveSpeed": {
+      const v = typeof value === "number" ? value : 1;
+      return (
+        <select value={v} onChange={(e) => patch({ [field.key]: Number(e.target.value) })}>
+          {!MOVE_SPEED_PRESETS.some((p) => p.value === v) && <option value={v}>Speed {v}</option>}
+          {MOVE_SPEED_PRESETS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
 
     case "varOrLiteral": {
       const isVar = !!value && typeof value === "object";
@@ -1061,6 +1127,68 @@ function DialogueTextField({
         )}
       </div>
       {value && <DialogueBoxPreview text={value} lines={lines} framed={framed} cols={cols} />}
+    </div>
+  );
+}
+
+/** A length of time, stored in frames (60 a second) and typed in seconds
+ * or frames - the Seconds / Frames switch only changes how it's shown. */
+function DurationInput({
+  frames,
+  min,
+  max,
+  seconds,
+  onChange,
+  onUnits,
+  suffix,
+}: {
+  frames: number;
+  min?: number;
+  max?: number;
+  seconds: boolean;
+  onChange: (frames: number) => void;
+  onUnits: (seconds: boolean) => void;
+  suffix?: string;
+}) {
+  const show = (f: number) => (seconds ? String(+(f / 60).toFixed(2)) : String(f));
+  const [text, setText] = useState(show(frames));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setText(show(frames));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frames, seconds, focused]);
+  const commit = (raw: string) => {
+    const t = raw.trim();
+    if (seconds ? !/^\d*\.?\d+$|^\d+\.$/.test(t) : !/^\d+$/.test(t)) return;
+    let n = seconds ? Math.round(parseFloat(t) * 60) : parseInt(t, 10);
+    if (min !== undefined) n = Math.max(min, n);
+    if (max !== undefined) n = Math.min(max, n);
+    if (n !== frames) onChange(n);
+  };
+  return (
+    <div className="script-field-combo">
+      <input
+        type="text"
+        inputMode="decimal"
+        className="duration-input"
+        value={text}
+        title={seconds ? `${frames} frame${frames === 1 ? "" : "s"}` : `${+(frames / 60).toFixed(2)} seconds`}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => {
+          setText(e.target.value);
+          commit(e.target.value);
+        }}
+      />
+      <div className="seg" role="group" aria-label="Units">
+        <button className={seconds ? "seg-on" : ""} onClick={() => !seconds && onUnits(true)}>
+          Sec
+        </button>
+        <button className={!seconds ? "seg-on" : ""} onClick={() => seconds && onUnits(false)}>
+          Frames
+        </button>
+      </div>
+      {suffix && <span className="duration-suffix">{suffix}</span>}
     </div>
   );
 }

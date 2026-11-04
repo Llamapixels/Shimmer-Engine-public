@@ -47,6 +47,10 @@ export interface EventBase {
   __disabled?: boolean;
   /** This event's "else" branch is skipped (GB Studio's "Disable Else"). */
   __disableElse?: boolean;
+  /** Editor only: the block is folded (kept between sessions). */
+  __collapsed?: boolean;
+  /** Editor only: the block's colour, "#rrggbb" (right-click > Colour). */
+  __color?: string;
 }
 
 export interface TextEvent extends EventBase {

@@ -167,7 +167,7 @@ function FrameBadge({
   const over = !!cost && cost.objs.length > MAX_OBJS;
   return (
     <div className="spr-frame-meta">
-      <span>{index + 1}</span>
+      <span title="Frame number (Set Actor Frame counts from 0)">{index}</span>
       {cost && (
         <span
           className={`spr-frame-cost${over ? " spr-over" : ""}`}

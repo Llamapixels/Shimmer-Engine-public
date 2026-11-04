@@ -1,5 +1,5 @@
-import { createContext, memo, useCallback, useContext, useMemo, useRef, useState, type DragEvent } from "react";
-import { create } from "zustand";
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { createPortal } from "react-dom";
 
 import type { EventScript, MenuEvent, ScriptEventJSON, SwitchEvent } from "../../shared/eventTypes";
 import NumberInput from "../components/common/NumberInput";
@@ -7,7 +7,7 @@ import PopoverMenu, { type MenuItem } from "../components/common/PopoverMenu";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import AddEventMenu from "./AddEventMenu";
 import { useDragState, pathKey } from "./dragState";
-import { CATEGORY_COLOR, eventSummary, getEventDef, setPrefabNames, type CreateContext, type EventDef } from "./eventCatalog";
+import { CATEGORY_COLOR, eventSummary, getEventDef, setCustomScriptNames, setPrefabNames, type CreateContext, type EventDef } from "./eventCatalog";
 import { FieldControl, type ScriptEnv } from "./ScriptFields";
 import {
   cloneEvent,
@@ -17,6 +17,7 @@ import {
   getList,
   insertEvents,
   isInside,
+  mapEvents,
   moveEvent,
   removeEvent,
   replaceEvent,
@@ -44,18 +45,6 @@ function useEditor(): Ctx {
   if (!c) throw new Error("ScriptEditor context missing");
   return c;
 }
-
-/** Which blocks the user folded (true) or unfolded (false), by their
- * session-stable key. Blocks nobody touched use foldsByDefault(). */
-const useCollapsed = create<{ keys: Record<string, boolean>; set: (keys: string[], collapsed: boolean) => void }>((set) => ({
-  keys: {},
-  set: (keys, collapsed) =>
-    set((s) => {
-      const next = { ...s.keys };
-      for (const k of keys) next[k] = collapsed;
-      return { keys: next };
-    }),
-}));
 
 /** Events holding more than this many events start folded, so a huge
  * script opens at once instead of drawing thousands of blocks. */
@@ -96,9 +85,13 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
   const assets = useProjectStore((s) => s.assets);
   // Spawn Prefab summaries show the prefab's name.
   setPrefabNames(Object.fromEntries((project?.project.prefabs ?? []).map((p) => [p.id, p.name])));
+  setCustomScriptNames(Object.fromEntries((project?.project.customScripts ?? []).map((s) => [s.id, s.name])));
   const clipboard = useProjectStore((s) => s.scriptClipboard);
   const setClipboard = useProjectStore((s) => s.setScriptClipboard);
-  const setCollapsed = useCollapsed((s) => s.set);
+  /** Folding is saved on the events ("__collapsed"), so it's still how
+   * you left it after reopening the project. */
+  const foldAll = (collapsed: boolean) =>
+    onChange((r) => mapEvents(r, (ev) => (ev.__collapsed === collapsed ? ev : { ...ev, __collapsed: collapsed })) ?? r);
 
   const createCtx = useCallback((): CreateContext => {
     const npcs = env.scene.npcs ?? [];
@@ -125,12 +118,6 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
 
   const ctx = useMemo<Ctx>(() => ({ env, root, apply: onChange, createCtx }), [env, root, onChange, createCtx]);
 
-  const allKeys = () => {
-    const keys: string[] = [];
-    walkEvents(root, (ev) => keys.push(eventKey(ev)));
-    return keys;
-  };
-
   let total = 0;
   walkEvents(root, () => (total += 1));
 
@@ -141,10 +128,10 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
           <span className="script-editor-count">
             {total} event{total === 1 ? "" : "s"}
           </span>
-          <button className="link-btn" disabled={total === 0} onClick={() => setCollapsed(allKeys(), true)}>
+          <button className="link-btn" disabled={total === 0} onClick={() => foldAll(true)}>
             Collapse all
           </button>
-          <button className="link-btn" disabled={total === 0} onClick={() => setCollapsed(allKeys(), false)}>
+          <button className="link-btn" disabled={total === 0} onClick={() => foldAll(false)}>
             Expand all
           </button>
           <button
@@ -254,10 +241,12 @@ function performDrop(e: DragEvent, rootId: string, apply: ScriptUpdater) {
 const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; loc: EventLocation }) {
   const { env, apply, createCtx } = useEditor();
   const key = eventKey(ev);
-  const folded = useCollapsed((s) => s.keys[key]);
+
   const bigByDefault = useMemo(() => foldsByDefault(ev), [ev]);
-  const collapsed = folded ?? bigByDefault;
-  const setCollapsed = useCollapsed((s) => s.set);
+  const collapsed = ev.__collapsed ?? bigByDefault;
+  const tint = typeof ev.__color === "string" ? ev.__color : undefined;
+  const setCollapsed = (c: boolean) => patch({ __collapsed: c });
+  const [colorAt, setColorAt] = useState<{ x: number; y: number } | null>(null);
   const dragging = useDragState(
     (s) => s.dimmed?.rootId === env.rootId && s.dimmed.from.index === loc.index && pathKey(s.dimmed.from.path) === pathKey(loc.path),
   );
@@ -312,6 +301,15 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
       onClick: () => clipboard && apply((root) => insertEvents(root, loc.path, loc.index + 1, clipboard.map(cloneEvent))),
     },
     "separator",
+    {
+      label: tint ? "Change colour…" : "Colour…",
+      onClick: () => {
+        const r = headerRef.current?.getBoundingClientRect();
+        setColorAt(menu && !(menu instanceof HTMLElement) ? menu : { x: r?.left ?? 100, y: r?.bottom ?? 100 });
+      },
+    },
+    ...(tint ? [{ label: "Remove colour", onClick: () => patch({ __color: undefined }) }] : []),
+    "separator",
     // Mirrors GB Studio: a disabled event stays in the script but the
     // compiler skips it (and everything inside it).
     { label: disabled ? "Enable event" : "Disable event", onClick: () => patch({ __disabled: disabled ? undefined : true }) },
@@ -349,8 +347,8 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
 
   return (
     <div
-      className={`event-block${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}${disabled ? " event-block-disabled" : ""}`}
-      style={{ ["--cat" as string]: color }}
+      className={`event-block${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}${disabled ? " event-block-disabled" : ""}${tint ? " event-block-tinted" : ""}`}
+      style={{ ["--cat" as string]: tint ?? color, ...(tint ? { ["--tint" as string]: tint } : {}) }}
     >
       <div
         ref={headerRef}
@@ -367,22 +365,23 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
         onDrop={(e) => performDrop(e, env.rootId, apply)}
         onContextMenu={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           setMenu({ x: e.clientX, y: e.clientY });
         }}
-        onDoubleClick={() => setCollapsed([key], !collapsed)}
+        onDoubleClick={() => setCollapsed(!collapsed)}
       >
         <span className="event-grip" aria-hidden>
           ⠿
         </span>
         <button
           className="event-caret"
-          onClick={() => setCollapsed([key], !collapsed)}
+          onClick={() => setCollapsed(!collapsed)}
           aria-label={collapsed ? "Expand" : "Collapse"}
         >
           <Chevron open={!collapsed} />
         </button>
         <span className="event-title">{def?.label ?? `Unknown event "${ev.type}"`}</span>
-        {(collapsed || disabled) && <span className="event-summary">{eventSummary(ev)}</span>}
+        {(collapsed || disabled || ev.type === "call_script") && <span className="event-summary">{eventSummary(ev)}</span>}
         {disabled && <span className="event-disabled-tag">Disabled</span>}
         <button
           className="event-menu-btn"
@@ -428,6 +427,14 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
       )}
 
       {menu && <PopoverMenu anchor={menu} items={menuItems} onClose={() => setMenu(null)} />}
+      {colorAt && (
+        <ColorPopover
+          at={colorAt}
+          value={tint}
+          onChange={(c) => patch({ __color: c }, true)}
+          onClose={() => setColorAt(null)}
+        />
+      )}
       {addAt && (
         <AddEventMenu
           anchor={addAt.anchor}
@@ -443,6 +450,71 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
     </div>
   );
 });
+
+/** Block colours: a row of presets, any RGB colour, or none. */
+const BLOCK_COLORS = [
+  "#e5484d", "#f76b15", "#f2b84b", "#3dd68c", "#2fb8a6", "#40c8dc",
+  "#4f8cff", "#7a8cff", "#b58cff", "#e05bb5", "#a0805a", "#9aa0ae",
+];
+
+function ColorPopover({ at, value, onChange, onClose }: {
+  at: { x: number; y: number };
+  value: string | undefined;
+  onChange: (c: string | undefined) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hex, setHex] = useState(value ?? "");
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+    };
+  }, [onClose]);
+  const set = (c: string | undefined) => {
+    setHex(c ?? "");
+    onChange(c);
+  };
+  const left = Math.max(8, Math.min(at.x, window.innerWidth - 228));
+  const top = Math.max(8, Math.min(at.y, window.innerHeight - 170));
+  return createPortal(
+    <div ref={ref} className="block-color-pop" style={{ left, top }}>
+      <div className="block-color-swatches">
+        {BLOCK_COLORS.map((c) => (
+          <button
+            key={c}
+            className={`block-color-swatch${value === c ? " block-color-swatch-on" : ""}`}
+            style={{ background: c }}
+            title={c}
+            onClick={() => set(c)}
+          />
+        ))}
+      </div>
+      <div className="block-color-row">
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(hex) ? hex : "#4f8cff"} onChange={(e) => set(e.target.value)} title="Pick any colour" />
+        <input
+          className="block-color-hex"
+          value={hex}
+          placeholder="#rrggbb"
+          onChange={(e) => {
+            setHex(e.target.value);
+            if (/^#[0-9a-f]{6}$/i.test(e.target.value)) onChange(e.target.value.toLowerCase());
+          }}
+        />
+        <button className="btn btn-small" onClick={() => set(undefined)}>
+          None
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits", "scriptArgs", "combo"]);
 

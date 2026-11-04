@@ -935,11 +935,21 @@ void actor_set_move_speed(int index, int speed)
     e->move_speed = (uint8_t)speed;
 }
 
+/* speed < 0 stops the animation; a speed starts it again, unless Set Actor
+ * Frame is holding a frame. */
 void actor_set_anim_speed(int index, int speed)
 {
     Entity *e = entity_for_actor(index);
-    if (e)
-        e->anim_speed = (uint8_t)(speed < 0 ? 0 : speed > 255 ? 255 : speed);
+    if (!e)
+        return;
+    if (speed < 0)
+    {
+        entity_set_animate(e, 0);
+        return;
+    }
+    e->anim_speed = (uint8_t)(speed > 255 ? 255 : speed);
+    if (!e->anim_enabled && !e->anim_hold)
+        entity_set_animate(e, 1);
 }
 
 void actor_set_transform(int index, int angle, int scale_x, int scale_y)

@@ -670,3 +670,29 @@
   fill: #8cc8ff;
   font-size: 11px;
 }
+
+/* Actors / triggers / tiles used, centred under the scene. */
+.scene-canvas-stats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  min-width: 260px;
+  padding: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.scene-stat b {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.scene-stat-near b {
+  color: var(--warning);
+}
+
+.scene-stat-over,
+.scene-stat-over b {
+  color: var(--danger, #e5484d);
+}

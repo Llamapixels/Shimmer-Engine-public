@@ -21,6 +21,9 @@ export type FieldKind =
   | "item"
   | "variable"
   | "varOrLiteral"
+  | "duration"
+  | "animSpeed"
+  | "moveSpeed"
   | "actor"
   | "timer"
   | "scene"
@@ -227,11 +230,53 @@ export function buttonName(b: string): string {
   return BUTTON_NAMES[b.toLowerCase()] ?? b;
 }
 
+/** Set Actor Animation Speed presets: frames each animation frame shows for. */
+export const ANIM_SPEED_PRESETS: { value: number; label: string }[] = [
+  { value: 1, label: "Fastest" },
+  { value: 2, label: "Very fast" },
+  { value: 4, label: "Fast" },
+  { value: 8, label: "Normal" },
+  { value: 12, label: "Slow" },
+  { value: 20, label: "Very slow" },
+  { value: 32, label: "Slowest" },
+];
+
+export function animSpeedLabel(speed: number | "stop" | undefined): string {
+  if (speed === "stop") return "animation stopped";
+  if (!speed) return "sprite's own speed";
+  const p = ANIM_SPEED_PRESETS.find((x) => x.value === speed);
+  const secs = `${+(speed / 60).toFixed(2)}s a frame`;
+  return p ? `${p.label.toLowerCase()} animation` : secs;
+}
+
+/** Set Actor Movement Speed: pixels per frame (1 = normal walking). */
+export const MOVE_SPEED_PRESETS: { value: number; label: string }[] = [
+  { value: 1, label: "Speed 1 (normal)" },
+  { value: 2, label: "Speed 2" },
+  { value: 3, label: "Speed 3" },
+  { value: 4, label: "Speed 4 (fast)" },
+  { value: 6, label: "Speed 6" },
+  { value: 8, label: "Speed 8 (fastest)" },
+];
+
+function moveSpeedLabel(speed: number | undefined): string {
+  return `speed ${speed ?? 1}`;
+}
+
 /** A prefab's name, from its id (set by the editor, see setPrefabNames). */
 let prefabNames: Record<string, string> = {};
 export function setPrefabNames(names: Record<string, string>) {
   prefabNames = names;
 }
+/** Custom script names, from their ids (set by the editor, like prefabs). */
+let customScriptNames: Record<string, string> = {};
+export function setCustomScriptNames(names: Record<string, string>) {
+  customScriptNames = names;
+}
+function customScriptLabel(id: string | undefined): string {
+  return id ? (customScriptNames[id] ?? `${id} (missing!)`) : "(no script)";
+}
+
 function prefabLabel(id: string | undefined): string {
   return id ? (prefabNames[id] ?? `${id} (missing!)`) : "(no prefab)";
 }
@@ -332,7 +377,7 @@ export const EVENT_DEFS: EventDef[] = [
       { key: "x", label: "X (tiles)", kind: "int", min: 0, max: 29, defaultValue: 0 },
       { key: "y", label: "Y (tiles)", kind: "int", min: 0, max: 19, defaultValue: 0 },
       { key: "frame", label: "In a box", kind: "bool", defaultValue: false },
-      { key: "frames", label: "Clear after (frames, 0 = stays)", kind: "int", min: 0, max: MAX_I16, defaultValue: 0 },
+      { key: "frames", label: "Clear after (0 = stays)", kind: "duration", min: 0, max: MAX_I16, defaultValue: 0 },
     ],
     create: () => ({ type: "text_draw", slot: 0, x: 1, y: 1, text: "" }),
     summary: (ev) => `${ev.slot ?? 0}: "${short(ev.text, 30)}" at ${ev.x ?? 0}, ${ev.y ?? 0}`,
@@ -486,7 +531,7 @@ export const EVENT_DEFS: EventDef[] = [
         ],
       },
       { key: "wave_size", label: "Wave size (px)", kind: "int", min: 0, max: 64, defaultValue: 8, showIf: (e) => e.path === "wave" },
-      { key: "wave_length", label: "Wave length (frames)", kind: "int", min: 2, max: 600, defaultValue: 30, showIf: (e) => e.path === "wave" },
+      { key: "wave_length", label: "Wave length", kind: "duration", min: 2, max: 600, defaultValue: 30, showIf: (e) => e.path === "wave" },
       {
         key: "gravity",
         label: "Gravity (px/frame²)",
@@ -503,7 +548,7 @@ export const EVENT_DEFS: EventDef[] = [
         max: 8,
         showIf: (e) => e.path === "arc_high" || e.path === "arc_low" || e.lift !== undefined,
       },
-      { key: "return_after", label: "Comes back after (frames)", kind: "int", min: 1, max: 600, defaultValue: 30, showIf: (e) => e.path === "boomerang" },
+      { key: "return_after", label: "Comes back after", kind: "duration", min: 1, max: 600, defaultValue: 30, showIf: (e) => e.path === "boomerang" },
       { key: "bounces", label: "Wall bounces (255 = forever)", kind: "int", min: 0, max: 255, defaultValue: 0 },
       { key: "bounce_actors", label: "Bounces off actors", kind: "bool", defaultValue: false },
       {
@@ -517,7 +562,7 @@ export const EVENT_DEFS: EventDef[] = [
           { value: "linger", label: "Lingers a while, still hurting" },
         ],
       },
-      { key: "linger_frames", label: "Lingers for (frames)", kind: "int", min: 1, max: MAX_I16, defaultValue: 60, showIf: (e) => e.on_land === "linger" },
+      { key: "linger_frames", label: "Lingers for", kind: "duration", min: 1, max: MAX_I16, defaultValue: 60, showIf: (e) => e.on_land === "linger" },
       { key: "land_state", label: "Animation once landed", kind: "spriteState", showIf: (e) => e.on_land === "stick" || e.on_land === "linger" },
       {
         key: "stick_solid",
@@ -534,7 +579,7 @@ export const EVENT_DEFS: EventDef[] = [
       { key: "follow", label: "Follows the thrower (melee hitbox)", kind: "bool", defaultValue: false },
       { key: "mirror_offset", label: "Flip offset X when facing left", kind: "bool", defaultValue: false },
       { key: "tag", label: "Tag (1-8, for Recall / Remove; 0 = none)", kind: "int", min: 0, max: 8, defaultValue: 0 },
-      { key: "lifetime", label: "Lifetime (frames, 0 = until off screen)", kind: "int", min: 0, max: MAX_I16 },
+      { key: "lifetime", label: "Lifetime (0 = until off screen)", kind: "duration", min: 0, max: MAX_I16 },
       {
         key: "hits",
         label: "Hits",
@@ -1095,13 +1140,15 @@ export const EVENT_DEFS: EventDef[] = [
     type: "actor_set_frame",
     label: "Set Actor Frame",
     category: "Actors",
-    description: "Show a specific frame directly, by index into the actor's sprite sheet. Also pauses animation until re-enabled.",
+    description:
+      "Show one frame of the actor's current animation, counting from 0 like the Sprites editor (a number, or a variable's value). " +
+      "It holds that frame until Set Actor Animate or Set Actor State starts it animating again.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
-      { key: "frame", label: "Frame", kind: "int", min: 0, max: 255 },
+      { key: "frame", label: "Frame", kind: "varOrLiteral", min: 0, max: 255 },
     ],
     create: (c) => ({ type: "actor_set_frame", actor: c.firstActor ?? "self", frame: 0 }),
-    summary: (ev) => `${actorLabel(ev.actor)} → frame ${ev.frame}`,
+    summary: (ev) => `${actorLabel(ev.actor)} → frame ${valLabel(ev.frame as never)}`,
   }),
   def({
     type: "actor_set_collision_box",
@@ -1204,7 +1251,7 @@ export const EVENT_DEFS: EventDef[] = [
     description: "Fade the screen to black or white. \"Wait\" pauses the script until the fade finishes.",
     fields: [
       { key: "color", label: "To", kind: "fadeColor" },
-      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+      { key: "frames", label: "Time", kind: "duration", min: 1, max: MAX_I16 },
       { key: "wait", label: "Wait", kind: "bool" },
     ],
     create: () => ({ type: "fade_out", color: "black", frames: 30, wait: true }),
@@ -1217,7 +1264,7 @@ export const EVENT_DEFS: EventDef[] = [
     description: "Fade the screen back in from black or white. \"Wait\" pauses the script until the fade finishes.",
     fields: [
       { key: "color", label: "From", kind: "fadeColor" },
-      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+      { key: "frames", label: "Time", kind: "duration", min: 1, max: MAX_I16 },
       { key: "wait", label: "Wait", kind: "bool" },
     ],
     create: () => ({ type: "fade_in", color: "black", frames: 30, wait: true }),
@@ -1230,7 +1277,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Wait",
     category: "Timing & Input",
     description: "Pause the script. 60 frames = 1 second.",
-    fields: [{ key: "frames", label: "Frames", kind: "int", min: 0, max: MAX_I16 }],
+    fields: [{ key: "frames", label: "Time", kind: "duration", min: 0, max: MAX_I16 }],
     create: () => ({ type: "wait", frames: 30 }),
     summary: (ev) => `${ev.frames} frames (${(ev.frames / 60).toFixed(2).replace(/\.?0+$/, "")}s)`,
   }),
@@ -1349,7 +1396,7 @@ export const EVENT_DEFS: EventDef[] = [
       const args = Object.entries(ev.args ?? {}).map(
         ([k, a]) => `${k}: ${typeof a === "number" ? a : "actor" in a ? actorLabel(a.actor) : a.var}`,
       );
-      return (ev.script || "(no script)") + (args.length ? ` (${args.join(", ")})` : "");
+      return customScriptLabel(ev.script) + (args.length ? ` (${args.join(", ")})` : "");
     },
   }),
 
@@ -1453,7 +1500,7 @@ export const EVENT_DEFS: EventDef[] = [
     category: "Camera",
     description: "Shake the camera (background and every on-screen sprite together) for a number of frames. Doesn't pause the script.",
     fields: [
-      { key: "frames", label: "Frames", kind: "int", min: 0, max: MAX_I16 },
+      { key: "frames", label: "Time", kind: "duration", min: 0, max: MAX_I16 },
       { key: "magnitude", label: "Strength (px)", kind: "int", min: 0, max: 16 },
     ],
     create: () => ({ type: "camera_shake", frames: 20, magnitude: 2 }),
@@ -1579,7 +1626,7 @@ export const EVENT_DEFS: EventDef[] = [
     description: "Skip Events if they ran less than this many frames ago. The variable stores when they last ran.",
     fields: [
       { key: "var", label: "Variable", kind: "variable" },
-      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+      { key: "frames", label: "Time", kind: "duration", min: 1, max: MAX_I16 },
     ],
     branches: [{ key: "body", label: "Events" }],
     create: (c) => ({ type: "rate_limit", var: c.variables[0] ?? "", frames: 30, body: [] }),
@@ -1819,25 +1866,27 @@ export const EVENT_DEFS: EventDef[] = [
     type: "actor_set_move_speed",
     label: "Set Actor Movement Speed",
     category: "Actors",
-    description: "How fast scripted moves walk the actor, in pixels per frame.",
+    description: "How fast scripted moves (Move To, Move Relative...) walk the actor. Speed 1 is normal walking pace.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
-      { key: "speed", label: "Speed (px/frame)", kind: "int", min: 1, max: 8 },
+      { key: "speed", label: "Speed", kind: "moveSpeed" },
     ],
     create: (c) => ({ type: "actor_set_move_speed", actor: c.firstActor ?? "self", speed: 1 }),
-    summary: (ev) => `${actorLabel(ev.actor)} speed ${ev.speed}`,
+    summary: (ev) => `${actorLabel(ev.actor)} ${moveSpeedLabel(ev.speed)}`,
   }),
   def({
     type: "actor_set_anim_speed",
     label: "Set Actor Animation Speed",
     category: "Actors",
-    description: "Frames each animation frame is shown for. 0 uses the sprite's own speed.",
+    description:
+      "How fast the actor's animation plays. Stopped freezes it on the frame it's showing; picking a speed again starts it. " +
+      "Sprite's own uses the speed set in the Sprites editor. Custom: how long each frame is shown.",
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
-      { key: "speed", label: "Frames", kind: "int", min: 0, max: 255 },
+      { key: "speed", label: "Speed", kind: "animSpeed" },
     ],
-    create: (c) => ({ type: "actor_set_anim_speed", actor: c.firstActor ?? "self", speed: 0 }),
-    summary: (ev) => `${actorLabel(ev.actor)} ${ev.speed === 0 ? "default speed" : `${ev.speed} frames/frame`}`,
+    create: (c) => ({ type: "actor_set_anim_speed", actor: c.firstActor ?? "self", speed: 8 }),
+    summary: (ev) => `${actorLabel(ev.actor)} ${animSpeedLabel(ev.speed as number | "stop")}`,
   }),
   def({
     type: "actor_transform",
@@ -2236,7 +2285,7 @@ export const EVENT_DEFS: EventDef[] = [
     description: "Run a script every so many frames, in the background, until disabled or the scene changes.",
     fields: [
       { key: "timer", label: "Timer", kind: "int", min: 1, max: 4 },
-      { key: "frames", label: "Every (frames)", kind: "int", min: 1, max: MAX_I16 },
+      { key: "frames", label: "Every", kind: "duration", min: 1, max: MAX_I16 },
     ],
     branches: [{ key: "script", label: "On tick" }],
     create: () => ({ type: "timer_script_set", timer: 1, frames: 60, script: [] }),
@@ -2390,7 +2439,7 @@ export const EVENT_DEFS: EventDef[] = [
     description: "Play a square-wave tone on sound channel 1.",
     fields: [
       { key: "frequency", label: "Frequency (Hz)", kind: "int", min: 64, max: 20000 },
-      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+      { key: "frames", label: "Time", kind: "duration", min: 1, max: MAX_I16 },
     ],
     create: () => ({ type: "sound_tone", frequency: 440, frames: 30 }),
     summary: (ev) => `${ev.frequency} Hz, ${ev.frames}f`,
@@ -2402,7 +2451,7 @@ export const EVENT_DEFS: EventDef[] = [
     description: "Play a short noise-channel beep (pitch 1-8).",
     fields: [
       { key: "pitch", label: "Pitch", kind: "int", min: 1, max: 8 },
-      { key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 },
+      { key: "frames", label: "Time", kind: "duration", min: 1, max: MAX_I16 },
     ],
     create: () => ({ type: "sound_beep", pitch: 4, frames: 30 }),
     summary: (ev) => `pitch ${ev.pitch}, ${ev.frames}f`,
@@ -2412,7 +2461,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Play Crash",
     category: "Sound",
     description: "Play a noise burst on sound channel 4.",
-    fields: [{ key: "frames", label: "Frames", kind: "int", min: 1, max: MAX_I16 }],
+    fields: [{ key: "frames", label: "Time", kind: "duration", min: 1, max: MAX_I16 }],
     create: () => ({ type: "sound_crash", frames: 30 }),
     summary: (ev) => `${ev.frames}f`,
   }),

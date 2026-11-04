@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { CATEGORY_COLOR, CATEGORY_ORDER, EVENT_DEFS, type EventDef } from "./eventCatalog";
+import { CATEGORY_COLOR, CATEGORY_ORDER, EVENT_DEFS, type EventCategory, type EventDef } from "./eventCatalog";
 
 interface Props {
   /** The button the menu hangs off - used for positioning. */
@@ -13,19 +13,38 @@ interface Props {
 const WIDTH = 300;
 const MAX_HEIGHT = 420;
 
-/** GB Studio-style "Add Event" popover: type to search, arrows + Enter
- * to pick, or browse by category. Rendered in a portal so the
- * properties panel's scroll area doesn't clip it. */
+/** GB Studio-style "Add Event" popover: type to search, or pick a
+ * category and then an event (arrows + Enter, Left / Backspace goes back).
+ * Rendered in a portal so the properties panel's scroll area doesn't
+ * clip it. */
+
+type Row = { kind: "cat"; cat: EventCategory; count: number } | { kind: "back" } | { kind: "event"; def: EventDef };
+
+/** The category the menu was last left in, so adding several events
+ * of one kind in a row doesn't mean clicking through each time. */
+let lastCategory: EventCategory | null = null;
 export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<EventCategory | null>(lastCategory);
   const [active, setActive] = useState(0);
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number }>({ left: 0, top: 0, maxHeight: MAX_HEIGHT });
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const results = useMemo(() => {
+  const openCategory = (cat: EventCategory | null) => {
+    lastCategory = cat;
+    setCategory(cat);
+  };
+
+  const rows = useMemo<Row[]>(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return CATEGORY_ORDER.flatMap((cat) => EVENT_DEFS.filter((d) => d.category === cat));
+    if (!q) {
+      if (!category)
+        return CATEGORY_ORDER.map((cat): Row => ({ kind: "cat", cat, count: EVENT_DEFS.filter((d) => d.category === cat).length })).filter(
+          (r) => r.kind === "cat" && r.count > 0,
+        );
+      return [{ kind: "back" }, ...EVENT_DEFS.filter((d) => d.category === category).map((def): Row => ({ kind: "event", def }))];
+    }
     const words = q.split(/\s+/);
     // Rank: every word in the label > label contains the phrase > type/
     // category > description-only. Best matches first (so Enter picks
@@ -42,8 +61,19 @@ export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
     return EVENT_DEFS.map((d, i) => ({ d, s: score(d), i }))
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s || a.i - b.i)
-      .map((x) => x.d);
-  }, [query]);
+      .map((x): Row => ({ kind: "event", def: x.d }));
+  }, [query, category]);
+
+  // Opening a category starts on its first event, not the Back row.
+  useEffect(() => setActive(category && !query.trim() ? 1 : 0), [query, category]);
+
+  const choose = (r: Row | undefined) => {
+    if (!r) return;
+    if (r.kind === "cat") openCategory(r.cat);
+    else if (r.kind === "back") openCategory(null);
+    else onPick(r.def);
+  };
+  const activeRow = rows[active];
 
   useLayoutEffect(() => {
     const r = anchor.getBoundingClientRect();
@@ -64,14 +94,9 @@ export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
     return () => window.removeEventListener("mousedown", onDown);
   }, [anchor, onClose]);
 
-  useEffect(() => setActive(0), [query]);
-
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>(`[data-idx="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
-
-  let lastCat = "";
-  const grouped = !query.trim();
 
   return createPortal(
     <div
@@ -84,46 +109,63 @@ export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
           onClose();
         } else if (e.key === "ArrowDown") {
           e.preventDefault();
-          setActive((a) => Math.min(results.length - 1, a + 1));
+          setActive((a) => Math.min(rows.length - 1, a + 1));
         } else if (e.key === "ArrowUp") {
           e.preventDefault();
           setActive((a) => Math.max(0, a - 1));
-        } else if (e.key === "Enter") {
+        } else if (e.key === "Enter" || (e.key === "ArrowRight" && activeRow?.kind === "cat")) {
           e.preventDefault();
-          if (results[active]) onPick(results[active]);
+          choose(activeRow);
+        } else if ((e.key === "ArrowLeft" || (e.key === "Backspace" && !query)) && category && !query.trim()) {
+          e.preventDefault();
+          openCategory(null);
         }
       }}
     >
       <input
         autoFocus
         className="add-event-search"
-        placeholder="Search events…"
+        placeholder="Search all events…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       <div className="add-event-list" ref={listRef}>
-        {results.length === 0 && <div className="add-event-empty">No events match "{query}".</div>}
-        {results.map((d, i) => {
-          const header = grouped && d.category !== lastCat ? d.category : null;
-          lastCat = d.category;
-          return (
-            <div key={d.type}>
-              {header && <div className="add-event-cat">{header}</div>}
-              <button
-                data-idx={i}
-                className={`add-event-item${i === active ? " add-event-item-active" : ""}`}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => onPick(d)}
-                title={d.description}
-              >
-                <span className="add-event-dot" style={{ background: CATEGORY_COLOR[d.category] }} />
-                <span className="add-event-label">{d.label}</span>
+        {rows.length === 0 && <div className="add-event-empty">No events match "{query}".</div>}
+        {rows.map((r, i) => {
+          const on = i === active ? " add-event-item-active" : "";
+          if (r.kind === "back")
+            return (
+              <button key="back" data-idx={i} className={`add-event-item add-event-back${on}`} onMouseEnter={() => setActive(i)} onClick={() => choose(r)}>
+                <span className="add-event-arrow">‹</span>
+                <span className="add-event-label">{category}</span>
               </button>
-            </div>
+            );
+          if (r.kind === "cat")
+            return (
+              <button key={r.cat} data-idx={i} className={`add-event-item${on}`} onMouseEnter={() => setActive(i)} onClick={() => choose(r)}>
+                <span className="add-event-dot" style={{ background: CATEGORY_COLOR[r.cat] }} />
+                <span className="add-event-label">{r.cat}</span>
+                <span className="add-event-count">{r.count}</span>
+                <span className="add-event-arrow">›</span>
+              </button>
+            );
+          return (
+            <button
+              key={r.def.type}
+              data-idx={i}
+              className={`add-event-item${on}`}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => choose(r)}
+              title={r.def.description}
+            >
+              <span className="add-event-dot" style={{ background: CATEGORY_COLOR[r.def.category] }} />
+              <span className="add-event-label">{r.def.label}</span>
+              {query.trim() && <span className="add-event-count">{r.def.category}</span>}
+            </button>
           );
         })}
       </div>
-      {results[active] && <div className="add-event-desc">{results[active].description}</div>}
+      {activeRow?.kind === "event" && <div className="add-event-desc">{activeRow.def.description}</div>}
     </div>,
     document.body,
   );

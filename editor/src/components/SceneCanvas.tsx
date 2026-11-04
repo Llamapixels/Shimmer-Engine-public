@@ -313,6 +313,9 @@ export default function SceneCanvas() {
   const { img: layerImg0 } = useImage(rootPath, layer0?.image ? `scenes/${layer0.image}` : null);
   const { img: layerImg1 } = useImage(rootPath, layer1?.image ? `scenes/${layer1.image}` : null);
   const tileKeys = useMemo(() => (bgImage ? tileKeysOf(bgImage) : null), [bgImage]);
+  // Distinct 8x8 tiles in the background. The compiler also merges
+  // flipped copies, so the real count can only be lower.
+  const uniqueTiles = useMemo(() => (tileKeys ? new Set(tileKeys).size : 0), [tileKeys]);
 
   const playerSprite = projectJson ? playerSpriteName(projectJson) : "player";
   const spriteNames = useMemo(
@@ -1804,6 +1807,18 @@ export default function SceneCanvas() {
             }}
             data-testid="scene-canvas"
           />
+          {bgImage && (
+            <div className="scene-canvas-stats" style={{ width: bgImage.width * zoom }}>
+              <SceneStat label="Actors" used={(data.npcs ?? []).length} max={SCENE_MAX_ACTORS} />
+              <SceneStat label="Triggers" used={(data.doors ?? []).length} max={SCENE_MAX_TRIGGERS} />
+              <SceneStat
+                label="Tiles"
+                used={uniqueTiles}
+                max={SCENE_MAX_TILES}
+                title="Different 8x8 tiles in the background (flipped copies count once when building, so it can be a little lower)"
+              />
+            </div>
+          )}
           {ctxMenu && (
             <PopoverMenu
               anchor={{ x: ctxMenu.x, y: ctxMenu.y }}
@@ -1823,6 +1838,21 @@ export default function SceneCanvas() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Per-scene limits (the compiler's MAX_NPCS, MAX_TILES and the engine's
+ * 8-bit trigger count). */
+const SCENE_MAX_ACTORS = 16;
+const SCENE_MAX_TRIGGERS = 255;
+const SCENE_MAX_TILES = 1024;
+
+function SceneStat({ label, used, max, title }: { label: string; used: number; max: number; title?: string }) {
+  const level = used > max ? " scene-stat-over" : used >= max * 0.9 ? " scene-stat-near" : "";
+  return (
+    <span className={`scene-stat${level}`} title={title}>
+      {label} <b>{used}</b> / {max}
+    </span>
   );
 }
 

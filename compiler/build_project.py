@@ -397,7 +397,7 @@ Event script types (used in "on_interact" and door "events" lists):
     { "type": "actor_set_animate", "actor": ..., "enabled": true }
         Turn animation on ("enabled": true, the default) or off - off holds
         whatever frame is currently shown.
-    { "type": "actor_set_frame", "actor": ..., "frame": 3 }
+    { "type": "actor_set_frame", "actor": ..., "frame": 3 | {"var": "name"} }
         Show a frame (0-based) of the actor's current animation and stop
         animating, until animation is turned back on or the actor turns or
         starts/stops moving.
@@ -511,8 +511,9 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
       "actor": ..., "x": 1, "y": 0, "units": "tiles" }
     { "type": "actor_set_frame_var", "actor": ..., "var": ... }
     { "type": "actor_set_move_speed", "actor": ..., "speed": 1-8 }  px/frame
-    { "type": "actor_set_anim_speed", "actor": ..., "speed": 0-255 }
-        Frames per animation frame; 0 = the sprite's own speed.
+    { "type": "actor_set_anim_speed", "actor": ..., "speed": 0-255 | "stop" }
+        Frames per animation frame; 0 = the sprite's own speed; "stop"
+        freezes it on the current frame (any speed starts it again).
     { "type": "actor_set_collisions", "actor": ..., "enabled": true }
     { "type": "actor_transform", "actor": ..., "angle": 0-359,
       "scale_x": 25-200, "scale_y": 25-200 }   degrees clockwise, percent
@@ -2428,8 +2429,13 @@ def compile_events(events, out, ctx, where):
 
         elif etype == "actor_set_frame":
             idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)
-            frame = resolve_small_int(_require(ev, "frame", ev_where), "frame", ev_where, 0, 255)
-            out.append(_instr("SCRIPT_ACTOR_SET_FRAME", a=idx, b=frame))
+            frame = _require(ev, "frame", ev_where)
+            if isinstance(frame, dict):
+                v = resolve_var(_require(frame, "var", ev_where), ctx, ev_where)
+                out.append(_instr("SCRIPT_ACTOR_SET_FRAME_VAR", a=idx, b=v))
+            else:
+                frame = resolve_small_int(frame, "frame", ev_where, 0, 255)
+                out.append(_instr("SCRIPT_ACTOR_SET_FRAME", a=idx, b=frame))
 
         elif etype == "actor_set_collision_box":
             idx = resolve_actor(_require(ev, "actor", ev_where), ctx, ev_where)
@@ -3010,7 +3016,9 @@ def compile_parity_event(etype, ev, out, ctx, where):
 
     elif etype == "actor_set_anim_speed":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
-        speed = resolve_small_int(_require(ev, "speed", where), "speed", where, 0, 255)
+        speed = _require(ev, "speed", where)
+        # "stop" freezes the animation (-1 in the engine); a speed restarts it.
+        speed = -1 if speed == "stop" else resolve_small_int(speed, "speed", where, 0, 255)
         out.append(_instr("SCRIPT_ACTOR_SET_ANIM_SPEED", a=idx, b=speed))
 
     elif etype == "actor_transform":
