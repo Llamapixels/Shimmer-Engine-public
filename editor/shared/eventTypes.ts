@@ -59,8 +59,14 @@ export interface TextEvent extends EventBase {
    * Without (older events): every "\n" starts a new box. */
   text: string;
   line_breaks?: boolean;
-  /** Where the box sits (default "bottom"). */
-  position?: "bottom" | "top" | "middle";
+  /** A sprite shown at the start of the box (its first frame). */
+  avatar?: string;
+  /** Frames each page stays before moving on by itself, 0 = waits for A. */
+  auto_close?: number;
+  /** position "bubble": the actor the box sits over. */
+  bubble?: ActorRef;
+  /** Where the box sits (default "bottom"); "bubble" = over an actor. */
+  position?: "bottom" | "top" | "middle" | "custom" | "bubble";
   /** Text lines in the box, 1-4 (default 2). */
   rows?: number;
   /** false = no frame: just the text, on a see-through background. */

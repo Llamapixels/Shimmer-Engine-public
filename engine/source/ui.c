@@ -57,6 +57,8 @@ static int box_framed = 1;
 static int box_left = 0;    /* screen column of the box's left edge */
 static int box_cols = 30;   /* screen columns it covers, frame included */
 static int text_cols = BOX_COLS;   /* text tiles per line */
+static int box_inset;              /* ui_box_set_inset(), for the next open */
+static int text_x0, text_y0;       /* ui_box_text_origin() */
 
 static void put(int row, int col, int tile)
 {
@@ -237,6 +239,17 @@ int ui_text_width(void)
     return text_cols * 8;
 }
 
+void ui_box_set_inset(int tiles)
+{
+    box_inset = tiles < 0 ? 0 : tiles;
+}
+
+void ui_box_text_origin(int *x, int *y)
+{
+    *x = text_x0;
+    *y = text_y0;
+}
+
 void ui_box_open_ex(int lines, int position, int framed)
 {
     if (lines < 1)
@@ -281,6 +294,11 @@ void ui_box_open_at(int lines, int col, int row, int width, int framed)
     if (text_cols > BOX_COLS) text_cols = BOX_COLS;
     int text_top = box_top + (box_framed ? 1 : 0);
     int right = col + width - 1;
+    text_x0 = text_left * 8;
+    text_y0 = text_top * 8;
+    /* A portrait's columns stay empty; the text starts after them. */
+    int inset = box_inset < text_cols - 1 ? box_inset : 0;
+    box_inset = 0;
 
     if (box_framed)
     {
@@ -303,9 +321,12 @@ void ui_box_open_at(int lines, int col, int row, int width, int framed)
             put(r, col, FRAME_TILE + 3);
             put(r, right, FRAME_TILE + 5);
         }
-        for (int c = 0; c < text_cols; c++)
-            put(r, text_left + c, BOX_TILE + l * BOX_COLS + c);
+        for (int c = 0; c < inset; c++)
+            put(r, text_left + c, box_framed ? FRAME_TILE + 4 : 0);
+        for (int c = 0; c < text_cols - inset; c++)
+            put(r, text_left + inset + c, BOX_TILE + l * BOX_COLS + c);
     }
+    text_cols -= inset;
 
     ui_box_clear();
     ui_box_flush();

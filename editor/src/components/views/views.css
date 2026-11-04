@@ -357,6 +357,18 @@
   width: 100%;
 }
 
+/* A checkbox with its label beside it. */
+.settings-field.settings-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-field.settings-check input {
+  width: auto;
+  flex: none;
+}
+
 .asset-grid-sprites {
   grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
 }

@@ -1851,6 +1851,11 @@ def projectile_sprites(obj):
     return found
 
 
+def text_avatar_sprites(obj):
+    """Sprite names used as Display Text portraits anywhere in obj."""
+    return [ev["avatar"] for ev in _events_of_type(obj, "text") if isinstance(ev.get("avatar"), str) and ev["avatar"]]
+
+
 def actor_sprite_events(obj):
     """Sprite names of every "actor_set_sprite" event anywhere in obj."""
     return [ev["sprite"] for ev in _events_of_type(obj, "actor_set_sprite") if isinstance(ev.get("sprite"), str)]
@@ -2265,8 +2270,20 @@ def compile_events(events, out, ctx, where):
                 # (the engine's next-page and next-line characters).
                 text = text.replace("\r", "").replace("\n", "\x0b").replace("\f", "\n")
             text = interpolate_vars(text, ctx, ev_where)
-            opts, place = text_options(ev, ev_where)
-            out.append(_instr("SCRIPT_TEXT", a=opts, b=place, text=c_string_literal(text)))
+            is_bubble = ev.get("position") == "bubble"
+            opts, place = text_options({**ev, "position": "bottom"} if is_bubble else ev, ev_where)
+            # c: portrait sprite + 1; d: auto-close frames | (bubble actor + 3) << 8.
+            portrait = 0
+            if ev.get("avatar"):
+                if ev["avatar"] not in ctx["sprite_index"]:
+                    raise BuildError(f"{ev_where}: unknown portrait sprite '{ev['avatar']}'.")
+                portrait = ctx["sprite_index"][ev["avatar"]] + 1
+            auto = resolve_small_int(ev.get("auto_close", 0), "auto_close", ev_where, 0, 255)
+            bubble = 0
+            if is_bubble:
+                bubble = resolve_actor(ev.get("bubble", "player"), ctx, ev_where) + 3
+            out.append(_instr("SCRIPT_TEXT", a=opts, b=place, c=portrait, d=auto | (bubble << 8),
+                              text=c_string_literal(text)))
 
         elif etype == "text_set_font":
             idx = resolve_ui_name(_require(ev, "font", ev_where), "font", ctx, ev_where)
@@ -4029,19 +4046,24 @@ def build(project_dir, out_dir):
     # "Set Player Sprite" targets: compiled too, and while a project uses
     # the event, OBJ palette bank 0 is the player's alone (the player's
     # colors can change at any time).
-    custom_actor_sprites = actor_sprite_events(project.get("customScripts") or [])
+    custom_actor_sprites = actor_sprite_events(project.get("customScripts") or []) + \
+        text_avatar_sprites(project.get("customScripts") or []) + text_avatar_sprites(project.get("prefabs") or [])
     player_swaps = player_sprite_events(project.get("customScripts") or [])
     for _, scene in scene_data_list:
         player_swaps += player_sprite_events(scene)
     for _, scene in scene_data_list:
         for sname in ([scene.get("player_sprite")] + [npc.get("sprite") or player_sprite for npc in scene.get("npcs", [])]
                       + projectile_sprites(scene) + custom_projectiles + player_swaps
-                      + actor_sprite_events(scene) + custom_actor_sprites):
+                      + actor_sprite_events(scene) + text_avatar_sprites(scene) + custom_actor_sprites):
             if sname and sname not in sprite_names:
                 sprite_names.append(sname)
     if len(sprite_names) > 255:
         raise BuildError(f"{len(sprite_names)} different sprites are used; the most is 255.")
     compiled_sprites = compile_project_sprites(project, project_dir, sprite_names)
+    # Portraits keep a block of sprite memory free (engine sprite.c).
+    ctx["ui"]["portraits_used"] = bool(
+        text_avatar_sprites(project.get("customScripts") or []) or text_avatar_sprites(project.get("prefabs") or [])
+        or any(text_avatar_sprites(scene) for _, scene in scene_data_list))
     ctx["sprite_index"] = {n: i for i, n in enumerate(sprite_names)}
     ctx["sprite_state_names"] = {n: cs.state_names for n, cs in compiled_sprites.items()}
     ctx["all_state_names"] = {n for cs in compiled_sprites.values() for n in cs.state_names if n}

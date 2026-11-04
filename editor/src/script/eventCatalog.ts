@@ -23,6 +23,7 @@ export type FieldKind =
   | "varOrLiteral"
   | "duration"
   | "animSpeed"
+  | "portrait"
   | "moveSpeed"
   | "actor"
   | "timer"
@@ -392,8 +393,12 @@ export const EVENT_DEFS: EventDef[] = [
           { value: "middle", label: "Middle" },
           { value: "top", label: "Top" },
           { value: "custom", label: "Custom (X, Y, width)" },
+          { value: "bubble", label: "Speech bubble over an actor" },
         ],
       },
+      { key: "bubble", label: "Over", kind: "actor", showIf: (e) => e.position === "bubble" },
+      { key: "avatar", label: "Portrait", kind: "portrait" },
+      { key: "auto_close", label: "Moves on by itself after (0 = waits for A)", kind: "duration", min: 0, max: 255, defaultValue: 0 },
       { key: "box_x", label: "X (tiles)", kind: "int", min: 0, max: 29, defaultValue: 0, showIf: (e) => e.position === "custom" },
       { key: "box_y", label: "Y (tiles)", kind: "int", min: 0, max: 19, defaultValue: 0, showIf: (e) => e.position === "custom" },
       { key: "box_width", label: "Width (tiles)", kind: "int", min: 1, max: 30, defaultValue: 30, showIf: (e) => e.position === "custom" },

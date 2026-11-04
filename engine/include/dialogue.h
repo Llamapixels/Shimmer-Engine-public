@@ -38,6 +38,13 @@ void dialogue_show(const char *text);
 #define DIALOGUE_PLACE_W(p)      (((p) >> 10) & 31)
 void dialogue_show_ex(const char *text, int options, int place);
 
+/* Extras for the next dialogue_show_ex() only: a portrait (sprite_defs[]
+ * index, -1 = none) at the start of the box, closing by itself `auto_frames`
+ * after each page is shown (0 = waits for A), and a speech bubble over an
+ * actor (actor.h index, or DIALOGUE_NO_ACTOR) instead of the box's own place. */
+#define DIALOGUE_NO_ACTOR (-100)
+void dialogue_set_extras(int portrait, int auto_frames, int bubble_actor);
+
 /* Take down a HUD box (DIALOGUE_OPT_HUD), if one is up. */
 void dialogue_hud_close(void);
 

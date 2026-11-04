@@ -1425,6 +1425,7 @@ int main(void)
 
     input_init();
     sprite_system_init();
+    sprite_reserve_portrait(ui_portraits_used);
     background_init();
     camera_init();
     collision_init();

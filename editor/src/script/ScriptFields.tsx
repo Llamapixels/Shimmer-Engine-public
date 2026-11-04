@@ -516,6 +516,21 @@ export function FieldControl({ field, ev, env, patch }: Props) {
     case "sprite":
       return <SpriteSelect value={String(value ?? "player")} onChange={(v) => patch({ [field.key]: v ?? "player" })} />;
 
+    case "portrait": {
+      // Display Text's portrait: none, or a sprite (its first frame).
+      const sprites = ["player", ...(useProjectStore.getState().assets?.sprites ?? []).map((a) => a.name)];
+      return (
+        <select value={String(value ?? "")} onChange={(e) => patch({ [field.key]: e.target.value || undefined })}>
+          <option value="">None</option>
+          {sprites.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
     case "select":
       return (
         <select value={String(value ?? field.options?.[0]?.value ?? "")} onChange={(e) => patch({ [field.key]: e.target.value })}>

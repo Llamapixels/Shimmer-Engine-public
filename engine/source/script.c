@@ -568,6 +568,11 @@ static void thread_step(ScriptThread *t, int is_main)
                 t->ip--;
                 return;
             }
+            /* c = portrait sprite + 1; d = auto-close frames | bubble
+             * actor + 3 (0 = none) << 8. */
+            if (ev->op == SCRIPT_TEXT)
+                dialogue_set_extras(ev->c - 1, ev->d & 0xFF,
+                                    (ev->d >> 8) ? (ev->d >> 8) - 3 : DIALOGUE_NO_ACTOR);
             if (ev->op == SCRIPT_TEXT && (ev->a & DIALOGUE_OPT_HUD))
             {
                 dialogue_show_ex(ev->str, ev->a, ev->b);   /* HUD: carry on */

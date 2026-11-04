@@ -67,9 +67,23 @@ typedef struct
     int16_t angle;              /* degrees clockwise */
     uint8_t scale_x, scale_y;   /* percent */
     int16_t pivot_x, pivot_y;   /* rotation centre, relative to x/y */
+    uint8_t on_top;             /* drawn over the dialogue box (priority 0) */
 } ASprite;
 
 void sprite_system_init(void);
+
+/* Dialogue portraits: while on, the last SPRITE_PORTRAIT_OBJS OAM entries
+ * and SPRITE_PORTRAIT_TILES VRAM tiles are kept out of sprite_init() for
+ * sprite_init_portrait(). Set once at start-up (projects with portraits). */
+#define SPRITE_PORTRAIT_OBJS  8
+#define SPRITE_PORTRAIT_TILES 64
+void sprite_reserve_portrait(int on);
+/* Like sprite_init(), in the reserved block, drawn over the dialogue box. */
+void sprite_init_portrait(ASprite *sprite, const ASpriteFrame *frames, uint16_t frame_count,
+                          uint8_t max_objs, uint16_t max_vram_tiles, int palette_bank);
+
+/* Copy an OBJ palette bank out / back (a portrait borrows bank 15). */
+void sprite_save_palette(int bank, uint16_t *out);
 
 /* While on, sprite_init() takes OAM entries from a small block drawn in
  * front of every other sprite (falls back to the normal ones when full). */

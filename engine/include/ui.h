@@ -40,6 +40,10 @@ extern const uint8_t ui_default_text_speed;
 /* How dialogue boxes open and close (UI_ANIM_*) and in how many frames. */
 extern const uint8_t ui_box_transition;
 extern const uint8_t ui_box_transition_frames;
+/* Settings > Dialogue: holding B rushes text along; the project has
+ * portraits (their sprite block is kept free). */
+extern const uint8_t ui_text_skip_b;
+extern const uint8_t ui_portraits_used;
 
 enum
 {
@@ -108,6 +112,12 @@ void ui_box_open_ex(int lines, int position, int framed);
 /* Anywhere on screen: top-left corner at tile (col, row), `width` tiles
  * wide (frame included). Clamped to fit the screen. */
 void ui_box_open_at(int lines, int col, int row, int width, int framed);
+
+/* The next box opened keeps its first `tiles` text columns empty (a
+ * dialogue portrait goes there). One-shot: reset by the open. */
+void ui_box_set_inset(int tiles);
+/* Screen pixel where the open box's text area starts (before any inset). */
+void ui_box_text_origin(int *x, int *y);
 /* Pixels of text a line of the open box holds. */
 int ui_text_width(void);
 void ui_box_close(void);

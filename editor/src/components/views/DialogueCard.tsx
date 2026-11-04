@@ -137,6 +137,10 @@ export default function DialogueCard() {
           />
         </label>
       )}
+      <label className="settings-field settings-check">
+        <input type="checkbox" checked={ui.skipWithB !== false} onChange={(e) => setUi({ skipWithB: e.target.checked })} />
+        Hold B to skip through text (shows each page at once and turns it after a moment)
+      </label>
       <div className="name-row" style={{ marginBottom: 10 }}>
         <button className="btn btn-small" onClick={exportDefaults} title="Copy the built-in font, frame and cursor into this project to edit them">
           Copy built-in font and frame to project

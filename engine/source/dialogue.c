@@ -5,8 +5,12 @@
 #include "input.h"
 #include "state.h"   /* var_get() - variable interpolation */
 #include "ui.h"
-#include "sprite.h"       /* sprite_set_mosaic() - focus blur */
+#include "sprite.h"       /* sprite_set_mosaic() - focus blur; portraits */
 #include "transition.h"   /* transition_active() - focus vs fades */
+#include "scene.h"        /* sprite_defs[] - portraits */
+#include "world.h"        /* speech bubbles over actors */
+#include "actor.h"
+#include "camera.h"
 
 static void focus_start(void);
 static void focus_end(void);
@@ -32,6 +36,7 @@ static void focus_end(void);
 #define DIALOGUE_INPUT_DELAY 8   /* frames A/B/START ignored after a box
                                   * opens, turns a page or closes */
 #define OPTION_X         10   /* px: text after the menu cursor */
+#define SKIP_TURN_FRAMES 6    /* holding B: frames a shown page stays */
 #define MENU_MAX_OPTIONS UI_MAX_LINES
 
 typedef struct
@@ -56,6 +61,15 @@ static TextState end_state;      /* ... and once it's all shown */
 static int page_chars;           /* characters on the page */
 static int shown;                /* characters revealed so far */
 static int timer;
+
+/* dialogue_set_extras() for the next box, then the box's own. */
+static int next_portrait = -1, next_auto, next_bubble = DIALOGUE_NO_ACTOR;
+static int auto_frames;          /* closes / turns by itself after this, 0 = waits */
+static int auto_timer, skip_timer;
+#define PORTRAIT_BANK 15         /* a portrait borrows this OBJ palette bank */
+static ASprite portrait;
+static int portrait_on, portrait_pending;
+static uint16_t portrait_saved_pal[16];
 
 /* MODE_CHOICE / MODE_MENU */
 static int option_count;
@@ -422,6 +436,132 @@ void dialogue_show(const char *text)
     dialogue_show_ex(text, 0, 0);
 }
 
+void dialogue_set_extras(int portrait_sprite, int frames, int bubble_actor)
+{
+    next_portrait = portrait_sprite;
+    next_auto = frames;
+    next_bubble = bubble_actor;
+}
+
+/* The portrait's frame and its size (from its OBJs), or 0. */
+static const ASpriteFrame *portrait_frame(int sprite, int *frame_index, int *x0, int *y0, int *w, int *h)
+{
+    const SpriteDef *d = &sprite_defs[sprite];
+    if (!d->anims || d->anim_count == 0 || d->anims[0].frame_count == 0)
+        return 0;
+    int fi = d->anims[0].frames[0];
+    if (fi >= d->frame_count)
+        return 0;
+    const ASpriteFrame *f = &d->frames[fi];
+    if (!f->objs || f->obj_count == 0)
+        return 0;
+    int minx = 999, miny = 999, maxx = -999, maxy = -999;
+    for (int i = 0; i < f->obj_count; i++)
+    {
+        const ASpriteObj *o = &f->objs[i];
+        if (o->dx < minx) minx = o->dx;
+        if (o->dy < miny) miny = o->dy;
+        if (o->dx + o->w > maxx) maxx = o->dx + o->w;
+        if (o->dy + o->h > maxy) maxy = o->dy + o->h;
+    }
+    *frame_index = fi;
+    *x0 = minx;
+    *y0 = miny;
+    *w = maxx - minx;
+    *h = maxy - miny;
+    return f;
+}
+
+static void portrait_hide(void)
+{
+    portrait_pending = 0;
+    if (!portrait_on)
+        return;
+    portrait_on = 0;
+    sprite_hide(&portrait);
+    sprite_load_palette(PORTRAIT_BANK, portrait_saved_pal);
+}
+
+/* Draw the portrait at the start of the open box's text area. */
+static void portrait_show(void)
+{
+    portrait_pending = 0;
+    int fi, x0, y0, w, h;
+    if (next_portrait < 0 || !portrait_frame(next_portrait, &fi, &x0, &y0, &w, &h))
+        return;
+    const SpriteDef *d = &sprite_defs[next_portrait];
+    if (!portrait_on)
+        sprite_save_palette(PORTRAIT_BANK, portrait_saved_pal);
+    sprite_load_palette(PORTRAIT_BANK, d->palette);
+    sprite_init_portrait(&portrait, d->frames, d->frame_count, d->max_objs, d->max_vram_tiles, PORTRAIT_BANK);
+    sprite_show_frame(&portrait, fi);
+    int tx, ty;
+    ui_box_text_origin(&tx, &ty);
+    sprite_set_position(&portrait, tx - x0, ty - y0);
+    sprite_update(&portrait);
+    portrait_on = 1;
+}
+
+/* Widest line of `text` in pixels (codes skipped, variables as 3 digits). */
+static int text_width_px(const char *p, int font)
+{
+    int w = 0, best = 0;
+    for (; *p && *p != UI_CODE_OPTION; p++)
+    {
+        unsigned char c = (unsigned char)*p;
+        if (c == '\n' || c == UI_CODE_LINE)
+        {
+            w = 0;
+            continue;
+        }
+        if (is_code(c) && p[1])
+        {
+            if (c == UI_CODE_FONT)
+                font = code_arg(c, (unsigned char)p[1]);
+            else if (is_var(c))
+                w += 3 * ui_char_width(font, '0');
+            p++;
+            continue;
+        }
+        w += ui_char_width(font, c);
+        if (w > best)
+            best = w;
+    }
+    return best;
+}
+
+/* A speech bubble: a box just above the actor (below it when there's no
+ * room), as wide as the text needs. Returns 0 if the actor isn't there. */
+static int open_bubble(const char *text, int actor, int framed, int font, int inset)
+{
+    Entity *e = actor == PLAYER_ACTOR_INDEX ? world_player() : world_npc(actor);
+    if (!e)
+        return 0;
+    int sx = e->pinned ? e->x : e->x - camera_get_x();
+    int sy = e->pinned ? e->y : e->y - camera_get_y();
+    /* Over the sprite as drawn (it can be taller than its footprint). */
+    const ASprite *spr = &e->sprite;
+    int top = 0;
+    if (spr->frames && spr->current_frame >= 0 && spr->current_frame < spr->frame_count)
+    {
+        const ASpriteFrame *f = &spr->frames[spr->current_frame];
+        for (int i = 0; i < f->obj_count; i++)
+            if (f->objs[i].dy < top)
+                top = f->objs[i].dy;
+    }
+    sy += top;
+    int cols = (text_width_px(text, font) + 7) / 8 + inset + (framed ? 2 : 0) + 1;
+    if (cols > 22) cols = 22;
+    if (cols < (framed ? 4 : 2)) cols = framed ? 4 : 2;
+    int rows = text_lines + (framed ? 2 : 0);
+    int col = (sx + e->width / 2) / 8 - cols / 2;
+    int row = sy / 8 - rows;
+    if (row < 0)
+        row = (sy - top + e->height + 7) / 8;   /* no room above: below its feet */
+    ui_box_open_at(text_lines, col, row, cols, framed);
+    return 1;
+}
+
 void dialogue_show_ex(const char *text, int options, int place)
 {
     TextState st = { ui_font(), ui_speed(), 0 };
@@ -431,13 +571,50 @@ void dialogue_show_ex(const char *text, int options, int place)
         text_lines = UI_MAX_LINES;
     int hud = (options & DIALOGUE_OPT_HUD) != 0;
     if (hud && mode != MODE_NONE && mode != MODE_HUD)
+    {
+        next_portrait = -1;
+        next_auto = 0;
+        next_bubble = DIALOGUE_NO_ACTOR;
         return;   /* a real box is up: it wins */
+    }
     mode = hud ? MODE_HUD : MODE_TEXT;
     int framed = !(options & DIALOGUE_OPT_NO_FRAME);
-    if (DIALOGUE_OPT_POSITION(options) == UI_BOX_CUSTOM)
-        ui_box_open_at(text_lines, DIALOGUE_PLACE_X(place), DIALOGUE_PLACE_Y(place), DIALOGUE_PLACE_W(place), framed);
+    auto_frames = next_auto;
+    auto_timer = skip_timer = 0;
+
+    /* A portrait takes the first columns of the box, and as many lines as
+     * it is tall. */
+    int inset = 0, fi, x0, y0, pw, ph;
+    if (next_portrait >= 0 && portrait_frame(next_portrait, &fi, &x0, &y0, &pw, &ph))
+    {
+        inset = (pw + 7) / 8 + 1;
+        int need = (ph + 7) / 8;
+        if (need > text_lines)
+            text_lines = need > UI_MAX_LINES ? UI_MAX_LINES : need;
+    }
     else
-        ui_box_open_ex(text_lines, DIALOGUE_OPT_POSITION(options), framed);
+        next_portrait = -1;
+    ui_box_set_inset(inset);
+
+    if (next_bubble == DIALOGUE_NO_ACTOR || !open_bubble(text, next_bubble, framed, st.font, inset))
+    {
+        ui_box_set_inset(inset);
+        if (DIALOGUE_OPT_POSITION(options) == UI_BOX_CUSTOM)
+            ui_box_open_at(text_lines, DIALOGUE_PLACE_X(place), DIALOGUE_PLACE_Y(place), DIALOGUE_PLACE_W(place), framed);
+        else
+            ui_box_open_ex(text_lines, DIALOGUE_OPT_POSITION(options), framed);
+    }
+    next_bubble = DIALOGUE_NO_ACTOR;
+    next_auto = 0;
+    if (next_portrait >= 0)
+    {
+        if (hud)
+            portrait_show();
+        else
+            portrait_pending = 1;   /* once the box has finished opening */
+    }
+    else
+        portrait_hide();
     if (hud)
     {
         /* The first page, all at once; no focus, no waiting for A. */
@@ -457,6 +634,7 @@ void dialogue_hud_close(void)
     if (mode != MODE_HUD)
         return;
     mode = MODE_NONE;
+    portrait_hide();
     ui_box_close();
 }
 
@@ -488,6 +666,7 @@ int dialogue_last_choice(void)
 
 static void close_box(void)
 {
+    portrait_hide();
     mode = MODE_NONE;
     focus_pending = 0;
     focus_end();
@@ -508,6 +687,8 @@ void dialogue_update(void)
         focus_pending = 0;
         focus_start();
     }
+    if (portrait_pending)
+        portrait_show();
 
     if (mode == MODE_CHOICE || mode == MODE_MENU)
     {
@@ -529,10 +710,14 @@ void dialogue_update(void)
         return;
     }
 
+    /* Settings > Dialogue "Hold B to skip": B shows the page at once, and
+     * held on, turns pages every few frames. */
+    int skipping = ui_text_skip_b && input_held(INPUT_B);
+
     /* Revealing the page. */
     if (shown < page_chars)
     {
-        if (input_pressed(INPUT_A))
+        if (input_pressed(INPUT_A) || skipping)
         {
             shown = page_chars;
             render_page();
@@ -542,11 +727,18 @@ void dialogue_update(void)
             shown++;
             render_page();
         }
+        auto_timer = skip_timer = 0;
         return;
     }
 
-    if (!input_pressed(INPUT_A))
+    int go = input_pressed(INPUT_A);
+    if (skipping && ++skip_timer >= SKIP_TURN_FRAMES)
+        go = 1;
+    if (auto_frames && ++auto_timer >= auto_frames)
+        go = 1;
+    if (!go)
         return;
+    auto_timer = skip_timer = 0;
     if (next_page)
     {
         start_page(next_page, end_state);

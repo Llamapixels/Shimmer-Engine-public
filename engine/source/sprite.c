@@ -80,6 +80,10 @@ static int sin_deg(int a)
 /* sprite_set_mosaic(): attribute 0 bit 12 on every OBJ written. */
 static uint16_t obj_mosaic = 0;
 
+/* sprite_reserve_portrait(): the normal allocator's limits. */
+static uint16_t oam_limit = SPRITE_MAX;
+static uint16_t tile_limit = OBJ_TILE_MAX;
+
 static uint16_t next_oam = FRONT_OAM;
 static uint16_t next_tile = 0;
 static uint16_t next_front = 0;
@@ -170,6 +174,19 @@ void sprite_alloc_reset(uint32_t mark)
 }
 
 
+void sprite_reserve_portrait(int on)
+{
+    oam_limit = on ? SPRITE_MAX - SPRITE_PORTRAIT_OBJS : SPRITE_MAX;
+    tile_limit = on ? OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES : OBJ_TILE_MAX;
+}
+
+void sprite_save_palette(int bank, uint16_t *out)
+{
+    volatile uint16_t *src = ADV_OBJ_PALETTE + ((bank & 0xF) * 16);
+    for (int i = 0; i < 16; i++)
+        out[i] = src[i];
+}
+
 void sprite_load_palette(int bank, const uint16_t *palette)
 {
     volatile uint16_t *dest = ADV_OBJ_PALETTE + ((bank & 0xF) * 16);
@@ -204,6 +221,7 @@ void sprite_init(
     sprite->scale_y = 100;
     sprite->pivot_x = 8;
     sprite->pivot_y = 8;
+    sprite->on_top = 0;
 
     if (max_objs > ASPRITE_MAX_OBJS)
         max_objs = ASPRITE_MAX_OBJS;
@@ -212,8 +230,8 @@ void sprite_init(
      * (the sprite is never drawn) rather than a partial set. */
     int front = use_front && next_front + max_objs <= FRONT_OAM;
     if (max_objs == 0 ||
-        (!front && next_oam + max_objs > SPRITE_MAX) ||
-        next_tile + max_vram_tiles > OBJ_TILE_MAX)
+        (!front && next_oam + max_objs > oam_limit) ||
+        next_tile + max_vram_tiles > tile_limit)
         return;
 
     for (uint8_t i = 0; i < max_objs; i++)
@@ -224,6 +242,33 @@ void sprite_init(
     next_tile += max_vram_tiles;
 
     sprite_show_frame(sprite, 0);
+}
+
+
+void sprite_init_portrait(ASprite *sprite, const ASpriteFrame *frames, uint16_t frame_count,
+                          uint8_t max_objs, uint16_t max_vram_tiles, int palette_bank)
+{
+    if (sprite->oam_count)
+        hide_from(sprite, 0);
+    sprite->x = sprite->y = 0;
+    sprite->visible = 1;
+    sprite->palette_bank = (uint8_t)(palette_bank & 0xF);
+    sprite->frames = frames;
+    sprite->frame_count = frame_count;
+    sprite->current_frame = -1;
+    sprite->matrix = -1;
+    sprite->angle = 0;
+    sprite->scale_x = sprite->scale_y = 100;
+    sprite->pivot_x = sprite->pivot_y = 8;
+    sprite->on_top = 1;
+    sprite->oam_count = 0;
+    if (max_objs > SPRITE_PORTRAIT_OBJS || max_vram_tiles > SPRITE_PORTRAIT_TILES)
+        return;   /* too big for the reserved block: not shown */
+    for (uint8_t i = 0; i < max_objs; i++)
+        sprite->oam[i] = SPRITE_MAX - SPRITE_PORTRAIT_OBJS + i;
+    sprite->oam_count = max_objs;
+    sprite->tile_index = OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES;
+    sprite->vram_count = max_vram_tiles;
 }
 
 
@@ -424,7 +469,7 @@ static void write_objs(ASprite *sprite, int screen_x, int screen_y)
         ADV_OAM[oam * 4 + 1] = (uint16_t)(x & 0x1FF) | o->attr1;
         ADV_OAM[oam * 4 + 2] =
             (uint16_t)((sprite->tile_index + o->tile_offset) & 0x3FF) |
-            (o->behind ? ADV_ATTR2_PRIORITY_BEHIND : ADV_ATTR2_PRIORITY_NORMAL) |
+            (sprite->on_top ? 0 : o->behind ? ADV_ATTR2_PRIORITY_BEHIND : ADV_ATTR2_PRIORITY_NORMAL) |
             ((uint16_t)sprite->palette_bank << 12);
     }
 

@@ -261,6 +261,9 @@ def build_ui(project, project_dir, defaults_dir, referenced):
     transition = ui.get("boxTransition", "none")
     if transition not in BOX_TRANSITIONS:
         raise UiError(f"project.json ui.boxTransition must be one of: {', '.join(BOX_TRANSITIONS)}.")
+    skip_b = ui.get("skipWithB", True)
+    if not isinstance(skip_b, bool):
+        raise UiError("project.json ui.skipWithB must be true or false.")
     transition_frames = ui.get("boxTransitionFrames", 12)
     if not isinstance(transition_frames, int) or isinstance(transition_frames, bool) or not 1 <= transition_frames <= 60:
         raise UiError("project.json ui.boxTransitionFrames must be a whole number from 1 to 60.")
@@ -274,6 +277,7 @@ def build_ui(project, project_dir, defaults_dir, referenced):
         "default_font": font_names.index(want_font), "default_frame": frame_names.index(want_frame),
         "speed": speed,
         "transition": BOX_TRANSITIONS.index(transition), "transition_frames": transition_frames,
+        "skip_b": skip_b, "portraits_used": False,
     }
 
 
@@ -331,4 +335,6 @@ def ui_to_c(ui):
     c.append(f"const uint8_t ui_default_text_speed = {ui['speed']};")
     c.append(f"const uint8_t ui_box_transition = {ui['transition']};")
     c.append(f"const uint8_t ui_box_transition_frames = {ui['transition_frames']};")
+    c.append(f"const uint8_t ui_text_skip_b = {1 if ui.get('skip_b', True) else 0};")
+    c.append(f"const uint8_t ui_portraits_used = {1 if ui.get('portraits_used') else 0};")
     return "\n".join(c) + "\n"

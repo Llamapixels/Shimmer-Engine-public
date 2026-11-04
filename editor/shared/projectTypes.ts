@@ -179,6 +179,8 @@ export interface UiSettingsJSON {
   boxTransition?: "none" | "fade" | "swipe_left" | "swipe_right" | "swipe_up" | "swipe_down" | "tv" | "book";
   /** ...in this many frames (1-60, default 12). */
   boxTransitionFrames?: number;
+  /** Holding B rushes text along (default true). */
+  skipWithB?: boolean;
 }
 
 export interface DoorJSON {
