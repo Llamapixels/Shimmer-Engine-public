@@ -26,6 +26,7 @@ import { sceneName, useProjectStore } from "../state/projectStore";
 import { ANIM_SPEED_PRESETS, buttonName, MOVE_SPEED_PRESETS, type FieldDef } from "./eventCatalog";
 import Icon from "../components/common/Icon";
 import DialogueBoxPreview from "../components/common/DialogueBoxPreview";
+import { LINE_BREAK } from "../components/common/dialogueRender";
 
 /** What a script's fields need to know about where the script lives. */
 export interface ScriptEnv {
@@ -143,11 +144,12 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             onChange={(e) => patch({ [field.key]: e.target.value }, true)}
           />
         );
-      // Display Text: text codes, then the box as it'll look in the game.
+      // Display Text: one text area per box (Enter = next line in the same
+      // box), text codes, then the boxes as they'll look in the game.
       return (
         <DialogueTextField
-          value={String(value ?? "")}
-          onChange={(text) => patch({ [field.key]: text }, true)}
+          boxes={textBoxes(String(value ?? ""), rec.line_breaks === true)}
+          onChange={(boxes) => patch({ [field.key]: boxes.join("\f"), line_breaks: true }, true)}
           fonts={["default", ...fonts.map((a) => a.name).filter((n) => n !== "default")]}
           variables={variables}
           lines={typeof rec.rows === "number" ? rec.rows : 2}
@@ -1033,8 +1035,14 @@ function PosPreviewArea({
   );
 }
 
+/** Display Text's boxes. Events saved before line breaks existed keep one
+ * box per line (a new line used to start a new box). */
+function textBoxes(text: string, lineBreaks: boolean): string[] {
+  return lineBreaks ? text.split("\f") : text.split("\n");
+}
+
 function DialogueTextField({
-  value,
+  boxes,
   onChange,
   fonts,
   variables,
@@ -1042,24 +1050,29 @@ function DialogueTextField({
   framed,
   cols,
 }: {
-  value: string;
-  onChange: (text: string) => void;
+  boxes: string[];
+  onChange: (boxes: string[]) => void;
   fonts: string[];
   variables: string[];
   lines: number;
   framed: boolean;
   cols: number;
 }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const [focus, setFocus] = useState(0);
   const [color, setColor] = useState("#ff4040");
+  const at = Math.min(focus, boxes.length - 1);
 
-  /** Put `code` at the cursor (or over the selection) and keep typing after it. */
+  const setBox = (i: number, text: string) => onChange(boxes.map((b, j) => (j === i ? text : b)));
+
+  /** Put `code` at the cursor (or over the selection) of the box last
+   * typed in, and keep typing after it. */
   const insert = (code: string) => {
-    const el = ref.current;
+    const el = refs.current[at];
+    const value = boxes[at] ?? "";
     const start = el?.selectionStart ?? value.length;
     const end = el?.selectionEnd ?? value.length;
-    const next = value.slice(0, start) + code + value.slice(end);
-    onChange(next);
+    setBox(at, value.slice(0, start) + code + value.slice(end));
     requestAnimationFrame(() => {
       if (!el) return;
       el.focus();
@@ -1067,15 +1080,54 @@ function DialogueTextField({
     });
   };
 
+  const addBox = (after: number) => {
+    onChange([...boxes.slice(0, after + 1), "", ...boxes.slice(after + 1)]);
+    setFocus(after + 1);
+    requestAnimationFrame(() => refs.current[after + 1]?.focus());
+  };
+
+  // The engine's text: boxes split by page breaks, lines by line breaks.
+  const gameText = boxes.map((b) => b.replace(/\r?\n/g, LINE_BREAK)).join("\n");
+
   return (
     <div className="script-field-dialogue">
-      <textarea
-        ref={ref}
-        rows={Math.min(6, Math.max(2, value.split("\n").length))}
-        value={value}
-        placeholder="Text… (new line = new page)"
-        onChange={(e) => onChange(e.target.value)}
-      />
+      {boxes.map((box, i) => (
+        <div key={i} className="dialogue-box-edit">
+          {boxes.length > 1 && <span className="dialogue-box-num">Box {i + 1}</span>}
+          <textarea
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            rows={Math.min(8, Math.max(2, box.split("\n").length))}
+            value={box}
+            placeholder={i === 0 ? "Text… (Enter = next line)" : "Next box…"}
+            onFocus={() => setFocus(i)}
+            onChange={(e) => setBox(i, e.target.value)}
+            onKeyDown={(e) => {
+              // Ctrl+Enter starts a new box after this one.
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                addBox(i);
+              }
+            }}
+          />
+          {boxes.length > 1 && (
+            <button
+              className="icon-btn dialogue-box-remove"
+              title="Remove this box"
+              onClick={() => {
+                onChange(boxes.filter((_, j) => j !== i));
+                setFocus(Math.max(0, i - 1));
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      <button className="btn btn-small dialogue-box-add" onClick={() => addBox(boxes.length - 1)} title="Ctrl+Enter in a box does the same">
+        + Add text box
+      </button>
       <div className="text-code-bar">
         <span className="text-code-label">Insert</span>
         <select
@@ -1126,7 +1178,7 @@ function DialogueTextField({
           </select>
         )}
       </div>
-      {value && <DialogueBoxPreview text={value} lines={lines} framed={framed} cols={cols} />}
+      {boxes.some((b) => b.trim()) && <DialogueBoxPreview text={gameText} lines={lines} framed={framed} cols={cols} />}
     </div>
   );
 }

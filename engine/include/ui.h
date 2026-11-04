@@ -67,6 +67,8 @@ void ui_box_anim_tick(void);
                                 * here on, 0 = the font's own colour */
 #define UI_CODE_VAR_2   0x07   /* a = variable index 256-383, minus 256 */
 #define UI_CODE_VAR_3   0x08   /* a = variable index 384-511, minus 384 */
+#define UI_CODE_LINE    0x0B   /* next line of the same box (no argument);
+                                * past the last line it carries on as a new page */
 
 /* Is c one of the variable codes? Its argument + this = the index. */
 #define UI_IS_VAR_CODE(c) ((c) == UI_CODE_VAR || (c) == UI_CODE_VAR_HI || (c) == UI_CODE_VAR_2 || (c) == UI_CODE_VAR_3)

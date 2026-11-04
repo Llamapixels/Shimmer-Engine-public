@@ -542,6 +542,9 @@ unless "units": "pixels" is given; "then"/"else" work as in if_flag:
     { "type": "if_input", "buttons": ["a", "b"], ... }        held right now
     { "type": "if_current_scene", "scene": "<name>", ... }
     { "type": "scene_push" | "scene_pop" | "scene_pop_all" | "scene_reset" }
+        scene_pop / scene_pop_all also take "transition" and
+        "transition_frames" (as switch_scene) and "script": events run
+        once the scene is back.
     { "type": "data_save" | "data_load" | "data_clear", "slot": 0-2 }
     { "type": "if_data_saved", "slot": 0-2, ... }
     { "type": "data_peek", "slot": 0-2, "source": "<var in the save>",
@@ -2252,6 +2255,10 @@ def compile_events(events, out, ctx, where):
 
         if etype == "text":
             text = _require(ev, "text", ev_where)
+            if ev.get("line_breaks") and isinstance(text, str):
+                # Boxes split by form feeds, lines inside a box by newlines
+                # (the engine's next-page and next-line characters).
+                text = text.replace("\r", "").replace("\n", "\x0b").replace("\f", "\n")
             text = interpolate_vars(text, ctx, ev_where)
             opts, place = text_options(ev, ev_where)
             out.append(_instr("SCRIPT_TEXT", a=opts, b=place, text=c_string_literal(text)))
@@ -3319,11 +3326,23 @@ def compile_parity_event(etype, ev, out, ctx, where):
     elif etype in ("scene_push", "scene_pop", "scene_pop_all", "scene_reset"):
         op_name = {"scene_push": "SCRIPT_SCENE_PUSH", "scene_pop": "SCRIPT_SCENE_POP",
                    "scene_pop_all": "SCRIPT_SCENE_POP", "scene_reset": "SCRIPT_SCENE_RESET"}[etype]
+        ptr = "0"
         if etype == "scene_push":
             a = 1 if ev.get("remember_all", False) else 0
         else:
             a = 1 if etype == "scene_pop_all" else 0
-        out.append(_instr(op_name, a=a))
+        if etype in ("scene_pop", "scene_pop_all"):
+            # Like Change Scene: a transition, then "On return" once the
+            # scene is back.
+            trans = str(ev.get("transition", "fade_black"))
+            if trans not in SCENE_TRANSITIONS:
+                raise BuildError(f"{where}: \"transition\" must be one of: {', '.join(SCENE_TRANSITIONS)}.")
+            speed = resolve_small_int(ev.get("transition_frames", 8), "transition_frames", where, 1, 255)
+            if trans != "fade_black" or speed != 8:
+                out.append(_instr("SCRIPT_SCENE_TRANSITION", a=SCENE_TRANSITIONS[trans], b=speed))
+            if ev.get("script"):
+                ptr = compile_subscript(ev["script"], ctx, where)
+        out.append(_instr(op_name, a=a, ptr=ptr))
 
     elif etype in ("data_save", "data_load", "data_clear"):
         op_name = {"data_save": "SCRIPT_DATA_SAVE", "data_load": "SCRIPT_DATA_LOAD",

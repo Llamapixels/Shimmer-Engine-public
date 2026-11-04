@@ -1259,7 +1259,7 @@ static void thread_step(ScriptThread *t, int is_main)
         }
 
         case SCRIPT_SCENE_POP:
-            if (game_scene_pop(ev->a))
+            if (game_scene_pop(ev->a, (const ScriptEvent *)ev->ptr))
             {
                 t->ip = 0;      /* a scene switch is on its way */
                 return;

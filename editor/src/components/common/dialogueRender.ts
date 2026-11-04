@@ -131,7 +131,15 @@ const charWidth = (font: UiFont, ch: string) => {
   return n < 0 ? 0 : font.width[n];
 };
 
-type Item = { kind: "char"; ch: string } | { kind: "font"; name: string } | { kind: "color"; color: string | null } | { kind: "space" };
+type Item =
+  | { kind: "char"; ch: string }
+  | { kind: "font"; name: string }
+  | { kind: "color"; color: string | null }
+  | { kind: "space" }
+  | { kind: "break" };
+
+/** dialogue.c's UI_CODE_LINE: the next line of the same box. */
+export const LINE_BREAK = "\u000b";
 
 /** "#rrggbb" -> [r, g, b], or null for "!C!" / "!C:default!" / bad input. */
 function parseHex(value: string | undefined): [number, number, number] | null {
@@ -148,7 +156,7 @@ function tokenize(text: string): Item[] {
   const re = /\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!/g;
   let pos = 0;
   const plain = (s: string) => {
-    for (const ch of s) out.push(ch === " " ? { kind: "space" } : { kind: "char", ch });
+    for (const ch of s) out.push(ch === " " ? { kind: "space" } : ch === LINE_BREAK ? { kind: "break" } : { kind: "char", ch });
   };
   for (let m = re.exec(text); m; m = re.exec(text)) {
     plain(text.slice(pos, m.index));
@@ -198,11 +206,22 @@ export function layoutPages(
         i++;
         continue;
       }
+      if (it.kind === "break") {
+        line++;
+        x = 0;
+        i++;
+        if (line >= lines && i < items.length) {
+          pages.push(page);
+          page = [];
+          line = 0;
+        }
+        continue;
+      }
       // A word: its width, following font codes inside it.
       let w = 0;
       let wf = font;
       let j = i;
-      for (; j < items.length && items[j].kind !== "space"; j++) {
+      for (; j < items.length && items[j].kind !== "space" && items[j].kind !== "break"; j++) {
         const t = items[j];
         if (t.kind === "font") {
           if (fonts[t.name]) wf = t.name;

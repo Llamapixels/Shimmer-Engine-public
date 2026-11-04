@@ -101,6 +101,33 @@
   border-left-color: var(--tint);
 }
 
+/* Display Text: one text area per box. */
+.dialogue-box-edit {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.dialogue-box-edit textarea {
+  width: 100%;
+}
+
+.dialogue-box-num {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.dialogue-box-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.dialogue-box-add {
+  margin-bottom: 4px;
+}
+
 .duration-input {
   width: 64px;
 }

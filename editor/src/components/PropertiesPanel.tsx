@@ -1528,7 +1528,9 @@ function NpcProps({ scene, scenes, index }: { scene: SceneRecord; scenes: SceneR
     setNpc((n) => {
       const { on_interact, ...rest } = n;
       const first = on_interact?.[0];
-      return { ...rest, dialogue: first && first.type === "text" && on_interact?.length === 1 ? first.text : "" };
+      // Plain dialogue has no line breaks: each line of a box becomes its own box.
+      const text = first && first.type === "text" && on_interact?.length === 1 ? first.text : "";
+      return { ...rest, dialogue: first?.type === "text" && first.line_breaks ? text.replace(/\f/g, "\n") : text };
     });
   };
 

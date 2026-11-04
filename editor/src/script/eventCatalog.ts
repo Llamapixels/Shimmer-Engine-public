@@ -196,7 +196,7 @@ function valLabel(v: unknown): string {
 }
 
 function short(text: string, n = 40): string {
-  const oneLine = text.replace(/\n/g, " / ");
+  const oneLine = text.replace(/\f/g, " // ").replace(/\n/g, " / ");
   return oneLine.length > n ? `${oneLine.slice(0, n - 1)}…` : oneLine;
 }
 
@@ -228,6 +228,37 @@ const BUTTON_NAMES: Record<string, string> = {
 /** How a button shows in summaries: arrows, A, B, L, R, Start, Select. */
 export function buttonName(b: string): string {
   return BUTTON_NAMES[b.toLowerCase()] ?? b;
+}
+
+/** Change Scene's transitions, also used by the Restore Scene events. */
+const SCENE_TRANSITION_OPTIONS = [
+  { value: "fade_black", label: "Fade to black" },
+  { value: "fade_white", label: "Fade to white" },
+  { value: "none", label: "None (cut)" },
+  { value: "flash", label: "Battle flash" },
+  { value: "mosaic", label: "Pixelate" },
+  { value: "box", label: "Box in" },
+  { value: "bars", label: "Bars (top and bottom)" },
+  { value: "wipe", label: "Wipe" },
+];
+
+const SCENE_RETURN_FIELDS: FieldDef[] = [
+  { key: "transition", label: "Transition", kind: "select", defaultValue: "fade_black", options: SCENE_TRANSITION_OPTIONS },
+  {
+    key: "transition_frames",
+    label: "Length (effects look best at half a second or more)",
+    kind: "duration",
+    min: 1,
+    max: 255,
+    defaultValue: 8,
+    showIf: (e) => e.transition !== "none",
+  },
+];
+
+function sceneReturnSummary(ev: { transition?: string; script?: unknown[] }): string {
+  const t = ev.transition && ev.transition !== "fade_black" ? ev.transition.replace("_", " ") : "";
+  const r = ev.script?.length ? `then ${ev.script.length} event${ev.script.length === 1 ? "" : "s"}` : "";
+  return [t, r].filter(Boolean).join(", ");
 }
 
 /** Set Actor Animation Speed presets: frames each animation frame shows for. */
@@ -325,7 +356,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Display Text",
     category: "Dialogue",
     description:
-      "Show a dialogue box. A new line starts a new page; long text carries on to the next page. {varname} shows a variable, !F:name! switches font, !C:#ff4040! colours the text (!C! resets), !S2! sets the text speed (frames per letter, 0 = instant). Use the Insert buttons under the text to add these.",
+      "Show a dialogue box. Enter starts the next line of the box; + Add text box (or Ctrl+Enter) adds another box shown after it. Long text carries on in another box by itself. {varname} shows a variable, !F:name! switches font, !C:#ff4040! colours the text (!C! resets), !S2! sets the text speed (frames per letter, 0 = instant). Use the Insert buttons under the text to add these.",
     fields: [
       { key: "text", label: "Text", kind: "multiline" },
       {
@@ -1231,8 +1262,8 @@ export const EVENT_DEFS: EventDef[] = [
       },
       {
         key: "transition_frames",
-        label: "Length (frames; effects look best at 30+)",
-        kind: "int",
+        label: "Length (effects look best at half a second or more)",
+        kind: "duration",
         min: 1,
         max: 255,
         defaultValue: 8,
@@ -2148,19 +2179,23 @@ export const EVENT_DEFS: EventDef[] = [
     type: "scene_pop",
     label: "Restore Previous Scene",
     category: "Scene",
-    description: "Go back to the last stored scene and position. Ends the script.",
-    fields: [],
-    create: () => ({ type: "scene_pop" }),
-    summary: () => "",
+    description:
+      "Go back to the last stored scene and position, with a transition. Ends the script. On return runs once the scene is back " +
+      "(after its On Init, or carrying on where it paused if it was stored with \"Remember everything\").",
+    fields: SCENE_RETURN_FIELDS,
+    branches: [{ key: "script", label: "On return" }],
+    create: () => ({ type: "scene_pop", script: [] }),
+    summary: (ev) => sceneReturnSummary(ev),
   }),
   def({
     type: "scene_pop_all",
     label: "Restore First Scene",
     category: "Scene",
-    description: "Go back to the first stored scene and forget the rest. Ends the script.",
-    fields: [],
-    create: () => ({ type: "scene_pop_all" }),
-    summary: () => "",
+    description: "Go back to the first stored scene and forget the rest, with a transition. Ends the script. On return runs once the scene is back.",
+    fields: SCENE_RETURN_FIELDS,
+    branches: [{ key: "script", label: "On return" }],
+    create: () => ({ type: "scene_pop_all", script: [] }),
+    summary: (ev) => sceneReturnSummary(ev),
   }),
   def({
     type: "scene_reset",

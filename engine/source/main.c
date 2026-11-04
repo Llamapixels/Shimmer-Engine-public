@@ -1198,12 +1198,16 @@ void game_scene_push(int full, int exclude_thread)
     scene_stack_count++;
 }
 
-int game_scene_pop(int all)
+/* Restore Scene's "On return": runs once the restored scene is up. */
+static const ScriptEvent *pending_return_script;
+
+int game_scene_pop(int all, const ScriptEvent *on_return)
 {
     if (scene_stack_count == 0)
         return 0;
     int i = all ? 0 : scene_stack_count - 1;
     scene_stack_count = i;
+    pending_return_script = on_return;
     pending_restore = scene_stack[i].full ? i : -1;
     script_request_scene_switch(scene_stack[i].scene, scene_stack[i].x,
                                 scene_stack[i].y, scene_stack[i].dir);
@@ -1736,6 +1740,11 @@ int main(void)
                 }
                 else
                     start_scene_scripts(scene_current());
+                if (pending_return_script)
+                {
+                    world_run_script(pending_return_script);
+                    pending_return_script = 0;
+                }
                 game_state = STATE_PLAY;
             }
             break;

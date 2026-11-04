@@ -293,7 +293,7 @@ def encode_char(ch, ui):
     """A text character -> the byte the engine looks up in the font."""
     if ch in ui["mapping"]:
         return chr(ui["mapping"][ch] or ord("?"))
-    if ch == "\n":
+    if ch in "\n\x0b":   # next box / next line of the box (ui.h UI_CODE_LINE)
         return ch
     if 32 <= ord(ch) < 256:
         return ch

@@ -55,7 +55,10 @@ export interface EventBase {
 
 export interface TextEvent extends EventBase {
   type: "text";
+  /** With line_breaks: boxes split by "\f", lines inside a box by "\n".
+   * Without (older events): every "\n" starts a new box. */
   text: string;
+  line_breaks?: boolean;
   /** Where the box sits (default "bottom"). */
   position?: "bottom" | "top" | "middle";
   /** Text lines in the box, 1-4 (default 2). */
@@ -1062,12 +1065,20 @@ export interface ScenePushEvent extends EventBase {
 }
 
 /** Returns to the last remembered scene. */
-export interface ScenePopEvent extends EventBase {
+/** Restore Scene options: a transition like Change Scene's, and events
+ * run once the scene is back. */
+interface SceneReturnOptions {
+  transition?: "fade_black" | "fade_white" | "none" | "flash" | "mosaic" | "box" | "bars" | "wipe";
+  transition_frames?: number;
+  script?: EventScript;
+}
+
+export interface ScenePopEvent extends EventBase, SceneReturnOptions {
   type: "scene_pop";
 }
 
 /** Returns to the first remembered scene and forgets the rest. */
-export interface ScenePopAllEvent extends EventBase {
+export interface ScenePopAllEvent extends EventBase, SceneReturnOptions {
   type: "scene_pop_all";
 }
 

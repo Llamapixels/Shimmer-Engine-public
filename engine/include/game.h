@@ -1,6 +1,8 @@
 #ifndef ADVANCE_GAME_H
 #define ADVANCE_GAME_H
 
+#include "script.h"
+
 /*
  * Whole-game operations that script events need but that only main.c
  * can do, since it owns the player, the loaded scene and the game-state
@@ -25,7 +27,8 @@ int  game_load_slot(int slot);
  * stack) and returns 1 if it started a switch, 0 if the stack was
  * empty; reset forgets everything pushed. */
 void game_scene_push(int full, int exclude_thread);
-int  game_scene_pop(int all);
+/* `on_return` (may be 0) runs once the scene is back. */
+int  game_scene_pop(int all, const ScriptEvent *on_return);
 void game_scene_reset(void);
 
 #endif

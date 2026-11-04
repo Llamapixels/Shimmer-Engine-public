@@ -104,12 +104,12 @@ static int var_digits(int index, char *buf)
     return len;
 }
 
-/* Width of the word starting at p (up to a space, '\n', 0x01 or the
- * end), following font codes inside it. */
+/* Width of the word starting at p (up to a space, '\n', a line break,
+ * 0x01 or the end), following font codes inside it. */
 static int word_width(const char *p, int font)
 {
     int w = 0;
-    while (*p && *p != ' ' && *p != '\n' && *p != UI_CODE_OPTION)
+    while (*p && *p != ' ' && *p != '\n' && *p != UI_CODE_LINE && *p != UI_CODE_OPTION)
     {
         unsigned char c = (unsigned char)*p;
         if (is_code(c) && p[1])
@@ -160,6 +160,23 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
             continue;
         }
 
+        /* A line break inside the box (Enter in Display Text). */
+        if (*p == UI_CODE_LINE)
+        {
+            p++;
+            line++;
+            x = 0;
+            if (line >= text_lines)
+            {
+                if (*p && *p != '\n')
+                    *next = p;   /* more lines than the box: next page */
+                else if (*p == '\n' && p[1])
+                    *next = p + 1;
+                break;
+            }
+            continue;
+        }
+
         /* A word: wrap first if it doesn't fit on this line. */
         int w = word_width(p, font);
         if (x > 0 && x + w > ui_text_width())
@@ -173,7 +190,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
             break;
         }
 
-        while (*p && *p != ' ' && *p != '\n' && *p != UI_CODE_OPTION)
+        while (*p && *p != ' ' && *p != '\n' && *p != UI_CODE_LINE && *p != UI_CODE_OPTION)
         {
             unsigned char c = (unsigned char)*p;
             if (is_code(c) && p[1])
