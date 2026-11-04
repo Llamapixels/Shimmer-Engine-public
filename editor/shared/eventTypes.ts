@@ -967,6 +967,29 @@ export interface ActorSetCollisionGroupEvent extends EventBase {
   group: number | "none" | "group1" | "group2" | "group3" | "group4" | "pickup";
 }
 
+export type PlayerStateName = "ground" | "jump" | "fall" | "dash" | "slide" | "ladder" | "wall" | "knockback" | "stairs";
+
+/** Platformer: run a script when the player starts / is in / leaves a state. */
+export interface PlayerStateScriptEvent extends EventBase {
+  type: "player_state_script";
+  state: PlayerStateName;
+  when: "start" | "during" | "end";
+  script: EventScript;
+}
+
+export interface PlayerStateScriptRemoveEvent extends EventBase {
+  type: "player_state_script_remove";
+  state: PlayerStateName;
+  when: "start" | "during" | "end";
+}
+
+/** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
+ * ladder 5, wall 6, knockback 7, stairs 8. */
+export interface PlayerStateVarEvent extends EventBase {
+  type: "player_state_var";
+  var: string;
+}
+
 export interface ActorCollectEvent extends EventBase {
   type: "actor_collect";
   actor: ActorRef;
@@ -1283,6 +1306,9 @@ export type ScriptEventJSON =
   | ActorSetInteractionEvent
   | ActorSetCollisionGroupEvent
   | ActorCollectEvent
+  | PlayerStateScriptEvent
+  | PlayerStateScriptRemoveEvent
+  | PlayerStateVarEvent
   | ActorSetHitResponseEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

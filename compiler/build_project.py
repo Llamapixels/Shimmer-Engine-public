@@ -1663,6 +1663,11 @@ def resolve_state(actor_idx, ref, ctx, where):
 PLAYER_ACTOR_INDEX = -2
 
 
+# Platformer player states, in modes.h's PSTATE_* order (the numbers
+# "Store Player State In Variable" gives), and when a state script runs.
+PLAYER_STATES = ["ground", "jump", "fall", "dash", "slide", "ladder", "wall", "knockback", "stairs"]
+PLAYER_STATE_WHEN = ["start", "during", "end"]
+
 # "hits" names -> projectile.h's PROJ_P_TARGET bits (bit 0 player, bit g group g).
 PROJECTILE_TARGETS = {"player": 1, "group1": 2, "group2": 4, "group3": 8, "group4": 16, "actors": 30}
 # Custom script inputs ("params"), written "@name" inside the script.
@@ -2758,6 +2763,7 @@ PARITY_EVENT_TYPES = [
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
+    "player_state_script", "player_state_script_remove", "player_state_var",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3210,6 +3216,22 @@ def compile_parity_event(etype, ev, out, ctx, where):
             raise BuildError(f"{where}: enabled must be true or false.")
         opcode = "SCRIPT_ACTOR_SET_SOLID" if etype == "actor_set_solid" else "SCRIPT_ACTOR_SET_INTERACTION"
         out.append(_instr(opcode, a=idx, b=int(enabled)))
+
+    elif etype in ("player_state_script", "player_state_script_remove"):
+        state = str(_require(ev, "state", where))
+        if state not in PLAYER_STATES:
+            raise BuildError(f"{where}: unknown player state '{state}'. Use: {', '.join(PLAYER_STATES)}.")
+        when = str(ev.get("when", "start"))
+        if when not in PLAYER_STATE_WHEN:
+            raise BuildError(f"{where}: \"when\" must be start, during or end.")
+        ptr = "0"
+        if etype == "player_state_script":
+            ptr = compile_subscript(ev.get("script", []), ctx, where)
+        out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
+                          b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "player_state_var":
+        out.append(_instr("SCRIPT_PLAYER_STATE_VAR", a=resolve_var(_require(ev, "var", where), ctx, where)))
 
     elif etype == "actor_collect":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)

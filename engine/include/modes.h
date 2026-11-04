@@ -58,4 +58,21 @@ int modes_player_visible(void);
 /* SCRIPT_SET_ENGINE_SETTING. */
 void modes_set_setting(int index, int value);
 
+/* Platformer player states, for "Attach Script To Player State" and
+ * "Store Player State In Variable". */
+enum
+{
+    PSTATE_GROUND, PSTATE_JUMP, PSTATE_FALL, PSTATE_DASH, PSTATE_SLIDE,
+    PSTATE_LADDER, PSTATE_WALL, PSTATE_KNOCKBACK, PSTATE_STAIRS,
+    PSTATE_COUNT
+};
+enum { PSTATE_ON_START, PSTATE_DURING, PSTATE_ON_END };
+
+/* Attach (script) or remove (0) the script run when the player enters,
+ * is in (every frame, one copy at a time) or leaves a state. Cleared
+ * when a scene starts. */
+void modes_set_state_script(int state, int when, const ScriptEvent *script);
+/* The platformer player's state now (PSTATE_GROUND outside platformers). */
+int modes_player_state(void);
+
 #endif

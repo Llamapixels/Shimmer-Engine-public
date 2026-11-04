@@ -230,6 +230,29 @@ export function buttonName(b: string): string {
   return BUTTON_NAMES[b.toLowerCase()] ?? b;
 }
 
+/** Platformer player states (modes.h PSTATE_*). */
+const PLAYER_STATE_OPTIONS = [
+  { value: "ground", label: "On the ground" },
+  { value: "jump", label: "Jumping (going up)" },
+  { value: "fall", label: "Falling" },
+  { value: "dash", label: "Dashing" },
+  { value: "slide", label: "Sliding" },
+  { value: "ladder", label: "On a ladder" },
+  { value: "wall", label: "Wall sliding" },
+  { value: "knockback", label: "Knocked back" },
+  { value: "stairs", label: "On stairs" },
+];
+const PLAYER_STATE_WHEN_OPTIONS = [
+  { value: "start", label: "When it starts" },
+  { value: "during", label: "Every frame during it" },
+  { value: "end", label: "When it ends" },
+];
+
+function playerStateSummary(state: string, when: string): string {
+  const s = PLAYER_STATE_OPTIONS.find((o) => o.value === state)?.label.toLowerCase() ?? state;
+  return `${s}, ${when === "during" ? "every frame" : when === "end" ? "on end" : "on start"}`;
+}
+
 /** Change Scene's transitions, also used by the Restore Scene events. */
 const SCENE_TRANSITION_OPTIONS = [
   { value: "fade_black", label: "Fade to black" },
@@ -2000,6 +2023,45 @@ export const EVENT_DEFS: EventDef[] = [
     ],
     create: (c) => ({ type: "actor_set_interaction", actor: c.firstActor ?? "self", enabled: false }),
     summary: (ev) => `${actorLabel(ev.actor)} interaction ${ev.enabled ? "on" : "off"}`,
+  }),
+  def({
+    type: "player_state_script",
+    label: "Attach Script To Player State",
+    category: "Actors",
+    description:
+      "Platformer: run a script when the player starts a state (lands, jumps, starts a dash...), every frame while in it, " +
+      "or when it ends. Lasts until the scene changes, or until Remove Player State Script. Store Player State In " +
+      "Variable gives the state as a number: ground 0, jump 1, fall 2, dash 3, slide 4, ladder 5, wall slide 6, knockback 7, stairs 8.",
+    fields: [
+      { key: "state", label: "State", kind: "select", options: PLAYER_STATE_OPTIONS },
+      { key: "when", label: "Runs", kind: "select", options: PLAYER_STATE_WHEN_OPTIONS },
+    ],
+    branches: [{ key: "script", label: "Script" }],
+    create: () => ({ type: "player_state_script", state: "ground", when: "start", script: [] }),
+    summary: (ev) => playerStateSummary(ev.state, ev.when),
+  }),
+  def({
+    type: "player_state_script_remove",
+    label: "Remove Player State Script",
+    category: "Actors",
+    description: "Platformer: stop running the script attached to a player state with Attach Script To Player State.",
+    fields: [
+      { key: "state", label: "State", kind: "select", options: PLAYER_STATE_OPTIONS },
+      { key: "when", label: "Runs", kind: "select", options: PLAYER_STATE_WHEN_OPTIONS },
+    ],
+    create: () => ({ type: "player_state_script_remove", state: "ground", when: "start" }),
+    summary: (ev) => playerStateSummary(ev.state, ev.when),
+  }),
+  def({
+    type: "player_state_var",
+    label: "Store Player State In Variable",
+    category: "Actors",
+    description:
+      "Platformer: put the player's state in a variable, as a number: ground 0, jump 1, fall 2, dash 3, slide 4, ladder 5, " +
+      "wall slide 6, knockback 7, stairs 8. Compare it with If Variable.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    create: (c) => ({ type: "player_state_var", var: c.variables[0] ?? "" }),
+    summary: (ev) => `→ $${ev.var || "?"}`,
   }),
   def({
     type: "actor_collect",

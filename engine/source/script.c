@@ -171,6 +171,11 @@ int script_thread_start(const ScriptEvent *script)
     return 0;
 }
 
+int script_thread_running(int handle, const ScriptEvent *script)
+{
+    return handle >= 1 && handle < THREAD_COUNT && threads[handle].ip && threads[handle].base == script;
+}
+
 static void thread_stop(int handle)
 {
     if (handle < 1 || handle >= THREAD_COUNT)
@@ -1151,6 +1156,14 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_LIGHT:
             light_set((const int16_t *)ev->ptr);
+            break;
+
+        case SCRIPT_PLAYER_STATE_SCRIPT:
+            modes_set_state_script(ev->a, ev->b, (const ScriptEvent *)ev->ptr);
+            break;
+
+        case SCRIPT_PLAYER_STATE_VAR:
+            var_set(ev->a, (int16_t)modes_player_state());
             break;
 
         case SCRIPT_WORLD_LOCK:

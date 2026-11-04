@@ -74,6 +74,11 @@ static int look_offset;
 static int grid_left, grid_dx, grid_dy;
 static int standing_on = -1, standing_x, standing_y;   /* moving platforms */
 static int32_t cam_x, cam_y;          /* Shoot Em' Up camera, 1/256 px */
+/* Player state scripts (platformer): [state][start / during / end], the
+ * state last frame, and the thread running each state's "during" copy. */
+static const ScriptEvent *state_scripts[PSTATE_COUNT][3];
+static int pstate = PSTATE_GROUND, pstate_prev = -1;
+static int state_thread[PSTATE_COUNT];
 static int cam_ready;
 static uint32_t triggers_fired[2];    /* Shoot Em' Up on-screen triggers */
 
@@ -104,10 +109,64 @@ int modes_uses_step_triggers(void)
     return 1;
 }
 
+void modes_set_state_script(int state, int when, const ScriptEvent *script)
+{
+    if (state < 0 || state >= PSTATE_COUNT || when < 0 || when > PSTATE_ON_END)
+        return;
+    state_scripts[state][when] = script;
+}
+
+int modes_player_state(void)
+{
+    return pstate;
+}
+
+/* Which state the platformer player is in, after this frame's movement. */
+static int platform_state(void)
+{
+    if (kb_timer > 0) return PSTATE_KNOCKBACK;
+    if (on_stairs) return PSTATE_STAIRS;
+    if (climbing) return PSTATE_LADDER;
+    if (sliding) return PSTATE_SLIDE;
+    if (dash_timer > 0) return PSTATE_DASH;
+    if (wall_sliding) return PSTATE_WALL;
+    if (grounded) return PSTATE_GROUND;
+    return vel_y < 0 ? PSTATE_JUMP : PSTATE_FALL;
+}
+
+static void run_state_script(const ScriptEvent *s)
+{
+    if (s && s->op != SCRIPT_END)
+        world_run_script(s);
+}
+
+/* Start / end scripts on a change, and keep one copy of "during" going. */
+static void state_scripts_tick(void)
+{
+    pstate = platform_state();
+    if (pstate != pstate_prev)
+    {
+        if (pstate_prev >= 0)
+            run_state_script(state_scripts[pstate_prev][PSTATE_ON_END]);
+        run_state_script(state_scripts[pstate][PSTATE_ON_START]);
+        pstate_prev = pstate;
+    }
+    const ScriptEvent *during = state_scripts[pstate][PSTATE_DURING];
+    if (during && during->op != SCRIPT_END && !script_thread_running(state_thread[pstate], during))
+        state_thread[pstate] = script_thread_start(during);
+}
+
 void modes_scene_enter(const SceneDef *scene, Entity *player)
 {
     cur_scene = scene;
     mode = scene->mode;
+    for (int s = 0; s < PSTATE_COUNT; s++)
+    {
+        state_scripts[s][0] = state_scripts[s][1] = state_scripts[s][2] = 0;
+        state_thread[s] = 0;
+    }
+    pstate = PSTATE_GROUND;
+    pstate_prev = -1;
     scene_sprite = player->def;
     air_jumped = kick_show = crouch_low = crouch_stuck = sliding = on_stairs = 0;
     for (int i = 0; i < MS_COUNT; i++)
@@ -1720,7 +1779,12 @@ const ScriptEvent *modes_update(Entity *player)
     sync_position(player);
     switch (mode)
     {
-    case SCENE_MODE_PLATFORM:    return platform_update(player);
+    case SCENE_MODE_PLATFORM:
+    {
+        const ScriptEvent *s = platform_update(player);
+        state_scripts_tick();
+        return s;
+    }
     case SCENE_MODE_ADVENTURE:   return adventure_update(player);
     case SCENE_MODE_SHMUP:       return shmup_update(player);
     case SCENE_MODE_POINTNCLICK: return pointnclick_update(player);
