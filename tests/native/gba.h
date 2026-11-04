@@ -8,6 +8,8 @@
 #define OBJ_1D_MAP 0x40
 #define EWRAM_BSS
 extern unsigned short REG_DISPCNT;
+extern unsigned short REG_BLDCNT;
+extern unsigned short REG_BLDALPHA;
 void irqInit(void);
 void irqEnable(int);
 void VBlankIntrWait(void);
