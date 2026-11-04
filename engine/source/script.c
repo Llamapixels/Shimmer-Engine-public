@@ -1197,6 +1197,23 @@ static void thread_step(ScriptThread *t, int is_main)
             t->play_once_started = 0;
             break;
 
+        case SCRIPT_ACTOR_KNOCKBACK:
+        {
+            const int16_t *p = (const int16_t *)ev->ptr;
+            if (!t->play_once_started)
+            {
+                actor_knockback(p);
+                t->play_once_started = 1;   /* the same "started, now waiting" flag */
+            }
+            if (ev->a && actor_knockback_active(p[0]))
+            {
+                t->ip--;
+                return;
+            }
+            t->play_once_started = 0;
+            break;
+        }
+
         case SCRIPT_ACTOR_UPDATE:
         {
             const ScriptEvent *base;

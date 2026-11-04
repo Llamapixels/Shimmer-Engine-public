@@ -124,6 +124,10 @@ static uint8_t npc_touching[NPC_MAX];
 static uint8_t npc_dormant[NPC_MAX];   /* spawn_pool copy not spawned yet */
 static uint8_t npc_thread[NPC_MAX];    /* thread its On Update runs in */
 static uint8_t npc_update_paused[NPC_MAX];   /* "Actor On Update" paused / stopped: no wandering */
+/* "Knock Back Actor": speed at the start (1/256 px a frame), frames left
+ * / in all, and the 1/256 px carried over between frames. */
+static int16_t npc_kb_vx[NPC_MAX], npc_kb_vy[NPC_MAX], npc_kb_subx[NPC_MAX], npc_kb_suby[NPC_MAX];
+static uint8_t npc_kb_left[NPC_MAX], npc_kb_total[NPC_MAX];
 /* Each NPC's position last frame, for "Pushes the player". */
 static int npc_prev_x[NPC_MAX], npc_prev_y[NPC_MAX];
 
@@ -266,6 +270,7 @@ static void scene_entities_load(const SceneDef *scene)
         npc_touching[npc_count_active] = 0;
         npc_thread[npc_count_active] = 0;
         npc_update_paused[npc_count_active] = 0;
+        npc_kb_left[npc_count_active] = 0;
         npc_dormant[npc_count_active] = def->spawn_pool;
         if (def->spawn_pool)
         {
@@ -692,6 +697,62 @@ int actor_spawn(const int16_t *p)
         return i;
     }
     return -1;
+}
+
+void actor_knockback(const int16_t *p)
+{
+    int i = p[0];
+    if (i < 0 || i >= npc_count_active || !npc_entities[i] || p[4] <= 0)
+        return;
+    Entity *e = npc_entities[i];
+    int dx = 0, dy = 0;
+    if (p[1] != -100)
+    {
+        Entity *from = p[1] == PLAYER_ACTOR_INDEX ? g_player : world_npc(p[1]);
+        if (!from || from == e)
+            return;
+        int ax = (e->x + e->width / 2) - (from->x + from->width / 2);
+        int ay = (e->y + e->height / 2) - (from->y + from->height / 2);
+        int bx = ax < 0 ? -ax : ax, by = ay < 0 ? -ay : ay;
+        /* Mostly along the axis it was hit from. */
+        dx = bx >= by / 2 ? (ax >= 0 ? 1 : -1) : 0;
+        dy = by >= bx / 2 ? (ay >= 0 ? 1 : -1) : 0;
+    }
+    else
+    {
+        dx = p[2] == DIR_RIGHT ? 1 : p[2] == DIR_LEFT ? -1 : 0;
+        dy = p[2] == DIR_DOWN ? 1 : p[2] == DIR_UP ? -1 : 0;
+    }
+    if (e->gravity)
+        dy = 0;   /* gravity actors: sideways only */
+    npc_kb_vx[i] = (int16_t)(dx * p[3]);
+    npc_kb_vy[i] = (int16_t)(dy * p[3]);
+    npc_kb_subx[i] = npc_kb_suby[i] = 0;
+    npc_kb_left[i] = npc_kb_total[i] = (uint8_t)(p[4] > 255 ? 255 : p[4]);
+}
+
+int actor_knockback_active(int index)
+{
+    return index >= 0 && index < npc_count_active && npc_kb_left[index] > 0;
+}
+
+/* One frame of a knockback: slows evenly to a stop, blocked by walls. */
+static void npc_knockback_update(int i)
+{
+    if (!npc_kb_left[i] || !npc_entities[i])
+        return;
+    Entity *e = npc_entities[i];
+    int left = --npc_kb_left[i];
+    int total = npc_kb_total[i] ? npc_kb_total[i] : 1;
+    int sx = npc_kb_subx[i] + npc_kb_vx[i] * left / total;
+    int sy = npc_kb_suby[i] + npc_kb_vy[i] * left / total;
+    int mx = sx / 256, my = sy / 256;
+    npc_kb_subx[i] = (int16_t)(sx - mx * 256);
+    npc_kb_suby[i] = (int16_t)(sy - my * 256);
+    if (mx && entity_can_move(e, e->x + mx, e->y))
+        e->x += mx;
+    if (my && entity_can_move(e, e->x, e->y + my))
+        e->y += my;
 }
 
 int actor_update_thread(int index, const ScriptEvent **base)
@@ -1633,6 +1694,11 @@ int main(void)
              * dialogue (handled above, next frame) or finishes. Synced
              * after script_update() so an actor move/camera pan that
              * just happened this frame is reflected immediately. */
+            /* "Knock Back Actor" pushes carry on through cutscenes too. */
+            if (!script_world_locked())
+                for (int i = 0; i < npc_count_active; i++)
+                    npc_knockback_update(i);
+
             if (script_active())
             {
                 script_update();
@@ -1693,7 +1759,7 @@ int main(void)
                      * still, not shuffling around off-screen while
                      * they're "not there". */
                     if (npc_defs[i]->movement && npc_entities[i]->solid && !npc_entities[i]->pinned &&
-                        !npc_update_paused[i])
+                        !npc_update_paused[i] && !npc_kb_left[i])
                         update_wandering_npc(i);
                     if (npc_entities[i]->gravity && npc_entities[i]->solid && !npc_entities[i]->pinned)
                         npc_fall(npc_entities[i]);

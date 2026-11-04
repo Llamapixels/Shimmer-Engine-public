@@ -994,6 +994,20 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** Push an actor away (from the player, an actor, or in a direction). */
+export interface ActorKnockbackEvent extends EventBase {
+  type: "actor_knockback";
+  actor: ActorRef;
+  away_from: "player" | "actor" | "direction";
+  from_actor?: ActorRef;
+  direction?: Direction;
+  /** Pixels a frame at the start. */
+  speed: number;
+  /** Frames the push lasts. */
+  frames: number;
+  wait?: boolean;
+}
+
 /** Start / pause / resume / stop an NPC's On Update script (and its wandering). */
 export interface ActorUpdateEvent extends EventBase {
   type: "actor_update";
@@ -1334,6 +1348,7 @@ export type ScriptEventJSON =
   | PlayerStateVarEvent
   | InputLockEvent
   | ActorUpdateEvent
+  | ActorKnockbackEvent
   | ActorSetHitResponseEvent
   | ActorSetCollisionsEvent
   | ActorPushEvent

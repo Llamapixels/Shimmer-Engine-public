@@ -2074,6 +2074,35 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => playerStateSummary(ev.state, ev.when),
   }),
   def({
+    type: "actor_knockback",
+    label: "Knock Back Actor",
+    category: "Actors",
+    description:
+      "Push an actor away - from the player, from another actor, or in a direction - starting at a speed and slowing evenly " +
+      "to a stop over the time given. Walls stop it, and wandering waits until it's over. Put it in an actor's On Hit for " +
+      "enemies that fly back when struck. Distance is about speed x time / 2 pixels.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      {
+        key: "away_from",
+        label: "Away from",
+        kind: "select",
+        options: [
+          { value: "player", label: "The player" },
+          { value: "actor", label: "Another actor" },
+          { value: "direction", label: "A direction (pushed that way)" },
+        ],
+      },
+      { key: "from_actor", label: "Actor", kind: "actor", showIf: (e) => e.away_from === "actor" },
+      { key: "direction", label: "Direction", kind: "direction", showIf: (e) => e.away_from === "direction" },
+      { key: "speed", label: "Speed (px a frame)", kind: "int", min: 1, max: 16 },
+      { key: "frames", label: "Time", kind: "duration", min: 1, max: 255 },
+      { key: "wait", label: "Wait until it's over", kind: "bool", defaultValue: false },
+    ],
+    create: (c) => ({ type: "actor_knockback", actor: c.firstActor ?? "self", away_from: "player", speed: 3, frames: 12 }),
+    summary: (ev) => `${actorLabel(ev.actor)} away from ${ev.away_from === "actor" ? actorLabel(ev.from_actor ?? 0) : ev.away_from === "direction" ? `going ${ev.direction ?? "right"}` : "the player"}, speed ${ev.speed}`,
+  }),
+  def({
     type: "actor_update",
     label: "Control Actor On Update",
     category: "Actors",

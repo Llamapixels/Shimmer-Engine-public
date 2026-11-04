@@ -2786,6 +2786,7 @@ PARITY_EVENT_TYPES = [
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
     "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
+    "actor_knockback",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3257,6 +3258,29 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "actor_knockback":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        if idx == PLAYER_ACTOR_INDEX:
+            raise BuildError(f"{where}: Knock Back Actor is for actors; the player's knockback is in the engine settings.")
+        away = str(ev.get("away_from", "player"))
+        dirs = {"down": 0, "up": 1, "right": 2, "left": 3}   # entity.h Direction
+        if away == "direction":
+            d = str(ev.get("direction", "right"))
+            if d not in dirs:
+                raise BuildError(f"{where}: unknown direction '{d}'.")
+            src, direction = -100, dirs[d]
+        elif away == "actor":
+            src, direction = resolve_actor(_require(ev, "from_actor", where), ctx, where), 0
+        else:
+            src, direction = PLAYER_ACTOR_INDEX, 0
+        speed = ev.get("speed", 3)
+        if isinstance(speed, bool) or not isinstance(speed, (int, float)) or not 0 < speed <= 16:
+            raise BuildError(f"{where}: \"speed\" must be more than 0, up to 16 (pixels a frame).")
+        frames = resolve_small_int(ev.get("frames", 12), "frames", where, 1, 255)
+        ident = _aux_ident(ctx, "knockback")
+        ctx["_aux"].append(("expr", ident, [idx, src, direction, int(round(speed * 256)), frames, 0]))
+        out.append(_instr("SCRIPT_ACTOR_KNOCKBACK", a=1 if ev.get("wait") else 0, ptr=ident))
 
     elif etype == "actor_update":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)

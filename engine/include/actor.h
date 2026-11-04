@@ -102,6 +102,12 @@ void actor_play_once(int index);
 int actor_update_thread(int index, const ScriptEvent **base);
 void actor_set_update_thread(int index, int handle);
 void actor_set_update_paused(int index, int paused);
+
+/* "Knock Back Actor": p = int16_t[6] { npc, from actor (or -100 = use
+ * direction), direction, speed (1/256 px a frame), frames, 0 }. The push
+ * slows evenly to a stop and stops at walls. */
+void actor_knockback(const int16_t *p);
+int actor_knockback_active(int index);
 int actor_anim_done(int index);
 
 /* Turn per-frame animation stepping on/off for an actor using authored
