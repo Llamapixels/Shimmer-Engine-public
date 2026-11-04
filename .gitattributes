@@ -4,3 +4,5 @@
 *.xm binary
 *.uge binary
 *.bin binary
+*.data binary
+*.wasm binary

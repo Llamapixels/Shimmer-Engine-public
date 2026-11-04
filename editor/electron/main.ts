@@ -32,6 +32,7 @@ import type {
 import * as buildRunner from "./buildRunner.js";
 import { chooserOptions, emulatorCommand, installHint } from "./emulator.js";
 import { checkForUpdates } from "./updater.js";
+import { exportWeb, previewWeb } from "./webExport.js";
 import * as projectIO from "./projectIO.js";
 
 // __dirname is a CommonJS global (see electron/tsconfig.json's doc
@@ -591,6 +592,20 @@ function registerIpcHandlers(): void {
     // The chosen emulator (or the one .gba files open with), replacing the
     // window Play opened last time.
     await openInEmulator(rom);
+  });
+
+  handle(IPC_CHANNELS.exportWeb, async (payload: { rootPath: string; romPath: string; name: string }) => {
+    checkRoot(payload.rootPath);
+    const rom = path.resolve(payload.romPath);
+    if (!rom.startsWith(path.resolve(payload.rootPath) + path.sep) || !rom.toLowerCase().endsWith(".gba")) {
+      throw new Error("That isn't this project's ROM.");
+    }
+    return exportWeb(payload.rootPath, rom, payload.name || "Game");
+  });
+
+  handle(IPC_CHANNELS.previewWeb, async (payload: { rootPath: string }) => {
+    checkRoot(payload.rootPath);
+    return previewWeb(payload.rootPath);
   });
 
   handle(IPC_CHANNELS.cancelBuild, async () => {

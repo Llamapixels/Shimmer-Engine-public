@@ -37,6 +37,8 @@ const api: ShimmerEngineApi = {
   buildRom: (payload) => ipcRenderer.invoke(IPC_CHANNELS.buildRom, payload),
   cancelBuild: () => ipcRenderer.invoke(IPC_CHANNELS.cancelBuild),
   openRom: (payload) => ipcRenderer.invoke(IPC_CHANNELS.openRom, payload),
+  exportWeb: (payload) => ipcRenderer.invoke(IPC_CHANNELS.exportWeb, payload),
+  previewWeb: (payload) => ipcRenderer.invoke(IPC_CHANNELS.previewWeb, payload),
   onBuildLog: (cb) => {
     const listener = (_event: unknown, data: BuildLogEvent) => cb(data);
     ipcRenderer.on(IPC_CHANNELS.buildLog, listener);

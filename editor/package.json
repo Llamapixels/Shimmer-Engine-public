@@ -54,6 +54,10 @@
       {
         "from": "toolchain-bundle",
         "to": "toolchain"
+      },
+      {
+        "from": "web-player",
+        "to": "web-player"
       }
     ],
     "win": {

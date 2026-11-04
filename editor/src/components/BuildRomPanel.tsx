@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useBuildStore } from "../state/buildStore";
+import { useProjectStore } from "../state/projectStore";
 import "./BuildRomPanel.css";
 
 /** Live build-log modal - see src/state/buildStore.ts for the state this
@@ -110,6 +111,7 @@ export default function BuildRomPanel() {
               >
                 Reveal in Folder
               </button>
+              <WebExportButtons rootPath={rootPath} romPath={romPath} />
             </>
           )}
 
@@ -135,5 +137,41 @@ export default function BuildRomPanel() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Export for Web: the ROM plus a browser emulator in the project's Web
+ * folder (zip it for itch.io), and a local preview of it. */
+function WebExportButtons({ rootPath, romPath }: { rootPath: string; romPath: string }) {
+  const name = useProjectStore((s) => s.project?.project.name) ?? "Game";
+  const [state, setState] = useState<{ folder?: string; error?: string; busy?: boolean }>({});
+  const run = async () => {
+    setState({ busy: true });
+    const r = await window.api.exportWeb({ rootPath, romPath, name });
+    setState(r.ok ? { folder: r.value } : { error: r.error });
+  };
+  return (
+    <>
+      <button
+        className="btn btn-small"
+        disabled={state.busy}
+        onClick={() => void run()}
+        title="Make a Web folder with an HTML page that plays the game in a browser - zip it and upload it to itch.io"
+      >
+        Export for Web
+      </button>
+      {state.folder && (
+        <>
+          <button className="btn btn-small" onClick={() => void window.api.previewWeb({ rootPath })}>
+            Open in Browser
+          </button>
+          <button className="btn btn-small" onClick={() => window.api.revealInFolder({ rootPath, relPath: "Web/index.html", base: "project" })}>
+            Show Web Folder
+          </button>
+          <div className="build-panel-rom-path">Saved to {state.folder} - zip that folder to upload it (see README.txt there).</div>
+        </>
+      )}
+      {state.error && <div className="build-panel-error-hint">{state.error}</div>}
+    </>
   );
 }

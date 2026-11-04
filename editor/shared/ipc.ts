@@ -255,6 +255,14 @@ export interface OpenRomPayload {
   romPath: string;
 }
 
+/** Export for Web: the built ROM and the browser player into <project>/Web. */
+export interface ExportWebPayload {
+  rootPath: string;
+  romPath: string;
+  /** The game's name, for the page title. */
+  name: string;
+}
+
 export interface BuildLogEvent {
   /** "art" is added by the renderer itself (the success banner). */
   stream: "stdout" | "stderr" | "status" | "art";
@@ -321,6 +329,10 @@ export interface ShimmerEngineApi {
   onBuildLog(cb: (event: BuildLogEvent) => void): () => void;
   /** Open a built ROM with the system's program for .gba files. */
   openRom(payload: OpenRomPayload): Promise<IpcResult<void>>;
+  /** Export for Web; resolves to the folder written. */
+  exportWeb(payload: ExportWebPayload): Promise<IpcResult<string>>;
+  /** Serve the exported Web folder locally and open it in the browser. */
+  previewWeb(payload: { rootPath: string }): Promise<IpcResult<string>>;
   /** Help > About was picked in the app menu. Returns an unsubscribe. */
   onShowAbout(cb: () => void): () => void;
   /** A File/View menu item was picked (see MenuCommand). Returns an
@@ -396,6 +408,8 @@ export const IPC_CHANNELS = {
    * ShimmerEngineApi.onBuildLog. */
   buildLog: "build:log",
   openRom: "build:open-rom",
+  exportWeb: "build:export-web",
+  previewWeb: "build:preview-web",
   /** Main -> renderer: show the About dialog. */
   showAbout: "menu:about",
   saveImage: "asset:save-image",
