@@ -516,7 +516,8 @@ static void thread_step(ScriptThread *t, int is_main)
     {
         int still = t->move_flags
             ? actor_step_toward_ex(t->moving_actor, t->moving_x, t->moving_y,
-                                   (t->move_flags >> MOVE_F_TYPE_SHIFT) & 3, t->move_flags & MOVE_F_COLLIDE)
+                                   (t->move_flags >> MOVE_F_TYPE_SHIFT) & 3, t->move_flags & MOVE_F_COLLIDE,
+                                   t->move_flags & MOVE_F_KEEP_DIR)
             : actor_step_toward(t->moving_actor, t->moving_x, t->moving_y);
         if (still)
             return;

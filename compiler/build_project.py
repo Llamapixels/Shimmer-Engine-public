@@ -2155,6 +2155,8 @@ def actor_move_ex(ev, idx, ctx, where):
     flags = (1 if pixels else 0) | (2 if ev.get("relative") else 0) | (4 if ev.get("collisions") else 0)
     flags |= MOVE_TYPES[move_type] << 3
     flags |= MOVE_TARGETS[target] << 5
+    if ev.get("keep_direction"):
+        flags |= 0x100   # script.h MOVE_F_KEEP_DIR
     if target == "variables":
         b = resolve_var(_require(ev, "x_var", where), ctx, where)
         c = resolve_var(_require(ev, "y_var", where), ctx, where)
@@ -2169,7 +2171,7 @@ def actor_move_ex(ev, idx, ctx, where):
 
 
 # Fields that switch Move Actor To / Set Actor Position to the full version.
-MOVE_EX_KEYS = ("target", "relative", "units", "collisions", "move_type")
+MOVE_EX_KEYS = ("target", "relative", "units", "collisions", "move_type", "keep_direction")
 
 
 def resolve_ui_name(name, kind, ctx, where):
@@ -3027,6 +3029,12 @@ def compile_parity_event(etype, ev, out, ctx, where):
         op_name = ("SCRIPT_ACTOR_SET_POSITION_VARS" if etype == "actor_set_position_vars"
                    else "SCRIPT_ACTOR_MOVE_TO_VARS")
         out.append(_instr(op_name, a=idx, b=vx, c=vy, d=pixels))
+
+    elif etype == "actor_move_relative" and any(k in ev for k in ("collisions", "move_type", "keep_direction")):
+        # Move Relative with Move To's options: the same move, relative.
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        b, c, d = actor_move_ex({**ev, "target": "position", "relative": True}, idx, ctx, where)
+        out.append(_instr("SCRIPT_ACTOR_MOVE_EX", a=idx, b=b, c=c, d=d))
 
     elif etype in ("actor_set_position_relative", "actor_move_relative"):
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)

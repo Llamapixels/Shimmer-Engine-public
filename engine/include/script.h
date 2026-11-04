@@ -449,6 +449,8 @@ typedef enum
                                   * first, 2 = diagonal */
 #define MOVE_F_SRC_SHIFT  5      /* 0 = numbers, 1 = variables, 2 = to
                                   * another actor (b) */
+#define MOVE_F_KEEP_DIR   0x100  /* keeps facing the way it was (bit 7 is
+                                  * taken by the thread's "ex" marker) */
 
 /*
  * Compiled expressions ("If Expression", "Evaluate Math Expression",

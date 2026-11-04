@@ -893,7 +893,7 @@ int actor_step_toward(int index, int target_x, int target_y)
     return 0;
 }
 
-int actor_step_toward_ex(int index, int target_x, int target_y, int type, int collide)
+int actor_step_toward_ex(int index, int target_x, int target_y, int type, int collide, int keep_dir)
 {
     Entity *e = entity_for_actor(index);
     if (!e)
@@ -948,7 +948,7 @@ int actor_step_toward_ex(int index, int target_x, int target_y, int type, int co
     Direction dir = adx >= ady ? (nx > e->x ? DIR_RIGHT : DIR_LEFT) : (ny > e->y ? DIR_DOWN : DIR_UP);
     e->x = nx;
     e->y = ny;
-    entity_animate(e, dir, 1);
+    entity_animate(e, keep_dir ? (Direction)e->direction : dir, 1);
     return 1;
 }
 
