@@ -4243,6 +4243,9 @@ def build(project_dir, out_dir):
     if len(sprite_names) > 255:
         raise BuildError(f"{len(sprite_names)} different sprites are used; the most is 255.")
     compiled_sprites = compile_project_sprites(project, project_dir, sprite_names)
+    # The grapple's rope keeps a few sprites free (engine sprite.c).
+    ctx["ui"]["grapple_used"] = bool((project.get("engine") or {}).get("pl_grapple")) or any(
+        (s.get("engine") or {}).get("pl_grapple") for _, s in scene_data_list)
     # Portraits keep a block of sprite memory free (engine sprite.c).
     ctx["ui"]["portraits_used"] = bool(
         text_avatar_sprites(project.get("customScripts") or []) or text_avatar_sprites(project.get("prefabs") or [])

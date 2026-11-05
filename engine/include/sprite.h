@@ -83,6 +83,13 @@ void sprite_reserve_portrait(int on);
 void sprite_init_portrait(ASprite *sprite, const ASpriteFrame *frames, uint16_t frame_count,
                           uint8_t max_objs, uint16_t max_vram_tiles, int palette_bank);
 
+/* Grapple rope: SPRITE_ROPE_DOTS small OBJs (and one tile) kept out of
+ * sprite_init() while reserved (projects with a grapple). */
+#define SPRITE_ROPE_DOTS 8
+void sprite_reserve_rope(int on);
+/* Show the dots at these screen points (n up to SPRITE_ROPE_DOTS; 0 hides). */
+void sprite_rope_draw(int n, const int16_t *xs, const int16_t *ys);
+
 /* Copy an OBJ palette bank out / back (a portrait borrows bank 15). */
 void sprite_save_palette(int bank, uint16_t *out);
 

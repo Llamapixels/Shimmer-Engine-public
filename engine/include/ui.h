@@ -47,6 +47,8 @@ extern const uint8_t ui_text_skip_b;
 extern const int16_t ui_text_sound;
 /* Settings > Sound: frames scene music fades out / in over (0 = cut). */
 extern const uint8_t ui_music_fade;
+/* A scene has the platformer grapple on: keep sprites free for its rope. */
+extern const uint8_t ui_grapple_used;
 extern const uint8_t ui_portraits_used;
 
 enum

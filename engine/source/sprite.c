@@ -175,10 +175,58 @@ void sprite_alloc_reset(uint32_t mark)
 }
 
 
+/* The blocks at the top of OAM / OBJ VRAM: the portrait's (always that
+ * place), then the rope's just below it. */
+static int portrait_reserved, rope_reserved;
+#define ROPE_OAM  (SPRITE_MAX - SPRITE_PORTRAIT_OBJS - SPRITE_ROPE_DOTS)
+#define ROPE_TILE (OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES - 1)
+
+static void set_limits(void)
+{
+    oam_limit = rope_reserved ? ROPE_OAM : portrait_reserved ? SPRITE_MAX - SPRITE_PORTRAIT_OBJS : SPRITE_MAX;
+    tile_limit = rope_reserved ? ROPE_TILE : portrait_reserved ? OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES : OBJ_TILE_MAX;
+}
+
 void sprite_reserve_portrait(int on)
 {
-    oam_limit = on ? SPRITE_MAX - SPRITE_PORTRAIT_OBJS : SPRITE_MAX;
-    tile_limit = on ? OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES : OBJ_TILE_MAX;
+    portrait_reserved = on;
+    set_limits();
+}
+
+void sprite_reserve_rope(int on)
+{
+    rope_reserved = on;
+    set_limits();
+    if (!on)
+        return;
+    /* The dot: a 2x2 block of colour 1 in the middle of an 8x8 tile.
+     * 4bpp: row r is t[r*2] (px 0-3) and t[r*2+1] (px 4-7); px 3 and 4. */
+    volatile uint16_t *t = ADV_OBJ_VRAM + ROPE_TILE * 16;
+    for (int i = 0; i < 16; i++)
+        t[i] = 0;
+    t[3 * 2 + 0] = 0x1000;
+    t[3 * 2 + 1] = 0x0001;
+    t[4 * 2 + 0] = 0x1000;
+    t[4 * 2 + 1] = 0x0001;
+    sprite_rope_draw(0, 0, 0);
+}
+
+void sprite_rope_draw(int n, const int16_t *xs, const int16_t *ys)
+{
+    if (!rope_reserved)
+        return;
+    for (int i = 0; i < SPRITE_ROPE_DOTS; i++)
+    {
+        int oam = ROPE_OAM + i;
+        if (i >= n || xs[i] < -8 || xs[i] >= SCREEN_W || ys[i] < -8 || ys[i] >= SCREEN_H)
+        {
+            write_hidden(oam);
+            continue;
+        }
+        ADV_OAM[oam * 4] = (uint16_t)((ys[i] - 4) & 0xFF);              /* 8x8, 4bpp */
+        ADV_OAM[oam * 4 + 1] = (uint16_t)((xs[i] - 4) & 0x1FF);
+        ADV_OAM[oam * 4 + 2] = (uint16_t)(ROPE_TILE | ADV_ATTR2_PRIORITY_NORMAL);   /* the player's palette */
+    }
 }
 
 void sprite_save_palette(int bank, uint16_t *out)

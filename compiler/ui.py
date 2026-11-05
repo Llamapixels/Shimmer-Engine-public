@@ -340,5 +340,6 @@ def ui_to_c(ui):
     c.append(f"const int16_t ui_text_sound = {ui.get('text_sound', 0)};")
     c.append(f"const uint8_t ui_hud_see_through = {1 if ui.get('hud_see_through') else 0};")
     c.append(f"const uint8_t ui_music_fade = {ui.get('music_fade', 0)};")
+    c.append(f"const uint8_t ui_grapple_used = {1 if ui.get('grapple_used') else 0};")
     c.append(f"const uint8_t ui_portraits_used = {1 if ui.get('portraits_used') else 0};")
     return "\n".join(c) + "\n"

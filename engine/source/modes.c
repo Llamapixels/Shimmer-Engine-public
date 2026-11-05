@@ -33,6 +33,9 @@ static int air_jumped, kick_show;
 static int crouch_low, crouch_oy, crouch_h, crouch_stuck;
 static int sliding;   /* a Slide (a low dash) is on: the crouch box */
 static int on_stairs, stair_sub;   /* Castlevania stairs: see stairs_update() */
+/* Grapple: see grapple_update(). */
+enum { GRAPPLE_NONE, GRAPPLE_SHOOTING, GRAPPLE_SWINGING };
+static int grapple_state;
 
 /* Room to stand up from the low box here? */
 static int stand_room(Entity *p)
@@ -166,6 +169,8 @@ void modes_scene_enter(const SceneDef *scene, Entity *player)
         state_scripts[s][0] = state_scripts[s][1] = state_scripts[s][2] = 0;
         state_thread[s] = 0;
     }
+    grapple_state = GRAPPLE_NONE;
+    sprite_rope_draw(0, 0, 0);
     pstate = PSTATE_GROUND;
     pstate_prev = -1;
     scene_sprite = player->def;
@@ -329,6 +334,179 @@ static int on_ladder_top(Entity *p, int ny)
 
 /* Landed on a bouncy projectile this frame (projectiles_platform()). */
 static int bounce_hit;
+
+/* ---- Grapple (platformer): shoot a rope at a ceiling, swing on it ---- */
+static void move_by_velocity(Entity *p, int *hit_x, int *hit_y);
+static int use_named_state(Entity *p, int kind);
+static int hook_x, hook_y, hook_dx, hook_dy, hook_travel;   /* px */
+static int32_t rope_len;                                      /* 1/256 px */
+
+static uint32_t isqrt32(uint32_t v)
+{
+    uint32_t r = 0, bit = 1u << 30;
+    while (bit > v)
+        bit >>= 2;
+    while (bit)
+    {
+        if (v >= r + bit)
+        {
+            v -= r + bit;
+            r = (r >> 1) + bit;
+        }
+        else
+            r >>= 1;
+        bit >>= 2;
+    }
+    return r;
+}
+
+static void grapple_draw(Entity *p)
+{
+    int16_t xs[SPRITE_ROPE_DOTS], ys[SPRITE_ROPE_DOTS];
+    if (grapple_state == GRAPPLE_NONE)
+    {
+        sprite_rope_draw(0, xs, ys);
+        return;
+    }
+    int cx = p->x + p->col_ox + p->col_w / 2, cy = p->y + p->col_oy + p->col_h / 2;
+    int camx = camera_get_display_x(), camy = camera_get_display_y();
+    for (int i = 0; i < SPRITE_ROPE_DOTS; i++)
+    {
+        xs[i] = (int16_t)(cx + (hook_x - cx) * (i + 1) / SPRITE_ROPE_DOTS - camx);
+        ys[i] = (int16_t)(cy + (hook_y - cy) * (i + 1) / SPRITE_ROPE_DOTS - camy);
+    }
+    sprite_rope_draw(SPRITE_ROPE_DOTS, xs, ys);
+}
+
+static void grapple_release(void)
+{
+    grapple_state = GRAPPLE_NONE;
+}
+
+/* Returns 1 while swinging (it moved the player itself). */
+static int grapple_update(Entity *p, int jump_btn)
+{
+    if (!MSET(PL_GRAPPLE))
+    {
+        if (grapple_state != GRAPPLE_NONE)
+        {
+            grapple_release();
+            grapple_draw(p);
+        }
+        return 0;
+    }
+    int btn = MSET(PL_GRAPPLE_BUTTON);
+    int cx = p->x + p->col_ox + p->col_w / 2, cy = p->y + p->col_oy + p->col_h / 2;
+    int max_len = MSET(PL_GRAPPLE_LENGTH);
+
+    if (grapple_state == GRAPPLE_NONE)
+    {
+        if (input_pressed(btn))
+        {
+            /* Up and forward, or straight up (setting, or holding Up). */
+            int up = MSET(PL_GRAPPLE_AIM) == 1 || input_held(INPUT_UP);
+            hook_x = cx;
+            hook_y = cy;
+            hook_dx = up ? 0 : (facing_left ? -5 : 5);
+            hook_dy = up ? -7 : -5;
+            hook_travel = 0;
+            grapple_state = GRAPPLE_SHOOTING;
+        }
+        grapple_draw(p);
+        return 0;
+    }
+
+    if (grapple_state == GRAPPLE_SHOOTING)
+    {
+        /* The hook flies a pixel at a time until it hits a solid tile. */
+        int steps = hook_dx ? (hook_dx < 0 ? -hook_dx : hook_dx) : (hook_dy < 0 ? -hook_dy : hook_dy);
+        for (int i = 0; i < steps; i++)
+        {
+            hook_x += hook_dx / steps;
+            hook_y += hook_dy / steps;
+            hook_travel++;
+            int dx = hook_x - cx, dy = hook_y - cy;
+            if (dx * dx + dy * dy > max_len * max_len || hook_y < 0)
+            {
+                grapple_release();
+                break;
+            }
+            if (collision_test_point(hook_x, hook_y))
+            {
+                int d = (int)isqrt32((uint32_t)(dx * dx + dy * dy));
+                rope_len = (int32_t)(d < 16 ? 16 : d) << 8;
+                grapple_state = GRAPPLE_SWINGING;
+                grounded = 0;
+                break;
+            }
+        }
+        if (input_pressed(btn) && grapple_state == GRAPPLE_SHOOTING && hook_travel > 4)
+            grapple_release();
+        grapple_draw(p);
+        return 0;
+    }
+
+    /* Swinging: let go with jump (a small hop) or the grapple button. */
+    if (input_pressed(jump_btn))
+    {
+        grapple_release();
+        vel_y -= MSET(PL_JUMP_VEL) / 2;
+        grapple_draw(p);
+        return 0;
+    }
+    if (input_pressed(btn))
+    {
+        grapple_release();
+        grapple_draw(p);
+        return 0;
+    }
+
+    /* Gravity, a push left / right, a little air drag; Up / Down climb. */
+    int dir_x = input_held(INPUT_RIGHT) - input_held(INPUT_LEFT);
+    vel_y += MSET(PL_GRAV);
+    vel_x += dir_x * MSET(PL_GRAPPLE_PUSH);
+    vel_x -= vel_x / 64;
+    vel_y -= vel_y / 64;
+    if (dir_x)
+        facing_left = dir_x < 0;
+    if (input_held(INPUT_UP) && rope_len > (16 << 8))
+        rope_len -= 512;
+    if (input_held(INPUT_DOWN) && rope_len < (max_len << 8))
+        rope_len += 512;
+
+    /* Where that would take the player, kept on the rope's circle. */
+    int32_t pcx = pos_x + ((p->col_ox + p->col_w / 2) << 8), pcy = pos_y + ((p->col_oy + p->col_h / 2) << 8);
+    int32_t ax = hook_x << 8, ay = hook_y << 8;
+    int32_t nx = pcx + vel_x, ny = pcy + vel_y;
+    int32_t dx = nx - ax, dy = ny - ay;
+    uint32_t dist = isqrt32((uint32_t)((int64_t)dx * dx + (int64_t)dy * dy > 0xFFFFFFFFll ? 0xFFFFFFFFu
+                                       : (uint32_t)((int64_t)dx * dx + (int64_t)dy * dy)));
+    if (dist > (uint32_t)rope_len && dist > 0)
+    {
+        nx = ax + (int32_t)((int64_t)dx * rope_len / (int32_t)dist);
+        ny = ay + (int32_t)((int64_t)dy * rope_len / (int32_t)dist);
+        /* No speed along the rope (outward): only around the circle. */
+        int64_t vr = ((int64_t)vel_x * dx + (int64_t)vel_y * dy) / (int32_t)dist;
+        if (vr > 0)
+        {
+            vel_x -= (int32_t)(vr * dx / (int32_t)dist);
+            vel_y -= (int32_t)(vr * dy / (int32_t)dist);
+        }
+    }
+    int keep_vx = vel_x, keep_vy = vel_y;
+    vel_x = nx - pcx;
+    vel_y = ny - pcy;
+    int hit_x, hit_y;
+    move_by_velocity(p, &hit_x, &hit_y);
+    vel_x = hit_x ? 0 : keep_vx;
+    vel_y = hit_y ? 0 : keep_vy;
+    grounded = 0;
+
+    use_named_state(p, vel_y < 0 ? MODE_ANIM_JUMP : MODE_ANIM_FALL);
+    entity_animate(p, facing_left ? DIR_LEFT : DIR_RIGHT, 1);
+    grapple_draw(p);
+    return 1;
+}
 
 /* Platformer slopes: the y (world px) of the slope surface under column
  * fx, for feet whose first pixel below is row fy; -1 if no slope there. */
@@ -960,6 +1138,9 @@ static const ScriptEvent *platform_update(Entity *p)
         stairs_update(p, cx, feet, jump_btn);
         return 0;
     }
+
+    if (grapple_update(p, jump_btn))
+        return 0;
 
     collision_set_ignore_top(drop_timer > 0);
     grounded = vel_y >= 0 && blocked(p, p->x, p->y + 1);
