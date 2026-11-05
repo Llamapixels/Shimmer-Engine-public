@@ -368,6 +368,7 @@ export const THEMES = [
   { id: "midnight", label: "Midnight Blue" },
   { id: "classic", label: "Classic Purple" },
   { id: "gameboy", label: "Game Boy" },
+  { id: "lemons", label: "Lemons" },
   { id: "forest", label: "Forest" },
   { id: "ember", label: "Ember" },
   { id: "synthwave", label: "Synthwave" },

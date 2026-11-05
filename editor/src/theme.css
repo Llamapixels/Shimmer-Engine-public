@@ -167,8 +167,44 @@
   --tooltip-text: #e6e6e6;
 }
 
-/* The original handheld's four greens. */
+/* The retro handheld look: four muted greens, near-black ink. */
 :root[data-theme="gameboy"] {
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23081820' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --accent: #346856;
+  --accent-hover: #3f7a66;
+  --accent-active: #2a5446;
+  --accent-text: #e0f8d0;
+  --accent-soft: #a8d090;
+  --accent-soft-border: #346856;
+  --canvas-accent: #081820;
+  --marker-door: rgba(8, 24, 32, 0.4);
+
+  --bg-0: #86b06a;
+  --bg-1: #98c47c;
+  --bg-2: #8ab870;
+  --bg-3: #b4d89c;
+  --bg-4: #78a45c;
+  --input-bg: #c8e4b4;
+
+  --border: #5e8a52;
+  --border-strong: #346856;
+
+  --text-primary: #081820;
+  --text-secondary: #1a3a30;
+  --text-muted: #346856;
+  --text-disabled: #5e8a6a;
+
+  --canvas-bg: #78a45c;
+  --grid-line: rgba(8, 24, 32, 0.15);
+  --danger: #8a2020;
+  --danger-text: #7a1010;
+  --tooltip-bg: #081820;
+  --tooltip-text: #e0f8d0;
+  --shadow-menu: 0 2px 10px rgba(8, 24, 32, 0.35);
+}
+
+/* Bright lemon-lime greens. */
+:root[data-theme="lemons"] {
   --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%230f380f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --accent: #306230;
   --accent-hover: #3d7a3d;
