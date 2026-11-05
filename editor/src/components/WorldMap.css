@@ -127,3 +127,37 @@
 
 
 .world-map-scene-prefab-drop { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Each scene: its name in a bar above, its counts in a bar below (GB Studio
+   style). Sizes are in em so they follow the zoom-scaled font size. */
+.world-map-label,
+.world-map-info {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  background: rgba(32, 32, 32, 0.94);
+  color: #eee;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.3em 0.6em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+.world-map-label {
+  bottom: calc(100% + 3px);
+  top: auto;
+  border-radius: 0.5em 0.5em 0 0;
+}
+.world-map-info {
+  top: calc(100% + 3px);
+  border-radius: 0 0 0.5em 0.5em;
+  display: flex;
+  justify-content: center;
+  gap: 1.6em;
+  font-weight: 500;
+}
+.world-map-info-over {
+  color: #ff8a80;
+}

@@ -438,3 +438,50 @@
 .scene-engine .engine-row:has(> select) {
   grid-template-columns: minmax(0, 1fr) 170px 36px;
 }
+
+/* Background at a glance (under the Background picker). */
+.bg-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.bg-card-thumb {
+  flex: none;
+  width: 72px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  background: var(--bg-0);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.bg-card-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+.bg-card-info {
+  min-width: 0;
+}
+.bg-card-name {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bg-card-dim {
+  color: var(--text-muted);
+}
+.bg-card-over {
+  color: var(--danger-text);
+}

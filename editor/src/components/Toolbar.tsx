@@ -131,6 +131,17 @@ export default function Toolbar() {
         >
           {building ? "Building…" : "Build ROM"}
         </button>
+        <button
+          className="toolbar-open-btn"
+          disabled={!rootPath || building}
+          onClick={() => {
+            if (!rootPath || building) return;
+            void startBuild(rootPath, false, undefined, { name: projectName || "Game" });
+          }}
+          title="Build the ROM, make the HTML page that plays it in a browser (the project's Web folder - zip it for itch.io) and open it"
+        >
+          Build HTML
+        </button>
         <button className="toolbar-open-btn" onClick={closeProject} title="Back to the start screen to open or create another project">
           Projects…
         </button>

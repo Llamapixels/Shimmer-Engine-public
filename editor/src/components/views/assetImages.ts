@@ -57,12 +57,16 @@ export interface ImageStats {
   uniqueTiles: number;
 }
 
+/** Stats by image URL, so switching scenes doesn't rescan big backgrounds. */
+const statsCache = new Map<string, ImageStats>();
+
 /** Decode an image and gather the numbers the GBA limits care about. */
 export function useImageStats(url: string | null): ImageStats | null {
-  const [stats, setStats] = useState<ImageStats | null>(null);
+  const [stats, setStats] = useState<ImageStats | null>(url ? (statsCache.get(url) ?? null) : null);
   useEffect(() => {
-    setStats(null);
-    if (!url) return;
+    const hit = url ? statsCache.get(url) : undefined;
+    setStats(hit ?? null);
+    if (!url || hit) return;
     let cancelled = false;
     const img = new Image();
     img.onload = () => {
@@ -98,7 +102,10 @@ export function useImageStats(url: string | null): ImageStats | null {
           tiles.add(sig.join(","));
         }
       }
-      setStats({ width: w, height: h, colors: all.size, maxTileColors, uniqueTiles: tiles.size });
+      const s = { width: w, height: h, colors: all.size, maxTileColors, uniqueTiles: tiles.size };
+      if (statsCache.size > 64) statsCache.clear();
+      statsCache.set(url, s);
+      setStats(s);
     };
     img.src = url;
     return () => {

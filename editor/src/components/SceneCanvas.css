@@ -696,3 +696,55 @@
 .scene-stat-over b {
   color: var(--danger, #e5484d);
 }
+
+/* The scene's name above it and its counts below (GB Studio style);
+   both take the scene's color when it has one. */
+.scene-frame-bar {
+  background: var(--bg-2);
+  color: var(--text-primary);
+  min-width: 260px;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.scene-frame-title {
+  height: 32px;
+  line-height: 32px;
+  margin-bottom: 3px;
+  padding: 0 12px;
+  border-radius: 8px 8px 0 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scene-frame-bar.scene-canvas-stats {
+  margin-top: 3px;
+  padding: 7px 12px;
+  border-radius: 0 0 8px 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.scene-frame-bar.scene-canvas-stats .scene-stat b {
+  color: inherit;
+}
+.scene-frame-text {
+  display: inline-flex;
+  gap: 18px;
+  justify-content: center;
+}
+.scene-frame-bar.scene-canvas-stats {
+  display: block;
+  text-align: center;
+}
+/* A scene wider than the view: keep the text at the visible left edge. */
+.scene-frame-wide {
+  text-align: left !important;
+}
+.scene-frame-wide .scene-frame-text {
+  position: sticky;
+  left: 12px;
+}
+.scene-frame-title.scene-frame-wide {
+  overflow: visible;
+}

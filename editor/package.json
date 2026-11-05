@@ -7,7 +7,7 @@
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev:vite": "vite",
-    "dev:electron": "tsc -p electron/tsconfig.json && wait-on tcp:5173 && electron dist-electron/electron/main.js --dev",
+    "dev:electron": "tsc -p electron/tsconfig.json && wait-on tcp:5173 && electron dist-electron/electron/main.js --dev --remote-debugging-port=9222",
     "dev": "concurrently -k -n VITE,ELECTRON -c blue,magenta \"npm:dev:vite\" \"npm:dev:electron\"",
     "build:renderer": "vite build",
     "build:electron": "tsc -p electron/tsconfig.json",

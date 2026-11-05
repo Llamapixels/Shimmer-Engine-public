@@ -34,6 +34,7 @@ import Chevron from "./common/Chevron";
 import PopoverMenu, { type MenuItem } from "./common/PopoverMenu";
 import { useBuildStore } from "../state/buildStore";
 import { ColorPopover } from "../script/ScriptEditor";
+import { inkOn, SCENE_MAX_ACTORS, SCENE_MAX_TILES, SCENE_MAX_TRIGGERS } from "./sceneColor";
 
 export { resizeCollision };
 
@@ -937,8 +938,10 @@ export default function SceneCanvas() {
     const anchor = zoomAnchorRef.current;
     const scroll = scrollRef.current;
     if (anchor && scroll) {
-      scroll.scrollLeft = anchor.pointX * anchor.scale + SCROLL_PAD - anchor.offsetX;
-      scroll.scrollTop = anchor.pointY * anchor.scale + SCROLL_PAD - anchor.offsetY;
+      // The canvas's own offset: the scene's name bar sits above it.
+      const c = canvasRef.current;
+      scroll.scrollLeft = anchor.pointX * anchor.scale + (c?.offsetLeft ?? SCROLL_PAD) - anchor.offsetX;
+      scroll.scrollTop = anchor.pointY * anchor.scale + (c?.offsetTop ?? SCROLL_PAD) - anchor.offsetY;
       zoomAnchorRef.current = null;
     }
   }, [zoom]);
@@ -1791,8 +1794,8 @@ export default function SceneCanvas() {
               const offsetX = e.clientX - r.left;
               const offsetY = e.clientY - r.top;
               zoomAnchorRef.current = {
-                pointX: scroll.scrollLeft + offsetX - SCROLL_PAD,
-                pointY: scroll.scrollTop + offsetY - SCROLL_PAD,
+                pointX: scroll.scrollLeft + offsetX - (canvasRef.current?.offsetLeft ?? SCROLL_PAD),
+                pointY: scroll.scrollTop + offsetY - (canvasRef.current?.offsetTop ?? SCROLL_PAD),
                 offsetX,
                 offsetY,
                 scale: next / zoom,
@@ -1805,10 +1808,19 @@ export default function SceneCanvas() {
           {!data.background && (
             <div className="scene-canvas-error scene-canvas-hint">No background set — pick one in the Properties panel.</div>
           )}
+          {bgImage && (
+            <div
+              className={`scene-frame-bar scene-frame-title${bgImage.width * zoom > 640 ? " scene-frame-wide" : ""}`}
+              style={{ width: bgImage.width * zoom, ...(data.color ? { background: data.color, color: inkOn(data.color) } : {}) }}
+              title="Right-click the scene to give it a color"
+            >
+              <span className="scene-frame-text">{data.name || sceneId}</span>
+            </div>
+          )}
           <canvas
             ref={canvasRef}
             className="scene-canvas"
-            style={{ cursor }}
+            style={{ cursor, ...(data.color ? { boxShadow: `0 0 0 2px ${data.color}` } : {}) }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={finishDrag}
@@ -1836,7 +1848,11 @@ export default function SceneCanvas() {
             data-testid="scene-canvas"
           />
           {bgImage && (
-            <div className="scene-canvas-stats" style={{ width: bgImage.width * zoom }}>
+            <div
+              className={`scene-frame-bar scene-canvas-stats${bgImage.width * zoom > 640 ? " scene-frame-wide" : ""}`}
+              style={{ width: bgImage.width * zoom, ...(data.color ? { background: data.color, color: inkOn(data.color) } : {}) }}
+            >
+              <span className="scene-frame-text">
               <SceneStat label="Actors" used={(data.npcs ?? []).length} max={SCENE_MAX_ACTORS} />
               <SceneStat label="Triggers" used={(data.doors ?? []).length} max={SCENE_MAX_TRIGGERS} />
               <SceneStat
@@ -1845,6 +1861,7 @@ export default function SceneCanvas() {
                 max={SCENE_MAX_TILES}
                 title="Different 8x8 tiles in the background (flipped copies count once when building, so it can be a little lower)"
               />
+              </span>
             </div>
           )}
           {ctxMenu && (
@@ -1900,12 +1917,6 @@ export default function SceneCanvas() {
     </div>
   );
 }
-
-/** Per-scene limits (the compiler's MAX_NPCS, MAX_TILES and the engine's
- * 8-bit trigger count). */
-const SCENE_MAX_ACTORS = 16;
-const SCENE_MAX_TRIGGERS = 255;
-const SCENE_MAX_TILES = 1024;
 
 function SceneStat({ label, used, max, title }: { label: string; used: number; max: number; title?: string }) {
   const level = used > max ? " scene-stat-over" : used >= max * 0.9 ? " scene-stat-near" : "";

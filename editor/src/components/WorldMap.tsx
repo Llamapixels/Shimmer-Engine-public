@@ -16,6 +16,7 @@ import { sceneName, useProjectStore } from "../state/projectStore";
 import "./WorldMap.css";
 import PopoverMenu from "./common/PopoverMenu";
 import { ColorPopover } from "../script/ScriptEditor";
+import { inkOn, SCENE_MAX_ACTORS, SCENE_MAX_TRIGGERS } from "./sceneColor";
 import { PREFAB_DRAG_TYPE, prefabDropTile } from "../world/prefabs";
 
 const TILE = 8;
@@ -229,10 +230,22 @@ const SceneCard = memo(function SceneCard({
       onContextMenu={(e) => actions.menu(e, rec, null)}
     >
       <div
-        className={`world-map-label${rec.data.color ? " world-map-label-colored" : ""}`}
-        style={{ fontSize: labelSize, ...(rec.data.color ? { background: rec.data.color } : {}) }}
+        className="world-map-label"
+        style={{ fontSize: labelSize, ...(rec.data.color ? { background: rec.data.color, color: inkOn(rec.data.color) } : {}) }}
       >
         {sceneName(rec)}
+      </div>
+      <div
+        className="world-map-info"
+        style={{ fontSize: labelSize, ...(rec.data.color ? { background: rec.data.color, color: inkOn(rec.data.color) } : {}) }}
+        title="Actors and triggers in this scene"
+      >
+        <span className={(rec.data.npcs ?? []).length > SCENE_MAX_ACTORS ? "world-map-info-over" : ""}>
+          A: {(rec.data.npcs ?? []).length}/{SCENE_MAX_ACTORS}
+        </span>
+        <span className={(rec.data.doors ?? []).length > SCENE_MAX_TRIGGERS ? "world-map-info-over" : ""}>
+          T: {(rec.data.doors ?? []).length}
+        </span>
       </div>
       {img ? <img src={img.url} alt="" draggable={false} /> : <div className="world-map-missing">no background</div>}
       {(rec.data.doors ?? []).map((d, k) => (
@@ -577,7 +590,7 @@ export default function WorldMap() {
                   active={rec.fileId === activeSceneId}
                   selDoor={selHere && selection.kind === "door" ? selection.index : -1}
                   selNpc={selHere && selection.kind === "npc" ? selection.index : -1}
-                  labelSize={12 / Math.max(zoom, 0.35)}
+                  labelSize={13 / Math.max(zoom, 0.05)}
                   sheets={sheets}
                   project={project.project}
                   playerSprite={playerSprite}

@@ -21,7 +21,7 @@ import { countRefs } from "../script/scriptRefs";
 import { nextActorInputName } from "../script/customScriptModel";
 import { SoundChoice } from "./views/DialogueCard";
 import { sceneName, useProjectStore } from "../state/projectStore";
-import { BackgroundSelect, backgroundRefFor, MusicSelect, SpriteSelect } from "./common/AssetSelect";
+import { BackgroundCard, BackgroundSelect, backgroundRefFor, MusicSelect, SpriteSelect } from "./common/AssetSelect";
 import CommitInput from "./common/CommitInput";
 import NumberInput from "./common/NumberInput";
 import FieldRow from "./inspector/FieldRow";
@@ -240,6 +240,7 @@ function SceneProps({ scene, scenes }: { scene: SceneRecord; scenes: SceneRecord
           hint={data.type === "raycast" ? "In First Person 3D it only sets the map's size (8 px a tile) and what you paint over." : undefined}
         >
           <BackgroundSelect value={data.background} onChange={(ref) => patch({ background: ref })} />
+          {data.background && <BackgroundCard value={data.background} />}
         </FieldRow>
 
         <FieldRow label="Music">
