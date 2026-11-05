@@ -998,6 +998,15 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** Let the player type a name into a project Name slot. */
+export interface NameEntryEvent extends EventBase {
+  type: "name_entry";
+  name: string;
+  prompt?: string;
+  max_length?: number;
+  default?: string;
+}
+
 /** Screen tint (day / night): a preset or a colour at a strength, fading over frames. */
 export interface ScreenTintEvent extends EventBase {
   type: "screen_tint";
@@ -1416,6 +1425,7 @@ export type ScriptEventJSON =
   | PlaytimeEvent
   | MusicFadeEvent
   | ScreenTintEvent
+  | NameEntryEvent
   | DayNightEvent
   | TimeOfDayVarEvent
   | PlaytimeReadEvent

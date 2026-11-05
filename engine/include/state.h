@@ -37,6 +37,16 @@ int  item_has(int index);     /* 0/1; index < 0 is always 0 */
 void item_give(int index);    /* no-op if index < 0 */
 
 int16_t var_get(int index);                 /* 0 if index is out of range */
+
+/* Names the player typed ("Enter Name"): NAME_SLOTS of up to NAME_MAX
+ * characters, shown in text with !N:name!. */
+#define NAME_SLOTS 4
+#define NAME_MAX   12
+const char *name_get(int slot);              /* "" if unset or out of range */
+void name_set(int slot, const char *text);
+/* Copy all names out / back (saves). */
+void names_copy_out(char out[NAME_SLOTS][NAME_MAX + 1]);
+void names_copy_in(const char in[NAME_SLOTS][NAME_MAX + 1]);
 void    var_set(int index, int16_t value);  /* no-op if index is out of range */
 void    var_add(int index, int16_t delta);  /* no-op if index is out of range */
 

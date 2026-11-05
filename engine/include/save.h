@@ -25,6 +25,7 @@ typedef struct
     uint8_t  player_direction;
     int16_t  variables[MAX_VARIABLES]; /* see "variables" in project.json */
     uint32_t playtime;         /* frames on the playtime clock */
+    char     names[NAME_SLOTS][NAME_MAX + 1];   /* "Enter Name" */
     uint8_t  checksum;         /* set by save_write - ignore when filling this in */
 } SaveData;
 

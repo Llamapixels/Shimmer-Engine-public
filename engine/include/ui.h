@@ -79,8 +79,12 @@ void ui_box_anim_tick(void);
                                 * past the last line it carries on as a new page */
 
 /* Is c one of the variable codes? Its argument + this = the index. */
-#define UI_IS_VAR_CODE(c) ((c) == UI_CODE_VAR || (c) == UI_CODE_VAR_HI || (c) == UI_CODE_VAR_2 || (c) == UI_CODE_VAR_3)
-#define UI_VAR_BASE(c)    ((c) == UI_CODE_VAR_HI ? 128 : (c) == UI_CODE_VAR_2 ? 256 : (c) == UI_CODE_VAR_3 ? 384 : 0)
+#define UI_CODE_NAME    0x0C   /* a = name slot ("Enter Name"): its letters */
+/* Names ride on the variable code path, as "variable" UI_NAME_BASE + slot. */
+#define UI_NAME_BASE    1024
+#define UI_IS_VAR_CODE(c) ((c) == UI_CODE_VAR || (c) == UI_CODE_VAR_HI || (c) == UI_CODE_VAR_2 || (c) == UI_CODE_VAR_3 || (c) == UI_CODE_NAME)
+#define UI_VAR_BASE(c)    ((c) == UI_CODE_VAR_HI ? 128 : (c) == UI_CODE_VAR_2 ? 256 : (c) == UI_CODE_VAR_3 ? 384 : \
+                           (c) == UI_CODE_NAME ? UI_NAME_BASE : 0)
 
 #define UI_TEXT_WIDTH   224    /* px inside the box (28 tiles) */
 #define UI_MAX_LINES    4      /* text lines the box can grow to */

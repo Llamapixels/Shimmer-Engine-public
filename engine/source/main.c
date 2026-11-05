@@ -1445,6 +1445,7 @@ void game_persist(int op, int group, int var)
 static void fill_save(SaveData *save_data)
 {
     save_data->playtime = playtime_frames;
+    names_copy_out(save_data->names);
     save_data->flags = state_flags();
     save_data->inventory = state_inventory();
     save_data->scene_index = (uint8_t)scene_to_index(scene_current());
@@ -1474,6 +1475,7 @@ int game_load_slot(int slot)
 
     state_init(save_data.flags, save_data.inventory, save_data.variables);
     playtime_frames = save_data.playtime;
+    names_copy_in((const char (*)[NAME_MAX + 1])save_data.names);
     script_request_scene_switch(save_data.scene_index, save_data.player_x,
                                 save_data.player_y, save_data.player_direction);
     return 1;

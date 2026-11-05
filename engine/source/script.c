@@ -574,6 +574,7 @@ static void thread_step(ScriptThread *t, int is_main)
         case SCRIPT_TEXT:
         case SCRIPT_CHOICE:
         case SCRIPT_MENU:
+        case SCRIPT_NAME_ENTRY:
             /* Only one box at a time: if another thread's box is up,
              * wait for it (retry this instruction next frame). */
             if (dialogue_active())
@@ -595,6 +596,11 @@ static void thread_step(ScriptThread *t, int is_main)
             {
                 dialogue_set_focus((ev->a >> 6) & 3);
                 dialogue_show_ex(ev->str, ev->a, ev->b);
+            }
+            else if (ev->op == SCRIPT_NAME_ENTRY)
+            {
+                dialogue_set_focus(0);
+                dialogue_show_name_entry(ev->str, ev->a, ev->b);
             }
             else if (ev->op == SCRIPT_CHOICE)
             {

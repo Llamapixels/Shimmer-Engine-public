@@ -539,6 +539,16 @@ static int label_text(const unsigned char *s, int slot, int cols, int draw, int 
             }
             else if (ch == UI_CODE_COLOR)
                 color = arg;
+            else if (ch == UI_CODE_NAME)
+            {
+                const char *nm = name_get(arg);
+                for (; *nm; nm++)
+                {
+                    if (draw)
+                        draw_char(label_canvas[slot], cols, line, x, font, (unsigned char)*nm, color);
+                    x += ui_char_width(font, (unsigned char)*nm);
+                }
+            }
             else if (ch != UI_CODE_SPEED)
             {
                 int v = var_get(arg + UI_VAR_BASE(ch));

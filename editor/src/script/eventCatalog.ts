@@ -24,6 +24,7 @@ export type FieldKind =
   | "duration"
   | "animSpeed"
   | "portrait"
+  | "nameSlot"
   | "moveSpeed"
   | "actor"
   | "timer"
@@ -323,6 +324,15 @@ let prefabNames: Record<string, string> = {};
 export function setPrefabNames(names: Record<string, string>) {
   prefabNames = names;
 }
+/** The project's first Name slot (set by the editor, like custom script names). */
+let firstName = "";
+export function setFirstName(name: string) {
+  firstName = name;
+}
+function useNamesFirst(): string {
+  return firstName;
+}
+
 /** Custom script names, from their ids (set by the editor, like prefabs). */
 let customScriptNames: Record<string, string> = {};
 export function setCustomScriptNames(names: Record<string, string>) {
@@ -421,6 +431,23 @@ export const EVENT_DEFS: EventDef[] = [
     ],
     create: () => ({ type: "text", text: "" }),
     summary: (ev) => `"${short(ev.text)}"${ev.hud ? " (HUD)" : ""}`,
+  }),
+  def({
+    type: "name_entry",
+    label: "Enter Name",
+    category: "Dialogue",
+    description:
+      "Let the player type a name: a box with your question and a grid of letters (d-pad to move, A to pick, B to delete, " +
+      "SELECT for lower case, START when done). It goes into one of the project's Names (Settings > Names), is saved with " +
+      "the game, and shows in any text with !N:name!.",
+    fields: [
+      { key: "name", label: "Name", kind: "nameSlot" },
+      { key: "prompt", label: "Question", kind: "text", placeholder: "Your name?" },
+      { key: "max_length", label: "Most letters", kind: "int", min: 1, max: 12, defaultValue: 8 },
+      { key: "default", label: "Starts as (if not set yet)", kind: "text" },
+    ],
+    create: () => ({ type: "name_entry", name: useNamesFirst(), prompt: "Your name?", max_length: 8 }),
+    summary: (ev) => `${ev.name || "?"}: "${ev.prompt ?? ""}"`,
   }),
   def({
     type: "text_draw",

@@ -3,6 +3,39 @@
 static uint32_t game_flags = 0;
 static uint32_t game_inventory = 0;
 static int16_t  game_variables[MAX_VARIABLES];
+static char     game_names[NAME_SLOTS][NAME_MAX + 1];
+
+const char *name_get(int slot)
+{
+    return slot >= 0 && slot < NAME_SLOTS ? game_names[slot] : "";
+}
+
+void name_set(int slot, const char *text)
+{
+    if (slot < 0 || slot >= NAME_SLOTS)
+        return;
+    int i = 0;
+    for (; text && text[i] && i < NAME_MAX; i++)
+        game_names[slot][i] = text[i];
+    game_names[slot][i] = 0;
+}
+
+void names_copy_out(char out[NAME_SLOTS][NAME_MAX + 1])
+{
+    for (int s = 0; s < NAME_SLOTS; s++)
+        for (int i = 0; i <= NAME_MAX; i++)
+            out[s][i] = game_names[s][i];
+}
+
+void names_copy_in(const char in[NAME_SLOTS][NAME_MAX + 1])
+{
+    for (int s = 0; s < NAME_SLOTS; s++)
+    {
+        for (int i = 0; i < NAME_MAX; i++)
+            game_names[s][i] = in[s][i];
+        game_names[s][NAME_MAX] = 0;
+    }
+}
 
 void state_init(uint32_t flags, uint32_t inventory, const int16_t *variables)
 {

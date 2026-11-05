@@ -153,7 +153,7 @@ function parseHex(value: string | undefined): [number, number, number] | null {
  * {var} shows as a number (0 here), !S5! only changes speed. */
 function tokenize(text: string): Item[] {
   const out: Item[] = [];
-  const re = /\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!/g;
+  const re = /\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!|!N:([^!]+)!/g;
   let pos = 0;
   const plain = (s: string) => {
     for (const ch of s) out.push(ch === " " ? { kind: "space" } : ch === LINE_BREAK ? { kind: "break" } : { kind: "char", ch });
@@ -162,6 +162,7 @@ function tokenize(text: string): Item[] {
     plain(text.slice(pos, m.index));
     pos = m.index + m[0].length;
     if (m[1] !== undefined) out.push({ kind: "char", ch: "0" });
+    else if (m[5] !== undefined) for (const ch of "Name") out.push({ kind: "char", ch });
     else if (m[2] !== undefined) out.push({ kind: "font", name: m[2].trim() });
     else if (m[0].startsWith("!C")) out.push({ kind: "color", color: m[4] ?? null });
   }

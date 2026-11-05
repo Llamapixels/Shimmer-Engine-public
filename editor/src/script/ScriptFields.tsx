@@ -516,6 +516,21 @@ export function FieldControl({ field, ev, env, patch }: Props) {
     case "sprite":
       return <SpriteSelect value={String(value ?? "player")} onChange={(v) => patch({ [field.key]: v ?? "player" })} />;
 
+    case "nameSlot": {
+      const names = useProjectStore.getState().project?.project.names ?? [];
+      const cur = String(value ?? "");
+      return (
+        <select className={!names.includes(cur) ? "select-invalid" : undefined} value={cur} onChange={(e) => patch({ [field.key]: e.target.value })}>
+          {!names.includes(cur) && <option value={cur}>{names.length ? cur || "Choose…" : "Add names in Settings > Names first"}</option>}
+          {names.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
     case "portrait": {
       // Display Text's portrait: none, or a sprite (its first frame).
       const sprites = ["player", ...(useProjectStore.getState().assets?.sprites ?? []).map((a) => a.name)];
@@ -1074,6 +1089,7 @@ function DialogueTextField({
   cols: number;
 }) {
   const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const nameSlots = useProjectStore((s) => s.project?.project.names) ?? [];
   const [focus, setFocus] = useState(0);
   const [color, setColor] = useState("#ff4040");
   const at = Math.min(focus, boxes.length - 1);
@@ -1178,6 +1194,16 @@ function DialogueTextField({
           <option value="4">Slow (4)</option>
           <option value="8">Very slow (8)</option>
         </select>
+        {nameSlots.length > 0 && (
+          <select value="" title="Show a name the player typed (!N:name!)" onChange={(e) => e.target.value && insert(`!N:${e.target.value}!`)}>
+            <option value="">Name…</option>
+            {nameSlots.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        )}
         {variables.length > 0 && (
           <select
             value=""

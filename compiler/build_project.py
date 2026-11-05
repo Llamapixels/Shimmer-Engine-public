@@ -736,7 +736,7 @@ VAR_REF_RE = re.compile(r"\{([^{}]+)\}")
 # sets the text speed (frames per character, 0 = instant). Ours:
 # "!C:#ff4040!" colours the text from there on, "!C!" goes back to the
 # font's own colour.
-TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!")
+TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!|!N:([^!]+)!")
 
 # Display Text "position" -> engine/include/ui.h UI_BOX_*.
 TEXT_POSITIONS = {"bottom": 0, "top": 1, "middle": 2, "custom": 3}
@@ -2094,6 +2094,9 @@ def interpolate_vars(text, ctx, where):
             out.append("\x03" + chr(resolve_ui_name(m.group(2), "font", ctx, where) + 1))
         elif m.group(0).startswith("!C"):
             out.append("\x06" + chr(resolve_text_color(m.group(4), ctx, where) + 1))
+        elif m.group(5) is not None:
+            # ui.h UI_CODE_NAME: a name the player typed ("Enter Name").
+            out.append("\x0c" + chr(resolve_name_slot(m.group(5), ctx, where) + 1))
         else:
             speed = int(m.group(3))
             if speed > 30:
@@ -2101,6 +2104,15 @@ def interpolate_vars(text, ctx, where):
             out.append("\x04" + chr(speed + 1))
     plain(text[pos:])
     return "".join(out)
+
+
+def resolve_name_slot(name, ctx, where):
+    """A project "names" entry (Enter Name) -> its slot 0-3."""
+    names = ctx.get("name_slots", [])
+    name = str(name).strip()
+    if name not in names:
+        raise BuildError(f"{where}: unknown name '{name}'. Names: {', '.join(names) or '(none yet - add them in the Names list)'}")
+    return names.index(name)
 
 
 def resolve_text_color(value, ctx, where):
@@ -2803,7 +2815,7 @@ PARITY_EVENT_TYPES = [
     "pause_world", "resume_world", "light_set",
     "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
     "actor_knockback", "actor_set_transparent", "playtime", "playtime_read", "persist", "music_fade",
-    "screen_tint", "day_night", "time_of_day_var",
+    "screen_tint", "day_night", "time_of_day_var", "name_entry",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3275,6 +3287,14 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "name_entry":
+        slot = resolve_name_slot(_require(ev, "name", where), ctx, where)
+        max_len = resolve_small_int(ev.get("max_length", 8), "max_length", where, 1, 12)
+        prompt = interpolate_vars(str(ev.get("prompt", "Name?")), ctx, where)
+        default = interpolate_vars(str(ev.get("default", "")), ctx, where)[:12]
+        text = prompt + ("\x01" + default if default else "")
+        out.append(_instr("SCRIPT_NAME_ENTRY", a=slot, b=max_len, text=c_string_literal(text)))
 
     elif etype == "screen_tint":
         # Presets: (colour, strength %).
@@ -4140,6 +4160,7 @@ def build(project_dir, out_dir):
         "item_names": item_names,
         "flag_names": flag_names,
         "variable_names": variable_names,
+        "name_slots": [str(n) for n in (project.get("names") or [])][:4],
         "name_to_index": name_to_index,
         "npc_name_to_index": {},
         "npc_sprite_of": {},

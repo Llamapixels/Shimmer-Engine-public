@@ -161,6 +161,8 @@ export interface ProjectJSON {
   palettes?: PaletteJSON[];
   /** See PrefabJSON. */
   prefabs?: PrefabJSON[];
+  /** Name slots the player can type ("Enter Name"), up to 4; shown in text with !N:name!. */
+  names?: string[];
   /** Editor only: saved groups of events, dropped in from Add Event > Snippets. */
   snippets?: SnippetJSON[];
   /** See SpriteSheetJSON. */

@@ -8,7 +8,7 @@ import NamePrompt from "../components/common/NamePrompt";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import AddEventMenu from "./AddEventMenu";
 import { useDragState, pathKey } from "./dragState";
-import { CATEGORY_COLOR, eventSummary, getEventDef, setCustomScriptNames, setPrefabNames, type CreateContext, type EventDef } from "./eventCatalog";
+import { CATEGORY_COLOR, eventSummary, getEventDef, setCustomScriptNames, setFirstName, setPrefabNames, type CreateContext, type EventDef } from "./eventCatalog";
 import { FieldControl, type ScriptEnv } from "./ScriptFields";
 import {
   cloneEvent,
@@ -93,6 +93,7 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
   // Spawn Prefab summaries show the prefab's name.
   setPrefabNames(Object.fromEntries((project?.project.prefabs ?? []).map((p) => [p.id, p.name])));
   setCustomScriptNames(Object.fromEntries((project?.project.customScripts ?? []).map((s) => [s.id, s.name])));
+  setFirstName(project?.project.names?.[0] ?? "");
   const clipboard = useProjectStore((s) => s.scriptClipboard);
   const setClipboard = useProjectStore((s) => s.setScriptClipboard);
   const [snippetAt, setSnippetAt] = useState<{ x: number; y: number } | null>(null);

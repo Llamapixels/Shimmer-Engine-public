@@ -45,6 +45,11 @@ void dialogue_show_ex(const char *text, int options, int place);
 #define DIALOGUE_NO_ACTOR (-100)
 void dialogue_set_extras(int portrait, int auto_frames, int bubble_actor);
 
+/* "Enter Name": a box with `prompt`, the name so far and a grid of
+ * letters; the player types into name slot `slot` (up to max_len, which
+ * it starts with). Done when dialogue_active() turns 0. */
+void dialogue_show_name_entry(const char *prompt, int slot, int max_len);
+
 /* Take down a HUD box (DIALOGUE_OPT_HUD), if one is up. */
 void dialogue_hud_close(void);
 

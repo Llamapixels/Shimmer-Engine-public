@@ -450,6 +450,7 @@ typedef enum
     SCRIPT_TINT,                /* a = BGR555 colour, b = strength 0-16, c = frames (tint_set) */
     SCRIPT_TINT_CYCLE,          /* a = minutes in a day (0 = stop), tint_cycle */
     SCRIPT_TINT_HOUR,           /* a = variable: the day / night cycle's hour 0-23 */
+    SCRIPT_NAME_ENTRY,          /* a = name slot, b = max length, str = prompt */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

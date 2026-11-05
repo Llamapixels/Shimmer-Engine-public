@@ -82,9 +82,59 @@ export default function SettingsView() {
             {LISTS.map((l) => (
               <NameListCard key={l.kind} {...l} />
             ))}
+            <NamesCard />
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Names the player types (Enter Name): up to 4, saved with the game. */
+function NamesCard() {
+  const list = useProjectStore((s) => s.project?.project.names) ?? [];
+  const updateProject = useProjectStore((s) => s.updateProject);
+  const [draft, setDraft] = useState("");
+  const ok = (n: string, others: string[]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n) && !others.includes(n);
+  const add = () => {
+    const n = draft.trim();
+    if (!ok(n, list) || list.length >= 4) return;
+    updateProject((p) => ({ ...p, names: [...(p.names ?? []), n] }));
+    setDraft("");
+  };
+  return (
+    <div className="settings-card">
+      <h3>
+        Names
+        <span>{list.length} / 4</span>
+      </h3>
+      <p>
+        Names the player types with the Enter Name event (the hero, a pet...), saved with the game. Show one in any text with{" "}
+        <code>!N:name!</code> (Display Text's Insert &gt; Name).
+      </p>
+      {list.map((name, i) => (
+        <div key={name} className="name-row">
+          <CommitInput
+            value={name}
+            onCommit={(v) => {
+              const n = v.trim();
+              if (!ok(n, list.filter((x) => x !== name))) return "Letters, numbers and _ only, and not used twice.";
+              updateProject((p) => ({ ...p, names: (p.names ?? []).map((x, j) => (j === i ? n : x)) }));
+            }}
+          />
+          <button className="icon-btn" title="Remove" onClick={() => updateProject((p) => ({ ...p, names: (p.names ?? []).filter((x) => x !== name) }))}>
+            ×
+          </button>
+        </div>
+      ))}
+      {list.length < 4 && (
+        <div className="name-row">
+          <input placeholder="New name… (e.g. hero)" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+          <button className="btn btn-small" onClick={add} disabled={!ok(draft.trim(), list)}>
+            Add
+          </button>
+        </div>
+      )}
     </div>
   );
 }

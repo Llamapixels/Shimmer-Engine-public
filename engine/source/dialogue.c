@@ -46,7 +46,20 @@ typedef struct
     int color;   /* UI palette index for the text, 0 = the font's own */
 } TextState;
 
-typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU, MODE_HUD } Mode;
+typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU, MODE_HUD, MODE_NAME } Mode;
+
+/* MODE_NAME: 3 rows of 14 cells, 16 px each. \x01 = upper / lower case,
+ * \x02 = delete, \x03 = done. */
+#define NAME_COLS 14
+static const char NAME_GRID[3][NAME_COLS + 1] = {
+    "ABCDEFGHIJKLMN",
+    "OPQRSTUVWXYZ .",
+    "0123456789-\x01\x02\x03",
+};
+static const char *name_prompt;
+static int name_slot, name_max, name_len, name_cell, name_lower;
+static char name_buf[NAME_MAX + 1];
+static void close_box(void);
 
 static Mode mode = MODE_NONE;
 static int focus_pending;     /* the focus effect waits for the box to open */
@@ -98,9 +111,21 @@ static int is_var(unsigned char c)
     return UI_IS_VAR_CODE(c);
 }
 
-/* A variable's value as decimal digits; returns the length. */
+/* A variable's value as decimal digits (or a name's letters, for
+ * UI_NAME_BASE + slot); returns the length. buf holds 16. */
 static int var_digits(int index, char *buf)
 {
+    if (index >= UI_NAME_BASE)
+    {
+        const char *n = name_get(index - UI_NAME_BASE);
+        int len = 0;
+        while (n[len] && len < 15)
+        {
+            buf[len] = n[len];
+            len++;
+        }
+        return len;
+    }
     int value = var_get(index);
     char tmp[8];
     int n = 0, len = 0;
@@ -133,7 +158,7 @@ static int word_width(const char *p, int font)
                 font = code_arg(c, (unsigned char)p[1]);
             else if (is_var(c))
             {
-                char d[8];
+                char d[16];
                 int n = var_digits(code_arg(c, (unsigned char)p[1]), d);
                 for (int i = 0; i < n; i++)
                     w += ui_char_width(font, (unsigned char)d[i]);
@@ -231,7 +256,7 @@ static int layout(const char *start, TextState *st, int limit, int draw, const c
                 }
                 else
                 {
-                    char d[8];
+                    char d[16];
                     int n = var_digits(arg, d);
                     for (int i = 0; i < n; i++)
                     {
@@ -302,7 +327,7 @@ static void draw_line(int line, int x, const char *s, const char *e, int font)
                 color = arg;
             else if (is_var(c))
             {
-                char d[8];
+                char d[16];
                 int n = var_digits(arg, d);
                 for (int i = 0; i < n; i++)
                 {
@@ -669,6 +694,136 @@ int dialogue_active(void)
     return mode != MODE_NONE && mode != MODE_HUD;
 }
 
+static char name_cell_char(int cell)
+{
+    char c = NAME_GRID[cell / NAME_COLS][cell % NAME_COLS];
+    return name_lower && c >= 'A' && c <= 'Z' ? (char)(c + 32) : c;
+}
+
+static void draw_name_entry(void)
+{
+    ui_box_clear();
+    /* Line 0: the prompt, then the name so far and a cursor. */
+    const char *pe = name_prompt;
+    while (*pe)
+        pe++;
+    draw_line(0, 0, name_prompt, pe, ui_font());
+    int x = ui_text_width() - (NAME_MAX + 1) * 7;
+    for (int i = 0; i < name_len; i++)
+    {
+        ui_box_char_color(0, x, ui_font(), (unsigned char)name_buf[i], 0);
+        x += ui_char_width(ui_font(), (unsigned char)name_buf[i]);
+    }
+    if (name_len < name_max)
+        ui_box_char_color(0, x, ui_font(), '_', 0);
+    /* Lines 1-3: the grid, the cursor before the chosen cell. */
+    for (int cell = 0; cell < 3 * NAME_COLS; cell++)
+    {
+        int line = 1 + cell / NAME_COLS, cx = (cell % NAME_COLS) * 16;
+        if (cell == name_cell)
+            ui_box_cursor(line, cx);
+        char c = name_cell_char(cell);
+        const char *label = c == '\x01' ? (name_lower ? "A" : "a") : c == '\x02' ? "<" : c == '\x03' ? "OK" : 0;
+        if (label)
+        {
+            int lx = cx + 7;
+            for (; *label; label++)
+            {
+                ui_box_char_color(line, lx, ui_font(), (unsigned char)*label, 0);
+                lx += ui_char_width(ui_font(), (unsigned char)*label);
+            }
+        }
+        else
+            ui_box_char_color(line, cx + 8, ui_font(), (unsigned char)c, 0);
+    }
+    ui_box_flush();
+}
+
+void dialogue_show_name_entry(const char *prompt, int slot, int max_len)
+{
+    mode = MODE_NAME;
+    /* prompt is "prompt" or "prompt\x01default name". */
+    static char prompt_copy[64];
+    const char *def = "";
+    int k = 0;
+    for (; prompt && prompt[k] && prompt[k] != UI_CODE_OPTION && k < 63; k++)
+        prompt_copy[k] = prompt[k];
+    prompt_copy[k] = 0;
+    if (prompt && prompt[k] == UI_CODE_OPTION)
+        def = prompt + k + 1;
+    name_prompt = prompt_copy;
+    name_slot = slot;
+    name_max = max_len < 1 ? 1 : max_len > NAME_MAX ? NAME_MAX : max_len;
+    const char *cur = name_get(slot)[0] ? name_get(slot) : def;
+    name_len = 0;
+    while (cur[name_len] && name_len < name_max)
+    {
+        name_buf[name_len] = cur[name_len];
+        name_len++;
+    }
+    name_buf[name_len] = 0;
+    name_cell = 0;
+    name_lower = 0;
+    text_lines = 4;
+    ui_box_open(4);
+    ui_box_anim_open();
+    focus_pending = 1;
+    draw_name_entry();
+    input_block_presses(DIALOGUE_INPUT_DELAY);
+}
+
+/* MODE_NAME, a frame: move, type, delete, finish. */
+static void name_entry_update(void)
+{
+    int moved = 0;
+    int row = name_cell / NAME_COLS, col = name_cell % NAME_COLS;
+    if (input_pressed(INPUT_LEFT)) { col = (col + NAME_COLS - 1) % NAME_COLS; moved = 1; }
+    if (input_pressed(INPUT_RIGHT)) { col = (col + 1) % NAME_COLS; moved = 1; }
+    if (input_pressed(INPUT_UP)) { row = (row + 2) % 3; moved = 1; }
+    if (input_pressed(INPUT_DOWN)) { row = (row + 1) % 3; moved = 1; }
+    name_cell = row * NAME_COLS + col;
+    int done = input_pressed(INPUT_START);
+    if (input_pressed(INPUT_SELECT))
+    {
+        name_lower = !name_lower;
+        moved = 1;
+    }
+    if (input_pressed(INPUT_B) && name_len > 0)
+    {
+        name_buf[--name_len] = 0;
+        moved = 1;
+    }
+    if (input_pressed(INPUT_A))
+    {
+        char c = name_cell_char(name_cell);
+        if (c == '\x01')
+            name_lower = !name_lower;
+        else if (c == '\x02')
+        {
+            if (name_len > 0)
+                name_buf[--name_len] = 0;
+        }
+        else if (c == '\x03')
+            done = 1;
+        else if (name_len < name_max)
+        {
+            name_buf[name_len++] = c;
+            name_buf[name_len] = 0;
+            if (name_len == name_max)
+                name_cell = 3 * NAME_COLS - 1;   /* full: onto OK */
+        }
+        moved = 1;
+    }
+    if (done)
+    {
+        name_set(name_slot, name_buf);
+        close_box();
+        return;
+    }
+    if (moved)
+        draw_name_entry();
+}
+
 void dialogue_show_choice(const char *packed)
 {
     mode = MODE_CHOICE;
@@ -715,6 +870,12 @@ void dialogue_update(void)
     }
     if (portrait_pending)
         portrait_show();
+
+    if (mode == MODE_NAME)
+    {
+        name_entry_update();
+        return;
+    }
 
     if (mode == MODE_CHOICE || mode == MODE_MENU)
     {
