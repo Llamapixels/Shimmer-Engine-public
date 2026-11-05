@@ -676,7 +676,15 @@ export async function createProject(payload: CreateProjectPayload): Promise<Open
     solidColorPng(START_BG_W, START_BG_H, [0x5a, 0x9e, 0x5a]),
   );
 
-  const project: ProjectJSON = { name, start_scene: "start", items: [], flags: [], variables: [] };
+  // New projects start silent: no text box blip or door sound (Settings turns them on).
+  const project: ProjectJSON = {
+    name,
+    start_scene: "start",
+    items: [],
+    flags: [],
+    variables: [],
+    ui: { textSound: "none", doorSound: "none" },
+  };
   await fs.writeFile(path.join(rootPath, "project.json"), writeJson(project), "utf-8");
 
   const scene: SceneJSON = {
