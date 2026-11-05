@@ -66,6 +66,11 @@
   padding-bottom: 2px;
   color: var(--text, #ddd);
 }
+.world-map-label-colored {
+  color: #111;
+  padding: 0 4px 1px;
+  border-radius: 2px 2px 0 0;
+}
 .world-map-missing {
   width: 100%;
   height: 100%;

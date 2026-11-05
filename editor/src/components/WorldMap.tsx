@@ -6,7 +6,7 @@
  * select it (its properties show on the right). Lines show where Change
  * Scene events and doors lead (toggle with "Connections").
  */
-import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type DragEvent as ReactDragEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 import type { NpcJSON, ProjectJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
 import { loadSpriteImage, type SpriteImage } from "../sprites/image";
@@ -14,6 +14,8 @@ import { playerSpriteName, type Facing } from "../sprites/model";
 import { drawActor, sheetFor } from "../sprites/render";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import "./WorldMap.css";
+import PopoverMenu from "./common/PopoverMenu";
+import { ColorPopover } from "../script/ScriptEditor";
 import { PREFAB_DRAG_TYPE, prefabDropTile } from "../world/prefabs";
 
 const TILE = 8;
@@ -164,6 +166,8 @@ interface CardActions {
   down: (e: ReactPointerEvent, rec: SceneRecord, i: number) => void;
   open: (rec: SceneRecord) => void;
   select: (rec: SceneRecord, kind: "npc" | "door", index: number) => void;
+  /** Right-click: the scene, or one of its actors / triggers. */
+  menu: (e: ReactMouseEvent, rec: SceneRecord, target: { kind: "npc" | "door"; index: number } | null) => void;
 }
 
 const SceneCard = memo(function SceneCard({
@@ -201,7 +205,12 @@ const SceneCard = memo(function SceneCard({
   return (
     <div
       className={`world-map-scene${active ? " world-map-scene-active" : ""}${prefabHover ? " world-map-scene-prefab-drop" : ""}`}
-      style={{ transform: `translate(${x}px, ${y}px)`, width: img?.w ?? 240, height: img?.h ?? 160 }}
+      style={{
+        transform: `translate(${x}px, ${y}px)`,
+        width: img?.w ?? 240,
+        height: img?.h ?? 160,
+        ...(rec.data.color && !active ? { outline: `3px solid ${rec.data.color}` } : {}),
+      }}
       onPointerDownCapture={(e) => {
         if (placing && e.button === 0) { e.stopPropagation(); actions.down(e, rec, index); }
       }}
@@ -217,8 +226,12 @@ const SceneCard = memo(function SceneCard({
       onDrop={(e) => { setPrefabHover(false); actions.drop(e, rec); }}
       onPointerDown={(e) => actions.down(e, rec, index)}
       onDoubleClick={() => actions.open(rec)}
+      onContextMenu={(e) => actions.menu(e, rec, null)}
     >
-      <div className="world-map-label" style={{ fontSize: labelSize }}>
+      <div
+        className={`world-map-label${rec.data.color ? " world-map-label-colored" : ""}`}
+        style={{ fontSize: labelSize, ...(rec.data.color ? { background: rec.data.color } : {}) }}
+      >
         {sceneName(rec)}
       </div>
       {img ? <img src={img.url} alt="" draggable={false} /> : <div className="world-map-missing">no background</div>}
@@ -232,6 +245,7 @@ const SceneCard = memo(function SceneCard({
             e.stopPropagation();
             actions.select(rec, "door", k);
           }}
+          onContextMenu={(e) => actions.menu(e, rec, { kind: "door", index: k })}
         />
       ))}
       {(rec.data.npcs ?? []).map((n, k) => (
@@ -247,6 +261,7 @@ const SceneCard = memo(function SceneCard({
             e.stopPropagation();
             actions.select(rec, "npc", k);
           }}
+          onContextMenu={(e) => actions.menu(e, rec, { kind: "npc", index: k })}
         />
       ))}
     </div>
@@ -299,6 +314,15 @@ export default function WorldMap() {
   >(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const planeRef = useRef<HTMLDivElement>(null);
+  const deleteSelected = useProjectStore((s) => s.deleteSelected);
+  const removeScene = useProjectStore((s) => s.removeScene);
+  const [ctx, setCtx] = useState<{
+    x: number;
+    y: number;
+    rec: SceneRecord;
+    target: { kind: "npc" | "door"; index: number } | null;
+  } | null>(null);
+  const [colorFor, setColorFor] = useState<{ x: number; y: number; id: string } | null>(null);
   // While dragging the view, it moves by setting the transform directly
   // (no re-render per mouse move); the new pan is saved on release.
   const livePan = useRef<{ x: number; y: number } | null>(null);
@@ -461,6 +485,15 @@ export default function WorldMap() {
       setActiveScene(rec.fileId);
       setSelection({ kind, sceneId: rec.fileId, index });
     },
+    menu: (e, rec, target) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (target) {
+        setActiveScene(rec.fileId);
+        setSelection({ kind: target.kind, sceneId: rec.fileId, index: target.index });
+      }
+      setCtx({ x: e.clientX, y: e.clientY, rec, target });
+    },
   };
   const actions = useMemo<CardActions>(
     () => ({
@@ -468,6 +501,7 @@ export default function WorldMap() {
       down: (e, rec, i) => actionsRef.current.down(e, rec, i),
       open: (rec) => actionsRef.current.open(rec),
       select: (rec, kind, index) => actionsRef.current.select(rec, kind, index),
+      menu: (e, rec, target) => actionsRef.current.menu(e, rec, target),
     }),
     [],
   );
@@ -552,6 +586,50 @@ export default function WorldMap() {
                 />
               );
             })}
+          {/* Menus are portals, but their pointer events still bubble here:
+              keep them from starting a pan or scene drag. */}
+          <div onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+          {ctx && (
+            <PopoverMenu
+              anchor={{ x: ctx.x, y: ctx.y }}
+              onClose={() => setCtx(null)}
+              items={
+                ctx.target
+                  ? [
+                      {
+                        label: `Delete ${ctx.target.kind === "npc" ? `actor "${ctx.rec.data.npcs?.[ctx.target.index]?.name || `#${ctx.target.index}`}"` : `trigger #${ctx.target.index}`}`,
+                        danger: true,
+                        onClick: () => deleteSelected(),
+                      },
+                    ]
+                  : [
+                      { label: "Open", onClick: () => actionsRef.current.open(ctx.rec) },
+                      { label: ctx.rec.data.color ? "Change colour…" : "Colour…", onClick: () => setColorFor({ x: ctx.x, y: ctx.y, id: ctx.rec.fileId }) },
+                      ...(ctx.rec.data.color
+                        ? [{ label: "Remove colour", onClick: () => updateScene(ctx.rec.fileId, (s) => ({ ...s, color: undefined })) }]
+                        : []),
+                      "separator",
+                      {
+                        label: `Delete scene "${sceneName(ctx.rec)}"`,
+                        danger: true,
+                        onClick: () => {
+                          if (window.confirm(`Delete scene "${sceneName(ctx.rec)}"? This deletes scenes/${ctx.rec.fileId}.json and can't be undone.`))
+                            void removeScene(ctx.rec.fileId);
+                        },
+                      },
+                    ]
+              }
+            />
+          )}
+          {colorFor && (
+            <ColorPopover
+              at={colorFor}
+              value={scenes.find((s) => s.fileId === colorFor.id)?.data.color}
+              onChange={(c) => updateScene(colorFor.id, (s) => ({ ...s, color: c }), `color:${colorFor.id}`)}
+              onClose={() => setColorFor(null)}
+            />
+          )}
+          </div>
           {showLinks && (
             <svg className="world-map-links" style={{ overflow: "visible" }} width={1} height={1}>
               <defs>

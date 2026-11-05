@@ -386,6 +386,8 @@ export interface SceneJSON {
   parallax?: ParallaxLayerJSON[];
   /** Up to 2 full background layers (the first is drawn over the second). */
   layers?: BgLayerJSON[];
+  /** Editor only: the scene's colour on the world map ("#rrggbb"). */
+  color?: string;
   on_init?: EventScript;
   /** GB Studio's "On Player Hit", per actor collision group. */
   on_player_hit?: { "1"?: EventScript; "2"?: EventScript; "3"?: EventScript; "4"?: EventScript };

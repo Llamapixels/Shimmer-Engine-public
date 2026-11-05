@@ -32,6 +32,7 @@ import "./SceneCanvas.css";
 import Icon, { type IconName } from "./common/Icon";
 import Chevron from "./common/Chevron";
 import PopoverMenu from "./common/PopoverMenu";
+import { ColorPopover } from "../script/ScriptEditor";
 
 export { resizeCollision };
 
@@ -260,8 +261,11 @@ export default function SceneCanvas() {
   const [ctxMenu, setCtxMenu] = useState<{
     x: number;
     y: number;
-    target: { kind: "npc" | "door" | "note"; index: number; label: string };
+    /** null = the scene itself (right-click on an empty spot). */
+    target: { kind: "npc" | "door" | "note"; index: number; label: string } | null;
   } | null>(null);
+  const [sceneColorAt, setSceneColorAt] = useState<{ x: number; y: number } | null>(null);
+  const removeScene = useProjectStore((s) => s.removeScene);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [selRect, setSelRect] = useState<Rect | null>(null);
   const lastPaint = useRef<Pt | null>(null);
@@ -1168,8 +1172,7 @@ export default function SceneCanvas() {
           : di >= 0
             ? { kind: "door" as const, index: di, label: `trigger #${di}` }
             : null;
-    if (!target) return;
-    setSelection({ kind: target.kind, sceneId, index: target.index });
+    if (target) setSelection({ kind: target.kind, sceneId, index: target.index });
     setCtxMenu({ x: e.clientX, y: e.clientY, target });
   };
 
@@ -1823,16 +1826,40 @@ export default function SceneCanvas() {
             <PopoverMenu
               anchor={{ x: ctxMenu.x, y: ctxMenu.y }}
               onClose={() => setCtxMenu(null)}
-              items={[
-                {
-                  label: `Delete ${ctxMenu.target.label}`,
-                  danger: true,
-                  onClick: () => {
-                    setSelection({ kind: ctxMenu.target.kind, sceneId, index: ctxMenu.target.index });
-                    deleteSelected();
-                  },
-                },
-              ]}
+              items={
+                ctxMenu.target
+                  ? [
+                      {
+                        label: `Delete ${ctxMenu.target.label}`,
+                        danger: true,
+                        onClick: () => {
+                          const t = ctxMenu.target!;
+                          setSelection({ kind: t.kind, sceneId, index: t.index });
+                          deleteSelected();
+                        },
+                      },
+                    ]
+                  : [
+                      { label: data.color ? "Scene colour (world map)…" : "Colour this scene (world map)…", onClick: () => setSceneColorAt({ x: ctxMenu.x, y: ctxMenu.y }) },
+                      "separator",
+                      {
+                        label: `Delete scene "${data.name || sceneId}"`,
+                        danger: true,
+                        onClick: () => {
+                          if (window.confirm(`Delete scene "${data.name || sceneId}"? This deletes scenes/${sceneId}.json and can't be undone.`))
+                            void removeScene(sceneId);
+                        },
+                      },
+                    ]
+              }
+            />
+          )}
+          {sceneColorAt && (
+            <ColorPopover
+              at={sceneColorAt}
+              value={data.color}
+              onChange={(c) => updateScene(sceneId, (s) => ({ ...s, color: c }), `color:${sceneId}`)}
+              onClose={() => setSceneColorAt(null)}
             />
           )}
         </div>

@@ -457,7 +457,7 @@ const BLOCK_COLORS = [
   "#4f8cff", "#7a8cff", "#b58cff", "#e05bb5", "#a0805a", "#9aa0ae",
 ];
 
-function ColorPopover({ at, value, onChange, onClose }: {
+export function ColorPopover({ at, value, onChange, onClose }: {
   at: { x: number; y: number };
   value: string | undefined;
   onChange: (c: string | undefined) => void;
