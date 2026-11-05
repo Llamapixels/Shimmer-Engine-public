@@ -7,6 +7,7 @@ import { canvasAnchor, frame as newFrame, newId, tileSize } from "../../sprites/
 import { frameCost } from "../../sprites/pack";
 import { useProjectStore } from "../../state/projectStore";
 import { useCurrentSprite } from "./useCurrentSprite";
+import PopoverMenu from "../common/PopoverMenu";
 
 type Drag =
   | { kind: "move"; startX: number; startY: number; dx: number; dy: number; orig: Map<string, { x: number; y: number }> }
@@ -312,6 +313,50 @@ export default function MetaspriteCanvas() {
     }
   };
 
+  // ---- copy / paste (right-click menu; the same as the shortcuts) ----
+  const [menu, setMenu] = useState<{ x: number; y: number; at: { x: number; y: number } } | null>(null);
+  const selectedTiles = () => (frame?.tiles ?? []).filter((t) => ed.tileIds.includes(t.id));
+  const copyTiles = () => ed.set({ clipboard: { tiles: selectedTiles().map((t) => ({ ...t })) } });
+  const deleteTiles = () => {
+    if (!sheet || !state) return;
+    const ids = ed.tileIds;
+    editFrame(sheet, state.id, animIndex, frameIndex, (f) => ({ ...f, tiles: f.tiles.filter((t) => !ids.includes(t.id)) }));
+    ed.set({ tileIds: [] });
+  };
+  /** Paste the clipboard into this frame, its top-left at `at` (or where it was copied from). */
+  const pasteTiles = (at?: { x: number; y: number }) => {
+    const clip = useSpriteEditor.getState().clipboard?.tiles ?? [];
+    if (!sheet || !state || !clip.length) return;
+    let dx = 0, dy = 0;
+    if (at) {
+      const snap = useSpriteEditor.getState().snap8;
+      const round = (v: number) => (snap ? Math.round(v / 8) * 8 : Math.round(v));
+      dx = round(at.x - Math.min(...clip.map((t) => t.x)));
+      dy = round(at.y - Math.min(...clip.map((t) => t.y)));
+    }
+    const pasted = clip.map((t) => ({ ...t, id: newId(), x: t.x + dx, y: t.y + dy }));
+    if (!frames.length) editFrames(sheet, state.id, animIndex, () => [newFrame(pasted)]);
+    else editFrame(sheet, state.id, animIndex, frameIndex, (f) => ({ ...f, tiles: [...f.tiles, ...pasted] }));
+    ed.set({ tileIds: pasted.map((t) => t.id) });
+  };
+  /** The clipboard into every frame of this animation, where it was copied from. */
+  const pasteAllFrames = () => {
+    const clip = useSpriteEditor.getState().clipboard?.tiles ?? [];
+    if (!sheet || !state || !clip.length || !frames.length) return;
+    editFrames(sheet, state.id, animIndex, (list) =>
+      list.map((f) => ({ ...f, tiles: [...f.tiles, ...clip.map((t) => ({ ...t, id: newId() }))] })),
+    );
+    ed.set({ tileIds: [] });
+  };
+  const onContextMenu = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    if (!sheet || !state || ed.playing || ed.palette) return;
+    const p = eventPos(e);
+    const hit = hitTile(p.x, p.y);
+    if (hit && !ed.tileIds.includes(hit.id)) ed.set({ tileIds: [hit.id] });
+    setMenu({ x: e.clientX, y: e.clientY, at: p });
+  };
+
   const onMouseDown = (e: ReactMouseEvent) => {
     if (!sheet || !state || ed.playing) return;
     canvasRef.current?.focus();
@@ -477,9 +522,42 @@ export default function MetaspriteCanvas() {
             onMouseDown={onMouseDown}
             onMouseMove={(e) => setMouse(eventPos(e))}
             onMouseLeave={() => setMouse(null)}
-            onContextMenu={(e) => e.preventDefault()}
+            onContextMenu={onContextMenu}
             data-testid="sprite-canvas"
           />
+          {menu && (
+            <PopoverMenu
+              anchor={{ x: menu.x, y: menu.y }}
+              onClose={() => setMenu(null)}
+              items={[
+                { label: "Copy", shortcut: "Ctrl+C", disabled: !ed.tileIds.length, onClick: copyTiles },
+                {
+                  label: "Cut",
+                  shortcut: "Ctrl+X",
+                  disabled: !ed.tileIds.length,
+                  onClick: () => {
+                    copyTiles();
+                    deleteTiles();
+                  },
+                },
+                { label: "Paste here", disabled: !ed.clipboard?.tiles?.length, onClick: () => pasteTiles(menu.at) },
+                { label: "Paste in place", shortcut: "Ctrl+V", disabled: !ed.clipboard?.tiles?.length, onClick: () => pasteTiles() },
+                { label: "Paste into every frame", disabled: !ed.clipboard?.tiles?.length || !frames.length, onClick: pasteAllFrames },
+                "separator",
+                {
+                  label: "Duplicate",
+                  shortcut: "Ctrl+C, Ctrl+V",
+                  disabled: !ed.tileIds.length,
+                  onClick: () => {
+                    copyTiles();
+                    pasteTiles({ x: Math.min(...selectedTiles().map((t) => t.x)) + 8, y: Math.min(...selectedTiles().map((t) => t.y)) + 8 });
+                  },
+                },
+                { label: "Select all", shortcut: "Ctrl+A", onClick: () => ed.set({ tileIds: (frame?.tiles ?? []).map((t) => t.id) }) },
+                { label: "Delete", shortcut: "Del", danger: true, disabled: !ed.tileIds.length, onClick: deleteTiles },
+              ]}
+            />
+          )}
           {!frames.length && (
             <div className="spr-canvas-hint">This animation has no frames. Pick tiles below and click here to start one.</div>
           )}
