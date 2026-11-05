@@ -1,6 +1,6 @@
 /*
  * First Person 3D scenes on the map canvas: how each 3D layer (heights,
- * wall textures, floor / ceiling colours) is drawn over the map, and the
+ * wall textures, floor / ceiling colors) is drawn over the map, and the
  * built-in "bricks" texture (compiler default_wall_texture()).
  */
 

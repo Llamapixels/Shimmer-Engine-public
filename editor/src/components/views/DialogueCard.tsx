@@ -58,7 +58,7 @@ export default function DialogueCard() {
       <p>
         Fonts are PNGs in assets/fonts: 8×8 characters, 16 per row, starting at the space. Magenta or transparent columns are trimmed,
         which makes the font variable width. Frames are 24×24 PNGs in assets/frames, cut into 3×3 tiles. GB Studio fonts and frames
-        can be used as they are. All fonts, frames and the cursor share 15 colours.
+        can be used as they are. All fonts, frames and the cursor share 15 colors.
       </p>
       <label className="settings-field">
         Font

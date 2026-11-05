@@ -170,7 +170,7 @@
     {"key": "rc_gravity", "mode": "raycast", "group": "Jumping", "label": "Gravity", "unit": "choice", "options": ["Light", "Normal", "Heavy"], "default": 1, "desc": "How fast the player falls (off ledges too)."},
     {"key": "rc_sound_jump", "mode": "raycast", "group": "Jumping", "label": "Jump sound", "unit": "sound", "default": "", "extra": true, "if": "rc_jump"},
     {"key": "rc_fov", "mode": "raycast", "group": "View", "label": "Field of view", "unit": "choice", "options": ["Narrow (53°)", "Normal (67°)", "Wide (80°)"], "default": 1},
-    {"key": "rc_fog", "mode": "raycast", "group": "View", "label": "Distance shading", "unit": "choice", "options": ["Off", "Far walls darker (8 tiles)", "Near walls darker (4 tiles)"], "default": 0, "desc": "Walls farther away use their darker colours, for gloomy places."},
+    {"key": "rc_fog", "mode": "raycast", "group": "View", "label": "Distance shading", "unit": "choice", "options": ["Off", "Far walls darker (8 tiles)", "Near walls darker (4 tiles)"], "default": 0, "desc": "Walls farther away use their darker colors, for gloomy places."},
     {"key": "rc_actor_turn", "mode": "raycast", "group": "View", "label": "Actors turn to the camera", "unit": "bool", "default": 1, "desc": "Actors show their front, back or side (their Down, Up, Left and Right animations) depending on where you look at them from."},
     {"key": "rc_crosshair", "mode": "raycast", "group": "View", "label": "Crosshair", "unit": "bool", "default": 0, "desc": "A small + in the middle of the view."},
     {"key": "rc_interact", "mode": "raycast", "group": "Buttons", "label": "Interact button", "unit": "button", "default": "a", "desc": "Talks to the actor just in front."},

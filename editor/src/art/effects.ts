@@ -1,6 +1,6 @@
 /**
  * Whole-image and region effects for the Art Editor: compositing layers,
- * resize/rotate/flip, outline, shading, gradients, dithering and colour
+ * resize/rotate/flip, outline, shading, gradients, dithering and color
  * reduction. All exact, pixel by pixel, on RGBA bitmaps.
  */
 import { type Bitmap, type Rect, type RGBA, createBitmap, getPixel, sameColor, setPixel } from "./pixels";
@@ -116,7 +116,7 @@ export function outline(b: Bitmap, color: RGBA, diagonal: boolean, area: Rect | 
   return n;
 }
 
-/** Replace one colour with another everywhere (in `area`). */
+/** Replace one color with another everywhere (in `area`). */
 export function replaceColor(b: Bitmap, from: RGBA, to: RGBA, area: Rect | null): number {
   let n = 0;
   for (let y = 0; y < b.height; y++)
@@ -131,8 +131,8 @@ export function replaceColor(b: Bitmap, from: RGBA, to: RGBA, area: Rect | null)
 const luma = (c: RGBA) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
 
 /** Shading tool: move a pixel one step lighter (+1) or darker (-1) along
- * the image's own colours ordered by brightness - so shading stays inside
- * the palette instead of inventing new colours. */
+ * the image's own colors ordered by brightness - so shading stays inside
+ * the palette instead of inventing new colors. */
 export function shadeColor(c: RGBA, ramp: RGBA[], dir: 1 | -1): RGBA {
   if (c[3] === 0 || ramp.length < 2) return c;
   const sorted = [...ramp].sort((a, b) => luma(a) - luma(b));
@@ -152,8 +152,8 @@ export function bayer(x: number, y: number): number {
 }
 
 /** Gradient from `a` (at p0) to `b` (at p1) over `area`, using only those
- * two colours with ordered dithering in between (`steps` > 2 adds blended
- * colours between them). */
+ * two colors with ordered dithering in between (`steps` > 2 adds blended
+ * colors between them). */
 export function gradient(
   img: Bitmap,
   area: Rect,
@@ -190,9 +190,9 @@ export function gradient(
 }
 
 // ---------------------------------------------------------------------------
-// Colour reduction (median cut), for fitting the GBA's palettes
+// Color reduction (median cut), for fitting the GBA's palettes
 
-/** Reduce the image to at most `max` opaque colours. Returns the colour count. */
+/** Reduce the image to at most `max` opaque colors. Returns the color count. */
 export function reduceColors(b: Bitmap, max: number): number {
   const counts = new Map<number, number>();
   const d = b.data;
@@ -241,7 +241,7 @@ export function reduceColors(b: Bitmap, max: number): number {
     }
     boxes = [...boxes.slice(0, best), { colors: box.colors.slice(0, cut) }, { colors: box.colors.slice(cut) }, ...boxes.slice(best + 1)];
   }
-  // Each box -> its weighted average; map every colour to its box's colour.
+  // Each box -> its weighted average; map every color to its box's color.
   const map = new Map<number, [number, number, number]>();
   for (const box of boxes) {
     const total = box.colors.reduce((s, c) => s + c[3], 0) || 1;

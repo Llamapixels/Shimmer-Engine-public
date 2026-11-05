@@ -49,19 +49,19 @@ export function sceneTextures(scene: SceneJSON): string[] {
 
 const RC_HEIGHT_KEY = { floor_h: "floor_heights", ceil_h: "ceiling_heights" } as const;
 const RC_CHAR_KEY = { walltex: "wall_textures", floor_flat: "floor_flats", ceil_flat: "ceiling_flats" } as const;
-/** Floor / ceiling layers: a colour in *_flats, or a texture ("t:name") in *_textures. */
+/** Floor / ceiling layers: a color in *_flats, or a texture ("t:name") in *_textures. */
 const RC_TEX_KEY = { floor_flat: "floor_textures", ceil_flat: "ceiling_textures" } as const;
 
-/** Floor / ceiling cells: "1"-"5" a colour, "t:name" a texture, null the
- * scene's own colour. A texture clears the colour and the other way round. */
+/** Floor / ceiling cells: "1"-"5" a color, "t:name" a texture, null the
+ * scene's own color. A texture clears the color and the other way round. */
 function applySurface(scene: SceneJSON, layer: "floor_flat" | "ceil_flat", w: number, h: number, cells: Cells): SceneJSON {
-  const colours = resizeCollision(scene[RC_CHAR_KEY[layer]] ?? [], w, h).map((r) => r.split(""));
+  const colors = resizeCollision(scene[RC_CHAR_KEY[layer]] ?? [], w, h).map((r) => r.split(""));
   const texRows = resizeCollision(scene[RC_TEX_KEY[layer]] ?? [], w, h).map((r) => r.split(""));
   let textures = sceneTextures(scene);
   for (const [k, v] of cells) {
     const x = k % w;
     const y = Math.floor(k / w);
-    if (!colours[y] || x >= w) continue;
+    if (!colors[y] || x >= w) continue;
     if (v !== null && v.startsWith("t:")) {
       const name = v.slice(2);
       let i = textures.indexOf(name);
@@ -71,14 +71,14 @@ function applySurface(scene: SceneJSON, layer: "floor_flat" | "ceil_flat", w: nu
       }
       if (i < 0) continue;
       texRows[y][x] = RC_TEX_CHARS[i];
-      colours[y][x] = ".";
+      colors[y][x] = ".";
     } else {
       texRows[y][x] = ".";
-      colours[y][x] = v ?? ".";
+      colors[y][x] = v ?? ".";
     }
   }
   const next: SceneJSON = { ...scene };
-  const c = colours.map((r) => r.join(""));
+  const c = colors.map((r) => r.join(""));
   const t = texRows.map((r) => r.join(""));
   if (c.some((r) => /[^.]/.test(r))) next[RC_CHAR_KEY[layer]] = c;
   else delete next[RC_CHAR_KEY[layer]];

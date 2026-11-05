@@ -11,7 +11,7 @@ const FX_H = 22;
 const BASE_CELL_W = 14;
 const BASE_CELL_H = 12;
 
-/** One colour per instrument slot (15), for notes. */
+/** One color per instrument slot (15), for notes. */
 export const INSTRUMENT_COLORS = Array.from({ length: 15 }, (_, i) => `hsl(${(i * 360) / 15 + 262}, 70%, 62%)`);
 const CHANNEL_GHOST = ["rgba(255,160,90,0.35)", "rgba(90,200,255,0.35)", "rgba(120,230,140,0.35)", "rgba(240,220,90,0.35)"];
 

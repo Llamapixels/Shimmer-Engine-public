@@ -345,13 +345,13 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
     },
     "separator",
     {
-      label: tint ? "Change colour…" : "Colour…",
+      label: tint ? "Change color…" : "Color…",
       onClick: () => {
         const r = headerRef.current?.getBoundingClientRect();
         setColorAt(menu && !(menu instanceof HTMLElement) ? menu : { x: r?.left ?? 100, y: r?.bottom ?? 100 });
       },
     },
-    ...(tint ? [{ label: "Remove colour", onClick: () => patch({ __color: undefined }) }] : []),
+    ...(tint ? [{ label: "Remove color", onClick: () => patch({ __color: undefined }) }] : []),
     "separator",
     // Mirrors GB Studio: a disabled event stays in the script but the
     // compiler skips it (and everything inside it).
@@ -508,7 +508,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
   );
 });
 
-/** Block colours: a row of presets, any RGB colour, or none. */
+/** Block colors: a row of presets, any RGB color, or none. */
 const BLOCK_COLORS = [
   "#e5484d", "#f76b15", "#f2b84b", "#3dd68c", "#2fb8a6", "#40c8dc",
   "#4f8cff", "#7a8cff", "#b58cff", "#e05bb5", "#a0805a", "#9aa0ae",
@@ -554,7 +554,7 @@ export function ColorPopover({ at, value, onChange, onClose }: {
         ))}
       </div>
       <div className="block-color-row">
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(hex) ? hex : "#4f8cff"} onChange={(e) => set(e.target.value)} title="Pick any colour" />
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(hex) ? hex : "#4f8cff"} onChange={(e) => set(e.target.value)} title="Pick any color" />
         <input
           className="block-color-hex"
           value={hex}

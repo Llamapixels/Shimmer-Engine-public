@@ -152,7 +152,7 @@ More scene settings (GB Studio's scene inspector):
                 "flats": ["#c06030"], "ceiling_height": 8,
                 "textures": ["bricks", "stone"]}
                                    <- First Person 3D look: floor / ceiling
-                                       colours, up to 5 more ("flats"), the
+                                       colors, up to 5 more ("flats"), the
                                        default ceiling height and the wall
                                        textures it uses (assets/textures)
     "floor_heights": [[0, 0, 2, ...], ...], "ceiling_heights": [[8, ...]]
@@ -162,11 +162,11 @@ More scene settings (GB Studio's scene inspector):
                                        first)
     "floor_flats": ["..12.."], "ceiling_flats": [...]
                                    <- per tile: "1"-"5" one of "flats", "."
-                                       the scene's floor / ceiling colour
+                                       the scene's floor / ceiling color
     "floor_textures": ["..00.."], "ceiling_textures": [...]
                                    <- per tile: a texture on the floor /
                                        ceiling ("0" the first of "textures",
-                                       "." none: the colour)
+                                       "." none: the color)
     "engine": {"pl_grav": 0.3}     <- this scene's own engine settings, over
                                        project.json "engine" (the full list
                                        is compiler/engine_settings.json)
@@ -255,7 +255,7 @@ Event script types (used in "on_interact" and door "events" lists):
         "rows": 1-4 (text lines, default 2), "frame": false (text only,
         no box).
         Text codes (as in GB Studio): "!F:fontname!" switches font,
-        "!C:#ff4040!" colours the text ("!C!" resets) and
+        "!C:#ff4040!" colors the text ("!C!" resets) and
         "!S5!" sets the text speed (frames per character, 0 = instant)
         from that point on. Text too long for the box continues on the
         next page.
@@ -734,8 +734,8 @@ SCENE_TRANSITIONS = {"fade_black": 0, "fade_white": 1, "none": 2, "flash": 3, "m
 VAR_REF_RE = re.compile(r"\{([^{}]+)\}")
 # Text codes (GB Studio's): "!F:fontname!" switches font, "!S5!" / "!S:5!"
 # sets the text speed (frames per character, 0 = instant). Ours:
-# "!C:#ff4040!" colours the text from there on, "!C!" goes back to the
-# font's own colour.
+# "!C:#ff4040!" colors the text from there on, "!C!" goes back to the
+# font's own color.
 TEXT_CODE_RE = re.compile(r"\{([^{}]+)\}|!F:([^!]+)!|!S:?(\d+)!|!C(?::([^!]*))?!|!N:([^!]+)!")
 
 # Display Text "position" -> engine/include/ui.h UI_BOX_*.
@@ -974,14 +974,14 @@ def assign_banks(unique_tiles, backdrop, name, tile_positions, palette_map=None)
     return bank_lists, tile_bank
 
 
-# Stand-in "colour" for see-through pixels when only real transparency
+# Stand-in "color" for see-through pixels when only real transparency
 # counts (scenes with background layers - see convert_background()).
 SEE_THROUGH = (-1, -1, -1)
 
 
 def convert_background(path, name, palette_map=None, tile_overrides=None, see_through_only=False, image=None):
     """`see_through_only`: only transparent pixels become palette index 0
-    (see-through to the layers behind); otherwise the most common colour
+    (see-through to the layers behind); otherwise the most common color
     is the backdrop, free in every palette bank."""
     if image is None:
         image = load_background(path, tile_overrides, name)
@@ -1146,7 +1146,7 @@ def merge_layer(main, layer_bg, where):
         raise BuildError(
             f"{where}: the scene and its layers need {bank_off + layer_bg['palette_count']} "
             f"palettes between them; the most is {MAX_BANKS} (each 8x8 tile uses one "
-            "palette of up to 15 colours).")
+            "palette of up to 15 colors).")
     main["tiles"] = main["tiles"] + layer_bg["tiles"][32:]
     main["tile_count"] += layer_bg["tile_count"] - 1
     main["palette"] = main["palette"] + layer_bg["palette"]
@@ -1225,7 +1225,7 @@ def compile_tile_animations(anims, bg, scene_file, scene_name):
                 entry = bg["map"][(y + j) * w + (x + i)]
                 tile, hf, vf, bank_i = entry & 0x3FF, (entry >> 10) & 1, (entry >> 11) & 1, entry >> 12
                 if tile == 0:
-                    raise BuildError(f"{where}: tile ({x + i}, {y + j}) is the plain backdrop colour, which "
+                    raise BuildError(f"{where}: tile ({x + i}, {y + j}) is the plain backdrop color, which "
                                      "can't animate (it fills every empty spot). Pick tiles with some detail.")
                 bank = bg["banks"][bank_i]
                 data = []
@@ -1245,7 +1245,7 @@ def compile_tile_animations(anims, bg, scene_file, scene_name):
                                 raise BuildError(
                                     f"{where}: frame {f + 1} uses #{r:02x}{g:02x}{b:02x}, which isn't in the "
                                     f"palette of the map tile at ({x + i}, {y + j}). Animation frames can only "
-                                    "use that tile's colours.")
+                                    "use that tile's colors.")
                     for k in range(0, 64, 2):
                         data.append(idx[k] | (idx[k + 1] << 4))
                 out[tile] = (tile, frames, speed, data)
@@ -1268,11 +1268,11 @@ def parse_front(rows, w, h, scene_name):
 # ---------------------------------------------------------------------------
 
 RC_TEX = 32                # textures are 32x32
-RC_MAX_COLORS = 59         # texture and sky colours (each also gets a darker copy);
+RC_MAX_COLORS = 59         # texture and sky colors (each also gets a darker copy);
                            # 128-239 hold the actors' sprite palettes
-RC_SKY_COLOR, RC_CROSSHAIR = 119, 120   # palette: the sky colour, the crosshair
-RC_SKY = 255               # a cell's ceiling colour: the sky (ceiling height 255)
-RC_FLAT_TEX = 200          # a cell's floor / ceiling colour 200 + t: texture t
+RC_SKY_COLOR, RC_CROSSHAIR = 119, 120   # palette: the sky color, the crosshair
+RC_SKY = 255               # a cell's ceiling color: the sky (ceiling height 255)
+RC_FLAT_TEX = 200          # a cell's floor / ceiling color 200 + t: texture t
 RC_SKY_MAX_H = 80          # sky pictures: the view's height
 RC_TEX_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz"
 
@@ -1316,8 +1316,8 @@ def load_wall_textures(project_dir):
 
 
 def build_wall_textures(images, skies=()):
-    """-> (colours, column-major palette indices 1..N for every texture,
-    the same for each sky picture). Textures and skies share the colours."""
+    """-> (colors, column-major palette indices 1..N for every texture,
+    the same for each sky picture). Textures and skies share the colors."""
     sky_w = sum(im.width for im in skies)
     sky_h = max([im.height for im in skies] or [0])
     strip = Image.new("RGB", (RC_TEX * len(images) + sky_w, max(RC_TEX, sky_h)))
@@ -1379,12 +1379,12 @@ def load_sky(path, where):
 def hex_rgb(value, default, where):
     v = str(value or default).strip().lstrip("#")
     if len(v) != 6 or any(ch not in "0123456789abcdefABCDEF" for ch in v):
-        raise BuildError(f"{where}: colours look like \"#3a3a3a\".")
+        raise BuildError(f"{where}: colors look like \"#3a3a3a\".")
     return tuple(int(v[i:i + 2], 16) for i in (0, 2, 4))
 
 
-RC_MAX_FLATS = 5           # extra floor / ceiling colours ("raycast": {"flats": [...]})
-RC_FLOOR, RC_CEIL = 121, 122   # palette: the scene's floor and ceiling colours, flats after
+RC_MAX_FLATS = 5           # extra floor / ceiling colors ("raycast": {"flats": [...]})
+RC_FLOOR, RC_CEIL = 121, 122   # palette: the scene's floor and ceiling colors, flats after
 
 
 def _char_rows(scene, key, w, h, name):
@@ -1419,7 +1419,7 @@ def _int_rows(scene, key, w, h, default, name):
 
 def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name):
     """Per-cell arrays for a First Person 3D scene: texture, floor height,
-    ceiling height (1/8 tile units), floor and ceiling colour. Solid
+    ceiling height (1/8 tile units), floor and ceiling color. Solid
     collision tiles are walls (ceiling = floor). "wall_textures" picks
     from the scene's raycast "textures" list (names in assets/textures):
     "0" the first, "1" the next... (with no list, all textures by name)."""
@@ -1451,7 +1451,7 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
     ceil_tex = _char_rows(scene, "ceiling_textures", w, h, name)
 
     def flat_tex(ch, x, y, key):
-        """A textured floor / ceiling ("." none): its colour value."""
+        """A textured floor / ceiling ("." none): its color value."""
         if ch == ".":
             return None
         i = RC_TEX_CHARS.index(ch.lower()) if ch.lower() in RC_TEX_CHARS else -1
@@ -1464,7 +1464,7 @@ def raycast_cells(scene, grid, w, h, tex_names, file_textures, flat_count, name)
         if ch in ".0 ":
             return default
         if ch not in "12345" or int(ch) > flat_count:
-            raise BuildError(f"{name}: \"{key}\" at ({x},{y}) uses colour {ch!r}, but raycast \"flats\" "
+            raise BuildError(f"{name}: \"{key}\" at ({x},{y}) uses color {ch!r}, but raycast \"flats\" "
                              f"has {flat_count}.")
         return RC_CEIL + int(ch)
 
@@ -2116,18 +2116,18 @@ def resolve_name_slot(name, ctx, where):
 
 
 def resolve_text_color(value, ctx, where):
-    """A "!C:...!" code's colour -> its dialogue palette index (0 = the
-    font's own colour, for "!C!" / "!C:default!")."""
+    """A "!C:...!" code's color -> its dialogue palette index (0 = the
+    font's own color, for "!C!" / "!C:default!")."""
     value = (value or "").strip()
     if value == "" or value.lower() == "default":
         return 0
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
-        raise BuildError(f"{where}: text colour !C:{value}! should be a hex colour like !C:#ff4040! (or !C! to reset).")
+        raise BuildError(f"{where}: text color !C:{value}! should be a hex color like !C:#ff4040! (or !C! to reset).")
     ui = ctx.get("ui")
     rgb = tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
     idx = color_index(ui, rgb) if ui else None
     if idx is None:
-        raise BuildError(f"{where}: text colour {value} isn't in the dialogue palette.")
+        raise BuildError(f"{where}: text color {value} isn't in the dialogue palette.")
     return idx
 
 
@@ -3305,7 +3305,7 @@ def compile_parity_event(etype, ev, out, ctx, where):
         out.append(_instr("SCRIPT_NAME_ENTRY", a=slot, b=max_len, text=c_string_literal(text)))
 
     elif etype == "screen_tint":
-        # Presets: (colour, strength %).
+        # Presets: (color, strength %).
         presets = {"none": ("#ffffff", 0), "dawn": ("#ffb4c4", 30), "evening": ("#ffa060", 40),
                    "dusk": ("#a070c4", 50), "night": ("#5262c6", 70)}
         preset = str(ev.get("preset", "custom"))
@@ -3316,7 +3316,7 @@ def compile_parity_event(etype, ev, out, ctx, where):
         else:
             raise BuildError(f"{where}: unknown tint preset '{preset}'.")
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
-            raise BuildError(f"{where}: tint colour should look like #5262c6.")
+            raise BuildError(f"{where}: tint color should look like #5262c6.")
         pct = resolve_small_int(pct, "strength", where, 0, 100)
         r, g, b = (int(color[i:i + 2], 16) >> 3 for i in (1, 3, 5))
         frames = resolve_small_int(ev.get("frames", 0), "frames", where, 0, 3600)
@@ -4348,7 +4348,7 @@ def build(project_dir, out_dir):
         if not isinstance(layers, list) or len(layers) > MAX_LAYERS:
             raise BuildError(f"{name}: \"layers\" must be a list of up to {MAX_LAYERS} background layers.")
         # With a layer behind it, only the background's transparent pixels
-        # are see-through (normally its most common colour is the backdrop).
+        # are see-through (normally its most common color is the backdrop).
         behind = any(isinstance(l, dict) and not l.get("front") for l in layers)
         bg = convert_background(bg_path, name, scene.get("palette_map"), scene.get("tile_overrides"),
                                 see_through_only=behind)
@@ -4818,7 +4818,7 @@ def build(project_dir, out_dir):
         if scene_mode == M.MODES["raycast"]:
             if "raycast_textures" not in ctx:
                 tex_names, tex_images = load_wall_textures(project_dir)
-                # Every 3D scene's sky picture, sharing the textures' colours.
+                # Every 3D scene's sky picture, sharing the textures' colors.
                 sky_paths = []
                 for sf, sc in scene_data_list:
                     sky_ref = (sc.get("raycast") or {}).get("sky") if isinstance(sc.get("raycast"), dict) else None
@@ -4837,7 +4837,7 @@ def build(project_dir, out_dir):
                 ctx["raycast_textures"] = (tex_names, tex_colors, files, skies)
                 c_parts.append(c_array("uint8_t", "raycast_textures", tex_data, "{}", 32))
                 print(f"  wall textures: {', '.join(tex_names)}"
-                      f"{f' + {len(skies)} sky picture(s)' if skies else ''} ({len(tex_colors)} colours)")
+                      f"{f' + {len(skies)} sky picture(s)' if skies else ''} ({len(tex_colors)} colors)")
             tex_names, tex_colors, tex_files, skies = ctx["raycast_textures"]
             look = scene.get("raycast") or {}
             if not isinstance(look, dict):
@@ -4855,7 +4855,7 @@ def build(project_dir, out_dir):
                 raise BuildError(f"{name}: a First Person 3D scene can be at most 128x128 tiles in all.")
             flats = look.get("flats") or []
             if not isinstance(flats, list) or len(flats) > RC_MAX_FLATS:
-                raise BuildError(f"{name}: raycast \"flats\" must be a list of up to {RC_MAX_FLATS} colours.")
+                raise BuildError(f"{name}: raycast \"flats\" must be a list of up to {RC_MAX_FLATS} colors.")
             n = len(tex_colors)
             pal = [0] * 240
             for i, c in enumerate(tex_colors):

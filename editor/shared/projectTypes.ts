@@ -340,10 +340,10 @@ export type SceneType = "topdown" | "platform" | "adventure" | "shmup" | "pointn
 
 /** A First Person 3D scene's look (compiler raycast_cells()). */
 export interface RaycastLookJSON {
-  /** Floor and ceiling colours, "#rrggbb". */
+  /** Floor and ceiling colors, "#rrggbb". */
   floor?: string;
   ceiling?: string;
-  /** Up to 5 more colours tiles can use ("1"-"5" in floor_flats /
+  /** Up to 5 more colors tiles can use ("1"-"5" in floor_flats /
    * ceiling_flats). */
   flats?: string[];
   /** Ceiling height of tiles with none set, 1/8 tile units (default 8). */
@@ -356,7 +356,7 @@ export interface RaycastLookJSON {
   /** How tall solid collision tiles stand under the sky (default 16). */
   wall_height?: number;
   /** The sky (ceiling height 255): a picture (scenes-relative path, like
-   * `background`) repeating around the view, else this colour. */
+   * `background`) repeating around the view, else this color. */
   sky?: string;
   sky_color?: string;
   /** The first person weapon: a sprite (its Fire / Alt Fire animations
@@ -398,7 +398,7 @@ export interface SceneJSON {
   parallax?: ParallaxLayerJSON[];
   /** Up to 2 full background layers (the first is drawn over the second). */
   layers?: BgLayerJSON[];
-  /** Editor only: the scene's colour on the world map ("#rrggbb"). */
+  /** Editor only: the scene's color on the world map ("#rrggbb"). */
   color?: string;
   on_init?: EventScript;
   /** GB Studio's "On Player Hit", per actor collision group. */
@@ -437,7 +437,7 @@ export interface SceneJSON {
    * as `collision`): floor and ceiling heights in 1/8 tile units (null =
    * the default; a ceiling at or under the floor is a wall), the wall
    * texture ("0".."9", "a".."z" into raycast.textures) and floor / ceiling
-   * colour ("1"-"5" into raycast.flats, "." the scene's own). */
+   * color ("1"-"5" into raycast.flats, "." the scene's own). */
   raycast?: RaycastLookJSON;
   floor_heights?: (number | null)[][];
   ceiling_heights?: (number | null)[][];
@@ -445,7 +445,7 @@ export interface SceneJSON {
   floor_flats?: string[];
   ceiling_flats?: string[];
   /** Per tile: a texture on the floor / ceiling ("0".."9", "a".."z" into
-   * raycast.textures; "." none - the colour shows). */
+   * raycast.textures; "." none - the color shows). */
   floor_textures?: string[];
   ceiling_textures?: string[];
 }

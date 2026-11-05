@@ -487,12 +487,12 @@ const SCENE_TYPES: { id: SceneType; label: string; hint: string }[] = [
     label: "First Person 3D",
     hint:
       "A first person view of the map, like the old shooters: Up / Down walk, Left / Right turn, L / R strafe. Solid tiles are walls; " +
-      "paint floor and ceiling heights (stairs, ledges, windows, doors, lifts), wall textures and colours with the 3D tool (H). " +
+      "paint floor and ceiling heights (stairs, ledges, windows, doors, lifts), wall textures and colors with the 3D tool (H). " +
       "The background only sets the map's size here.",
   },
 ]
 
-/** First Person 3D: the scene's colours, default ceiling and wall textures. */
+/** First Person 3D: the scene's colors, default ceiling and wall textures. */
 function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
   const updateScene = useProjectStore((s) => s.updateScene);
   const assets = useProjectStore((s) => s.assets);
@@ -521,7 +521,7 @@ function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
       );
       return { ...s, raycast: { ...(s.raycast ?? {}), textures: list }, wall_textures: rows };
     });
-  /** Drop colour i: its tiles take the scene's own, later ones move down. */
+  /** Drop color i: its tiles take the scene's own, later ones move down. */
   const removeFlat = (i: number) =>
     updateScene(scene.fileId, (s) => {
       const fix = (rows?: string[]) =>
@@ -592,7 +592,7 @@ function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
           <span className="field-hint-inline">walls under the sky</span>
         </div>
       </FieldRow>
-      <FieldRow label="3D colours" hint="Floors and ceilings with no colour painted, and the sky when there's no sky picture.">
+      <FieldRow label="3D colors" hint="Floors and ceilings with no color painted, and the sky when there's no sky picture.">
         <div className="type-row">
           <label className="rc-look-swatch" title="Floor">
             <input type="color" value={hex(look.floor, "#3c3a36")} onChange={(e) => set({ floor: e.target.value }, "floor")} />
@@ -610,10 +610,10 @@ function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
       </FieldRow>
       <FieldRow
         label="Sky picture"
-        hint="Shown wherever there's open sky (Outdoors, or the Open sky shape). A PNG from Backgrounds, up to 80 px tall (the 3D view is 120×80, doubled on screen); it repeats sideways and turns with the view - 160, 320 or 640 px wide fit a full turn exactly. Its colours share the 59 with the wall textures."
+        hint="Shown wherever there's open sky (Outdoors, or the Open sky shape). A PNG from Backgrounds, up to 80 px tall (the 3D view is 120×80, doubled on screen); it repeats sideways and turns with the view - 160, 320 or 640 px wide fit a full turn exactly. Its colors share the 59 with the wall textures."
       >
         <select value={look.sky ?? ""} onChange={(e) => set({ sky: e.target.value || undefined })}>
-          <option value="">None (the sky colour)</option>
+          <option value="">None (the sky color)</option>
           {look.sky && !skies.some((o) => o.ref === look.sky) && <option value={look.sky}>{look.sky} (missing)</option>}
           {skies.map((o) => (
             <option key={o.ref} value={o.ref}>
@@ -649,7 +649,7 @@ function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
           )}
         </div>
       </FieldRow>
-      <FieldRow label={`More colours (${flats.length}/${RC_MAX_FLATS})`} hint="Paint them on floors and ceilings with the 3D tool: lava, water, carpet, lights.">
+      <FieldRow label={`More colors (${flats.length}/${RC_MAX_FLATS})`} hint="Paint them on floors and ceilings with the 3D tool: lava, water, carpet, lights.">
         <div className="palette-swatch-list">
           {flats.map((c, i) => (
             <div key={i} className="palette-swatch-row">
@@ -659,13 +659,13 @@ function RaycastLookEditor({ scene }: { scene: SceneRecord }) {
                 value={hex(c, "#000000")}
                 onChange={(e) => set({ flats: flats.map((f, j) => (j === i ? e.target.value : f)) }, `flat${i}`)}
               />
-              <button className="icon-btn" title="Remove colour" onClick={() => removeFlat(i)}>
+              <button className="icon-btn" title="Remove color" onClick={() => removeFlat(i)}>
                 ×
               </button>
             </div>
           ))}
           <button className="btn btn-small" disabled={flats.length >= RC_MAX_FLATS} onClick={() => set({ flats: [...flats, "#806040"] })}>
-            + Add colour
+            + Add color
           </button>
         </div>
       </FieldRow>
@@ -987,7 +987,7 @@ function TileAnimationsEditor({ scene }: { scene: SceneRecord }) {
   return (
     <FieldRow
       label={`Animated tiles (${anims.length})`}
-      hint="Make tiles cycle through frames, like water or flowers. Pick the top-left tile of the area on the map, its size, and an image with the frames side by side (each frame the size of the area). Every copy of those tiles anywhere on the map animates. Frames can only use the colours those tiles already use."
+      hint="Make tiles cycle through frames, like water or flowers. Pick the top-left tile of the area on the map, its size, and an image with the frames side by side (each frame the size of the area). Every copy of those tiles anywhere on the map animates. Frames can only use the colors those tiles already use."
     >
       {anims.map((a, i) => (
         <div key={i} className="layer-card">

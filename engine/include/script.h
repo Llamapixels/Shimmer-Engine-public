@@ -447,7 +447,7 @@ typedef enum
     SCRIPT_PLAYTIME_READ,       /* a/b/c = variables for hours/minutes/seconds (-1 = skip) */
     SCRIPT_PERSIST,             /* a = op, b = group, c = variable (game_persist) */
     SCRIPT_MUSIC_FADE,          /* a = 0 fade out (and stop) / 1 fade in / 2 to volume b, c = frames */
-    SCRIPT_TINT,                /* a = BGR555 colour, b = strength 0-16, c = frames (tint_set) */
+    SCRIPT_TINT,                /* a = BGR555 color, b = strength 0-16, c = frames (tint_set) */
     SCRIPT_TINT_CYCLE,          /* a = minutes in a day (0 = stop), tint_cycle */
     SCRIPT_TINT_HOUR,           /* a = variable: the day / night cycle's hour 0-23 */
     SCRIPT_NAME_ENTRY,          /* a = name slot, b = max length, str = prompt */

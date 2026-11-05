@@ -19,9 +19,9 @@
 #define MAX_SEGS    24                    /* clip windows kept per column, for actors */
 #define MAX_CELLS   (128 * 128)
 #define MAX_MOVERS  8
-#define SKY         255                   /* a cell's ceiling colour: the sky */
-#define FLAT_TEX    200                   /* floor / ceiling colour 200+t: texture t */
-#define CROSSHAIR   120                   /* palette: the crosshair's colour */
+#define SKY         255                   /* a cell's ceiling color: the sky */
+#define FLAT_TEX    200                   /* floor / ceiling color 200+t: texture t */
+#define CROSSHAIR   120                   /* palette: the crosshair's color */
 
 #define SPRITE_PAL  128                   /* OBJ palette banks 0-6 copied to 128-239 */
 #define SPRITE_BANKS 7
@@ -67,7 +67,7 @@ static int draw_phase;               /* raycast_draw(): 0 starts a frame, 1 colu
 /* Heights, 1/8 cell units: copied to RAM so doors and lifts can move. */
 /* Each cell packed in one word, so a ray reads one value per cell and
  * can tell "nothing changes" with one compare: floor | ceiling << 8 |
- * floor colour << 16 | ceiling colour << 24. */
+ * floor color << 16 | ceiling color << 24. */
 static uint32_t cells[MAX_CELLS] EWRAM_BSS;
 #define CELL_FLOOR(i) (cells[i] & 255)
 #define CELL_CEIL(i)  ((cells[i] >> 8) & 255)
@@ -481,7 +481,7 @@ static inline __attribute__((always_inline)) void fill(uint8_t *dst, int y0, int
         dst[row_off[y0]] = c;
 }
 
-/* The sky in this column: the picture's column (else its colour). Kept
+/* The sky in this column: the picture's column (else its color). Kept
  * out of render()'s registers - it's only needed where the sky shows. */
 static const uint8_t *sky_column;
 
@@ -527,7 +527,7 @@ static void fill_flat(uint8_t *dst, int y0, int y1, int tex, int h)
     }
 }
 
-/* A floor: its colour, or a texture (scenes with them only). */
+/* A floor: its color, or a texture (scenes with them only). */
 static inline __attribute__((always_inline)) void fill_floor(uint8_t *dst, int y0, int y1, uint8_t c, int h, const int extras)
 {
     if (!extras || c < FLAT_TEX)
@@ -536,7 +536,7 @@ static inline __attribute__((always_inline)) void fill_floor(uint8_t *dst, int y
         fill_flat(dst, y0, y1, c - FLAT_TEX, h);
 }
 
-/* A ceiling: its colour, a texture or the sky (scenes with them only). */
+/* A ceiling: its color, a texture or the sky (scenes with them only). */
 static inline __attribute__((always_inline)) void fill_ceil(uint8_t *dst, int y0, int y1, uint8_t c, int h, const int extras)
 {
     if (!extras || c < FLAT_TEX)
@@ -1093,7 +1093,7 @@ void raycast_vblank(void)
      * samples the view's first row, not the edge above it. */
     REG_BG2X = 0;
     REG_BG2Y = 0x40;
-    /* Actors' colours: the OBJ palette banks they use. */
+    /* Actors' colors: the OBJ palette banks they use. */
     for (int i = 0; i < SPRITE_BANKS * 16; i++)
         BG_PAL[SPRITE_PAL + i] = OBJ_PAL[i];   /* already tinted */
     if (!frame_ready)

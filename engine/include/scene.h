@@ -179,10 +179,10 @@ typedef struct RaycastDef
                                  * ceiling (128-239 are the actors', copied
                                  * from the OBJ palette; 240+ the dialogue
                                  * layer's) */
-    uint8_t dark;               /* added to a texture's colour on north and
+    uint8_t dark;               /* added to a texture's color on north and
                                  * south faces (its darker copy) */
-    /* The sky (ceiling colour 255): a picture of palette indices, column
-     * by column, sky_w x sky_h (0 = none: the colour sky_col). */
+    /* The sky (ceiling color 255): a picture of palette indices, column
+     * by column, sky_w x sky_h (0 = none: the color sky_col). */
     const uint8_t *sky;
     uint16_t sky_w;
     uint8_t sky_h;

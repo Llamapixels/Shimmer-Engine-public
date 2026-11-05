@@ -2,7 +2,7 @@
  * Shimmer Engine's theme: flat, neutral and high-contrast - mid/dark
  * greys with light-grey text, no purple. Highlights (selection, primary
  * buttons, focus) are a light grey with dark text so they stand out
- * without colour. The scene canvas uses a separate yellow highlight so
+ * without color. The scene canvas uses a separate yellow highlight so
  * selections stay visible over game art.
  */
 
@@ -12,7 +12,7 @@
   --accent-hover: #ededed;
   --accent-active: #c2c2c2;
   --accent-text: #161616;
-  /* Selected rows/cells: a clearly lighter grey, not a coloured fill. */
+  /* Selected rows/cells: a clearly lighter grey, not a colored fill. */
   --accent-soft: #4d4d4d;
   --accent-soft-border: #9a9a9a;
 

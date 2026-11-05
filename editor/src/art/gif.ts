@@ -1,6 +1,6 @@
 /**
  * A small animated-GIF encoder for the Art Editor's export: GIF89a, one
- * global palette (up to 255 colours + transparency), looping, a fixed
+ * global palette (up to 255 colors + transparency), looping, a fixed
  * delay per frame, LZW-compressed. Frames are RGBA bitmaps of equal size;
  * pixels with alpha < 128 are transparent.
  */
@@ -79,7 +79,7 @@ export function encodeGif(frames: Bitmap[], delayMs: number, scale = 1): Uint8Ar
   const w = w0 * scale;
   const h = h0 * scale;
 
-  // Global palette: index 0 = transparent, then every colour used.
+  // Global palette: index 0 = transparent, then every color used.
   const palette: number[] = [0];
   const indexOf = new Map<number, number>();
   for (const f of frames)
@@ -87,7 +87,7 @@ export function encodeGif(frames: Bitmap[], delayMs: number, scale = 1): Uint8Ar
       if (f.data[i + 3] < 128) continue;
       const k = (f.data[i] << 16) | (f.data[i + 1] << 8) | f.data[i + 2];
       if (!indexOf.has(k)) {
-        if (palette.length >= 256) throw new Error("Too many colours for a GIF (255 max).");
+        if (palette.length >= 256) throw new Error("Too many colors for a GIF (255 max).");
         indexOf.set(k, palette.length);
         palette.push(k);
       }
@@ -100,7 +100,7 @@ export function encodeGif(frames: Bitmap[], delayMs: number, scale = 1): Uint8Ar
   o.str("GIF89a");
   o.word(w);
   o.word(h);
-  o.byte(0x80 | ((bits - 1) << 4) | (bits - 1)); // global colour table
+  o.byte(0x80 | ((bits - 1) << 4) | (bits - 1)); // global color table
   o.byte(0);
   o.byte(0);
   for (let i = 0; i < size; i++) {
@@ -124,7 +124,7 @@ export function encodeGif(frames: Bitmap[], delayMs: number, scale = 1): Uint8Ar
     o.byte(0x21);
     o.byte(0xf9);
     o.byte(4);
-    o.byte((2 << 2) | 1); // dispose: restore to background; transparent colour on
+    o.byte((2 << 2) | 1); // dispose: restore to background; transparent color on
     o.word(delay);
     o.byte(0);
     o.byte(0);

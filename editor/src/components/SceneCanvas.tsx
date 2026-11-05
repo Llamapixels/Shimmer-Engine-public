@@ -61,7 +61,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: IconName; group: numb
   { id: "palette", label: "Paint colors (BG palettes)", key: "Z", icon: "colors", group: 1 },
   { id: "tiles", label: "Paint tiles", key: "X", icon: "tiles", group: 1 },
   { id: "front", label: "Paint tiles in front of actors (tree tops, roofs, arches)", key: "F", icon: "front", group: 1 },
-  { id: "rc", label: "Paint 3D: floor and ceiling heights, wall textures, floor and ceiling colours", key: "H", icon: "stairs", group: 1 },
+  { id: "rc", label: "Paint 3D: floor and ceiling heights, wall textures, floor and ceiling colors", key: "H", icon: "stairs", group: 1 },
   { id: "eraser", label: "Eraser", key: "E", icon: "eraser", group: 1 },
   { id: "spawn", label: "Set player start", key: "P", icon: "start", group: 2 },
 ];
@@ -1873,7 +1873,7 @@ export default function SceneCanvas() {
                       },
                     ]
                   : [
-                      { label: data.color ? "Scene colour (world map)…" : "Colour this scene (world map)…", onClick: () => setSceneColorAt({ x: ctxMenu.x, y: ctxMenu.y }) },
+                      { label: data.color ? "Scene color (world map)…" : "Color this scene (world map)…", onClick: () => setSceneColorAt({ x: ctxMenu.x, y: ctxMenu.y }) },
                       "separator",
                       {
                         label: `Delete scene "${data.name || sceneId}"`,

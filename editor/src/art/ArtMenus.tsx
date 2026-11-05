@@ -35,11 +35,11 @@ export const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   gradient: "Gradient",
   shade: "Shading",
   stamp: "Stamp (custom brush)",
-  picker: "Colour picker",
+  picker: "Color picker",
   select: "Select",
   move: "Move selection",
   pan: "Hand (pan)",
-  swap: "Swap colours",
+  swap: "Swap colors",
   brushDown: "Smaller brush",
   brushUp: "Bigger brush",
   zoomIn: "Zoom in",
@@ -114,7 +114,7 @@ export function ShortcutsDialog({ onClose, onChange }: { onClose: () => void; on
         <h3>Art Editor shortcuts</h3>
         <p className="art-modal-note">
           Click a key to change it, then press the new key. Always on: Ctrl+Z/Y undo/redo, Ctrl+C/X/V, Ctrl+A select all, Ctrl+D deselect,
-          Delete clears, Esc/Enter drop a selection, arrows nudge it, Space+drag pans, Alt+click picks a colour, Ctrl+S saves.
+          Delete clears, Esc/Enter drop a selection, arrows nudge it, Space+drag pans, Alt+click picks a color, Ctrl+S saves.
         </p>
         <div className="art-shortcuts">
           {(Object.keys(SHORTCUT_LABELS) as ShortcutAction[]).map((a) => (
@@ -181,7 +181,7 @@ export function ImageMenu({ onShortcutsChanged }: { onShortcutsChanged: () => vo
     { label: "Rotate 180°", disabled: !doc, onClick: () => st.transformAll(rotate180) },
     "separator",
     {
-      label: `Outline (${area}, primary colour)`,
+      label: `Outline (${area}, primary color)`,
       disabled: !doc,
       onClick: () => st.editActive((b, a) => notice(`Outlined: ${outline(b, st.primary, false, a)} px`)),
     },
@@ -191,13 +191,13 @@ export function ImageMenu({ onShortcutsChanged }: { onShortcutsChanged: () => vo
       onClick: () => st.editActive((b, a) => notice(`Outlined: ${outline(b, st.primary, true, a)} px`)),
     },
     {
-      label: `Replace primary colour with secondary (${area})`,
+      label: `Replace primary color with secondary (${area})`,
       disabled: !doc,
       onClick: () => st.editActive((b, a) => notice(`Replaced ${replaceColor(b, st.primary, st.secondary, a)} px`)),
     },
-    { label: "Reduce colours…", disabled: !doc, onClick: () => setDialog("reduce") },
+    { label: "Reduce colors…", disabled: !doc, onClick: () => setDialog("reduce") },
     {
-      label: "Snap all colours to GBA colours",
+      label: "Snap all colors to GBA colors",
       disabled: !doc,
       onClick: () =>
         st.editActive((b) => {
@@ -285,7 +285,7 @@ async function exportGif(scale: number) {
   const flat = flattenDoc(doc);
   const cells = frameRects(doc);
   let frames: Bitmap[] = cells.length ? cells.map((c) => copyRegion(flat, c)) : [flat];
-  // A GIF holds 255 colours: reduce a copy of all the frames together if needed.
+  // A GIF holds 255 colors: reduce a copy of all the frames together if needed.
   if (colorsUsed(flat).colors.length > 255) {
     const strip = createBitmap(frames[0].width, frames[0].height * frames.length);
     frames.forEach((f, i) => stamp(strip, f, 0, i * f.height));
@@ -419,20 +419,20 @@ function ReduceDialog({ onClose }: { onClose: () => void }) {
     const st = useArtStore.getState();
     st.editActive((b) => {
       const got = reduceColors(b, Math.max(1, Math.min(255, n)));
-      useProjectStore.getState().showNotice(`${activeLayer(doc).name}: now ${got} colours`);
+      useProjectStore.getState().showNotice(`${activeLayer(doc).name}: now ${got} colors`);
     });
     onClose();
   };
   return (
     <div className="art-modal-backdrop" onMouseDown={onClose}>
       <div className="art-modal" onMouseDown={(e) => e.stopPropagation()}>
-        <h3>Reduce colours</h3>
+        <h3>Reduce colors</h3>
         <p className="art-modal-note">
-          Merges similar colours on the selected layer until it has at most this many. A GBA sprite can use 15 (plus transparent); each 8×8
+          Merges similar colors on the selected layer until it has at most this many. A GBA sprite can use 15 (plus transparent); each 8×8
           background tile can use 15 plus the backdrop.
         </p>
         <label className="art-modal-field">
-          Colours
+          Colors
           <input type="number" min={1} max={255} value={n} onChange={(e) => setN(Number(e.target.value))} />
         </label>
         <div className="art-modal-actions">

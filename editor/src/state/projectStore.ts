@@ -68,12 +68,12 @@ export type BrushShape = "8px" | "16px" | "fill" | "magic" | "selection";
 export type PaintLayer = "collision" | "palette" | "tiles" | "front" | RcLayer;
 
 /** First Person 3D layers: floor / ceiling height, wall texture, floor /
- * ceiling colour (scene floor_heights, ceiling_heights, wall_textures,
+ * ceiling color (scene floor_heights, ceiling_heights, wall_textures,
  * floor_flats, ceiling_flats). */
 export type RcLayer = "shape" | "floor_h" | "ceil_h" | "walltex" | "floor_flat" | "ceil_flat";
 
 /** What the 3D tool paints on each of its layers: heights in 1/8 tiles,
- * a texture name, a colour number (1-5; 0 = the scene's own). */
+ * a texture name, a color number (1-5; 0 = the scene's own). */
 export interface RcBrush {
   /** "Shape": floor and ceiling together (ceiling 255 = open sky), or a
    * wall (a solid collision tile). */
@@ -85,7 +85,7 @@ export interface RcBrush {
   walltex: string;
   floor_flat: number;
   ceil_flat: number;
-  /** Floor / ceiling layers painting a texture ("" = the colour above). */
+  /** Floor / ceiling layers painting a texture ("" = the color above). */
   floor_tex: string;
   ceil_tex: string;
 }

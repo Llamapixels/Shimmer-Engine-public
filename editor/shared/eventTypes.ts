@@ -49,7 +49,7 @@ export interface EventBase {
   __disableElse?: boolean;
   /** Editor only: the block is folded (kept between sessions). */
   __collapsed?: boolean;
-  /** Editor only: the block's colour, "#rrggbb" (right-click > Colour). */
+  /** Editor only: the block's color, "#rrggbb" (right-click > Color). */
   __color?: string;
 }
 
@@ -1018,7 +1018,7 @@ export interface NameEntryEvent extends EventBase {
   default?: string;
 }
 
-/** Screen tint (day / night): a preset or a colour at a strength, fading over frames. */
+/** Screen tint (day / night): a preset or a color at a strength, fading over frames. */
 export interface ScreenTintEvent extends EventBase {
   type: "screen_tint";
   preset: "none" | "dawn" | "evening" | "dusk" | "night" | "custom";

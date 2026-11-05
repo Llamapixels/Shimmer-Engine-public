@@ -1017,7 +1017,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
 
 /**
  * Display Text's text box, with an Insert bar for the text codes (font,
- * colour, speed, variable) so nobody has to remember them, and the game's
+ * color, speed, variable) so nobody has to remember them, and the game's
  * box drawn underneath.
  */
 /** A position field: while hovered or being typed in, the scene canvas
@@ -1173,12 +1173,12 @@ function DialogueTextField({
             </option>
           ))}
         </select>
-        <span className="text-code-color" title="Colour the text from here on (!C:#rrggbb!)">
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Text colour" />
+        <span className="text-code-color" title="Color the text from here on (!C:#rrggbb!)">
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Text color" />
           <button className="btn btn-small" onClick={() => insert(`!C:${color}!`)}>
-            Colour
+            Color
           </button>
-          <button className="btn btn-small" title="Back to the font's own colour (!C!)" onClick={() => insert("!C!")}>
+          <button className="btn btn-small" title="Back to the font's own color (!C!)" onClick={() => insert("!C!")}>
             Reset
           </button>
         </span>

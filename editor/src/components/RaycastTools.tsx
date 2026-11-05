@@ -1,7 +1,7 @@
 /*
  * The scene canvas's 3D tool (First Person 3D scenes): which layer it
  * paints and with what - a shape (floor and ceiling together, a wall,
- * open sky), a wall texture, a floor / ceiling colour - plus the wall
+ * open sky), a wall texture, a floor / ceiling color - plus the wall
  * textures' images.
  */
 
@@ -91,8 +91,8 @@ export function RcLayerButtons({ layer, onPick }: { layer: RcLayer; onPick: (l: 
 const LAYER_HINT: Record<RcLayer, string> = {
   shape: "Walls, floors, steps, ledges, pits, windows, doors and open sky: floor and ceiling together",
   walltex: "Which texture a tile's sides show (walls, steps, ledges)",
-  floor_flat: "Floors: a texture (boards, tiles, grass...) or a colour (lava, water...)",
-  ceil_flat: "Ceilings: a texture (stone, panels...) or a colour (lights...)",
+  floor_flat: "Floors: a texture (boards, tiles, grass...) or a color (lava, water...)",
+  ceil_flat: "Ceilings: a texture (stone, panels...) or a color (lights...)",
   floor_h: "Change only the floor height, leaving the ceiling",
   ceil_h: "Change only the ceiling height, leaving the floor",
 };
@@ -363,7 +363,7 @@ export function RcValuePanel({
         {error && <div className="rc-panel-error">{error}</div>}
         <div className="rc-panel-hint">
           Paint walls, and the steps and ledges of tiles (a tile's texture is on its own sides). 32×32 PNGs in assets/textures; up to 59
-          colours across all of them and the sky.
+          colors across all of them and the sky.
         </div>
       </div>
     );
@@ -378,7 +378,7 @@ export function RcValuePanel({
   return (
     <div className="rc-panel">
       <div className="rc-panel-row">
-        <span className="rc-field-note">Colour</span>
+        <span className="rc-field-note">Color</span>
         <button className={`brush-btn${!tex && v === 0 ? " brush-btn-active" : ""}`} onClick={() => setRcBrush({ [layer]: 0, [texKey]: "" })}>
           <span className="scene-canvas-swatch" style={{ background: base }} />
           Scene's own
@@ -413,9 +413,9 @@ export function RcValuePanel({
       </div>
       {error && <div className="rc-panel-error">{error}</div>}
       <div className="rc-panel-hint">
-        Paint a colour or a texture on the {what} of tiles (the tops of steps, ledges and window sills too). Textured floors and ceilings
-        cost the GBA more than colours: a scene full of them redraws its view about 20 times a second instead of 30 (the game itself
-        stays at 60). Edit the colours in the scene's 3D settings.
+        Paint a color or a texture on the {what} of tiles (the tops of steps, ledges and window sills too). Textured floors and ceilings
+        cost the GBA more than colors: a scene full of them redraws its view about 20 times a second instead of 30 (the game itself
+        stays at 60). Edit the colors in the scene's 3D settings.
       </div>
     </div>
   );

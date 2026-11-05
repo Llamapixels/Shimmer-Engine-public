@@ -51,7 +51,7 @@ function bitmapCanvas(b: Bitmap, reuse?: HTMLCanvasElement | null): HTMLCanvasEl
  * The Art Editor's drawing surface: every layer at any zoom, with
  * checkerboard transparency, pixel and 8x8 tile grids, frames and onion
  * skin, tile mode, the selection and shape previews. Left click uses the
- * primary colour, right click the secondary; middle drag, Space+drag or
+ * primary color, right click the secondary; middle drag, Space+drag or
  * the Hand tool pans; the wheel zooms around the cursor.
  */
 export default function ArtCanvas({ onHover }: { onHover: (p: Pt | null) => void }) {
@@ -416,7 +416,7 @@ export default function ArtCanvas({ onHover }: { onHover: (p: Pt | null) => void
     const color = right ? st.secondary : st.primary;
     const t = st.tool;
 
-    // Alt+click with a drawing tool picks a colour, like Pixelorama.
+    // Alt+click with a drawing tool picks a color, like Pixelorama.
     if (t === "picker" || (e.altKey && ["pencil", "fill", "line", "rect", "ellipse", "shade", "gradient"].includes(t))) {
       pickAt(p, right);
       return;

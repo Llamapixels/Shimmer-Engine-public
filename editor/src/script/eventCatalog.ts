@@ -390,7 +390,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Display Text",
     category: "Dialogue",
     description:
-      "Show a dialogue box. Enter starts the next line of the box; + Add text box (or Ctrl+Enter) adds another box shown after it. Long text carries on in another box by itself. {varname} shows a variable, !F:name! switches font, !C:#ff4040! colours the text (!C! resets), !S2! sets the text speed (frames per letter, 0 = instant). Use the Insert buttons under the text to add these.",
+      "Show a dialogue box. Enter starts the next line of the box; + Add text box (or Ctrl+Enter) adds another box shown after it. Long text carries on in another box by itself. {varname} shows a variable, !F:name! switches font, !C:#ff4040! colors the text (!C! resets), !S2! sets the text speed (frames per letter, 0 = instant). Use the Insert buttons under the text to add these.",
     fields: [
       { key: "text", label: "Text", kind: "multiline" },
       {
@@ -1473,7 +1473,7 @@ export const EVENT_DEFS: EventDef[] = [
     label: "Set Screen Tint",
     category: "Screen",
     description:
-      "Tint the whole scene - actors too - for time of day or mood: dawn, evening, dusk, night, or any colour. It stays " +
+      "Tint the whole scene - actors too - for time of day or mood: dawn, evening, dusk, night, or any color. It stays " +
       "across scene changes until changed, and can fade in over a time. Text boxes are never tinted. Turns off a day / night cycle.",
     fields: [
       {
@@ -1481,15 +1481,15 @@ export const EVENT_DEFS: EventDef[] = [
         label: "Tint",
         kind: "select",
         options: [
-          { value: "none", label: "None (normal colours)" },
+          { value: "none", label: "None (normal colors)" },
           { value: "dawn", label: "Dawn" },
           { value: "evening", label: "Evening" },
           { value: "dusk", label: "Dusk" },
           { value: "night", label: "Night" },
-          { value: "custom", label: "Custom colour" },
+          { value: "custom", label: "Custom color" },
         ],
       },
-      { key: "color", label: "Colour", kind: "color", showIf: (e) => e.preset === "custom" },
+      { key: "color", label: "Color", kind: "color", showIf: (e) => e.preset === "custom" },
       { key: "strength", label: "Strength %", kind: "int", min: 0, max: 100, defaultValue: 50, showIf: (e) => e.preset === "custom" },
       { key: "frames", label: "Fade over", kind: "duration", min: 0, max: 3600, defaultValue: 0 },
     ],
@@ -1511,7 +1511,7 @@ export const EVENT_DEFS: EventDef[] = [
         kind: "select",
         options: [
           { value: "start", label: "Start" },
-          { value: "stop", label: "Stop (normal colours)" },
+          { value: "stop", label: "Stop (normal colors)" },
         ],
       },
       { key: "day_minutes", label: "A day lasts (minutes)", kind: "int", min: 1, max: 9000, defaultValue: 20, showIf: (e) => e.action !== "stop" },

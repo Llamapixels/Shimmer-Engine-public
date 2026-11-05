@@ -4,13 +4,13 @@
 #include <stdint.h>
 
 /*
- * Screen tint (day / night): every BG and OBJ palette colour is kept as
- * written (its "base") and shown multiplied toward a tint colour, so
+ * Screen tint (day / night): every BG and OBJ palette color is kept as
+ * written (its "base") and shown multiplied toward a tint color, so
  * night darkens and blues the scene while keeping its contrast. The
  * dialogue box's palette bank is never tinted.
  *
  * All palette writes that should follow the tint go through
- * tint_write_color(); reading a colour back (to restore it later) uses
+ * tint_write_color(); reading a color back (to restore it later) uses
  * tint_base_color().
  */
 

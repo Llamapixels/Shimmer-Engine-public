@@ -22,16 +22,16 @@ const SECTIONS: { kind: ArtKind; label: string }[] = [
 const TOOLS: ArtTool[] = ["pencil", "eraser", "fill", "line", "rect", "ellipse", "gradient", "shade", "stamp", "picker", "select", "move", "pan"];
 
 const TOOL_HELP: Record<ArtTool, string> = {
-  pencil: "Left click: primary colour, right click: secondary. Shift+click draws a line from the last point. Alt+click picks a colour.",
+  pencil: "Left click: primary color, right click: secondary. Shift+click draws a line from the last point. Alt+click picks a color.",
   eraser: "Erases to transparent.",
-  fill: "Fills the area of the clicked colour. Global fills that colour everywhere.",
+  fill: "Fills the area of the clicked color. Global fills that color everywhere.",
   line: "Drag to draw. Shift snaps to 45°.",
   rect: "Drag to draw. Shift makes a square.",
   ellipse: "Drag to draw. Shift makes a circle.",
-  gradient: "Drag from where the primary colour starts to where the secondary ends. Fills the selection (or the layer), dithered.",
-  shade: "Left click lightens, right click darkens - stepping through the image's own colours, so no new colours appear.",
+  gradient: "Drag from where the primary color starts to where the secondary ends. Fills the selection (or the layer), dithered.",
+  shade: "Left click lightens, right click darkens - stepping through the image's own colors, so no new colors appear.",
   stamp: "Draws your custom brush. Make one with Image ▸ Brush from selection.",
-  picker: "Left click sets the primary colour, right click the secondary.",
+  picker: "Left click sets the primary color, right click the secondary.",
   select: "Drag to select. Drag inside the selection to move it. Ctrl+C / Ctrl+X / Ctrl+V, Delete clears, Esc deselects.",
   move: "Drag the selection (or arrow keys, Shift = 8 px). Enter or Esc drops it.",
   pan: "Drag to move around. Space+drag or middle-drag work with any tool.",
@@ -184,17 +184,17 @@ function ToolStrip({ shortcuts }: { shortcuts: Record<ShortcutAction, string> })
           <ArtIcon name={t} />
         </button>
       ))}
-      <div className="art-tool-colors" title="Primary (left click) and secondary (right click) colours. X swaps them.">
+      <div className="art-tool-colors" title="Primary (left click) and secondary (right click) colors. X swaps them.">
         <ColorSwatch color={primary} onPick={(c) => st.setPrimary(c)} className="art-color-primary" />
         <ColorSwatch color={secondary} onPick={(c) => st.set({ secondary: c })} className="art-color-secondary" />
       </div>
-      <button className="art-tool art-tool-small" onClick={() => st.swapColors()} title="Swap colours">
+      <button className="art-tool art-tool-small" onClick={() => st.swapColors()} title="Swap colors">
         <ArtIcon name="swap" size={16} />
       </button>
       <button
         className="art-tool art-tool-small"
         onClick={() => st.set({ secondary: [0, 0, 0, 0] })}
-        title="Make the secondary colour transparent (right click then erases)"
+        title="Make the secondary color transparent (right click then erases)"
       >
         <ArtIcon name="clear" size={16} />
       </button>
@@ -246,15 +246,15 @@ function OptionsBar({ hover, onShortcutsChanged }: { hover: Pt | null; onShortcu
           <span className="art-opt-value">{s.brushSize}</span>
         </label>
       )}
-      {s.tool === "pencil" && toggle("dither", "Dither", "Draw a checkerboard of the primary and secondary colours")}
+      {s.tool === "pencil" && toggle("dither", "Dither", "Draw a checkerboard of the primary and secondary colors")}
       {(s.tool === "pencil" || s.tool === "eraser") &&
         toggle("pixelPerfect", "Pixel perfect", "Removes the doubled corner pixels on 1-pixel curves and diagonals")}
-      {s.tool === "fill" && toggle("fillGlobal", "Global", "Fill every pixel of the clicked colour, not just the connected area")}
+      {s.tool === "fill" && toggle("fillGlobal", "Global", "Fill every pixel of the clicked color, not just the connected area")}
       {(s.tool === "rect" || s.tool === "ellipse") && toggle("shapeFilled", "Filled", "Draw filled shapes")}
       {s.tool === "gradient" && (
         <>
           {toggle("gradientRadial", "Radial", "A circular gradient out from where you start dragging")}
-          <label className="art-opt" title="Colours between primary and secondary (2 = just those two, dithered)">
+          <label className="art-opt" title="Colors between primary and secondary (2 = just those two, dithered)">
             Steps
             <input type="number" min={2} max={16} value={s.gradientSteps} onChange={(e) => s.set({ gradientSteps: Math.max(2, Math.min(16, Number(e.target.value))) })} />
           </label>
@@ -297,7 +297,7 @@ function OptionsBar({ hover, onShortcutsChanged }: { hover: Pt | null; onShortcu
 
 // ---------------------------------------------------------------------------
 
-/** The bottom bar: every colour the image uses, with the GBA's limits. */
+/** The bottom bar: every color the image uses, with the GBA's limits. */
 function PaletteBar() {
   const doc = useArtStore((s) => s.doc);
   const version = useArtStore((s) => s.doc?.version);
@@ -328,13 +328,13 @@ function PaletteBar() {
   if (!doc) limit = "";
   else if (doc.kind === "sprites") {
     over = n > 15;
-    limit = `${n} / 15 colours + transparent (one sprite palette)`;
+    limit = `${n} / 15 colors + transparent (one sprite palette)`;
   } else if (doc.kind === "backgrounds") {
     over = (stats?.tilesOver ?? 0) > 0;
     limit = over
-      ? `${n} colours - ${stats!.tilesOver} 8×8 tile(s) use more than 15 colours + backdrop`
-      : `${n} colours (up to 15 per 8×8 tile, plus a shared backdrop)`;
-  } else limit = `${n} colours - fonts and frames share the dialogue box's 15-colour palette`;
+      ? `${n} colors - ${stats!.tilesOver} 8×8 tile(s) use more than 15 colors + backdrop`
+      : `${n} colors (up to 15 per 8×8 tile, plus a shared backdrop)`;
+  } else limit = `${n} colors - fonts and frames share the dialogue box's 15-color palette`;
 
   const same = (c: RGBA, sel: RGBA) => c[0] === sel[0] && c[1] === sel[1] && c[2] === sel[2] && sel[3] !== 0;
   const offGba = stats?.colors.some(({ color }) => toHex(toGbaColor(color)) !== toHex(color)) ?? false;
@@ -360,12 +360,12 @@ function PaletteBar() {
         {offGba && (
           <span
             className="art-palette-note"
-            title="The GBA has 5 bits per colour channel, so some colours will look very slightly different in the game. Image ▸ Snap rounds them."
+            title="The GBA has 5 bits per color channel, so some colors will look very slightly different in the game. Image ▸ Snap rounds them."
           >
-            Some colours aren't exact GBA colours
+            Some colors aren't exact GBA colors
           </span>
         )}
-        {doc && over && doc.kind === "sprites" && <span className="art-palette-note">Image ▸ Reduce colours can fix this.</span>}
+        {doc && over && doc.kind === "sprites" && <span className="art-palette-note">Image ▸ Reduce colors can fix this.</span>}
       </div>
       <div className="art-palette-swatches">
         {doc && (stats?.transparent ?? 0) > 0 && (
@@ -382,7 +382,7 @@ function PaletteBar() {
         {stats?.colors.map(({ color, count }) => swatch(color, `${toHex(color)} - ${count} px`, toHex(color)))}
         {recent.length > 0 && (
           <>
-            <span className="art-palette-sep" title="Recently used colours">
+            <span className="art-palette-sep" title="Recently used colors">
               Recent
             </span>
             {recent.map((c, i) => swatch(c, toHex(c), `r${i}`))}

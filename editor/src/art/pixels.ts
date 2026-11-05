@@ -41,14 +41,14 @@ export function setPixel(b: Bitmap, x: number, y: number, c: RGBA): void {
   b.data[i + 3] = c[3];
 }
 
-/** Transparent pixels are all the same colour, whatever RGB they carry. */
+/** Transparent pixels are all the same color, whatever RGB they carry. */
 export function sameColor(a: RGBA, b: RGBA): boolean {
   if (a[3] === 0 && b[3] === 0) return true;
   return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
 }
 
 // ---------------------------------------------------------------------------
-// Colours
+// Colors
 
 export function toHex(c: RGBA): string {
   return "#" + [c[0], c[1], c[2]].map((v) => v.toString(16).padStart(2, "0")).join("");
@@ -59,7 +59,7 @@ export function fromHex(hex: string, alpha = 255): RGBA {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255, alpha];
 }
 
-/** The nearest colour the GBA can show (5 bits per channel). */
+/** The nearest color the GBA can show (5 bits per channel). */
 export function toGbaColor(c: RGBA): RGBA {
   const q = (v: number) => Math.round((Math.round((v * 31) / 255) * 255) / 31);
   return [q(c[0]), q(c[1]), q(c[2]), c[3]];
@@ -149,8 +149,8 @@ export function mirrored(p: Pt, b: { width: number; height: number }, mx: boolea
 // ---------------------------------------------------------------------------
 // Fill
 
-/** Paint bucket: the area of the clicked colour (4-connected), or every
- * pixel of that colour when `global` is set. Returns whether anything changed. */
+/** Paint bucket: the area of the clicked color (4-connected), or every
+ * pixel of that color when `global` is set. Returns whether anything changed. */
 export function floodFill(b: Bitmap, x: number, y: number, c: RGBA, global: boolean): boolean {
   if (x < 0 || y < 0 || x >= b.width || y >= b.height) return false;
   const target = getPixel(b, x, y);
@@ -241,7 +241,7 @@ export interface ColorUse {
   count: number;
 }
 
-/** Opaque colours in the image, most used first, plus the transparent count. */
+/** Opaque colors in the image, most used first, plus the transparent count. */
 export function colorsUsed(b: Bitmap): { colors: ColorUse[]; transparent: number } {
   const map = new Map<number, number>();
   let transparent = 0;
@@ -260,8 +260,8 @@ export function colorsUsed(b: Bitmap): { colors: ColorUse[]; transparent: number
   return { colors, transparent };
 }
 
-/** Backgrounds: the compiler gives every 8x8 tile 15 colours plus the
- * image's backdrop (its most common colour, or transparency). Returns how
+/** Backgrounds: the compiler gives every 8x8 tile 15 colors plus the
+ * image's backdrop (its most common color, or transparency). Returns how
  * many tiles go over that. */
 export function tilesOverLimit(b: Bitmap, backdrop: RGBA | null): number {
   const tw = Math.floor(b.width / 8);

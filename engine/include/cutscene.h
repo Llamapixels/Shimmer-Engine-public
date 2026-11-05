@@ -5,7 +5,7 @@
 
 /*
  * Full-screen video cutscenes ("Play Cutscene"). The editor's Cutscenes
- * tab converts a video into a .cut file (assets/cutscenes): one 256-colour
+ * tab converts a video into a .cut file (assets/cutscenes): one 256-color
  * palette, then every frame as the 8x8 tiles that changed since the frame
  * before, LZ77-compressed (the BIOS decompresses them). Audio is a WAV
  * sound (wav.h) played alongside, both timed from the GBA's own clock so

@@ -3,7 +3,7 @@
  * Pure data code (no DOM), so it runs anywhere. The format is described in
  * engine/include/cutscene.h:
  *
- *   one 256-colour palette for the whole video, then per frame only the
+ *   one 256-color palette for the whole video, then per frame only the
  *   8x8 tiles that changed since the frame before (8bpp), GBA-LZ77
  *   compressed so the BIOS can unpack it.
  */
@@ -33,7 +33,7 @@ const HEADER = 524;
 const to5 = (v: number) => Math.round((v * 31) / 255);
 const from5 = (v: number) => Math.round((v * 255) / 31);
 
-/** 256 GBA colours (as 0xRRGGBB, already 5-bit exact) for a set of frames,
+/** 256 GBA colors (as 0xRRGGBB, already 5-bit exact) for a set of frames,
  * by median cut over a sample of their pixels. */
 export function buildPalette(frames: Uint8ClampedArray[], size = 256): number[] {
   const counts = new Map<number, number>();
@@ -91,7 +91,7 @@ export function buildPalette(frames: Uint8ClampedArray[], size = 256): number[] 
   return pal;
 }
 
-/** Nearest palette index for every 15-bit colour, built lazily. */
+/** Nearest palette index for every 15-bit color, built lazily. */
 class Nearest {
   private cache = new Int16Array(32768).fill(-1);
   private pr: number[];

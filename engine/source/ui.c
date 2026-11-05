@@ -17,7 +17,7 @@
  *   screen base block 23 0x0600B800 (= tile 448 of block 2, so tiles
  *                        must stay below that)
  *
- * Palette: BG bank 15, which the compiler keeps free of scene colours.
+ * Palette: BG bank 15, which the compiler keeps free of scene colors.
  */
 #define UI_CHAR_BLOCK    2
 #define UI_SCREEN_BLOCK  23

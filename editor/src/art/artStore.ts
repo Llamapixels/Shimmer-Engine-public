@@ -32,7 +32,7 @@ export type ArtTool =
   | "move"
   | "pan";
 
-/** Which project folder an image lives in - decides the colour limits. */
+/** Which project folder an image lives in - decides the color limits. */
 export type ArtKind = "backgrounds" | "sprites" | "fonts" | "frames";
 
 export interface Layer {
@@ -149,7 +149,7 @@ interface ArtState {
   clipboard: Bitmap | null;
   /** The Stamp tool's brush (made from a selection). */
   customBrush: Bitmap | null;
-  /** Colours picked recently, newest first. */
+  /** Colors picked recently, newest first. */
   recent: RGBA[];
 
   open: (asset: AssetInfo, kind: ArtKind) => Promise<void>;

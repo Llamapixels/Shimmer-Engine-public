@@ -199,7 +199,7 @@ void sprite_reserve_rope(int on)
     set_limits();
     if (!on)
         return;
-    /* The dot: a 2x2 block of colour 1 in the middle of an 8x8 tile.
+    /* The dot: a 2x2 block of color 1 in the middle of an 8x8 tile.
      * 4bpp: row r is t[r*2] (px 0-3) and t[r*2+1] (px 4-7); px 3 and 4. */
     volatile uint16_t *t = ADV_OBJ_VRAM + ROPE_TILE * 16;
     for (int i = 0; i < 16; i++)
@@ -231,7 +231,7 @@ void sprite_rope_draw(int n, const int16_t *xs, const int16_t *ys)
 
 void sprite_save_palette(int bank, uint16_t *out)
 {
-    /* The colours as written, not as tinted (tint.h). */
+    /* The colors as written, not as tinted (tint.h). */
     for (int i = 0; i < 16; i++)
         out[i] = tint_base_color(256 + (bank & 0xF) * 16 + i);
 }

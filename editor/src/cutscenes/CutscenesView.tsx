@@ -480,8 +480,8 @@ function ImportDialog({
                     </select>
                   </label>
                 </div>
-                <label className="art-opt" title="Smoother colour gradients; can make the file a little bigger">
-                  <input type="checkbox" checked={dither} onChange={(e) => setDither(e.target.checked)} /> Dither colours
+                <label className="art-opt" title="Smoother color gradients; can make the file a little bigger">
+                  <input type="checkbox" checked={dither} onChange={(e) => setDither(e.target.checked)} /> Dither colors
                 </label>
                 <label className="art-opt">
                   <input type="checkbox" checked={withAudio} onChange={(e) => setWithAudio(e.target.checked)} /> Include the sound

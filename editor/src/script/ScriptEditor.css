@@ -94,7 +94,7 @@
   min-width: 0;
 }
 
-/* A colour picked with right-click > Colour. */
+/* A color picked with right-click > Color. */
 .event-block-tinted {
   background: color-mix(in srgb, var(--tint) 20%, var(--bg-3));
   border-color: color-mix(in srgb, var(--tint) 50%, var(--border-strong));

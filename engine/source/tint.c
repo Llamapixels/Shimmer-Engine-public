@@ -63,7 +63,7 @@ void tint_set(uint16_t color, int strength, int frames)
     if (strength > 16) strength = 16;
     target_q8 = strength << 8;
     target_color = color;
-    /* The new colour takes over at once; its strength fades. */
+    /* The new color takes over at once; its strength fades. */
     if (frames <= 0)
     {
         strength_q8 = target_q8;
@@ -117,7 +117,7 @@ static void cycle_tint(int t, uint16_t *color, int *strength_q8_out)
     int span = keys[k + 1].at - keys[k].at;
     int f = span ? (t - keys[k].at) * 256 / span : 0;
     *strength_q8_out = keys[k].s + (keys[k + 1].s - keys[k].s) * f / 256;
-    /* Colour: blend each channel. */
+    /* Color: blend each channel. */
     uint16_t a = keys[k].color, b = keys[k + 1].color;
     int r = (a & 31) + (((b & 31) - (a & 31)) * f >> 8);
     int g = ((a >> 5) & 31) + ((((b >> 5) & 31) - ((a >> 5) & 31)) * f >> 8);

@@ -1,7 +1,7 @@
 /*
  * The editor's First Person 3D preview: the engine's renderer
  * (engine/source/raycast.c) redone in floating point - same rules for
- * heights, faces, textures, colours, the sky and actors, so what it shows
+ * heights, faces, textures, colors, the sky and actors, so what it shows
  * is what the GBA shows - and the engine's walking rules (steps, headroom).
  */
 
@@ -84,7 +84,7 @@ const darken = (c: number) =>
   (0xff << 24) | ((((c >> 16) & 255) * 5) >> 3 << 16) | ((((c >> 8) & 255) * 5) >> 3 << 8) | (((c & 255) * 5) >> 3);
 
 /** The scene as the engine sees it: per cell floor / ceiling (units),
- * texture, colours and whether its ceiling is the sky. */
+ * texture, colors and whether its ceiling is the sky. */
 export interface RcMap {
   w: number;
   h: number;
@@ -93,7 +93,7 @@ export interface RcMap {
   tex: (Pixels | null)[];
   fcol: Uint32Array;
   ccol: Uint32Array;
-  /** Textured floors / ceilings (null: the colour). */
+  /** Textured floors / ceilings (null: the color). */
   ftex: (Pixels | null)[];
   ctex: (Pixels | null)[];
   sky: Uint8Array;

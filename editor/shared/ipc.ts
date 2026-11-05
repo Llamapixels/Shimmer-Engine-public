@@ -361,7 +361,7 @@ export interface ShimmerEngineApi {
   saveProjectAs(payload: { rootPath: string }): Promise<IpcResult<OpenProjectResult | null>>;
 }
 
-/** The editor's colour themes - View > Theme. */
+/** The editor's color themes - View > Theme. */
 export const THEMES = [
   { id: "dark", label: "Dark" },
   { id: "light", label: "Light" },

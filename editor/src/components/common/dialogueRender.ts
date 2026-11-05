@@ -3,7 +3,7 @@
  * compiler/ui.py's load_font(), text laid out like engine/source/dialogue.c
  * (word wrap over 2 lines - or Display Text's "rows" - a new line starts a
  * new page, overflow carries on to the next page, "!F:name!" switches
- * font, "!C:#rrggbb!" recolours the font's ink).
+ * font, "!C:#rrggbb!" recolors the font's ink).
  */
 
 export const BOX_W = 240;
@@ -30,9 +30,9 @@ export interface UiFont {
   first: number;
   count: number;
   cols: number;
-  /** "r,g,b" of the see-through background colour, if any. */
+  /** "r,g,b" of the see-through background color, if any. */
   bg: string | null;
-  /** "r,g,b" of its main text colour - what a !C code recolours. */
+  /** "r,g,b" of its main text color - what a !C code recolors. */
   ink: string | null;
   left: number[];
   width: number[];
@@ -99,7 +99,7 @@ export function parseFont(img: HTMLImageElement): UiFont | null {
       width[n] = TILE;
     }
   } else if (first <= 32 && 32 < first + count && width[32 - first] === 0) width[32 - first] = 3;
-  // Ink: the most common colour across all glyphs (compiler/ui.py).
+  // Ink: the most common color across all glyphs (compiler/ui.py).
   const inkCounts = new Map<string, number>();
   for (let y = 0; y < rows * TILE; y++)
     for (let x = 0; x < cols * TILE; x++) {
@@ -175,7 +175,7 @@ export interface Glyph {
   ch: string;
   x: number;
   line: number;
-  /** "#rrggbb" the font's ink is drawn in, or null for its own colour. */
+  /** "#rrggbb" the font's ink is drawn in, or null for its own color. */
   color: string | null;
 }
 

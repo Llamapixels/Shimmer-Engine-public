@@ -18,11 +18,11 @@ Same files as GB Studio uses, so its fonts and frames drop straight in:
                                         GB Studio projects.
     <project>/assets/ui/cursor.png      8x8 menu cursor (optional).
 
-Unlike the Game Boy's four shades, the real colours are kept (GBA 15-bit).
-A font's background colour is whatever fills its first cell (the space
-character); every other opaque colour is drawn as text, anything else
+Unlike the Game Boy's four shades, the real colors are kept (GBA 15-bit).
+A font's background color is whatever fills its first cell (the space
+character); every other opaque color is drawn as text, anything else
 shows the frame behind it. All fonts, frames and the cursor share the
-dialogue's one 16-colour palette: up to 15 colours between them.
+dialogue's one 16-color palette: up to 15 colors between them.
 
 project.json "ui" (all optional):
     { "font": "name", "frame": "name", "textSpeed": 1 }
@@ -60,7 +60,7 @@ def gba_color(rgb):
 
 class Palette:
     def __init__(self):
-        self.colors = []   # 15-bit colours, palette index = position + 1
+        self.colors = []   # 15-bit colors, palette index = position + 1
 
     def index(self, rgb, where):
         c = gba_color(rgb)
@@ -68,8 +68,8 @@ class Palette:
             if len(self.colors) >= MAX_COLORS:
                 raise UiError(
                     f"{where}: the dialogue fonts, frames and cursor use more than {MAX_COLORS} "
-                    "colours between them (the GBA gives the dialogue box one 16-colour palette). "
-                    "Use fewer colours, or fewer fonts/frames with different colours.")
+                    "colors between them (the GBA gives the dialogue box one 16-color palette). "
+                    "Use fewer colors, or fewer fonts/frames with different colors.")
             self.colors.append(c)
         return self.colors.index(c) + 1
 
@@ -93,7 +93,7 @@ def load_font(path, palette, name):
     count = min(cols * rows, 256 - first)
     px = img.load()
 
-    # Background: the most common colour in the first cell (the space).
+    # Background: the most common color in the first cell (the space).
     counts = {}
     for y in range(TILE):
         for x in range(TILE):
@@ -129,7 +129,7 @@ def load_font(path, palette, name):
     elif first <= 32 < first + count and widths[32 - first] == 0:
         widths[32 - first] = 3   # an all-trimmed space still needs a width
 
-    # The font's ink: its most common colour - what a !C code recolours.
+    # The font's ink: its most common color - what a !C code recolors.
     ink_counts = {}
     for rows_out in glyphs:
         for word in rows_out:
@@ -156,7 +156,7 @@ def load_font(path, palette, name):
 def load_tiles(path, palette, where, tw, th, corner_clear=False):
     """4bpp tile rows. Transparent pixels show what's behind; with
     corner_clear, an image with no transparency at all has its top-left
-    pixel's colour treated as transparent instead (GB Studio cursors are
+    pixel's color treated as transparent instead (GB Studio cursors are
     drawn on an opaque background)."""
     img = Image.open(path).convert("RGBA")
     if img.size != (tw * TILE, th * TILE):
@@ -215,7 +215,7 @@ def build_ui(project, project_dir, defaults_dir, referenced):
 
     # Built-in fonts (engine/data/ui/fonts): only the ones this game uses -
     # the start font, a !F:name! code or a Set Font event - since every font
-    # in a game shares one 15-colour palette. A project font of the same
+    # in a game shares one 15-color palette. A project font of the same
     # name wins.
     for p in _assets(defaults_dir / "fonts"):
         name = p.stem
@@ -243,11 +243,11 @@ def build_ui(project, project_dir, defaults_dir, referenced):
     except OSError as e:
         raise UiError(f"Couldn't read a UI image: {e}") from None
 
-    # Text colour codes ("!C:#ff4040!") need their colours in the same
+    # Text color codes ("!C:#ff4040!") need their colors in the same
     # palette, so add every one used anywhere in the project up front.
     for hexcol in TEXT_COLOR_RE.findall(referenced):
         rgb = tuple(int(hexcol[i:i + 2], 16) for i in (0, 2, 4))
-        palette.index(rgb, f"text colour !C:#{hexcol}!")
+        palette.index(rgb, f"text color !C:#{hexcol}!")
 
     font_names = list(font_files)
     frame_names = list(frame_files)
@@ -282,12 +282,12 @@ def build_ui(project, project_dir, defaults_dir, referenced):
     }
 
 
-# "!C:#rrggbb!" text colour codes (see build_project.interpolate_vars).
+# "!C:#rrggbb!" text color codes (see build_project.interpolate_vars).
 TEXT_COLOR_RE = re.compile(r"!C:#([0-9a-fA-F]{6})!")
 
 
 def color_index(ui, rgb):
-    """A colour's index in the dialogue palette (it was added there by
+    """A color's index in the dialogue palette (it was added there by
     build_ui), or None."""
     c = gba_color(rgb)
     pal = ui["palette"]

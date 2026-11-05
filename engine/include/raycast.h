@@ -32,7 +32,7 @@ void raycast_camera(int *x, int *y);
 /*
  * Heights: every cell has a floor and a ceiling height in 1/8 cell units
  * (a ceiling at or below the floor is a solid wall; under the sky a wall
- * is a block as tall as its floor value). Ceiling colour 255 is the sky.
+ * is a block as tall as its floor value). Ceiling color 255 is the sky.
  */
 
 /* The player's eye height, how high it steps up and the room it needs

@@ -604,9 +604,9 @@ export default function WorldMap() {
                     ]
                   : [
                       { label: "Open", onClick: () => actionsRef.current.open(ctx.rec) },
-                      { label: ctx.rec.data.color ? "Change colour…" : "Colour…", onClick: () => setColorFor({ x: ctx.x, y: ctx.y, id: ctx.rec.fileId }) },
+                      { label: ctx.rec.data.color ? "Change color…" : "Color…", onClick: () => setColorFor({ x: ctx.x, y: ctx.y, id: ctx.rec.fileId }) },
                       ...(ctx.rec.data.color
-                        ? [{ label: "Remove colour", onClick: () => updateScene(ctx.rec.fileId, (s) => ({ ...s, color: undefined })) }]
+                        ? [{ label: "Remove color", onClick: () => updateScene(ctx.rec.fileId, (s) => ({ ...s, color: undefined })) }]
                         : []),
                       "separator",
                       {
