@@ -343,7 +343,7 @@
 }
 
 .scene-engine .engine-row {
-  grid-template-columns: 1fr 120px 36px;
+  grid-template-columns: minmax(0, 1fr) 170px 36px;
 }
 
 /* Custom script inputs. */
@@ -411,3 +411,30 @@
 
 .prefab-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .pickup-setup { padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+
+/* Many tabs (an actor's scripts): tidy chips that wrap, not ragged rows. */
+.panel-tabs-wrap {
+  gap: 4px;
+  padding: 8px 10px;
+}
+.panel-tabs-wrap .panel-tab {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.panel-tabs-wrap .panel-tab:hover {
+  background: var(--bg-3);
+}
+.panel-tabs-wrap .panel-tab-active,
+.panel-tabs-wrap .panel-tab-active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+/* Choices need more room than numbers; the label wraps instead. */
+.scene-engine .engine-row:has(> select) {
+  grid-template-columns: minmax(0, 1fr) 170px 36px;
+}

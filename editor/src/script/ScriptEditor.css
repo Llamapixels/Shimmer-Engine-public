@@ -323,7 +323,7 @@
 
 .event-field {
   display: grid;
-  grid-template-columns: 74px 1fr;
+  grid-template-columns: 92px 1fr;
   align-items: center;
   gap: 8px;
 }
@@ -762,4 +762,36 @@
 
 .combo-steps-short {
   border-color: var(--danger-text);
+}
+
+/* The bar wraps as a whole; no button breaks onto two lines. */
+.script-editor-bar {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.script-editor-bar > * {
+  white-space: nowrap;
+}
+.script-editor-bar {
+  gap: 8px;
+}
+
+/* Insert row: same-size compact controls, wrapping cleanly. */
+.text-code-bar select,
+.text-code-bar .btn {
+  height: 26px;
+  font-size: 12px;
+}
+.text-code-bar select {
+  flex: 0 0 100px;
+  width: 100px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.text-code-bar .btn {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.text-code-color input[type="color"] {
+  height: 26px;
 }

@@ -530,3 +530,12 @@
   flex: 1;
   min-width: 0;
 }
+
+/* Later small cards fill the hole a wide card leaves; long paths wrap. */
+.settings-grid {
+  grid-auto-flow: row dense;
+}
+.settings-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

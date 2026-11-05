@@ -343,3 +343,98 @@ input[type="range"] {
 .chevron {
   display: block;
 }
+
+/* ---- Checkboxes and switches ------------------------------------------ */
+/* One look everywhere. The extra specificity beats panel rules such as
+   ".field-row input { width: 100% }" that would otherwise stretch them. */
+html input[type="checkbox"]:not(.raw) {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+html input[type="checkbox"]:not(.raw)::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  background: var(--accent-text);
+  clip-path: polygon(14% 44%, 0 59%, 40% 100%, 100% 22%, 86% 8%, 40% 71%);
+  transform: scale(0);
+  transition: transform 0.1s;
+}
+html input[type="checkbox"]:not(.raw):checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+html input[type="checkbox"]:not(.raw):checked::after {
+  transform: scale(1);
+}
+html input[type="checkbox"]:not(.raw):hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+html input[type="checkbox"]:not(.raw):checked:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+html input[type="checkbox"]:not(.raw):disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* On / Off rows: a switch with its state right beside it. */
+.script-field-bool,
+.engine-bool {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: flex-start !important;
+  gap: 8px;
+  width: auto !important;
+  align-self: flex-start;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+html .script-field-bool > input[type="checkbox"]:not(.raw),
+html .engine-bool > input[type="checkbox"]:not(.raw) {
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  display: inline-block;
+  position: relative;
+}
+html .script-field-bool > input[type="checkbox"]:not(.raw)::after,
+html .engine-bool > input[type="checkbox"]:not(.raw)::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  clip-path: none;
+  background: var(--text-muted);
+  transform: none;
+  transition: left 0.12s, background 0.12s;
+}
+html .script-field-bool > input[type="checkbox"]:not(.raw):checked,
+html .engine-bool > input[type="checkbox"]:not(.raw):checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+html .script-field-bool > input[type="checkbox"]:not(.raw):checked::after,
+html .engine-bool > input[type="checkbox"]:not(.raw):checked::after {
+  left: 14px;
+  background: var(--accent-text);
+}

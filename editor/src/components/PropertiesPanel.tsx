@@ -1469,14 +1469,14 @@ function ActorCollisionOptions({ actor, patch }: {
       <label className="script-field-bool">
         <input type="checkbox" checked={actor.collisions !== false}
           onChange={(e) => patch({ collisions: e.target.checked })} />
-        Enabled
+        {actor.collisions !== false ? "On" : "Off"}
       </label>
     </FieldRow>
     <FieldRow label="Interaction" hint="Enables On Interact independently of solidity and damage. On Collect for pickups is separate.">
       <label className="script-field-bool">
         <input type="checkbox" checked={actor.interact_enabled !== false}
           onChange={(e) => patch({ interact_enabled: e.target.checked })} />
-        Enabled
+        {actor.interact_enabled !== false ? "On" : "Off"}
       </label>
     </FieldRow>
   </>;

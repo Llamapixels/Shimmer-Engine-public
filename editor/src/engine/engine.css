@@ -100,3 +100,11 @@
 .engine-row select:focus {
   border-color: var(--accent);
 }
+
+/* Long choices ("Only with air control") get the room they need. */
+.engine-row {
+  grid-template-columns: minmax(0, 1fr) minmax(150px, max-content) auto;
+}
+.engine-row select {
+  max-width: 220px;
+}
