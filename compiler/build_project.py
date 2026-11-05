@@ -2350,7 +2350,8 @@ def compile_events(events, out, ctx, where):
                 channel = str(ev.get("channel", "auto")).lower()
                 if channel not in WAV_CHANNELS:
                     raise BuildError(f"{ev_where}: \"channel\" must be auto, a or b.")
-                flags = (1 if ev.get("loop") else 0) | (2 if ev.get("volume") == "half" else 0)
+                flags = ((1 if ev.get("loop") else 0) | (2 if ev.get("volume") == "half" else 0)
+                         | (4 if ev.get("vary_pitch") else 0))
                 out.append(_instr("SCRIPT_PLAY_WAV", a=ctx["wav_names"].index(raw), b=WAV_CHANNELS[channel], c=flags))
                 continue
             sound = raw.lower()
@@ -2358,7 +2359,7 @@ def compile_events(events, out, ctx, where):
             if const is None:
                 known = ", ".join(sorted(SOUND_NAME_TO_CONST) + ctx["wav_names"])
                 raise BuildError(f"{ev_where}: unknown sound '{sound}'. Use one of: {known}")
-            out.append(_instr("SCRIPT_PLAY_SOUND", a=const))
+            out.append(_instr("SCRIPT_PLAY_SOUND", a=const, b=1 if ev.get("vary_pitch") else 0))
 
         elif etype == "stop_sound":
             channel = str(ev.get("channel", "auto")).lower()
@@ -2676,7 +2677,8 @@ def compile_events(events, out, ctx, where):
             if not isinstance(track, str) or not track.strip():
                 raise BuildError(f"{ev_where}: \"track\" must be a non-empty music asset name.")
             loop = 1 if ev.get("loop", True) else 0
-            out.append(_instr("SCRIPT_PLAY_MUSIC", a=music_track_const(track, ctx, ev_where), b=loop))
+            fade = resolve_small_int(ev.get("fade_in", 0), "fade_in", ev_where, 0, 600)
+            out.append(_instr("SCRIPT_PLAY_MUSIC", a=music_track_const(track, ctx, ev_where), b=loop, c=fade))
 
         elif etype == "stop_music":
             out.append(_instr("SCRIPT_STOP_MUSIC"))
@@ -2800,7 +2802,7 @@ PARITY_EVENT_TYPES = [
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
     "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
-    "actor_knockback", "actor_set_transparent", "playtime", "playtime_read", "persist",
+    "actor_knockback", "actor_set_transparent", "playtime", "playtime_read", "persist", "music_fade",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3272,6 +3274,15 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "music_fade":
+        modes = {"out": 0, "in": 1, "volume": 2}
+        mode = str(ev.get("fade", "out"))
+        if mode not in modes:
+            raise BuildError(f"{where}: \"fade\" must be out, in or volume.")
+        frames = resolve_small_int(ev.get("frames", 60), "frames", where, 1, 600)
+        volume = resolve_small_int(ev.get("volume", 4), "volume", where, 0, 7)
+        out.append(_instr("SCRIPT_MUSIC_FADE", a=modes[mode], b=volume, c=frames))
 
     elif etype == "playtime":
         ops = ["start", "pause", "reset", "add", "subtract"]

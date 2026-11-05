@@ -446,6 +446,7 @@ typedef enum
     SCRIPT_PLAYTIME,            /* a = op (game_playtime), b = seconds */
     SCRIPT_PLAYTIME_READ,       /* a/b/c = variables for hours/minutes/seconds (-1 = skip) */
     SCRIPT_PERSIST,             /* a = op, b = group, c = variable (game_persist) */
+    SCRIPT_MUSIC_FADE,          /* a = 0 fade out (and stop) / 1 fade in / 2 to volume b, c = frames */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

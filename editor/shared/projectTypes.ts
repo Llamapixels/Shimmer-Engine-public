@@ -193,6 +193,8 @@ export interface UiSettingsJSON {
   hudSeeThrough?: boolean;
   /** Sound a text box opens with: "blip" (default), "none", a built-in or a WAV name. */
   textSound?: string;
+  /** Frames scene music fades out and the next scene's fades in over (0 = cut, default). */
+  musicFade?: number;
   /** Sound simple door triggers play: "door" (default), "none", a built-in or a WAV name. */
   doorSound?: string;
 }

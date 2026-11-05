@@ -142,6 +142,17 @@ export default function DialogueCard() {
         <SoundChoice value={ui.textSound ?? "blip"} onChange={(v) => setUi({ textSound: v })} />
       </label>
       <label className="settings-field">
+        When a scene change switches music
+        <select value={ui.musicFade ?? 0} onChange={(e) => setUi({ musicFade: Number(e.target.value) || undefined })}>
+          <option value={0}>Cut straight to the new music</option>
+          {[15, 30, 45, 60, 90].map((f) => (
+            <option key={f} value={f}>
+              Fade out and in over {+(f / 60).toFixed(2)} s
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="settings-field">
         Sound simple door triggers play (each trigger can choose its own)
         <SoundChoice value={ui.doorSound ?? "door"} onChange={(v) => setUi({ doorSound: v })} />
       </label>

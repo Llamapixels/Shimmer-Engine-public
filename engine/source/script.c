@@ -640,6 +640,8 @@ static void thread_step(ScriptThread *t, int is_main)
             break;
 
         case SCRIPT_PLAY_SOUND:
+            if (ev->b)
+                audio_vary_next();   /* "Vary the pitch" */
             play_sound_effect(ev->a);
             break;
 
@@ -966,7 +968,21 @@ static void thread_step(ScriptThread *t, int is_main)
             break;
 
         case SCRIPT_PLAY_MUSIC:
+            if (ev->c > 0 && ev->a != music_current_track())
+                music_fade_in_next(ev->c);   /* fade in */
             music_play(ev->a, ev->b);
+            break;
+
+        case SCRIPT_MUSIC_FADE:
+            if (ev->a == 0)
+                music_fade(0, ev->c, 1);
+            else if (ev->a == 1)
+            {
+                music_fade(0, 1, 0);
+                music_fade(7, ev->c, 0);
+            }
+            else
+                music_fade(ev->b, ev->c, 0);
             break;
 
         case SCRIPT_STOP_MUSIC:

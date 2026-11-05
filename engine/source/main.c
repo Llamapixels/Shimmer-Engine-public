@@ -87,6 +87,9 @@ static void play_scene_music(const SceneDef *scene)
     if (scene->music_track < 0 || scene->music_track == music_current_track())
         return;
 
+    /* Settings > Sound: a new scene's music fades in. */
+    if (ui_music_fade)
+        music_fade_in_next(ui_music_fade);
     music_play(scene->music_track, 1);
 }
 
@@ -2057,6 +2060,12 @@ int main(void)
         }
 
         case STATE_FADE_OUT:
+            /* Settings > Sound: the old music fades out as the screen
+             * does, when the next scene plays something else. */
+            if (ui_music_fade && !music_fading_out() && music_current_track() >= 0 &&
+                scenes[pending_switch_scene]->music_track >= 0 &&
+                scenes[pending_switch_scene]->music_track != music_current_track())
+                music_fade(0, ui_music_fade, 1);
             if (!transition_active())
                 game_state = STATE_LOADING;
             break;

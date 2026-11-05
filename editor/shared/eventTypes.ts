@@ -192,6 +192,8 @@ export interface PlaySoundEvent extends EventBase {
   channel?: "auto" | "a" | "b";
   loop?: boolean;
   volume?: "full" | "half";
+  /** A slightly different pitch each time it plays. */
+  vary_pitch?: boolean;
 }
 
 /** Stop WAV playback on a channel ("auto" = both). */
@@ -597,6 +599,8 @@ export interface PlayMusicEvent extends EventBase {
   type: "play_music";
   track: string;
   loop?: boolean;
+  /** Frames to fade the track in over (0 = at once). */
+  fade_in?: number;
 }
 
 /** Silences whatever music is currently playing (from a scene's "music"
@@ -994,6 +998,14 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** Music fades: out (then stop), in, or to a volume 0-7. */
+export interface MusicFadeEvent extends EventBase {
+  type: "music_fade";
+  fade: "out" | "in" | "volume";
+  volume?: number;
+  frames?: number;
+}
+
 /** The playtime clock. */
 export interface PlaytimeEvent extends EventBase {
   type: "playtime";
@@ -1381,6 +1393,7 @@ export type ScriptEventJSON =
   | ActorKnockbackEvent
   | ActorSetTransparentEvent
   | PlaytimeEvent
+  | MusicFadeEvent
   | PlaytimeReadEvent
   | PersistEvent
   | ActorSetHitResponseEvent

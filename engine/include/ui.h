@@ -45,6 +45,8 @@ extern const uint8_t ui_box_transition_frames;
 extern const uint8_t ui_text_skip_b;
 /* Sound a dialogue box opens with: -1 none, a SoundEffect, 256 + a WAV. */
 extern const int16_t ui_text_sound;
+/* Settings > Sound: frames scene music fades out / in over (0 = cut). */
+extern const uint8_t ui_music_fade;
 extern const uint8_t ui_portraits_used;
 
 enum

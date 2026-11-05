@@ -29,6 +29,10 @@ static int uge_loop;
 static int sfx_frames[4];
 static uint8_t user_mute_mask;
 
+/* Fades: volume 0-7 in 1/256 steps, its target, the step per frame, and
+ * whether to stop once silent; fade_next = "fade in" for the next play. */
+static int vol_q8 = 7 << 8, vol_to = 7 << 8, vol_step, stop_when_silent, fade_next;
+
 /* "Set Music Routine" scripts, run when a song plays effect 6xx. */
 static const ScriptEvent *routine_scripts[16];
 
@@ -77,6 +81,50 @@ void music_update(void)
         if (!uge_loop && huge_song_wrapped())
             music_stop();
     }
+
+    /* A fade: the master volume (NR50) moves toward its target. */
+    int fading = vol_q8 != vol_to;
+    if (fading)
+    {
+        vol_q8 += vol_step;
+        if ((vol_step > 0 && vol_q8 > vol_to) || (vol_step < 0 && vol_q8 < vol_to))
+            vol_q8 = vol_to;
+        if (vol_q8 == 0 && stop_when_silent)
+        {
+            stop_when_silent = 0;
+            music_stop();
+            vol_q8 = vol_to = 7 << 8;
+            return;
+        }
+    }
+    if (uge_playing && (fading || vol_q8 != 7 << 8))
+    {
+        int v = vol_q8 >> 8;
+        REG_NR50 = (uint8_t)((v << 4) | v);
+    }
+}
+
+void music_fade(int to, int frames, int stop_after)
+{
+    if (to < 0) to = 0;
+    if (to > 7) to = 7;
+    vol_to = to << 8;
+    stop_when_silent = stop_after && to == 0;
+    if (frames < 1)
+        frames = 1;
+    vol_step = (vol_to - vol_q8) / frames;
+    if (vol_step == 0)
+        vol_step = vol_to > vol_q8 ? 1 : -1;
+}
+
+void music_fade_in_next(int frames)
+{
+    fade_next = frames;
+}
+
+int music_fading_out(void)
+{
+    return stop_when_silent;
 }
 
 void music_play(int track_id, int loop)
@@ -90,6 +138,16 @@ void music_play(int track_id, int loop)
      * own 5xx/8xx effects can change these as it plays. */
     REG_NR50 = 0x77;
     REG_NR51 = 0xFF;
+    stop_when_silent = 0;
+    if (fade_next > 0)
+    {
+        vol_q8 = 0;
+        REG_NR50 = 0;
+        music_fade(7, fade_next, 0);
+        fade_next = 0;
+    }
+    else
+        vol_q8 = vol_to = 7 << 8;
 
     huge_set_routine_callback(on_routine);
     huge_init(uge_songs[track_id]);

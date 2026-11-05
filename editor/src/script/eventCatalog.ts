@@ -1391,6 +1391,7 @@ export const EVENT_DEFS: EventDef[] = [
           { value: "half", label: "Half" },
         ],
       },
+      { key: "vary_pitch", label: "Vary the pitch a little each time", kind: "bool", defaultValue: false },
     ],
     create: () => ({ type: "play_sound", sound: "blip" }),
     summary: (ev) => `${ev.sound}${ev.loop ? " (loop)" : ""}`,
@@ -1426,6 +1427,7 @@ export const EVENT_DEFS: EventDef[] = [
     fields: [
       { key: "track", label: "Track", kind: "music" },
       { key: "loop", label: "Loop", kind: "bool" },
+      { key: "fade_in", label: "Fade in over (0 = at once)", kind: "duration", min: 0, max: 600, defaultValue: 0 },
     ],
     create: (c) => ({ type: "play_music", track: c.firstMusicTrack ?? "", loop: true }),
     summary: (ev) => `${ev.track || "(no track)"}${ev.loop === false ? " (once)" : " (loop)"}`,
@@ -1438,6 +1440,30 @@ export const EVENT_DEFS: EventDef[] = [
     fields: [],
     create: () => ({ type: "stop_music" }),
     summary: () => "",
+  }),
+  def({
+    type: "music_fade",
+    label: "Fade Music",
+    category: "Sound",
+    description:
+      "Fade the music out (it stops once silent), fade it back in, or fade to a quieter volume (e.g. under a cutscene). " +
+      "To fade a new track in, use Play Music's fade in. Settings > Dialogue can fade music across scene changes too.",
+    fields: [
+      {
+        key: "fade",
+        label: "Fade",
+        kind: "select",
+        options: [
+          { value: "out", label: "Out (then stop)" },
+          { value: "in", label: "In" },
+          { value: "volume", label: "To a volume" },
+        ],
+      },
+      { key: "volume", label: "Volume (0-7)", kind: "int", min: 0, max: 7, defaultValue: 4, showIf: (e) => e.fade === "volume" },
+      { key: "frames", label: "Over", kind: "duration", min: 1, max: 600, defaultValue: 60 },
+    ],
+    create: () => ({ type: "music_fade", fade: "out", frames: 60 }),
+    summary: (ev) => `${ev.fade === "volume" ? `to volume ${ev.volume ?? 4}` : ev.fade ?? "out"} over ${+((ev.frames ?? 60) / 60).toFixed(2)}s`,
   }),
 
   // ---- Scripts ----

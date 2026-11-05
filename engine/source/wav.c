@@ -18,7 +18,7 @@
 #define SND_A_FULL    (1 << 2)
 #define SND_B_FULL    (1 << 3)
 #define SND_A_ON      ((1 << 8) | (1 << 9))
-#define SND_B_ON      ((1 << 12) | (1 << 13))
+#define SND_B_ON      ((1 << 12) | (1 << 13) | (1 << 14))   /* B clocked by timer 1 */
 #define SND_A_RESET   (1 << 11)
 #define SND_B_RESET   (1 << 15)
 
@@ -28,9 +28,32 @@ typedef struct
     int flags;
     uint32_t played16;   /* samples played so far, in 1/16ths */
     uint32_t started;    /* frame it started, for WAV_CHANNEL_AUTO */
+    uint32_t step16;     /* samples a frame, in 1/16ths (its pitch) */
 } Voice;
 
 static Voice voices[2];
+static uint32_t wav_rng = 0x2545F491u;
+
+/* A voice's timer (A: timer 0, B: timer 1) at `pct` percent of WAV_RATE. */
+static void set_rate(int v, int pct)
+{
+    uint32_t rate = (uint32_t)WAV_RATE * (uint32_t)pct / 100u;
+    uint16_t reload = (uint16_t)(65536 - (16777216 / rate));
+    voices[v].step16 = (uint32_t)SAMPLES_PER_FRAME_16 * (uint32_t)pct / 100u;
+    if (v == 0)
+    {
+        REG_TM0CNT_H = 0;
+        REG_TM0CNT_L = reload;
+        REG_TM0CNT_H = TIMER_START;
+    }
+    else
+    {
+        REG_TM1CNT_H = 0;
+        REG_TM1CNT_L = reload;
+        REG_TM1CNT_H = TIMER_START;
+    }
+}
+
 static uint32_t frame = 0;
 
 static void apply_mix(void)
@@ -87,9 +110,8 @@ static void start_voice(int v)
 void wav_init(void)
 {
     voices[0].sound = voices[1].sound = -1;
-    REG_TM0CNT_H = 0;
-    REG_TM0CNT_L = (uint16_t)(65536 - (16777216 / WAV_RATE));
-    REG_TM0CNT_H = TIMER_START;
+    set_rate(0, 100);
+    set_rate(1, 100);
     apply_mix();
 }
 
@@ -110,6 +132,13 @@ void wav_play(int sound, int channel, int flags)
         v = voices[0].started <= voices[1].started ? 0 : 1;
     voices[v].sound = sound;
     voices[v].flags = flags;
+    int pct = 100;
+    if (flags & WAV_FLAG_VARY)
+    {
+        wav_rng = wav_rng * 1664525u + 1013904223u;
+        pct = 92 + (int)((wav_rng >> 16) % 17);   /* 92-108% */
+    }
+    set_rate(v, pct);
     start_voice(v);
 }
 
@@ -128,7 +157,7 @@ void wav_vblank(void)
     {
         if (voices[v].sound < 0)
             continue;
-        voices[v].played16 += SAMPLES_PER_FRAME_16;
+        voices[v].played16 += voices[v].step16;
         if (voices[v].played16 >= wav_sounds[voices[v].sound].length * 16)
         {
             if (voices[v].flags & WAV_FLAG_LOOP)

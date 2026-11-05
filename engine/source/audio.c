@@ -47,8 +47,27 @@ void audio_init(void)
  * envelope decreases it to 0 over a few frames, giving a natural
  * "blip" decay instead of an abrupt cutoff.
  */
+static int vary_next;
+static uint32_t audio_rng = 0x9E3779B9u;
+
+void audio_vary_next(void)
+{
+    vary_next = 1;
+}
+
 static void play_tone(uint16_t gba_freq, uint16_t volume)
 {
+    if (vary_next)
+    {
+        /* Nudge the period: about +-8% in pitch. */
+        vary_next = 0;
+        audio_rng = audio_rng * 1664525u + 1013904223u;
+        int period = 2048 - gba_freq;
+        period = period * (92 + (int)((audio_rng >> 16) % 17)) / 100;
+        if (period < 1) period = 1;
+        if (period > 2047) period = 2047;
+        gba_freq = (uint16_t)(2048 - period);
+    }
     /* The envelope drops one volume step every 3/64 s, so the tone
      * lasts volume * 3/64 s. Keep a .uge song off channel 1 until
      * then (see music_sfx_claim_channel1). */

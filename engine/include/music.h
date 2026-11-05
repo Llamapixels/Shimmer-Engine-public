@@ -21,6 +21,14 @@ void music_play(int track_id, int loop);
 
 void music_stop(void);
 
+/* Fade the music's volume to `to` (0-7) over `frames`; with stop_after,
+ * stop it once silent. music_play() starts at full volume unless
+ * music_fade_in_next(frames) was called just before (it then starts
+ * silent and fades in). */
+void music_fade(int to, int frames, int stop_after);
+void music_fade_in_next(int frames);
+int music_fading_out(void);
+
 /* The id last passed to music_play(), or -1 if nothing is
  * currently playing (either music_stop() was called, a play-once
  * track finished, or nothing has played yet). Single source of truth

@@ -10,6 +10,9 @@
 void audio_init(void);
 
 /* A short blip, used for opening/advancing dialogue. */
+/* The next built-in sound plays at a slightly different pitch (+-8%). */
+void audio_vary_next(void);
+
 void audio_play_blip(void);
 
 /* A slightly lower blip, used for door transitions. */

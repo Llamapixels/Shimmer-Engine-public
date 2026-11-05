@@ -27,6 +27,7 @@ extern const uint16_t wav_sound_count;
 
 #define WAV_FLAG_LOOP    1
 #define WAV_FLAG_HALF    2  /* half volume */
+#define WAV_FLAG_VARY    4  /* a slightly different pitch each time (+-8%) */
 
 void wav_init(void);
 void wav_play(int sound, int channel, int flags);
