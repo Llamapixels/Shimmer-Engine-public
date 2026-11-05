@@ -330,14 +330,74 @@ static int on_ladder_top(Entity *p, int ny)
 /* Landed on a bouncy projectile this frame (projectiles_platform()). */
 static int bounce_hit;
 
+/* Platformer slopes: the y (world px) of the slope surface under column
+ * fx, for feet whose first pixel below is row fy; -1 if no slope there. */
+static int slope_surface(int fx, int fy)
+{
+    int ty0 = (fy - 1) >> 3, ty1 = fy >> 3;
+    for (int ty = ty0; ty <= ty1; ty++)
+    {
+        int h = collision_slope_height(collision_get_tile(fx >> 3, ty), fx & 7);
+        if (h >= 0)
+            return ty * 8 + 8 - h;
+    }
+    return -1;
+}
+
+static int feet_x(Entity *p, int x) { return x + p->col_ox + p->col_w / 2; }
+static int feet_y(Entity *p, int y) { return y + p->col_oy + p->col_h; }
+
+/* Pixels move_axis() moved the player up or down to follow a slope this
+ * frame (move_by_velocity() keeps pos_y in step). */
+static int slope_shift;
+static int slide_shift_x;   /* ... and sideways, sliding along a diagonal wall */
+
+/* Top Down: is there a slope tile against the player's box? (Diagonal
+ * walls slide it along.) */
+static int near_slope(Entity *p)
+{
+    int x0 = p->x + p->col_ox - 1, y0 = p->y + p->col_oy - 1;
+    int x1 = x0 + p->col_w + 1, y1 = y0 + p->col_h + 1;
+    for (int ty = y0 >> 3; ty <= y1 >> 3; ty++)
+        for (int tx = x0 >> 3; tx <= x1 >> 3; tx++)
+            if (collision_slope_height(collision_get_tile(tx, ty), 0) >= 0)
+                return 1;
+    return 0;
+}
+
+/* Platformer: are the feet (their middle) on a slope right now? */
+static int feet_on_slope(Entity *p)
+{
+    int fx = feet_x(p, p->x), fy = feet_y(p, p->y);
+    int s = slope_surface(fx, fy);
+    if (s < 0)
+        s = slope_surface(fx, fy + 4);   /* just above one */
+    return s >= 0 && fy - s <= 4 && s - fy <= 4;
+}
+
 static int blocked(Entity *p, int nx, int ny)
 {
-    if (!entity_can_move(p, nx, ny))
+    /* On a slope the feet follow its surface, so the box's corners may
+     * reach into the ground beside it: the bottom 8 px of the box don't
+     * count against tiles there. */
+    int h = p->col_h;
+    if (mode == SCENE_MODE_PLATFORM && p->collide && h > 1 && feet_on_slope(p))
+        p->col_h = h > 9 ? h - 8 : 1;
+    int hit = !entity_can_move(p, nx, ny);
+    p->col_h = h;
+    if (hit)
         return 1;
     if (!p->collide)
         return 0;
     if (mode == SCENE_MODE_PLATFORM && on_ladder_top(p, ny))
         return 1;
+    if (mode == SCENE_MODE_PLATFORM && ny > p->y)
+    {
+        /* Feet can't go down into a slope. */
+        int fy = feet_y(p, ny), s = slope_surface(feet_x(p, nx), fy);
+        if (s >= 0 && fy > s)
+            return 1;
+    }
     if (mode == SCENE_MODE_PLATFORM)
     {
         int on = projectiles_platform(p, nx, ny);
@@ -366,9 +426,59 @@ static int move_axis(Entity *p, int dx, int dy)
     for (int i = 0; i < n; i++)
     {
         if (blocked(p, p->x + step_x, p->y + step_y))
+        {
+            /* Top Down: a diagonal wall slides the player along it. */
+            if (mode != SCENE_MODE_PLATFORM && p->collide && near_slope(p))
+            {
+                int sx = step_y, sy = step_x;   /* the other axis, both ways */
+                if (!blocked(p, p->x + step_x + sx, p->y + step_y + sy))
+                {
+                    p->x += step_x + sx;
+                    p->y += step_y + sy;
+                    slope_shift += sy;
+                    slide_shift_x += sx;
+                    continue;
+                }
+                if (!blocked(p, p->x + step_x - sx, p->y + step_y - sy))
+                {
+                    p->x += step_x - sx;
+                    p->y += step_y - sy;
+                    slope_shift -= sy;
+                    slide_shift_x -= sx;
+                    continue;
+                }
+            }
             return 1;
+        }
         p->x += step_x;
         p->y += step_y;
+        if (step_x && mode == SCENE_MODE_PLATFORM && p->collide)
+        {
+            /* Platformer slopes: walk up them, and stay on them going
+             * down (while on the ground). */
+            int fy = feet_y(p, p->y), s = slope_surface(feet_x(p, p->x), fy);
+            if (s >= 0 && fy > s)
+            {
+                int up = fy - s;
+                if (up > 3 || blocked(p, p->x, p->y - up))
+                {
+                    p->x -= step_x;
+                    return 1;
+                }
+                p->y -= up;
+                slope_shift -= up;
+            }
+            else if (grounded && vel_y >= 0)
+            {
+                /* Downhill: a slope (or flat ground past one) just below. */
+                int below = slope_surface(feet_x(p, p->x), fy + 3);
+                if (below > fy && below - fy <= 3)
+                {
+                    p->y += below - fy;
+                    slope_shift += below - fy;
+                }
+            }
+        }
     }
     return 0;
 }
@@ -380,18 +490,22 @@ static void move_by_velocity(Entity *p, int *hit_x, int *hit_y)
     *hit_x = *hit_y = 0;
     pos_x += vel_x;
     int tx = pos_x >> 8;
+    slope_shift = 0;
     if (tx != p->x && move_axis(p, tx - p->x, 0))
     {
         *hit_x = 1;
         pos_x = p->x << 8;
     }
+    pos_y += slope_shift << 8;   /* followed a slope up or down */
     pos_y += vel_y;
     int ty = pos_y >> 8;
+    slide_shift_x = 0;
     if (ty != p->y && move_axis(p, 0, ty - p->y))
     {
         *hit_y = 1;
         pos_y = p->y << 8;
     }
+    pos_x += slide_shift_x << 8;   /* slid sideways along a diagonal */
 }
 
 static int approach(int v, int target, int step)
@@ -1785,7 +1899,10 @@ const ScriptEvent *modes_update(Entity *player)
     {
     case SCENE_MODE_PLATFORM:
     {
+        /* The player walks on slopes by their surface. */
+        collision_set_slopes_soft(1);
         const ScriptEvent *s = platform_update(player);
+        collision_set_slopes_soft(0);
         state_scripts_tick();
         return s;
     }

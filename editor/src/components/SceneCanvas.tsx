@@ -80,6 +80,8 @@ const COLLISION_TYPES: {
   edge?: "top" | "bottom" | "left" | "right";
   /** Stairs: the way they rise. */
   stairs?: "right" | "left";
+  /** Slopes: solid height (of 8) at the tile's left and right edge. */
+  slope?: [number, number];
 }[] = [
   { id: "#", label: "Solid", color: "rgba(255, 64, 64, 0.5)" },
   { id: "^", label: "Top", color: "rgba(255, 210, 0, 0.45)", edge: "top" },
@@ -91,6 +93,12 @@ const COLLISION_TYPES: {
   { id: "H", label: "Ladder", color: "rgba(64, 220, 120, 0.5)" },
   { id: "/", label: "Stairs /", color: "rgba(240, 200, 80, 0.3)", stairs: "right" },
   { id: "\\", label: "Stairs \\", color: "rgba(240, 200, 80, 0.3)", stairs: "left" },
+  { id: "R", label: "Slope /", color: "rgba(255, 64, 64, 0.5)", slope: [0, 8] },
+  { id: "L", label: "Slope \\", color: "rgba(255, 64, 64, 0.5)", slope: [8, 0] },
+  { id: "1", label: "Gentle / low", color: "rgba(255, 64, 64, 0.5)", slope: [0, 4] },
+  { id: "2", label: "Gentle / high", color: "rgba(255, 64, 64, 0.5)", slope: [4, 8] },
+  { id: "3", label: "Gentle \\ high", color: "rgba(255, 64, 64, 0.5)", slope: [8, 4] },
+  { id: "4", label: "Gentle \\ low", color: "rgba(255, 64, 64, 0.5)", slope: [4, 0] },
 ];
 const COLLISION_BY_CHAR = new Map(COLLISION_TYPES.map((c) => [c.id as string, c]));
 
@@ -444,7 +452,17 @@ export default function SceneCanvas() {
           const c = COLLISION_BY_CHAR.get(row[tx]);
           if (!c) continue;
           ctx.fillStyle = c.color;
-          ctx.fillRect(tx * S, ty * S, S, S);
+          if (c.slope) {
+            // Only the solid part under the slope.
+            const [hl, hr] = c.slope;
+            ctx.beginPath();
+            ctx.moveTo(tx * S, ty * S + S);
+            ctx.lineTo(tx * S + S, ty * S + S);
+            ctx.lineTo(tx * S + S, ty * S + S - (hr * S) / 8);
+            ctx.lineTo(tx * S, ty * S + S - (hl * S) / 8);
+            ctx.closePath();
+            ctx.fill();
+          } else ctx.fillRect(tx * S, ty * S, S, S);
           if (c.stairs) {
             // The stair line: one pixel up for each across.
             ctx.strokeStyle = "rgba(255, 220, 90, 0.95)";
@@ -1670,7 +1688,9 @@ export default function SceneCanvas() {
                       ? `One-way: the ${c.edge} edge is solid`
                       : c.stairs
                         ? `Stairs rising to the ${c.stairs} (platformer: Up at the bottom or Down at the top to walk them)`
-                        : c.label
+                        : c.slope
+                          ? `${c.label}: solid under the slope. Platformers walk up and down it; in Top Down it's a diagonal wall to slide along.${c.slope[0] % 8 && c.slope[1] % 8 ? "" : c.slope[0] === 4 || c.slope[1] === 4 ? " Gentle slopes take two tiles: low then high." : ""}`
+                          : c.label
                   }
                   data-testid={`collision-${c.label.toLowerCase()}`}
                 >

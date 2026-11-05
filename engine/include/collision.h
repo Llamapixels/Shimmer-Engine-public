@@ -23,6 +23,22 @@
 #define COLLISION_LADDER   8   /* walkable; platformer scenes climb it */
 #define COLLISION_STAIRS_R 9   /* walkable; platformer stairs rising to the right ("/") */
 #define COLLISION_STAIRS_L 10  /* ... rising to the left ("\\") */
+/* Slopes: solid below a diagonal. 45 degrees rising right / left, and
+ * gentle (half as steep, two tiles: low half then high half). */
+#define COLLISION_SLOPE_R     11
+#define COLLISION_SLOPE_L     12
+#define COLLISION_SLOPE_R_LO  13
+#define COLLISION_SLOPE_R_HI  14
+#define COLLISION_SLOPE_L_HI  15
+#define COLLISION_SLOPE_L_LO  16
+
+/* A slope tile's solid height (1-8 px from its bottom) at column 0-7 of
+ * the tile, or -1 if `tile` isn't a slope. */
+int collision_slope_height(int tile, int x_in_tile);
+
+/* While on, slope tiles don't block (the platformer player walks on them
+ * by their surface instead). Otherwise their solid triangle blocks. */
+void collision_set_slopes_soft(int on);
 
 /* Platformer drop-through: while on, one-way "top" tiles don't block. */
 void collision_set_ignore_top(int ignore);

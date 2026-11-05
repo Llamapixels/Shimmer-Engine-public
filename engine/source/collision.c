@@ -8,6 +8,26 @@ static const uint8_t *collision_grid = 0;
 
 static uint32_t map_width = 0;
 static int ignore_top = 0;
+static int slopes_soft = 0;   /* collision_set_slopes_soft() */
+
+int collision_slope_height(int tile, int xi)
+{
+    switch (tile)
+    {
+    case COLLISION_SLOPE_R:    return xi + 1;
+    case COLLISION_SLOPE_L:    return 8 - xi;
+    case COLLISION_SLOPE_R_LO: return (xi + 2) >> 1;
+    case COLLISION_SLOPE_R_HI: return 4 + ((xi + 2) >> 1);
+    case COLLISION_SLOPE_L_HI: return 4 + ((9 - xi) >> 1);
+    case COLLISION_SLOPE_L_LO: return (9 - xi) >> 1;
+    default:                   return -1;
+    }
+}
+
+void collision_set_slopes_soft(int on)
+{
+    slopes_soft = on;
+}
 
 void collision_set_ignore_top(int ignore)
 {
@@ -62,6 +82,12 @@ int collision_test_point(
         x / TILE_SIZE,
         y / TILE_SIZE
     );
+
+    /* A slope's lower triangle is solid (unless the platformer is
+     * walking on it by its surface). */
+    int h = collision_slope_height(c, x & 7);
+    if (h >= 0)
+        return !slopes_soft && (y & 7) >= 8 - h;
 
     /* Water blocks walking too, until there's swimming/surfing. */
     return c == COLLISION_SOLID ||
