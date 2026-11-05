@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import type { EventScript, MenuEvent, ScriptEventJSON, SwitchEvent } from "../../shared/eventTypes";
 import NumberInput from "../components/common/NumberInput";
 import PopoverMenu, { type MenuItem } from "../components/common/PopoverMenu";
+import NamePrompt from "../components/common/NamePrompt";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import AddEventMenu from "./AddEventMenu";
 import { useDragState, pathKey } from "./dragState";
@@ -79,6 +80,12 @@ interface Props {
  * dropping to copy instead). Edits the exact JSON event format the
  * compiler reads - nothing editor-specific is saved.
  */
+/** Save events as a named snippet (Add Event > Snippets). */
+function saveSnippet(name: string, events: EventScript) {
+  const id = `snip_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  useProjectStore.getState().updateProject((p) => ({ ...p, snippets: [...(p.snippets ?? []), { id, name, events: events.map(cloneEvent) }] }));
+}
+
 export default function ScriptEditor({ value, onChange, env, emptyHint }: Props) {
   const root = value ?? [];
   const project = useProjectStore((s) => s.project);
@@ -88,6 +95,7 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
   setCustomScriptNames(Object.fromEntries((project?.project.customScripts ?? []).map((s) => [s.id, s.name])));
   const clipboard = useProjectStore((s) => s.scriptClipboard);
   const setClipboard = useProjectStore((s) => s.setScriptClipboard);
+  const [snippetAt, setSnippetAt] = useState<{ x: number; y: number } | null>(null);
   /** Folding is saved on the events ("__collapsed"), so it's still how
    * you left it after reopening the project. */
   const foldAll = (collapsed: boolean) =>
@@ -142,6 +150,22 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
           >
             Copy all
           </button>
+          <button
+            className="link-btn"
+            disabled={root.length === 0}
+            onClick={(e) => setSnippetAt({ x: e.clientX, y: e.clientY })}
+            title="Save every event in this script as a snippet, to drop in anywhere from Add Event > Snippets"
+          >
+            Save as snippet
+          </button>
+          {snippetAt && (
+            <NamePrompt
+              at={snippetAt}
+              title="Name the snippet"
+              onDone={(name) => saveSnippet(name, root)}
+              onClose={() => setSnippetAt(null)}
+            />
+          )}
           <button
             className="link-btn link-btn-danger"
             disabled={root.length === 0}
@@ -218,7 +242,17 @@ function EventList({ path, list }: { path: ListPath; list: EventScript }) {
         )}
         {list.length === 0 && source?.rootId === env.rootId && <span className="drop-hint">drop here</span>}
       </div>
-      {menuAnchor && <AddEventMenu anchor={menuAnchor} onPick={add} onClose={() => setMenuAnchor(null)} />}
+      {menuAnchor && (
+        <AddEventMenu
+          anchor={menuAnchor}
+          onPick={add}
+          onPickEvents={(events) => {
+            setMenuAnchor(null);
+            apply((root) => insertEvents(root, path, getList(root, path).length, events));
+          }}
+          onClose={() => setMenuAnchor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -247,6 +281,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
   const tint = typeof ev.__color === "string" ? ev.__color : undefined;
   const setCollapsed = (c: boolean) => patch({ __collapsed: c });
   const [colorAt, setColorAt] = useState<{ x: number; y: number } | null>(null);
+  const [snippetAt, setSnippetAt] = useState<{ x: number; y: number } | null>(null);
   const dragging = useDragState(
     (s) => s.dimmed?.rootId === env.rootId && s.dimmed.from.index === loc.index && pathKey(s.dimmed.from.path) === pathKey(loc.path),
   );
@@ -290,6 +325,13 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
         }),
     },
     { label: "Copy", onClick: () => setClipboard([cloneEvent(ev)]) },
+    {
+      label: "Save as snippet…",
+      onClick: () => {
+        const r = headerRef.current?.getBoundingClientRect();
+        setSnippetAt(menu && !(menu instanceof HTMLElement) ? menu : { x: r?.left ?? 100, y: r?.bottom ?? 100 });
+      },
+    },
     {
       label: "Paste above",
       disabled: !clipboard?.length,
@@ -427,6 +469,15 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
       )}
 
       {menu && <PopoverMenu anchor={menu} items={menuItems} onClose={() => setMenu(null)} />}
+      {snippetAt && (
+        <NamePrompt
+          at={snippetAt}
+          title="Name the snippet"
+          initial={def?.label ?? ""}
+          onDone={(name) => saveSnippet(name, [ev])}
+          onClose={() => setSnippetAt(null)}
+        />
+      )}
       {colorAt && (
         <ColorPopover
           at={colorAt}
@@ -444,6 +495,11 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
             setAddAt(null);
             const created = d.create(createCtx());
             apply((root) => insertEvents(root, loc.path, index, [created]));
+          }}
+          onPickEvents={(events) => {
+            const index = addAt.index;
+            setAddAt(null);
+            apply((root) => insertEvents(root, loc.path, index, events));
           }}
         />
       )}

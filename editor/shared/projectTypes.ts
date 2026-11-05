@@ -141,6 +141,12 @@ export interface SpriteSheetJSON {
   states: SpriteStateJSON[];
 }
 
+export interface SnippetJSON {
+  id: string;
+  name: string;
+  events: EventScript;
+}
+
 export interface ProjectJSON {
   name: string;
   start_scene: string;
@@ -155,6 +161,8 @@ export interface ProjectJSON {
   palettes?: PaletteJSON[];
   /** See PrefabJSON. */
   prefabs?: PrefabJSON[];
+  /** Editor only: saved groups of events, dropped in from Add Event > Snippets. */
+  snippets?: SnippetJSON[];
   /** See SpriteSheetJSON. */
   spriteSheets?: SpriteSheetJSON[];
   /** The player's sprite (assets/sprites/<name>.png); default "player". */

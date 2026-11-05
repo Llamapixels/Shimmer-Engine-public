@@ -655,6 +655,18 @@
   line-height: 1;
 }
 
+.add-event-remove {
+  padding: 0 4px;
+  border-radius: 3px;
+  opacity: 0.7;
+}
+
+.add-event-remove:hover {
+  opacity: 1;
+  background: var(--danger, #e5484d);
+  color: #fff;
+}
+
 .add-event-back {
   font-weight: 700;
   border-bottom: 1px solid var(--border);

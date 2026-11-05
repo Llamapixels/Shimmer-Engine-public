@@ -2,11 +2,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { CATEGORY_COLOR, CATEGORY_ORDER, EVENT_DEFS, type EventCategory, type EventDef } from "./eventCatalog";
+import type { ScriptEventJSON } from "../../shared/eventTypes";
+import type { SnippetJSON } from "../../shared/projectTypes";
+import { useProjectStore } from "../state/projectStore";
+import { cloneEvent } from "./scriptTree";
 
 interface Props {
   /** The button the menu hangs off - used for positioning. */
   anchor: HTMLElement;
   onPick: (def: EventDef) => void;
+  /** A snippet was picked: its events (fresh copies) to insert. */
+  onPickEvents?: (events: ScriptEventJSON[]) => void;
   onClose: () => void;
 }
 
@@ -18,20 +24,29 @@ const MAX_HEIGHT = 420;
  * Rendered in a portal so the properties panel's scroll area doesn't
  * clip it. */
 
-type Row = { kind: "cat"; cat: EventCategory; count: number } | { kind: "back" } | { kind: "event"; def: EventDef };
+type Row =
+  | { kind: "cat"; cat: EventCategory | typeof SNIPPETS; count: number }
+  | { kind: "back" }
+  | { kind: "event"; def: EventDef }
+  | { kind: "snippet"; snippet: SnippetJSON };
+
+/** The pseudo-category holding the project's saved snippets. */
+const SNIPPETS = "Snippets";
 
 /** The category the menu was last left in, so adding several events
  * of one kind in a row doesn't mean clicking through each time. */
-let lastCategory: EventCategory | null = null;
-export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
+let lastCategory: EventCategory | typeof SNIPPETS | null = null;
+export default function AddEventMenu({ anchor, onPick, onPickEvents, onClose }: Props) {
+  const snippets = useProjectStore((s) => s.project?.project.snippets) ?? [];
+  const updateProject = useProjectStore((s) => s.updateProject);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<EventCategory | null>(lastCategory);
+  const [category, setCategory] = useState<EventCategory | typeof SNIPPETS | null>(lastCategory === SNIPPETS && !snippets.length ? null : lastCategory);
   const [active, setActive] = useState(0);
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number }>({ left: 0, top: 0, maxHeight: MAX_HEIGHT });
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const openCategory = (cat: EventCategory | null) => {
+  const openCategory = (cat: EventCategory | typeof SNIPPETS | null) => {
     lastCategory = cat;
     setCategory(cat);
   };
@@ -40,9 +55,13 @@ export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
     const q = query.trim().toLowerCase();
     if (!q) {
       if (!category)
-        return CATEGORY_ORDER.map((cat): Row => ({ kind: "cat", cat, count: EVENT_DEFS.filter((d) => d.category === cat).length })).filter(
-          (r) => r.kind === "cat" && r.count > 0,
-        );
+        return [
+          ...(snippets.length && onPickEvents ? [{ kind: "cat", cat: SNIPPETS, count: snippets.length } as Row] : []),
+          ...CATEGORY_ORDER.map((cat): Row => ({ kind: "cat", cat, count: EVENT_DEFS.filter((d) => d.category === cat).length })).filter(
+            (r) => r.kind === "cat" && r.count > 0,
+          ),
+        ];
+      if (category === SNIPPETS) return [{ kind: "back" }, ...snippets.map((snippet): Row => ({ kind: "snippet", snippet }))];
       return [{ kind: "back" }, ...EVENT_DEFS.filter((d) => d.category === category).map((def): Row => ({ kind: "event", def }))];
     }
     const words = q.split(/\s+/);
@@ -62,7 +81,7 @@ export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s || a.i - b.i)
       .map((x): Row => ({ kind: "event", def: x.d }));
-  }, [query, category]);
+  }, [query, category, snippets, onPickEvents]);
 
   // Opening a category starts on its first event, not the Back row.
   useEffect(() => setActive(category && !query.trim() ? 1 : 0), [query, category]);
@@ -71,6 +90,7 @@ export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
     if (!r) return;
     if (r.kind === "cat") openCategory(r.cat);
     else if (r.kind === "back") openCategory(null);
+    else if (r.kind === "snippet") onPickEvents?.(r.snippet.events.map(cloneEvent));
     else onPick(r.def);
   };
   const activeRow = rows[active];
@@ -140,10 +160,29 @@ export default function AddEventMenu({ anchor, onPick, onClose }: Props) {
                 <span className="add-event-label">{category}</span>
               </button>
             );
+          if (r.kind === "snippet")
+            return (
+              <button key={r.snippet.id} data-idx={i} className={`add-event-item${on}`} onMouseEnter={() => setActive(i)} onClick={() => choose(r)}>
+                <span className="add-event-dot" style={{ background: "var(--accent)" }} />
+                <span className="add-event-label">{r.snippet.name}</span>
+                <span className="add-event-count">{r.snippet.events.length} event{r.snippet.events.length === 1 ? "" : "s"}</span>
+                <span
+                  className="add-event-remove"
+                  title="Delete this snippet"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`Delete the snippet "${r.snippet.name}"?`))
+                      updateProject((p) => ({ ...p, snippets: (p.snippets ?? []).filter((s) => s.id !== r.snippet.id) }));
+                  }}
+                >
+                  ×
+                </span>
+              </button>
+            );
           if (r.kind === "cat")
             return (
               <button key={r.cat} data-idx={i} className={`add-event-item${on}`} onMouseEnter={() => setActive(i)} onClick={() => choose(r)}>
-                <span className="add-event-dot" style={{ background: CATEGORY_COLOR[r.cat] }} />
+                <span className="add-event-dot" style={{ background: r.cat === SNIPPETS ? "var(--accent)" : CATEGORY_COLOR[r.cat] }} />
                 <span className="add-event-label">{r.cat}</span>
                 <span className="add-event-count">{r.count}</span>
                 <span className="add-event-arrow">›</span>

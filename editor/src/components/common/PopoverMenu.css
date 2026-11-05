@@ -51,3 +51,37 @@
   background: var(--border);
   margin: 4px 2px;
 }
+
+/* NamePrompt: a small "type a name" box. */
+.name-prompt {
+  position: fixed;
+  z-index: 1002;
+  width: 240px;
+  padding: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-menu);
+}
+
+.name-prompt-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.name-prompt-row {
+  display: flex;
+  gap: 6px;
+}
+
+.name-prompt-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-1);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 4px 6px;
+  outline: none;
+}
