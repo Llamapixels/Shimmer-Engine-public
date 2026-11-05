@@ -998,6 +998,17 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** A menu of save slots; the pick (or -1) goes into a variable. */
+export interface SaveSlotMenuEvent extends EventBase {
+  type: "save_slot_menu";
+  title?: string;
+  slots?: number;
+  purpose?: "save" | "load";
+  slot_text?: string;
+  empty_text?: string;
+  var: string;
+}
+
 /** Let the player type a name into a project Name slot. */
 export interface NameEntryEvent extends EventBase {
   type: "name_entry";
@@ -1426,6 +1437,7 @@ export type ScriptEventJSON =
   | MusicFadeEvent
   | ScreenTintEvent
   | NameEntryEvent
+  | SaveSlotMenuEvent
   | DayNightEvent
   | TimeOfDayVarEvent
   | PlaytimeReadEvent

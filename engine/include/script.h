@@ -451,6 +451,8 @@ typedef enum
     SCRIPT_TINT_CYCLE,          /* a = minutes in a day (0 = stop), tint_cycle */
     SCRIPT_TINT_HOUR,           /* a = variable: the day / night cycle's hour 0-23 */
     SCRIPT_NAME_ENTRY,          /* a = name slot, b = max length, str = prompt */
+    SCRIPT_SLOT_MENU,           /* a = slots, b = 1 for loading (empty ones can't be picked), str = title \x01 empty \x01 "Slot" */
+    SCRIPT_SLOT_RESULT,         /* a = variable: the slot picked, -1 = cancelled */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

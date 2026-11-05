@@ -38,6 +38,10 @@ uint32_t game_playtime_frames(void);
  * them, 2 clear the group, 3 store variable `var`, 4 load variable `var`
  * (left as it is if the group has no value for it). */
 void game_persist(int op, int group, int var);
+
+/* A save slot as a line for the slot menu ("Slot 1  Forest  1:23");
+ * returns 0 (and writes `empty`) for an empty slot. */
+int game_slot_line(int slot, const char *label, const char *empty, char *out, int max);
 void game_scene_reset(void);
 
 #endif

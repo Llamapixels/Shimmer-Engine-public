@@ -1442,6 +1442,48 @@ void game_persist(int op, int group, int var)
     }
 }
 
+static int put_str(char *out, int n, int max, const char *s)
+{
+    while (*s && n < max - 1)
+        out[n++] = *s++;
+    return n;
+}
+
+static int put_num(char *out, int n, int max, int v, int width)
+{
+    char d[8];
+    int k = 0;
+    do { d[k++] = (char)('0' + v % 10); v /= 10; } while (v && k < 7);
+    while (k < width && k < 7)
+        d[k++] = '0';
+    while (k && n < max - 1)
+        out[n++] = d[--k];
+    return n;
+}
+
+int game_slot_line(int slot, const char *label, const char *empty, char *out, int max)
+{
+    static SaveData probe EWRAM_BSS;
+    int n = put_str(out, 0, max, label);
+    n = put_str(out, n, max, " ");
+    n = put_num(out, n, max, slot + 1, 1);
+    n = put_str(out, n, max, "  ");
+    int ok = save_read_slot(slot, &probe) && probe.scene_index < SCENE_COUNT;
+    if (!ok)
+        n = put_str(out, n, max, empty);
+    else
+    {
+        n = put_str(out, n, max, scene_titles[probe.scene_index]);
+        n = put_str(out, n, max, "  ");
+        uint32_t s = probe.playtime / 60;
+        n = put_num(out, n, max, (int)(s / 3600), 1);
+        n = put_str(out, n, max, ":");
+        n = put_num(out, n, max, (int)((s / 60) % 60), 2);
+    }
+    out[n] = 0;
+    return ok;
+}
+
 static void fill_save(SaveData *save_data)
 {
     save_data->playtime = playtime_frames;

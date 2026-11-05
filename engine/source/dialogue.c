@@ -46,7 +46,15 @@ typedef struct
     int color;   /* UI palette index for the text, 0 = the font's own */
 } TextState;
 
-typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU, MODE_HUD, MODE_NAME } Mode;
+typedef enum { MODE_NONE, MODE_TEXT, MODE_CHOICE, MODE_MENU, MODE_HUD, MODE_NAME, MODE_LIST } Mode;
+
+/* MODE_LIST */
+#define LIST_MAX 8
+#define LIST_SHOWN 3
+static const char *list_title;
+static const char *list_items[LIST_MAX];
+static uint8_t list_pickable[LIST_MAX];
+static int list_count, list_top;
 
 /* MODE_NAME: 3 rows of 14 cells, 16 px each. \x01 = upper / lower case,
  * \x02 = delete, \x03 = done. */
@@ -824,6 +832,47 @@ static void name_entry_update(void)
         draw_name_entry();
 }
 
+static void draw_list(void)
+{
+    ui_box_clear();
+    const char *e = list_title;
+    while (*e)
+        e++;
+    draw_line(0, 0, list_title, e, ui_font());
+    for (int i = 0; i < LIST_SHOWN && list_top + i < list_count; i++)
+    {
+        int k = list_top + i;
+        if (k == cursor)
+            ui_box_cursor(1 + i, 0);
+        const char *s = list_items[k];
+        const char *se = s;
+        while (*se)
+            se++;
+        draw_line(1 + i, OPTION_X, s, se, ui_font());
+    }
+    ui_box_flush();
+}
+
+void dialogue_show_list(const char *title, const char *const *items, int count, const uint8_t *pickable)
+{
+    mode = MODE_LIST;
+    list_title = title ? title : "";
+    list_count = count < 1 ? 1 : count > LIST_MAX ? LIST_MAX : count;
+    for (int i = 0; i < list_count; i++)
+    {
+        list_items[i] = items[i];
+        list_pickable[i] = pickable ? pickable[i] : 1;
+    }
+    cursor = 0;
+    list_top = 0;
+    text_lines = 4;
+    ui_box_open(1 + (list_count < LIST_SHOWN ? list_count : LIST_SHOWN));
+    ui_box_anim_open();
+    focus_pending = 1;
+    draw_list();
+    input_block_presses(DIALOGUE_INPUT_DELAY);
+}
+
 void dialogue_show_choice(const char *packed)
 {
     mode = MODE_CHOICE;
@@ -874,6 +923,38 @@ void dialogue_update(void)
     if (mode == MODE_NAME)
     {
         name_entry_update();
+        return;
+    }
+
+    if (mode == MODE_LIST)
+    {
+        int moved = 0;
+        if (input_pressed(INPUT_UP))
+        {
+            cursor = (cursor + list_count - 1) % list_count;
+            moved = 1;
+        }
+        else if (input_pressed(INPUT_DOWN))
+        {
+            cursor = (cursor + 1) % list_count;
+            moved = 1;
+        }
+        if (cursor < list_top)
+            list_top = cursor;
+        if (cursor >= list_top + LIST_SHOWN)
+            list_top = cursor - LIST_SHOWN + 1;
+        if (moved)
+            draw_list();
+        if (input_pressed(INPUT_A) && list_pickable[cursor])
+        {
+            last_choice = cursor;
+            close_box();
+        }
+        else if (input_pressed(INPUT_B))
+        {
+            last_choice = -1;
+            close_box();
+        }
         return;
     }
 

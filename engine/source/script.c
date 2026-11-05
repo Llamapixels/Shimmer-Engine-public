@@ -575,6 +575,7 @@ static void thread_step(ScriptThread *t, int is_main)
         case SCRIPT_CHOICE:
         case SCRIPT_MENU:
         case SCRIPT_NAME_ENTRY:
+        case SCRIPT_SLOT_MENU:
             /* Only one box at a time: if another thread's box is up,
              * wait for it (retry this instruction next frame). */
             if (dialogue_active())
@@ -601,6 +602,37 @@ static void thread_step(ScriptThread *t, int is_main)
             {
                 dialogue_set_focus(0);
                 dialogue_show_name_entry(ev->str, ev->a, ev->b);
+            }
+            else if (ev->op == SCRIPT_SLOT_MENU)
+            {
+                /* str = title \x01 empty text \x01 slot label. */
+                static char title[48], empty[24], label[16];
+                static char lines[SAVE_SLOT_COUNT][40];
+                static const char *items[SAVE_SLOT_COUNT];
+                static uint8_t pickable[SAVE_SLOT_COUNT];
+                char *parts[3] = { title, empty, label };
+                int sizes[3] = { 48, 24, 16 };
+                const char *s = ev->str;
+                for (int k = 0; k < 3; k++)
+                {
+                    int n = 0;
+                    while (*s && *s != 0x01 && n < sizes[k] - 1)
+                        parts[k][n++] = *s++;
+                    parts[k][n] = 0;
+                    while (*s && *s != 0x01)
+                        s++;
+                    if (*s == 0x01)
+                        s++;
+                }
+                int count = ev->a > SAVE_SLOT_COUNT ? SAVE_SLOT_COUNT : ev->a;
+                for (int k = 0; k < count; k++)
+                {
+                    int full = game_slot_line(k, label, empty, lines[k], 40);
+                    items[k] = lines[k];
+                    pickable[k] = (uint8_t)(ev->b ? full : 1);   /* loading: only saved ones */
+                }
+                dialogue_set_focus(0);
+                dialogue_show_list(title, items, count, pickable);
             }
             else if (ev->op == SCRIPT_CHOICE)
             {
@@ -1439,11 +1471,11 @@ static void thread_step(ScriptThread *t, int is_main)
             break;
 
         case SCRIPT_DATA_SAVE:
-            game_save_slot(ev->a);
+            game_save_slot(ev->a >= 0 ? ev->a : var_get(-ev->a - 1));
             break;
 
         case SCRIPT_DATA_LOAD:
-            if (game_load_slot(ev->a))
+            if (game_load_slot(ev->a >= 0 ? ev->a : var_get(-ev->a - 1)))
             {
                 t->ip = 0;
                 return;
@@ -1451,7 +1483,11 @@ static void thread_step(ScriptThread *t, int is_main)
             break;
 
         case SCRIPT_DATA_CLEAR:
-            save_clear_slot(ev->a);
+            save_clear_slot(ev->a >= 0 ? ev->a : var_get(-ev->a - 1));
+            break;
+
+        case SCRIPT_SLOT_RESULT:
+            var_set(ev->a, (int16_t)dialogue_last_choice());
             break;
 
         case SCRIPT_SPRITES_SHOW:

@@ -2771,6 +2771,14 @@ def _slot(ev, where, field="slot"):
     return resolve_small_int(ev.get(field, 0), field, where, 0, SAVE_SLOT_COUNT - 1)
 
 
+def _slot_or_var(ev, ctx, where):
+    """A save slot number, or {"var": name}: -(variable + 1) for the engine."""
+    v = ev.get("slot", 0)
+    if isinstance(v, dict):
+        return -(resolve_var(_require(v, "var", where), ctx, where) + 1)
+    return _slot(ev, where)
+
+
 def _timer_slot(ev, where):
     # 1-based in JSON, like GB Studio's Timer 1-4.
     return resolve_small_int(ev.get("timer", 1), "timer", where, 1, TIMER_SCRIPT_SLOTS) - 1
@@ -2819,7 +2827,7 @@ PARITY_EVENT_TYPES = [
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
-    "data_clear", "if_data_saved", "data_peek", "sprites_show",
+    "data_clear", "if_data_saved", "data_peek", "sprites_show", "save_slot_menu",
     "sprites_hide", "palette_set", "replace_tile", "sound_tone", "sound_beep",
     "sound_crash", "mute_channel", "idle",
 ]
@@ -3538,10 +3546,21 @@ def compile_parity_event(etype, ev, out, ctx, where):
     elif etype in ("data_save", "data_load", "data_clear"):
         op_name = {"data_save": "SCRIPT_DATA_SAVE", "data_load": "SCRIPT_DATA_LOAD",
                    "data_clear": "SCRIPT_DATA_CLEAR"}[etype]
-        out.append(_instr(op_name, a=_slot(ev, where)))
+        out.append(_instr(op_name, a=_slot_or_var(ev, ctx, where)))
 
     elif etype == "if_data_saved":
-        _expr_branch(out, X.op("EXPR_SAVED", X.const(_slot(ev, where))), ev, ctx, where)
+        s = _slot_or_var(ev, ctx, where)
+        _expr_branch(out, X.op("EXPR_SAVED", X.const(s) if s >= 0 else X.var(-s - 1)), ev, ctx, where)
+
+    elif etype == "save_slot_menu":
+        slots = resolve_small_int(ev.get("slots", 3), "slots", where, 1, SAVE_SLOT_COUNT)
+        mode = 1 if ev.get("purpose") == "load" else 0
+        title = interpolate_vars(str(ev.get("title", "Which slot?")), ctx, where)
+        empty = interpolate_vars(str(ev.get("empty_text", "Empty")), ctx, where)
+        label = interpolate_vars(str(ev.get("slot_text", "Slot")), ctx, where)
+        out.append(_instr("SCRIPT_SLOT_MENU", a=slots, b=mode,
+                          text=c_string_literal(title + "\x01" + empty + "\x01" + label)))
+        out.append(_instr("SCRIPT_SLOT_RESULT", a=resolve_var(_require(ev, "var", where), ctx, where)))
 
     elif etype == "data_peek":
         slot = _slot(ev, where)
@@ -4282,6 +4301,10 @@ def build(project_dir, out_dir):
     c_parts.extend(sprite_inits)
     c_parts.append("};")
     c_parts.append(f"const uint8_t player_sprite_index = {sprite_names.index(player_sprite)};")
+    # Scene titles (the last part of a "Folder/Name"), for the save slot menu.
+    titles = [str(s.get("name", "")).split("/")[-1] for _, s in scene_data_list]
+    c_parts.append("const char *const scene_titles[] = { " + ", ".join(
+        c_string_literal(interpolate_vars(t, ctx, "scene title")) for t in titles) + " };")
     # The player keeps room for the biggest sheet it can switch to (scene
     # player sprites, Set Player Sprite), so a switch never moves it into
     # sprite slots drawn under the actors.
@@ -4968,6 +4991,7 @@ def build(project_dir, out_dir):
         "extern const SceneDef *const scenes[SCENE_COUNT];",
         "extern const SpriteDef       sprite_defs[SPRITE_COUNT];",
         "extern const uint8_t         player_sprite_index;",
+        "extern const char *const     scene_titles[];",
         "extern const uint8_t         player_sprite_max_objs;",
         "extern const uint16_t        player_sprite_max_vram;",
         "extern const char *const      item_names[];",

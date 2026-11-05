@@ -50,6 +50,11 @@ void dialogue_set_extras(int portrait, int auto_frames, int bubble_actor);
  * it starts with). Done when dialogue_active() turns 0. */
 void dialogue_show_name_entry(const char *prompt, int slot, int max_len);
 
+/* A scrolling list: `title` on top, `count` items (up to 8, 3 shown at
+ * a time). Items with pickable[i] = 0 can't be chosen. A picks (its
+ * index), B cancels (-1): dialogue_last_choice() once it closes. */
+void dialogue_show_list(const char *title, const char *const *items, int count, const uint8_t *pickable);
+
 /* Take down a HUD box (DIALOGUE_OPT_HUD), if one is up. */
 void dialogue_hud_close(void);
 
