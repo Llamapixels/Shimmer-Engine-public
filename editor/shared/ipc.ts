@@ -367,6 +367,11 @@ export const THEMES = [
   { id: "light", label: "Light" },
   { id: "midnight", label: "Midnight Blue" },
   { id: "classic", label: "Classic Purple" },
+  { id: "gameboy", label: "Game Boy" },
+  { id: "forest", label: "Forest" },
+  { id: "ember", label: "Ember" },
+  { id: "synthwave", label: "Synthwave" },
+  { id: "sepia", label: "Sepia" },
 ] as const;
 export type ThemeId = (typeof THEMES)[number]["id"];
 

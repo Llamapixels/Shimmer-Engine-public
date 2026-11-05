@@ -167,6 +167,172 @@
   --tooltip-text: #e6e6e6;
 }
 
+/* The original handheld's four greens. */
+:root[data-theme="gameboy"] {
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%230f380f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --accent: #306230;
+  --accent-hover: #3d7a3d;
+  --accent-active: #234a23;
+  --accent-text: #e0f0c0;
+  --accent-soft: #a8c860;
+  --accent-soft-border: #306230;
+  --canvas-accent: #0f380f;
+  --marker-door: rgba(15, 56, 15, 0.45);
+
+  --bg-0: #9bbc0f;
+  --bg-1: #b4cf3c;
+  --bg-2: #a6c428;
+  --bg-3: #c4dc66;
+  --bg-4: #8bac0f;
+  --input-bg: #d4e690;
+
+  --border: #6f8c0c;
+  --border-strong: #306230;
+
+  --text-primary: #0f380f;
+  --text-secondary: #1e4a1e;
+  --text-muted: #306230;
+  --text-disabled: #6f8c3a;
+
+  --canvas-bg: #8bac0f;
+  --grid-line: rgba(15, 56, 15, 0.15);
+  --danger: #8a2020;
+  --danger-text: #7a1010;
+  --tooltip-bg: #0f380f;
+  --tooltip-text: #c4dc66;
+  --shadow-menu: 0 2px 10px rgba(15, 56, 15, 0.35);
+}
+
+/* Deep greens with a fresh leaf highlight. */
+:root[data-theme="forest"] {
+  --accent: #7fd18b;
+  --accent-hover: #98dea2;
+  --accent-active: #66bb73;
+  --accent-text: #0c1f10;
+  --accent-soft: #24452b;
+  --accent-soft-border: #4f8a5a;
+  --canvas-accent: #ffd23f;
+
+  --bg-0: #121c15;
+  --bg-1: #18261c;
+  --bg-2: #142018;
+  --bg-3: #213528;
+  --bg-4: #2b4434;
+  --input-bg: #0d1610;
+
+  --border: #08100a;
+  --border-strong: #35553f;
+
+  --text-primary: #e4f2e6;
+  --text-secondary: #bcd6c0;
+  --text-muted: #8eae94;
+  --text-disabled: #557059;
+
+  --canvas-bg: #1b2a1f;
+  --grid-line: rgba(200, 255, 210, 0.08);
+  --tooltip-bg: #e4f2e6;
+  --tooltip-text: #0c1f10;
+}
+
+/* Warm charcoal with a glowing orange highlight. */
+:root[data-theme="ember"] {
+  --accent: #ff9a4d;
+  --accent-hover: #ffb070;
+  --accent-active: #f08030;
+  --accent-text: #2a1204;
+  --accent-soft: #4a2a16;
+  --accent-soft-border: #a8602c;
+  --canvas-accent: #ffd23f;
+  --marker-door: rgba(255, 154, 77, 0.5);
+
+  --bg-0: #1d1714;
+  --bg-1: #261e1a;
+  --bg-2: #211a16;
+  --bg-3: #352a24;
+  --bg-4: #45372f;
+  --input-bg: #15100d;
+
+  --border: #0e0a08;
+  --border-strong: #5c4638;
+
+  --text-primary: #f6e8dc;
+  --text-secondary: #d9c3b0;
+  --text-muted: #a8907c;
+  --text-disabled: #6c584a;
+
+  --canvas-bg: #2a211c;
+  --grid-line: rgba(255, 220, 190, 0.08);
+  --tooltip-bg: #f6e8dc;
+  --tooltip-text: #2a1204;
+}
+
+/* Night purple with neon pink and cyan. */
+:root[data-theme="synthwave"] {
+  --accent: #ff5fc8;
+  --accent-hover: #ff80d4;
+  --accent-active: #e845b0;
+  --accent-text: #1a0624;
+  --accent-soft: #3d1a52;
+  --accent-soft-border: #8a3cb0;
+  --canvas-accent: #3ff2ff;
+  --marker-door: rgba(63, 242, 255, 0.45);
+
+  --bg-0: #160d24;
+  --bg-1: #1e1230;
+  --bg-2: #1a0f2a;
+  --bg-3: #2c1b45;
+  --bg-4: #3b2560;
+  --input-bg: #10081c;
+
+  --border: #0a0512;
+  --border-strong: #4d3278;
+
+  --text-primary: #f3e8ff;
+  --text-secondary: #d4bff0;
+  --text-muted: #a68cc8;
+  --text-disabled: #634d85;
+
+  --canvas-bg: #22153a;
+  --grid-line: rgba(63, 242, 255, 0.1);
+  --tooltip-bg: #3ff2ff;
+  --tooltip-text: #160d24;
+}
+
+/* Warm paper and ink - a soft light theme. */
+:root[data-theme="sepia"] {
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%233b2c1e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --accent: #8a5a2b;
+  --accent-hover: #9e6c3a;
+  --accent-active: #74481e;
+  --accent-text: #fbf3e6;
+  --accent-soft: #e6d3b3;
+  --accent-soft-border: #a8885e;
+  --canvas-accent: #c06000;
+
+  --bg-0: #efe4d0;
+  --bg-1: #f6eddd;
+  --bg-2: #eadcc4;
+  --bg-3: #fbf5ea;
+  --bg-4: #e2d2b6;
+  --input-bg: #fffaf1;
+
+  --border: #d2bf9e;
+  --border-strong: #b09a76;
+
+  --text-primary: #2e2216;
+  --text-secondary: #4a3826;
+  --text-muted: #6e5a44;
+  --text-disabled: #a8967c;
+
+  --canvas-bg: #ddd0b8;
+  --grid-line: rgba(60, 40, 20, 0.12);
+  --danger: #b03a2e;
+  --danger-text: #a02a1e;
+  --tooltip-bg: #2e2216;
+  --tooltip-text: #fbf3e6;
+  --shadow-menu: 0 2px 10px rgba(60, 40, 20, 0.2);
+}
+
 * {
   box-sizing: border-box;
 }
