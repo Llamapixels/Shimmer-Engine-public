@@ -1,6 +1,7 @@
 #include <gba.h>
 #include <stdint.h>
 
+#include "tint.h"
 #include "raycast.h"
 #include "entity.h"
 #include "sprite.h"   /* sprite_sin() */
@@ -181,7 +182,7 @@ int raycast_cos(int angle)
 static void setup_display(void)
 {
     for (int i = 1; i < SPRITE_PAL; i++)
-        BG_PAL[i] = rc->palette[i];
+        tint_write_color(i, rc->palette[i]);
     for (int i = 0; i < 16; i++)
         VRAM_TILES[BLANK_TILE * 16 + i] = 0;
     /* 16x16 map of bytes: the view's 15x10 tiles, blank around them. */
@@ -1094,7 +1095,7 @@ void raycast_vblank(void)
     REG_BG2Y = 0x40;
     /* Actors' colours: the OBJ palette banks they use. */
     for (int i = 0; i < SPRITE_BANKS * 16; i++)
-        BG_PAL[SPRITE_PAL + i] = OBJ_PAL[i];
+        BG_PAL[SPRITE_PAL + i] = OBJ_PAL[i];   /* already tinted */
     if (!frame_ready)
         return;
     DMA3COPY(view_words, VRAM_TILES, DMA32 | (VIEW_W * VIEW_H / 4));

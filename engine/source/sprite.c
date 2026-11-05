@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "sprite.h"
+#include "tint.h"
 
 #define SPRITE_MAX 128
 
@@ -182,16 +183,15 @@ void sprite_reserve_portrait(int on)
 
 void sprite_save_palette(int bank, uint16_t *out)
 {
-    volatile uint16_t *src = ADV_OBJ_PALETTE + ((bank & 0xF) * 16);
+    /* The colours as written, not as tinted (tint.h). */
     for (int i = 0; i < 16; i++)
-        out[i] = src[i];
+        out[i] = tint_base_color(256 + (bank & 0xF) * 16 + i);
 }
 
 void sprite_load_palette(int bank, const uint16_t *palette)
 {
-    volatile uint16_t *dest = ADV_OBJ_PALETTE + ((bank & 0xF) * 16);
     for (int i = 0; i < 16; i++)
-        dest[i] = palette[i];
+        tint_write_color(256 + (bank & 0xF) * 16 + i, palette[i]);   /* follows the screen tint */
 }
 
 

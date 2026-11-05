@@ -1442,6 +1442,66 @@ export const EVENT_DEFS: EventDef[] = [
     summary: () => "",
   }),
   def({
+    type: "screen_tint",
+    label: "Set Screen Tint",
+    category: "Screen",
+    description:
+      "Tint the whole scene - actors too - for time of day or mood: dawn, evening, dusk, night, or any colour. It stays " +
+      "across scene changes until changed, and can fade in over a time. Text boxes are never tinted. Turns off a day / night cycle.",
+    fields: [
+      {
+        key: "preset",
+        label: "Tint",
+        kind: "select",
+        options: [
+          { value: "none", label: "None (normal colours)" },
+          { value: "dawn", label: "Dawn" },
+          { value: "evening", label: "Evening" },
+          { value: "dusk", label: "Dusk" },
+          { value: "night", label: "Night" },
+          { value: "custom", label: "Custom colour" },
+        ],
+      },
+      { key: "color", label: "Colour", kind: "color", showIf: (e) => e.preset === "custom" },
+      { key: "strength", label: "Strength %", kind: "int", min: 0, max: 100, defaultValue: 50, showIf: (e) => e.preset === "custom" },
+      { key: "frames", label: "Fade over", kind: "duration", min: 0, max: 3600, defaultValue: 0 },
+    ],
+    create: () => ({ type: "screen_tint", preset: "night", frames: 60 }),
+    summary: (ev) => `${ev.preset === "custom" ? `${ev.color ?? "?"} ${ev.strength ?? 50}%` : ev.preset}`,
+  }),
+  def({
+    type: "day_night",
+    label: "Day / Night Cycle",
+    category: "Screen",
+    description:
+      "Tint the game by time of day on the playtime clock: night, dawn, day, sunset, dusk, night again. Pick how many real " +
+      "minutes a whole day takes. Pausing the playtime clock stops the sun too. Store Time Of Day gives the hour (0-23) for " +
+      "scripts, e.g. shops that close at night.",
+    fields: [
+      {
+        key: "action",
+        label: "Cycle",
+        kind: "select",
+        options: [
+          { value: "start", label: "Start" },
+          { value: "stop", label: "Stop (normal colours)" },
+        ],
+      },
+      { key: "day_minutes", label: "A day lasts (minutes)", kind: "int", min: 1, max: 9000, defaultValue: 20, showIf: (e) => e.action !== "stop" },
+    ],
+    create: () => ({ type: "day_night", action: "start", day_minutes: 20 }),
+    summary: (ev) => (ev.action === "stop" ? "stop" : `a day = ${ev.day_minutes ?? 20} min`),
+  }),
+  def({
+    type: "time_of_day_var",
+    label: "Store Time Of Day In Variable",
+    category: "Screen",
+    description: "The Day / Night Cycle's hour, 0-23 (12 = noon), into a variable. 12 when no cycle is running.",
+    fields: [{ key: "var", label: "Variable", kind: "variable" }],
+    create: (c) => ({ type: "time_of_day_var", var: c.variables[0] ?? "" }),
+    summary: (ev) => `→ $${ev.var || "?"}`,
+  }),
+  def({
     type: "music_fade",
     label: "Fade Music",
     category: "Sound",

@@ -998,6 +998,27 @@ export interface PlayerStateScriptRemoveEvent extends EventBase {
 
 /** Stores the state's number: ground 0, jump 1, fall 2, dash 3, slide 4,
  * ladder 5, wall 6, knockback 7, stairs 8. */
+/** Screen tint (day / night): a preset or a colour at a strength, fading over frames. */
+export interface ScreenTintEvent extends EventBase {
+  type: "screen_tint";
+  preset: "none" | "dawn" | "evening" | "dusk" | "night" | "custom";
+  color?: string;
+  strength?: number;
+  frames?: number;
+}
+
+/** Day / night cycle on the playtime clock. */
+export interface DayNightEvent extends EventBase {
+  type: "day_night";
+  action: "start" | "stop";
+  day_minutes?: number;
+}
+
+export interface TimeOfDayVarEvent extends EventBase {
+  type: "time_of_day_var";
+  var: string;
+}
+
 /** Music fades: out (then stop), in, or to a volume 0-7. */
 export interface MusicFadeEvent extends EventBase {
   type: "music_fade";
@@ -1394,6 +1415,9 @@ export type ScriptEventJSON =
   | ActorSetTransparentEvent
   | PlaytimeEvent
   | MusicFadeEvent
+  | ScreenTintEvent
+  | DayNightEvent
+  | TimeOfDayVarEvent
   | PlaytimeReadEvent
   | PersistEvent
   | ActorSetHitResponseEvent

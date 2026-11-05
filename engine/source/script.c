@@ -2,6 +2,7 @@
 #include <gba_base.h>   /* EWRAM_BSS */
 #include <stdint.h>
 
+#include "tint.h"
 #include "script.h"
 #include "dialogue.h"
 #include "light.h"
@@ -973,6 +974,18 @@ static void thread_step(ScriptThread *t, int is_main)
             music_play(ev->a, ev->b);
             break;
 
+        case SCRIPT_TINT:
+            tint_set((uint16_t)ev->a, ev->b, ev->c);
+            break;
+
+        case SCRIPT_TINT_CYCLE:
+            tint_cycle((uint32_t)(ev->a < 0 ? 0 : ev->a) * 3600u);
+            break;
+
+        case SCRIPT_TINT_HOUR:
+            var_set(ev->a, (int16_t)tint_hour());
+            break;
+
         case SCRIPT_MUSIC_FADE:
             if (ev->a == 0)
                 music_fade(0, ev->c, 1);
@@ -1445,9 +1458,7 @@ static void thread_step(ScriptThread *t, int is_main)
 
         case SCRIPT_PALETTE_SET:
         {
-            volatile uint16_t *pal = (volatile uint16_t *)
-                ((ev->a & 0x100) ? 0x05000200 : 0x05000000);
-            pal[ev->a & 0xFF] = (uint16_t)ev->b;
+            tint_write_color((ev->a & 0x100 ? 256 : 0) + (ev->a & 0xFF), (uint16_t)ev->b);
             break;
         }
 

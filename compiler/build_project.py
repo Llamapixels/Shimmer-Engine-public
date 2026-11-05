@@ -2803,6 +2803,7 @@ PARITY_EVENT_TYPES = [
     "pause_world", "resume_world", "light_set",
     "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
     "actor_knockback", "actor_set_transparent", "playtime", "playtime_read", "persist", "music_fade",
+    "screen_tint", "day_night", "time_of_day_var",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
     "if_actor_relative", "if_input", "if_current_scene", "scene_push",
     "scene_pop", "scene_pop_all", "scene_reset", "data_save", "data_load",
@@ -3274,6 +3275,31 @@ def compile_parity_event(etype, ev, out, ctx, where):
             ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_PLAYER_STATE_SCRIPT", a=PLAYER_STATES.index(state),
                           b=PLAYER_STATE_WHEN.index(when), ptr=ptr))
+
+    elif etype == "screen_tint":
+        # Presets: (colour, strength %).
+        presets = {"none": ("#ffffff", 0), "dawn": ("#ffb4c4", 30), "evening": ("#ffa060", 40),
+                   "dusk": ("#a070c4", 50), "night": ("#5262c6", 70)}
+        preset = str(ev.get("preset", "custom"))
+        if preset in presets:
+            color, pct = presets[preset]
+        elif preset == "custom":
+            color, pct = str(ev.get("color", "#5262c6")), ev.get("strength", 50)
+        else:
+            raise BuildError(f"{where}: unknown tint preset '{preset}'.")
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
+            raise BuildError(f"{where}: tint colour should look like #5262c6.")
+        pct = resolve_small_int(pct, "strength", where, 0, 100)
+        r, g, b = (int(color[i:i + 2], 16) >> 3 for i in (1, 3, 5))
+        frames = resolve_small_int(ev.get("frames", 0), "frames", where, 0, 3600)
+        out.append(_instr("SCRIPT_TINT", a=r | (g << 5) | (b << 10), b=round(pct * 16 / 100), c=frames))
+
+    elif etype == "day_night":
+        minutes = 0 if ev.get("action") == "stop" else resolve_small_int(ev.get("day_minutes", 20), "day_minutes", where, 1, 9000)
+        out.append(_instr("SCRIPT_TINT_CYCLE", a=minutes))
+
+    elif etype == "time_of_day_var":
+        out.append(_instr("SCRIPT_TINT_HOUR", a=resolve_var(_require(ev, "var", where), ctx, where)))
 
     elif etype == "music_fade":
         modes = {"out": 0, "in": 1, "volume": 2}

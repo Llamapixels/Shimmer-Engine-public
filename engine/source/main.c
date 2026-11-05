@@ -14,6 +14,7 @@
 #include "ui.h"
 #include "audio.h"
 #include "music.h"
+#include "tint.h"
 #include "save.h"
 #include "script.h"
 #include "state.h"
@@ -2173,6 +2174,7 @@ int main(void)
         /* First Person 3D: draw the view for the next VBlank. */
         light_update();
         blend_update();
+        tint_update();
         if (playtime_running)
             playtime_frames++;
         raycast_draw();

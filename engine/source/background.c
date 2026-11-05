@@ -1,5 +1,6 @@
 #include <gba.h>
 
+#include "tint.h"
 #include "background.h"
 #include "scene.h"   /* ParallaxLayer, PARALLAX_FIXED */
 
@@ -120,7 +121,7 @@ void background_load_palettes(
 )
 {
     for (int i = 0; i < count * 16; i++)
-        BG_PAL[i] = palettes[i];
+        tint_write_color(i, palettes[i]);   /* follows the screen tint */
 }
 
 void background_load_tiles(
