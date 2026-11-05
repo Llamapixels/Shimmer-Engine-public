@@ -71,3 +71,12 @@
   font-family: var(--font-mono, monospace);
   font-size: 13px;
 }
+
+.dialogue-replace {
+  max-width: 180px;
+}
+
+.dialogue-refs {
+  flex-wrap: wrap;
+  gap: 6px;
+}

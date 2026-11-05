@@ -1547,10 +1547,10 @@ export default function SceneCanvas() {
         </button>
         <button
           className="btn btn-small"
-          title="Every line of text in the game, to proofread or export for translation"
+          title="Every line of text in the game: proofread, find and replace (text, variables, flags, items, actors), export for translation"
           onClick={() => setDialogueView(true)}
         >
-          Dialogue
+          Dialogue & Find
         </button>
         <div className="tool-group" role="toolbar" aria-label="Canvas tools">
           {tools.map((t, i) => (

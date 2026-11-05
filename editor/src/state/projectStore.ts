@@ -280,6 +280,10 @@ interface ProjectState {
   updateScene: (sceneId: string, updater: (scene: SceneJSON) => SceneJSON, coalesceKey?: string) => void;
   updateProject: (updater: (p: ProjectJSON) => ProjectJSON, coalesceKey?: string) => void;
   renameRef: (kind: RefKind, from: string, to: string) => void;
+  /** Find & Replace: every use of `from` becomes `to` (both stay in their
+   * lists). Actors are per scene: `sceneId` says which. Returns the
+   * number of scripts changed. */
+  replaceRefs: (kind: RefKind, from: string, to: string, sceneId?: string) => number;
   /** After a sprite's PNG was renamed on disk: point every use of it
    * (NPCs, prefabs, the player, its spriteSheets entry) at the new name -
    * in the undo history too, since the old file is gone. */
@@ -659,6 +663,39 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       recordHistory(coalesceKey ? `project:${coalesceKey}` : undefined);
       set({ project: { ...project, project: next } });
       persistProject(project.rootPath, next);
+    },
+
+    replaceRefs: (kind, from, to, sceneId) => {
+      const { project } = get();
+      if (!project || from === to) return 0;
+      recordHistory();
+      let changed = 0;
+      const scenes = project.scenes.map((rec) => {
+        if (sceneId && rec.fileId !== sceneId) return rec;
+        const data = renameRefsInScene(rec.data, kind, from, to);
+        if (data !== rec.data) changed++;
+        return data === rec.data ? rec : { ...rec, data };
+      });
+      let pj = project.project;
+      if (kind !== "actor") {
+        const customScripts = (pj.customScripts ?? []).map((cs) => {
+          const script = renameRefsInScript(cs.script, kind, from, to);
+          if (script !== cs.script) changed++;
+          return script === cs.script ? cs : { ...cs, script };
+        });
+        if (customScripts.some((cs, i) => cs !== pj.customScripts?.[i])) pj = { ...pj, customScripts };
+        const prefabs = (pj.prefabs ?? []).map((p) => renameRefsInPrefab(p, kind, from, to));
+        if (prefabs.some((p, i) => p !== pj.prefabs?.[i])) {
+          changed += prefabs.filter((p, i) => p !== pj.prefabs?.[i]).length;
+          pj = { ...pj, prefabs };
+        }
+      }
+      scenes.forEach((rec, i) => {
+        if (rec !== project.scenes[i]) persistScene(project.rootPath, rec.fileId, rec.data);
+      });
+      if (pj !== project.project) persistProject(project.rootPath, pj);
+      set({ project: { ...project, project: pj, scenes } });
+      return changed;
     },
 
     renameRef: (kind, from, to) => {
