@@ -31,7 +31,8 @@ import { SETTING_BY_KEY, settingValue, type EngineValue } from "../engine/engine
 import "./SceneCanvas.css";
 import Icon, { type IconName } from "./common/Icon";
 import Chevron from "./common/Chevron";
-import PopoverMenu from "./common/PopoverMenu";
+import PopoverMenu, { type MenuItem } from "./common/PopoverMenu";
+import { useBuildStore } from "../state/buildStore";
 import { ColorPopover } from "../script/ScriptEditor";
 
 export { resizeCollision };
@@ -271,7 +272,11 @@ export default function SceneCanvas() {
     y: number;
     /** null = the scene itself (right-click on an empty spot). */
     target: { kind: "npc" | "door" | "note"; index: number; label: string } | null;
+    /** The tile right-clicked ("Play from here"). */
+    tile: { x: number; y: number };
   } | null>(null);
+  const startBuild = useBuildStore((s) => s.startBuild);
+  const buildRunning = useBuildStore((s) => s.status === "running");
   const [sceneColorAt, setSceneColorAt] = useState<{ x: number; y: number } | null>(null);
   const removeScene = useProjectStore((s) => s.removeScene);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -1177,11 +1182,11 @@ export default function SceneCanvas() {
    * cursor (not while right-drag erasing with a paint tool). */
   const onContextMenu = (e: ReactMouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (tileW === 0 || !showActors || (paintLayer !== null && tool !== "select")) return;
+    if (tileW === 0 || (paintLayer !== null && tool !== "select")) return;
     const t = tileAt(e);
-    const no = hitNote(t.px, t.py);
-    const ni = no < 0 ? hitNpc(t.x, t.y) : -1;
-    const di = no < 0 && ni < 0 ? hitDoor(t.x, t.y) : -1;
+    const no = showActors ? hitNote(t.px, t.py) : -1;
+    const ni = showActors && no < 0 ? hitNpc(t.x, t.y) : -1;
+    const di = showActors && no < 0 && ni < 0 ? hitDoor(t.x, t.y) : -1;
     const target =
       no >= 0
         ? { kind: "note" as const, index: no, label: "note" }
@@ -1191,7 +1196,7 @@ export default function SceneCanvas() {
             ? { kind: "door" as const, index: di, label: `trigger #${di}` }
             : null;
     if (target) setSelection({ kind: target.kind, sceneId, index: target.index });
-    setCtxMenu({ x: e.clientX, y: e.clientY, target });
+    setCtxMenu({ x: e.clientX, y: e.clientY, target, tile: { x: t.x, y: t.y } });
   };
 
   /** Alt-click with the 3D tool: paint with what's under the cursor. */
@@ -1846,8 +1851,16 @@ export default function SceneCanvas() {
             <PopoverMenu
               anchor={{ x: ctxMenu.x, y: ctxMenu.y }}
               onClose={() => setCtxMenu(null)}
-              items={
-                ctxMenu.target
+              items={[
+                {
+                  label: `Play from here (tile ${ctxMenu.tile.x}, ${ctxMenu.tile.y})`,
+                  disabled: buildRunning || !rootPath,
+                  onClick: () => {
+                    if (rootPath) void startBuild(rootPath, true, { scene: data.name || sceneId, x: ctxMenu.tile.x, y: ctxMenu.tile.y });
+                  },
+                },
+                "separator",
+                ...(ctxMenu.target
                   ? [
                       {
                         label: `Delete ${ctxMenu.target.label}`,
@@ -1870,8 +1883,8 @@ export default function SceneCanvas() {
                             void removeScene(sceneId);
                         },
                       },
-                    ]
-              }
+                    ]) as MenuItem[],
+              ]}
             />
           )}
           {sceneColorAt && (

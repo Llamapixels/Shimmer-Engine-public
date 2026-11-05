@@ -189,7 +189,11 @@ def main():
     ap.add_argument("--devkitpro", type=Path, default=Path(os.environ.get("DEVKITPRO") or "/opt/devkitpro"))
     ap.add_argument("--work", type=Path)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--play-from", help='"Play from here": JSON {"scene": name, "x": tile, "y": tile}')
     args = ap.parse_args()
+    if args.play_from:
+        import json
+        build_project.PLAY_FROM = json.loads(args.play_from)
 
     project = args.project.resolve()
     work = (args.work or project / "build" / "rom").resolve()

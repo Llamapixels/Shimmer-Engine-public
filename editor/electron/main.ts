@@ -578,9 +578,14 @@ function registerIpcHandlers(): void {
     if (!toolchainRoot) {
       throw new Error("Couldn't find the compiler/engine folder above this project.");
     }
-    return buildRunner.buildRom(payload.rootPath, toolchainRoot, (event) => {
-      mainWindow?.webContents.send(IPC_CHANNELS.buildLog, event);
-    });
+    return buildRunner.buildRom(
+      payload.rootPath,
+      toolchainRoot,
+      (event) => {
+        mainWindow?.webContents.send(IPC_CHANNELS.buildLog, event);
+      },
+      payload.playFrom,
+    );
   });
 
   handle(IPC_CHANNELS.openRom, async (payload: OpenRomPayload) => {

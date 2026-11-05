@@ -26,7 +26,7 @@ interface BuildState {
   openPanel: () => void;
   closePanel: () => void;
   /** Build; with `play`, open the ROM in the user's emulator afterwards. */
-  startBuild: (rootPath: string, play?: boolean) => Promise<void>;
+  startBuild: (rootPath: string, play?: boolean, playFrom?: { scene: string; x: number; y: number }) => Promise<void>;
   requestCancel: () => Promise<void>;
 }
 
@@ -49,7 +49,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     set({ open: false });
   },
 
-  startBuild: async (rootPath: string, play = false) => {
+  startBuild: async (rootPath: string, play = false, playFrom) => {
     if (get().status === "running") return;
 
     get().unsubscribe?.();
@@ -61,7 +61,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
 
     let res: Awaited<ReturnType<typeof window.api.buildRom>>;
     try {
-      res = await window.api.buildRom({ rootPath });
+      res = await window.api.buildRom({ rootPath, playFrom });
     } catch (err) {
       res = { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

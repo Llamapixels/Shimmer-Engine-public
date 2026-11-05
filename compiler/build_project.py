@@ -785,6 +785,11 @@ class BuildError(Exception):
     pass
 
 
+# "Play from here" (build_rom.py --play-from): {"scene": name, "x": tile,
+# "y": tile} - the game starts in that scene, on that tile. None = as usual.
+PLAY_FROM = None
+
+
 # ---------------------------------------------------------------------------
 # Colors
 # ---------------------------------------------------------------------------
@@ -4284,6 +4289,8 @@ def build(project_dir, out_dir):
         grid = parse_collision(scene["collision"], w, h, name)
 
         start = scene.get("player_start", {"x": 0, "y": 0})
+        if PLAY_FROM and PLAY_FROM.get("scene") == name:
+            start = {"x": PLAY_FROM.get("x", 0), "y": PLAY_FROM.get("y", 0)}
         spawn = (int(start["x"]) * TILE, int(start["y"]) * TILE)
 
         # Only actually takes effect for whichever scene is the
@@ -4865,7 +4872,10 @@ def build(project_dir, out_dir):
               f"{bg['colors']} colors in {bg['palette_count']} palette(s), "
               f"collision: {coll}{door_str}{npc_str}{timer_str}")
 
-    start_scene = c_ident(project.get("start_scene", scene_idents[0]))
+    start_name = PLAY_FROM["scene"] if PLAY_FROM and PLAY_FROM.get("scene") else project.get("start_scene")
+    start_scene = c_ident(start_name) if start_name else scene_idents[0]
+    if PLAY_FROM:
+        print(f"  Play from here: starting in {start_name} at tile ({PLAY_FROM.get('x', 0)}, {PLAY_FROM.get('y', 0)})")
     if start_scene not in scene_idents:
         raise BuildError(
             f"start_scene '{project.get('start_scene')}' has no scene file.")

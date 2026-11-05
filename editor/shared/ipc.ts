@@ -232,6 +232,9 @@ export interface PickedFile {
 
 export interface BuildRomPayload {
   rootPath: string;
+  /** "Play from here": a test build (its own ROM file) starting in this
+   * scene on this tile. */
+  playFrom?: { scene: string; x: number; y: number };
 }
 
 /** The build's own outcome, distinct from the transport-level IpcResult<T>
