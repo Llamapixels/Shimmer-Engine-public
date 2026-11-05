@@ -53,7 +53,8 @@ const DEV_SERVER_URL = "http://localhost:5173";
 // actually exists on disk answers that correctly in every case,
 // packaged or not, with nothing extra to configure or pass through.
 const builtIndexHtml = path.join(__dirname, "..", "..", "dist", "index.html");
-const useDevServer = !existsSync(builtIndexHtml);
+// npm run dev passes --dev: always the live source, even with an old dist/ around.
+const useDevServer = process.argv.includes("--dev") || !existsSync(builtIndexHtml);
 
 let mainWindow: BrowserWindow | null = null;
 
