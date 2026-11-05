@@ -29,6 +29,30 @@ void collision_set_slopes_soft(int on)
     slopes_soft = on;
 }
 
+int collision_slope_surface(int fx, int fy)
+{
+    int ty0 = (fy - 1) >> 3, ty1 = fy >> 3;
+    for (int ty = ty0; ty <= ty1; ty++)
+    {
+        int h = collision_slope_height(collision_get_tile(fx >> 3, ty), fx & 7);
+        if (h >= 0)
+            return ty * 8 + 8 - h;
+    }
+    return -1;
+}
+
+int collision_near_slope(int x, int y, int w, int h)
+{
+    int x0 = x - 1, y0 = y - 1, x1 = x + w, y1 = y + h;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    for (int ty = y0 >> 3; ty <= y1 >> 3; ty++)
+        for (int tx = x0 >> 3; tx <= x1 >> 3; tx++)
+            if (collision_slope_height(collision_get_tile(tx, ty), 0) >= 0)
+                return 1;
+    return 0;
+}
+
 void collision_set_ignore_top(int ignore)
 {
     ignore_top = ignore;

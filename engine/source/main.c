@@ -285,6 +285,9 @@ static void scene_entities_load(const SceneDef *scene)
 static const int WANDER_DX[4] = { 0, 0, 1, -1 };
 static const int WANDER_DY[4] = { 1, -1, 0, 0 };
 
+static int walker_step_x(Entity *e, int nx);
+static int slide_along_slope(Entity *e, int nx, int ny);
+
 static void update_wandering_npc(int i)
 {
     Entity *npc = npc_entities[i];
@@ -322,10 +325,10 @@ static void update_wandering_npc(int i)
     int ny = npc->y + WANDER_DY[npc_wander_dir[i]] * npc->move_speed;
     int moved = 0;
 
-    if (entity_can_move(npc, nx, ny))
+    if (npc->gravity ? walker_step_x(npc, nx)
+                     : entity_can_move(npc, nx, ny) ? (npc->x = nx, npc->y = ny, 1)
+                     : slide_along_slope(npc, nx, ny))
     {
-        npc->x = nx;
-        npc->y = ny;
         moved = 1;
         if (npc_wander_left[i])
         {
@@ -873,6 +876,108 @@ void actor_jump(int index, int speed, int anytime)
 
 /* Actor gravity (NpcDef.gravity): falls at the platformer's Gravity up to
  * its Max fall speed, and lands on solid and one-way tiles. */
+/* ---- Slopes for actors (the player's own walking is in modes.c) ---- */
+
+static int act_feet_x(const Entity *e, int x) { return x + e->col_ox + e->col_w / 2; }
+static int act_feet_y(const Entity *e, int y) { return y + e->col_oy + e->col_h; }
+
+/* Walks on slopes by their surface: actors with gravity, and the
+ * platformer player when a script moves it. */
+static int walks_slopes(const Entity *e)
+{
+    return e->gravity || (e == g_player && modes_current() == SCENE_MODE_PLATFORM);
+}
+
+/* Feet (their middle) on a slope? Then the box's corners may reach into
+ * the ground beside it, so its bottom 8 px don't count against tiles. */
+static int act_on_slope(const Entity *e)
+{
+    int fx = act_feet_x(e, e->x), fy = act_feet_y(e, e->y);
+    int s = collision_slope_surface(fx, fy);
+    if (s < 0)
+        s = collision_slope_surface(fx, fy + 4);
+    return s >= 0 && fy - s <= 4 && s - fy <= 4;
+}
+
+/* Can a slope-walker's box be at (x, y)? Slopes don't block it there
+ * (its feet follow them), and its feet can't sink into one. */
+static int walker_fits(Entity *e, int x, int y)
+{
+    int h = e->col_h;
+    collision_set_slopes_soft(1);
+    if (h > 1 && act_on_slope(e))
+        e->col_h = (uint16_t)(h > 9 ? h - 8 : 1);
+    int ok = entity_can_move(e, x, y);
+    e->col_h = (uint16_t)h;
+    collision_set_slopes_soft(0);
+    if (ok && y > e->y)
+    {
+        int fy = act_feet_y(e, y), s = collision_slope_surface(act_feet_x(e, x), fy);
+        if (s >= 0 && fy > s)
+            ok = 0;
+    }
+    return ok;
+}
+
+/* One step of a slope-walker sideways to nx, a pixel at a time: up a
+ * slope, down one (staying on it), stopped by walls. Returns 1 if it moved. */
+static int walker_step_x(Entity *e, int nx)
+{
+    int moved = 0;
+    while (e->x != nx)
+    {
+        int x = e->x + (nx > e->x ? 1 : -1);
+        if (!walker_fits(e, x, e->y))
+            break;
+        int ox = e->x;
+        e->x = x;
+        int fy = act_feet_y(e, e->y), s = collision_slope_surface(act_feet_x(e, x), fy);
+        if (s >= 0 && fy > s)
+        {
+            int up = fy - s;
+            if (up > 3 || !walker_fits(e, x, e->y - up))
+            {
+                e->x = ox;
+                break;
+            }
+            e->y -= up;
+        }
+        else
+        {
+            /* Going down a slope: keep the feet on it. */
+            int below = collision_slope_surface(act_feet_x(e, x), fy + 3);
+            if (below > fy && below - fy <= 3 && walker_fits(e, x, e->y + (below - fy)))
+                e->y += below - fy;
+        }
+        moved = 1;
+    }
+    return moved;
+}
+
+/* A step that bumped into a diagonal wall: slide along it (one pixel
+ * sideways for each pixel on). Returns 1 if it could. */
+static int slide_along_slope(Entity *e, int nx, int ny)
+{
+    if (!collision_near_slope(e->x + e->col_ox, e->y + e->col_oy, e->col_w, e->col_h))
+        return 0;
+    int sx = nx - e->x, sy = ny - e->y;
+    int dirx = sx > 0 ? 1 : sx < 0 ? -1 : 0, diry = sy > 0 ? 1 : sy < 0 ? -1 : 0;
+    if (dirx && diry)
+        return 0;   /* already diagonal */
+    /* The other axis, either way. */
+    for (int k = 1; k >= -1; k -= 2)
+    {
+        int tx = e->x + dirx + (diry ? k : 0), ty = e->y + diry + (dirx ? k : 0);
+        if (entity_can_move(e, tx, ty))
+        {
+            e->x = tx;
+            e->y = ty;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void npc_fall(Entity *e)
 {
     int vy = e->vy + MSET(PL_GRAV);
@@ -885,7 +990,7 @@ static void npc_fall(Entity *e)
     int step = px > 0 ? 1 : -1;
     for (int k = 0; k != px; k += step)
     {
-        if (!entity_can_move(e, e->x, e->y + step))
+        if (!walker_fits(e, e->x, e->y + step))
         {
             e->vy = 0;
             e->sub_y = 0;
@@ -893,7 +998,7 @@ static void npc_fall(Entity *e)
         }
         e->y += step;
     }
-    e->grounded = e->vy >= 0 && !entity_can_move(e, e->x, e->y + 1);
+    e->grounded = e->vy >= 0 && !walker_fits(e, e->x, e->y + 1);
     if (e->grounded && e->vy > 0)
     {
         e->vy = 0;
@@ -1083,6 +1188,22 @@ int actor_step_toward_ex(int index, int target_x, int target_y, int type, int co
     int nx = mx ? step_toward(e->x, target_x, speed) : e->x;
     int ny = my ? step_toward(e->y, target_y, speed) : e->y;
 
+    int adx = nx - e->x < 0 ? e->x - nx : nx - e->x;
+    int ady = ny - e->y < 0 ? e->y - ny : ny - e->y;
+    Direction dir = adx >= ady ? (nx > e->x ? DIR_RIGHT : DIR_LEFT) : (ny > e->y ? DIR_DOWN : DIR_UP);
+
+    if (collide && walks_slopes(e) && ny == e->y)
+    {
+        /* Along the ground: up and down slopes, stopped by walls. */
+        if (!walker_step_x(e, nx))
+        {
+            entity_animate(e, (Direction)e->direction, 0);   /* blocked - give up */
+            return 0;
+        }
+        entity_animate(e, keep_dir ? (Direction)e->direction : dir, 1);
+        return 1;
+    }
+
     if (collide && !entity_can_move(e, nx, ny))
     {
         /* Diagonal: slide along whichever axis is still free. */
@@ -1090,6 +1211,12 @@ int actor_step_toward_ex(int index, int target_x, int target_y, int type, int co
             ny = e->y;
         else if (mx && my && entity_can_move(e, e->x, ny))
             nx = e->x;
+        else if (slide_along_slope(e, nx, ny))
+        {
+            /* A diagonal wall: slid along it. */
+            entity_animate(e, keep_dir ? (Direction)e->direction : dir, 1);
+            return 1;
+        }
         else
         {
             entity_animate(e, (Direction)e->direction, 0);   /* blocked - give up */
@@ -1097,9 +1224,6 @@ int actor_step_toward_ex(int index, int target_x, int target_y, int type, int co
         }
     }
 
-    int adx = nx - e->x < 0 ? e->x - nx : nx - e->x;
-    int ady = ny - e->y < 0 ? e->y - ny : ny - e->y;
-    Direction dir = adx >= ady ? (nx > e->x ? DIR_RIGHT : DIR_LEFT) : (ny > e->y ? DIR_DOWN : DIR_UP);
     e->x = nx;
     e->y = ny;
     entity_animate(e, keep_dir ? (Direction)e->direction : dir, 1);

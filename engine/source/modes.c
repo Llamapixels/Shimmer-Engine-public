@@ -334,14 +334,7 @@ static int bounce_hit;
  * fx, for feet whose first pixel below is row fy; -1 if no slope there. */
 static int slope_surface(int fx, int fy)
 {
-    int ty0 = (fy - 1) >> 3, ty1 = fy >> 3;
-    for (int ty = ty0; ty <= ty1; ty++)
-    {
-        int h = collision_slope_height(collision_get_tile(fx >> 3, ty), fx & 7);
-        if (h >= 0)
-            return ty * 8 + 8 - h;
-    }
-    return -1;
+    return collision_slope_surface(fx, fy);
 }
 
 static int feet_x(Entity *p, int x) { return x + p->col_ox + p->col_w / 2; }
@@ -356,13 +349,7 @@ static int slide_shift_x;   /* ... and sideways, sliding along a diagonal wall *
  * walls slide it along.) */
 static int near_slope(Entity *p)
 {
-    int x0 = p->x + p->col_ox - 1, y0 = p->y + p->col_oy - 1;
-    int x1 = x0 + p->col_w + 1, y1 = y0 + p->col_h + 1;
-    for (int ty = y0 >> 3; ty <= y1 >> 3; ty++)
-        for (int tx = x0 >> 3; tx <= x1 >> 3; tx++)
-            if (collision_slope_height(collision_get_tile(tx, ty), 0) >= 0)
-                return 1;
-    return 0;
+    return collision_near_slope(p->x + p->col_ox, p->y + p->col_oy, p->col_w, p->col_h);
 }
 
 /* Platformer: are the feet (their middle) on a slope right now? */

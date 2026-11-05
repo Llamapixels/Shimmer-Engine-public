@@ -40,6 +40,13 @@ int collision_slope_height(int tile, int x_in_tile);
  * by their surface instead). Otherwise their solid triangle blocks. */
 void collision_set_slopes_soft(int on);
 
+/* The y (world px) of the slope surface under column fx, for feet whose
+ * first pixel below is row fy; -1 if no slope there. */
+int collision_slope_surface(int fx, int fy);
+
+/* Any slope tile touching this box, or the 1 px around it? */
+int collision_near_slope(int x, int y, int w, int h);
+
 /* Platformer drop-through: while on, one-way "top" tiles don't block. */
 void collision_set_ignore_top(int ignore);
 
