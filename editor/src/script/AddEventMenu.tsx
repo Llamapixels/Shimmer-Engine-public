@@ -6,6 +6,8 @@ import type { ScriptEventJSON } from "../../shared/eventTypes";
 import type { SnippetJSON } from "../../shared/projectTypes";
 import { useProjectStore } from "../state/projectStore";
 import { cloneEvent } from "./scriptTree";
+import { EVENT_TEMPLATES, type EventTemplate } from "./eventTemplates";
+import { sceneName } from "../state/projectStore";
 
 interface Props {
   /** The button the menu hangs off - used for positioning. */
@@ -25,28 +27,30 @@ const MAX_HEIGHT = 420;
  * clip it. */
 
 type Row =
-  | { kind: "cat"; cat: EventCategory | typeof SNIPPETS; count: number }
+  | { kind: "cat"; cat: EventCategory | typeof SNIPPETS | typeof TEMPLATES; count: number }
   | { kind: "back" }
   | { kind: "event"; def: EventDef }
-  | { kind: "snippet"; snippet: SnippetJSON };
+  | { kind: "snippet"; snippet: SnippetJSON }
+  | { kind: "template"; template: EventTemplate };
 
-/** The pseudo-category holding the project's saved snippets. */
+/** The pseudo-categories: the project's saved snippets, and ready-made menus. */
 const SNIPPETS = "Snippets";
+const TEMPLATES = "Templates (menus)";
 
 /** The category the menu was last left in, so adding several events
  * of one kind in a row doesn't mean clicking through each time. */
-let lastCategory: EventCategory | typeof SNIPPETS | null = null;
+let lastCategory: EventCategory | typeof SNIPPETS | typeof TEMPLATES | null = null;
 export default function AddEventMenu({ anchor, onPick, onPickEvents, onClose }: Props) {
   const snippets = useProjectStore((s) => s.project?.project.snippets) ?? [];
   const updateProject = useProjectStore((s) => s.updateProject);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<EventCategory | typeof SNIPPETS | null>(lastCategory === SNIPPETS && !snippets.length ? null : lastCategory);
+  const [category, setCategory] = useState<EventCategory | typeof SNIPPETS | typeof TEMPLATES | null>(lastCategory === SNIPPETS && !snippets.length ? null : lastCategory);
   const [active, setActive] = useState(0);
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number }>({ left: 0, top: 0, maxHeight: MAX_HEIGHT });
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const openCategory = (cat: EventCategory | typeof SNIPPETS | null) => {
+  const openCategory = (cat: EventCategory | typeof SNIPPETS | typeof TEMPLATES | null) => {
     lastCategory = cat;
     setCategory(cat);
   };
@@ -57,11 +61,13 @@ export default function AddEventMenu({ anchor, onPick, onPickEvents, onClose }: 
       if (!category)
         return [
           ...(snippets.length && onPickEvents ? [{ kind: "cat", cat: SNIPPETS, count: snippets.length } as Row] : []),
+          ...(onPickEvents ? [{ kind: "cat", cat: TEMPLATES, count: EVENT_TEMPLATES.length } as Row] : []),
           ...CATEGORY_ORDER.map((cat): Row => ({ kind: "cat", cat, count: EVENT_DEFS.filter((d) => d.category === cat).length })).filter(
             (r) => r.kind === "cat" && r.count > 0,
           ),
         ];
       if (category === SNIPPETS) return [{ kind: "back" }, ...snippets.map((snippet): Row => ({ kind: "snippet", snippet }))];
+      if (category === TEMPLATES) return [{ kind: "back" }, ...EVENT_TEMPLATES.map((template): Row => ({ kind: "template", template }))];
       return [{ kind: "back" }, ...EVENT_DEFS.filter((d) => d.category === category).map((def): Row => ({ kind: "event", def }))];
     }
     const words = q.split(/\s+/);
@@ -91,6 +97,17 @@ export default function AddEventMenu({ anchor, onPick, onPickEvents, onClose }: 
     if (r.kind === "cat") openCategory(r.cat);
     else if (r.kind === "back") openCategory(null);
     else if (r.kind === "snippet") onPickEvents?.(r.snippet.events.map(cloneEvent));
+    else if (r.kind === "template") {
+      // Its variables first, so the events point at real ones.
+      const want = r.template.variables;
+      updateProject((p) => {
+        const have = p.variables ?? [];
+        const missing = want.filter((v) => !have.includes(v));
+        return missing.length ? { ...p, variables: [...have, ...missing] } : p;
+      });
+      const scenes = useProjectStore.getState().project?.scenes ?? [];
+      onPickEvents?.(r.template.build(scenes[0] ? sceneName(scenes[0]) : ""));
+    }
     else onPick(r.def);
   };
   const activeRow = rows[active];
@@ -160,6 +177,20 @@ export default function AddEventMenu({ anchor, onPick, onPickEvents, onClose }: 
                 <span className="add-event-label">{category}</span>
               </button>
             );
+          if (r.kind === "template")
+            return (
+              <button
+                key={r.template.id}
+                data-idx={i}
+                className={`add-event-item${on}`}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => choose(r)}
+                title={r.template.description}
+              >
+                <span className="add-event-dot" style={{ background: "var(--accent)" }} />
+                <span className="add-event-label">{r.template.name}</span>
+              </button>
+            );
           if (r.kind === "snippet")
             return (
               <button key={r.snippet.id} data-idx={i} className={`add-event-item${on}`} onMouseEnter={() => setActive(i)} onClick={() => choose(r)}>
@@ -182,7 +213,7 @@ export default function AddEventMenu({ anchor, onPick, onPickEvents, onClose }: 
           if (r.kind === "cat")
             return (
               <button key={r.cat} data-idx={i} className={`add-event-item${on}`} onMouseEnter={() => setActive(i)} onClick={() => choose(r)}>
-                <span className="add-event-dot" style={{ background: r.cat === SNIPPETS ? "var(--accent)" : CATEGORY_COLOR[r.cat] }} />
+                <span className="add-event-dot" style={{ background: r.cat === SNIPPETS || r.cat === TEMPLATES ? "var(--accent)" : CATEGORY_COLOR[r.cat] }} />
                 <span className="add-event-label">{r.cat}</span>
                 <span className="add-event-count">{r.count}</span>
                 <span className="add-event-arrow">›</span>
@@ -205,6 +236,7 @@ export default function AddEventMenu({ anchor, onPick, onPickEvents, onClose }: 
         })}
       </div>
       {activeRow?.kind === "event" && <div className="add-event-desc">{activeRow.def.description}</div>}
+      {activeRow?.kind === "template" && <div className="add-event-desc">{activeRow.template.description}</div>}
     </div>,
     document.body,
   );
