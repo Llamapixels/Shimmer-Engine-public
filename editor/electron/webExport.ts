@@ -17,7 +17,10 @@ import path from "node:path";
 const WEB_FOLDER = "Web";
 
 function playerDir(): string {
-  return app.isPackaged ? path.join(process.resourcesPath, "web-player") : path.join(app.getAppPath(), "web-player");
+  // Unpackaged (npm run dev / start) the compiled code is in
+  // dist-electron/electron/, so the editor folder is two levels up -
+  // app.getAppPath() points at dist-electron/electron there, not the editor.
+  return app.isPackaged ? path.join(process.resourcesPath, "web-player") : path.join(__dirname, "..", "..", "web-player");
 }
 
 function escapeHtml(s: string): string {
