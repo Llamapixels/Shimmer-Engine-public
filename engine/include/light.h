@@ -24,5 +24,8 @@ void light_update(void);
 /* In VBlank: the registers, and the DMA for the next frame. */
 void light_vblank(void);
 int light_on(void);
+/* A screen rectangle the light leaves alone (a dialogue portrait), or
+ * none when w is 0. */
+void light_keep_rect(int x, int y, int w, int h);
 
 #endif

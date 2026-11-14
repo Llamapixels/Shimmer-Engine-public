@@ -30,7 +30,8 @@
 #define FRAME_TILE     1
 #define BOX_TILE       16
 #define LABEL_TILE     128
-#define LABEL_TILES    40     /* text tiles per screen-text slot */
+#define LABEL_POOL     320    /* text tiles all screen-text slots share (up to the map at block 23) */
+#define LABEL_MAX_LINES 18
 #define BOX_COLS       28
 #define SCREEN_ROWS    20
 
@@ -42,9 +43,10 @@ typedef struct
     uint16_t frames_left;   /* 0 = stays until cleared */
     const char *text;       /* what was drawn, and where it was asked for */
     uint8_t want_col, want_row;
+    uint16_t base;          /* first tile in the shared pool */
 } Label;
 static Label labels[UI_LABEL_MAX];
-static uint32_t label_canvas[UI_LABEL_MAX][LABEL_TILES][8] EWRAM_BSS;
+static uint32_t label_canvas[LABEL_POOL][8] EWRAM_BSS;
 static void labels_refresh(void);
 static void labels_reflush(void);
 static int labels_any(void);
@@ -509,24 +511,76 @@ void ui_box_flush(void)
 /* ------------------------------------------------------------------ */
 /* Screen text                                                          */
 
-/* Walk compiled text: returns the widest line in px (and the line count);
- * with `draw`, also draws it into slot's canvas, `cols` tiles a line. */
-static int label_text(const unsigned char *s, int slot, int cols, int draw, int *lines_out)
+/* Width in px of a variable's digits or a typed name (text codes). */
+static int code_width(unsigned char ch, int arg, int font)
 {
-    int font = cur_font, color = 0, x = 0, line = 0, widest = 0;
+    int w = 0;
+    if (ch == UI_CODE_NAME)
+    {
+        for (const char *nm = name_get(arg); *nm; nm++)
+            w += ui_char_width(font, (unsigned char)*nm);
+        return w;
+    }
+    int v = var_get(arg + UI_VAR_BASE(ch));
+    unsigned int u = v < 0 ? (unsigned int)-v : (unsigned int)v;
+    do { w += ui_char_width(font, (unsigned char)('0' + u % 10)); u /= 10; } while (u);
+    if (v < 0)
+        w += ui_char_width(font, '-');
+    return w;
+}
+
+/* Width in px of the word starting at s (up to a space, new line or end). */
+static int word_width(const unsigned char *s, int font)
+{
+    int w = 0;
+    for (; *s && *s != ' ' && *s != '\n'; s++)
+    {
+        unsigned char ch = *s;
+        if ((ch == UI_CODE_FONT || ch == UI_CODE_COLOR || ch == UI_CODE_SPEED || UI_IS_VAR_CODE(ch)) && s[1])
+        {
+            int arg = s[1] - 1;
+            s++;
+            if (ch == UI_CODE_FONT)
+            {
+                if (arg < ui_font_count)
+                    font = arg;
+            }
+            else if (ch != UI_CODE_COLOR && ch != UI_CODE_SPEED)
+                w += code_width(ch, arg, font);
+            continue;
+        }
+        if (ch >= 0x20)
+            w += ui_char_width(font, ch);
+    }
+    return w;
+}
+
+/* Walk compiled text, word-wrapped at maxw px: returns the widest line in
+ * px (and the line count); with `draw`, also draws it into the pool from
+ * tile `base`, `cols` tiles a line. */
+static int label_text(const unsigned char *s, int base, int cols, int maxw, int max_lines, int draw, int *lines_out)
+{
+    int font = cur_font, color = 0, x = 0, line = 0, widest = 0, word_start = 1;
+    uint32_t (*canvas)[8] = label_canvas + base;
     for (; *s; s++)
     {
         unsigned char ch = *s;
-        if (ch == '\n')
+        int wrap = 0;
+        if (ch != '\n' && ch != ' ' && word_start && x > 0 && x + word_width(s, font) > maxw)
+            wrap = 1;
+        if (ch == '\n' || wrap)
         {
             if (x > widest)
                 widest = x;
             x = 0;
-            if (line + 1 >= UI_MAX_LINES)
+            if (line + 1 >= max_lines)
                 break;
             line++;
-            continue;
+            word_start = 1;
+            if (ch == '\n')
+                continue;
         }
+        word_start = ch == ' ';
         if ((ch == UI_CODE_FONT || ch == UI_CODE_COLOR || ch == UI_CODE_SPEED ||
              UI_IS_VAR_CODE(ch)) && s[1])
         {
@@ -545,7 +599,7 @@ static int label_text(const unsigned char *s, int slot, int cols, int draw, int 
                 for (; *nm; nm++)
                 {
                     if (draw)
-                        draw_char(label_canvas[slot], cols, line, x, font, (unsigned char)*nm, color);
+                        draw_char(canvas, cols, line, x, font, (unsigned char)*nm, color);
                     x += ui_char_width(font, (unsigned char)*nm);
                 }
             }
@@ -561,7 +615,7 @@ static int label_text(const unsigned char *s, int slot, int cols, int draw, int 
                 while (n--)
                 {
                     if (draw)
-                        draw_char(label_canvas[slot], cols, line, x, font, (unsigned char)buf[n], color);
+                        draw_char(canvas, cols, line, x, font, (unsigned char)buf[n], color);
                     x += ui_char_width(font, (unsigned char)buf[n]);
                 }
             }
@@ -570,7 +624,7 @@ static int label_text(const unsigned char *s, int slot, int cols, int draw, int 
         if (ch < 0x20)
             continue;
         if (draw)
-            draw_char(label_canvas[slot], cols, line, x, font, ch, color);
+            draw_char(canvas, cols, line, x, font, ch, color);
         x += ui_char_width(font, ch);
     }
     if (x > widest)
@@ -617,7 +671,7 @@ static void label_put(int slot)
     }
     for (int ln = 0; ln < l->lines; ln++)
         for (int c = 0; c < l->cols; c++)
-            label_cell(top + e + ln, left + e + c, LABEL_TILE + slot * LABEL_TILES + ln * l->cols + c);
+            label_cell(top + e + ln, left + e + c, LABEL_TILE + l->base + ln * l->cols + c);
 }
 
 static void label_unput(int slot)
@@ -632,11 +686,12 @@ static void label_unput(int slot)
 /* Copy a label's canvas to its VRAM tiles. */
 static void label_flush(int slot)
 {
-    volatile uint32_t *dst = UI_TILES + (LABEL_TILE + slot * LABEL_TILES) * 8;
+    int base = labels[slot].base;
+    volatile uint32_t *dst = UI_TILES + (LABEL_TILE + base) * 8;
     int n = labels[slot].cols * labels[slot].lines;
     for (int t = 0; t < n; t++)
         for (int y = 0; y < 8; y++)
-            dst[t * 8 + y] = label_canvas[slot][t][y];
+            dst[t * 8 + y] = label_canvas[base + t][y];
 }
 
 static void labels_refresh(void)
@@ -661,6 +716,46 @@ static int labels_any(void)
     return 0;
 }
 
+/* The first run of `need` free pool tiles (other labels' tiles are taken);
+ * if none is that long, the longest run, with its length in *got. */
+static int pool_alloc(int slot, int need, int *got)
+{
+    int best = 0, best_len = 0, pos = 0;
+    while (pos < LABEL_POOL)
+    {
+        int taken_to = -1, next = LABEL_POOL;
+        for (int s = 0; s < UI_LABEL_MAX; s++)
+        {
+            const Label *l = &labels[s];
+            if (s == slot || !l->active)
+                continue;
+            int a = l->base, b = l->base + l->cols * l->lines;
+            if (a <= pos && pos < b && b > taken_to)
+                taken_to = b;
+            if (a > pos && a < next)
+                next = a;
+        }
+        if (taken_to >= 0)
+        {
+            pos = taken_to;
+            continue;
+        }
+        if (next - pos >= need)
+        {
+            *got = need;
+            return pos;
+        }
+        if (next - pos > best_len)
+        {
+            best_len = next - pos;
+            best = pos;
+        }
+        pos = next;
+    }
+    *got = best_len;
+    return best;
+}
+
 void ui_label_draw(int slot, int col, int row, const char *text, int framed, int frames)
 {
     if (slot < 0 || slot >= UI_LABEL_MAX || !text)
@@ -668,19 +763,32 @@ void ui_label_draw(int slot, int col, int row, const char *text, int framed, int
     if (labels[slot].active)
         ui_label_clear(slot);
 
-    int lines = 1;
-    int width = label_text((const unsigned char *)text, slot, 0, 0, &lines);
     int e = framed ? 1 : 0;
+    if (col < 0) col = 0;
+    if (row < 0) row = 0;
+    if (col > 29 - 2 * e) col = 29 - 2 * e;
+    /* Long text wraps to the room left on screen right of the column. */
+    int maxw = (30 - col - 2 * e) * 8;
+    int lines = 1;
+    int width = label_text((const unsigned char *)text, 0, 0, maxw, LABEL_MAX_LINES, 0, &lines);
     int cols = (width + 7) / 8;
     if (cols < 1)
         cols = 1;
-    if (cols * lines > LABEL_TILES)
-        cols = LABEL_TILES / lines;
-    if (cols > 30 - 2 * e)
-        cols = 30 - 2 * e;
-    if (col < 0) col = 0;
-    if (row < 0) row = 0;
-    if (col + cols + 2 * e > 30) col = 30 - cols - 2 * e;
+    if (cols > 30 - col - 2 * e)
+        cols = 30 - col - 2 * e;
+    if (lines > SCREEN_ROWS - 2 * e)
+        lines = SCREEN_ROWS - 2 * e;
+    int got = 0;
+    int base = pool_alloc(slot, cols * lines, &got);
+    if (got < cols * lines)
+    {
+        lines = got / cols;
+        if (lines < 1)
+        {
+            lines = 1;
+            cols = got > 0 ? got : 1;
+        }
+    }
     if (row + lines + 2 * e > SCREEN_ROWS) row = SCREEN_ROWS - lines - 2 * e;
 
     Label *l = &labels[slot];
@@ -692,14 +800,15 @@ void ui_label_draw(int slot, int col, int row, const char *text, int framed, int
     l->row = (uint8_t)row;
     l->cols = (uint8_t)cols;
     l->lines = (uint8_t)lines;
+    l->base = (uint16_t)base;
     l->frames_left = (uint16_t)(frames < 0 ? 0 : frames > 0xFFFF ? 0xFFFF : frames);
 
     static const uint32_t clear[8];
     const uint32_t *fill = e ? &ui_frames[cur_frame][4 * 8] : clear;
     for (int t = 0; t < cols * lines; t++)
         for (int y = 0; y < 8; y++)
-            label_canvas[slot][t][y] = fill[y];
-    label_text((const unsigned char *)text, slot, cols, 1, 0);
+            label_canvas[base + t][y] = fill[y];
+    label_text((const unsigned char *)text, base, cols, maxw, lines, 1, 0);
     label_flush(slot);
     l->active = 1;
     label_put(slot);

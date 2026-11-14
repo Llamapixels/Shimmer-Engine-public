@@ -100,6 +100,7 @@ void actor_play_once(int index);
  * running it (0 = none), and setting that thread. Paused also stops its
  * wandering (actor_set_update_paused). */
 int actor_update_thread(int index, const ScriptEvent **base);
+void actor_set_player_update(const ScriptEvent *base, int handle);
 void actor_set_update_thread(int index, int handle);
 void actor_set_update_paused(int index, int paused);
 

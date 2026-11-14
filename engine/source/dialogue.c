@@ -11,6 +11,8 @@
 #include "world.h"        /* speech bubbles over actors */
 #include "actor.h"
 #include "camera.h"
+#include "tint.h"         /* portraits stay untinted */
+#include "light.h"        /* ...and out of the light's darkness
 
 static void focus_start(void);
 static void focus_end(void);
@@ -423,7 +425,9 @@ static void focus_start(void)
     focus_next = 0;
     if (!f)
         return;
-    if ((f & DIALOGUE_FOCUS_DIM) && !transition_active() && REG_BLDCNT == 0)
+    /* Free unless another effect has the first targets (see-through
+     * actors only use the second ones). */
+    if ((f & DIALOGUE_FOCUS_DIM) && !transition_active() && (REG_BLDCNT & 0xFF) == 0)
     {
         REG_BLDCNT = FOCUS_BLEND;
         REG_BLDY = FOCUS_LEVEL;
@@ -443,7 +447,7 @@ static void focus_start(void)
 static void focus_end(void)
 {
     /* Undo only what's still ours (a fade may have taken the blend). */
-    if ((focus_on & DIALOGUE_FOCUS_DIM) && REG_BLDCNT == FOCUS_BLEND && !transition_active())
+    if ((focus_on & DIALOGUE_FOCUS_DIM) && (REG_BLDCNT & 0xFF) == FOCUS_BLEND && !transition_active())
     {
         REG_BLDCNT = 0;
         REG_BLDY = 0;
@@ -513,6 +517,8 @@ static void portrait_hide(void)
         return;
     portrait_on = 0;
     sprite_hide(&portrait);
+    tint_keep_portrait_bank(0);
+    light_keep_rect(0, 0, 0, 0);
     sprite_load_palette(PORTRAIT_BANK, portrait_saved_pal);
 }
 
@@ -526,13 +532,19 @@ static void portrait_show(void)
     const SpriteDef *d = &sprite_defs[next_portrait];
     if (!portrait_on)
         sprite_save_palette(PORTRAIT_BANK, portrait_saved_pal);
+    tint_keep_portrait_bank(1);   /* part of the text box: no tint */
     sprite_load_palette(PORTRAIT_BANK, d->palette);
     sprite_init_portrait(&portrait, d->frames, d->frame_count, d->max_objs, d->max_vram_tiles, PORTRAIT_BANK);
     sprite_show_frame(&portrait, fi);
     int tx, ty;
     ui_box_text_origin(&tx, &ty);
     sprite_set_position(&portrait, tx - x0, ty - y0);
+    /* Semi-transparent OBJs skip darkening (dialogue dim), and with no
+     * blend partner they draw as they are - unless see-through actors set
+     * one, then it stays a plain OBJ. */
+    portrait.see_through = world_any_see_through() ? 0 : 1;
     sprite_update(&portrait);
+    light_keep_rect(tx, ty, w, h);
     portrait_on = 1;
 }
 

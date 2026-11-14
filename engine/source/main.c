@@ -127,6 +127,9 @@ static int           scene_sprite_marked = 0;
 static uint8_t npc_touching[NPC_MAX];
 static uint8_t npc_dormant[NPC_MAX];   /* spawn_pool copy not spawned yet */
 static uint8_t npc_thread[NPC_MAX];    /* thread its On Update runs in */
+/* The player's On Update (scene Player tab): a thread the scene starts. */
+static const ScriptEvent *player_update_base;
+static uint8_t player_update_thread;
 static uint8_t npc_update_paused[NPC_MAX];   /* "Actor On Update" paused / stopped: no wandering */
 /* "Knock Back Actor": speed at the start (1/256 px a frame), frames left
  * / in all, and the 1/256 px carried over between frames. */
@@ -206,6 +209,8 @@ static void reset_npc_collision(Entity *e, const NpcDef *def)
 /* Rebuild scene entities and load their sprite palettes. */
 static void scene_entities_load(const SceneDef *scene)
 {
+    player_update_base = 0;   /* this scene's On Init sets its own */
+    player_update_thread = 0;
     /* Tear down the previous scene's NPCs. */
     for (int i = 0; i < npc_count_active; i++)
     {
@@ -752,7 +757,7 @@ void actor_set_transparent(int index, int on, int opacity)
         obj_opacity = opacity;
 }
 
-static int any_see_through(void)
+int world_any_see_through(void)
 {
     if (g_player && g_player->sprite.see_through)
         return 1;
@@ -767,8 +772,22 @@ static int any_see_through(void)
 static uint16_t blend_written;
 static void blend_update(void)
 {
-    if (REG_BLDCNT != 0 && REG_BLDCNT != blend_written)
-        return;   /* another effect has them */
+    uint16_t cur = REG_BLDCNT;
+    if (cur != 0 && cur != blend_written)
+    {
+        /* Another effect has them (a light, dialogue dim, a fade). In its
+         * darken / brighten modes see-through OBJs can still blend: they
+         * always alpha-blend with the second targets, so add those. */
+        if (((cur >> 6) & 3) >= 2)
+        {
+            uint16_t want = world_any_see_through() ? (uint16_t)(cur | (0x3F << 8)) : (uint16_t)(cur & 0xFF);
+            if (want != cur)
+                REG_BLDCNT = want;
+            if (want & 0x3F00)
+                REG_BLDALPHA = (uint16_t)(obj_opacity | ((16 - obj_opacity) << 8));
+        }
+        return;
+    }
     int hud = 0;
     if (ui_hud_see_through && g_player && g_player->sprite.visible && !dialogue_active())
     {
@@ -781,7 +800,7 @@ static void blend_update(void)
         cnt = (1 << 1) | (1 << 6) | (0x3D << 8);   /* BG1 over everything else */
         alpha = 6 | (10 << 8);
     }
-    else if (any_see_through())
+    else if (world_any_see_through())
     {
         cnt = 0x3F << 8;                           /* see-through OBJs blend with all layers */
         alpha = (uint16_t)(obj_opacity | ((16 - obj_opacity) << 8));
@@ -817,9 +836,20 @@ static void npc_knockback_update(int i)
         e->y += my;
 }
 
+void actor_set_player_update(const ScriptEvent *base, int handle)
+{
+    player_update_base = base;
+    player_update_thread = (uint8_t)handle;
+}
+
 int actor_update_thread(int index, const ScriptEvent **base)
 {
     *base = 0;
+    if (index == -2)
+    {
+        *base = player_update_base;
+        return player_update_thread;
+    }
     if (index < 0 || index >= npc_count_active || !npc_entities[index])
         return 0;
     *base = npc_defs[index]->on_update;
@@ -828,7 +858,9 @@ int actor_update_thread(int index, const ScriptEvent **base)
 
 void actor_set_update_thread(int index, int handle)
 {
-    if (index >= 0 && index < npc_count_active)
+    if (index == -2)
+        player_update_thread = (uint8_t)handle;
+    else if (index >= 0 && index < npc_count_active)
         npc_thread[index] = (uint8_t)handle;
 }
 

@@ -11,6 +11,8 @@
  */
 int world_npc_count(void);
 Entity *world_player(void);
+/* Is the player or any actor see-through (Set Actor Transparency)? */
+int world_any_see_through(void);
 Entity *world_npc(int index);
 const NpcDef *world_npc_def(int index);
 

@@ -1078,6 +1078,8 @@ static void thread_step(ScriptThread *t, int is_main)
             int handle = script_thread_start((const ScriptEvent *)ev->ptr);
             if (ev->a >= 0)
                 var_set(ev->a, (int16_t)handle);
+            else if (ev->a == -2)   /* the player's On Update */
+                actor_set_player_update((const ScriptEvent *)ev->ptr, handle);
             break;
         }
 

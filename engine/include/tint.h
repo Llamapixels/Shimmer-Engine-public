@@ -29,6 +29,9 @@ void tint_cycle(uint32_t day_frames);
 /* The cycle's hour, 0-23 (12 = noon), or 12 with no cycle running. */
 int tint_hour(void);
 
+/* Keep OBJ palette bank 15 untinted (a dialogue portrait borrows it). */
+void tint_keep_portrait_bank(int on);
+
 /* Once a frame: fades and the cycle; rewrites the palettes on a change. */
 void tint_update(void);
 

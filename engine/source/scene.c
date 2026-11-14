@@ -16,7 +16,8 @@ void scene_load(const SceneDef *scene)
      * black for the load.
      */
     uint16_t bldcnt = REG_BLDCNT;
-    if (bldcnt == 0)
+    int cover = (bldcnt & 0xFF) == 0;   /* see-through actors only set second targets */
+    if (cover)
     {
         REG_BLDCNT = 0x3F | (3 << 6);   /* all layers + backdrop, darken */
         REG_BLDY = 16;
@@ -74,7 +75,7 @@ void scene_load(const SceneDef *scene)
 
     current_scene = scene;
 
-    if (bldcnt == 0)
+    if (cover)
     {
         REG_BLDCNT = 0;
         REG_BLDY = 0;

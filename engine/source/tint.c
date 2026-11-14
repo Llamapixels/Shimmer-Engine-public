@@ -29,9 +29,18 @@ static uint16_t tinted(uint16_t c)
     return (uint16_t)(r | (g << 5) | (b << 10));
 }
 
+static int keep_portrait;   /* OBJ bank 15 while a portrait shows */
+
 static int untinted(int index)
 {
-    return index >> 4 == UI_BANK;   /* BG bank 15 */
+    return index >> 4 == UI_BANK || (keep_portrait && index >> 4 == 16 + 15);   /* BG bank 15, OBJ bank 15 */
+}
+
+void tint_keep_portrait_bank(int on)
+{
+    keep_portrait = on;
+    for (int i = 256 + 15 * 16; i < 512; i++)
+        PAL_RAM[i] = untinted(i) ? base[i] : tinted(base[i]);
 }
 
 void tint_write_color(int index, uint16_t color)

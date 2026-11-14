@@ -1210,7 +1210,7 @@ def compile_tile_animations(anims, bg, scene_file, scene_name):
         speed = resolve_small_int(a.get("speed", 8), "speed", where, 1, 255)
         if x + tw > w or y + th > h:
             raise BuildError(f"{where}: the area goes past the edge of the map.")
-        path = scene_file.parent / a["image"]
+        path = scenes_root(scene_file) / a["image"]
         if not path.exists():
             raise BuildError(f"{where}: image not found: {a['image']}")
         img = Image.open(path).convert("RGBA")
@@ -2980,6 +2980,8 @@ def compile_parity_event(etype, ev, out, ctx, where):
     elif etype == "thread_start":
         handle_var = ev.get("var")
         a = resolve_var(handle_var, ctx, where) if handle_var else -1
+        if ev.get("_player_update"):
+            a = -2   # the engine keeps it as the player's On Update thread
         ptr = compile_subscript(ev.get("script", []), ctx, where)
         out.append(_instr("SCRIPT_THREAD_START", a=a, ptr=ptr))
 
@@ -3394,7 +3396,7 @@ def compile_parity_event(etype, ev, out, ctx, where):
     elif etype == "actor_update":
         idx = resolve_actor(_require(ev, "actor", where), ctx, where)
         if idx == PLAYER_ACTOR_INDEX:
-            raise BuildError(f"{where}: the player has no actor On Update (use the scene's Player tab).")
+            idx = -2   # the scene's Player tab On Update
         action = str(ev.get("action", "pause"))
         actions = ["start", "pause", "resume", "stop"]
         if action not in actions:
@@ -3691,7 +3693,8 @@ def player_init_events(player, where):
     events += _script_list(player.get("on_init") or [], f"{where} \"on_init\"")
     if player.get("on_update"):
         body = _script_list(player["on_update"], f"{where} \"on_update\"") + [{"type": "wait", "frames": 1}]
-        events.append({"type": "thread_start", "script": [{"type": "loop", "body": body}]})
+        # Registered as the player's On Update, for Control Actor On Update.
+        events.append({"type": "thread_start", "script": [{"type": "loop", "body": body}], "_player_update": True})
     return events
 
 

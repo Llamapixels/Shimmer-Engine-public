@@ -37,6 +37,9 @@ static int isqrt(int v)
     return r;
 }
 
+static int keep_x, keep_y, keep_w, keep_h;   /* light_keep_rect() */
+static int keep_shown;
+
 static void stop_dma(void)
 {
     REG_DMA0CNT = 0;
@@ -51,7 +54,24 @@ void light_reset(void)
         REG_BLDCNT = 0;
         REG_BLDY = 0;
     }
+    if (keep_shown)
+        REG_DISPCNT &= ~(1 << 14);   /* window 1 */
+    keep_shown = 0;
+    keep_w = 0;
     on = 0;
+}
+
+void light_keep_rect(int x, int y, int w, int h)
+{
+    keep_x = x;
+    keep_y = y;
+    keep_w = w > 0 && h > 0 ? w : 0;
+    keep_h = h;
+    if (!keep_w && keep_shown)
+    {
+        REG_DISPCNT &= ~(1 << 14);
+        keep_shown = 0;
+    }
 }
 
 int light_on(void)
@@ -154,9 +174,25 @@ void light_vblank(void)
     REG_WIN0V = LINES;   /* lines 0-159 */
     REG_WININ = (uint16_t)((REG_WININ & 0xFF00) | 0x1F);
     REG_WINOUT = (uint16_t)((REG_WINOUT & 0xFF00) | outside);
-    REG_BLDCNT = (uint16_t)(targets | (3 << 6));   /* darken */
+    /* Darken; keep second targets a see-through actor added (main.c). */
+    REG_BLDCNT = (uint16_t)(targets | (3 << 6) | (REG_BLDCNT & 0x3F00));
     REG_BLDY = (uint16_t)darkness;
     REG_DISPCNT |= WIN0_ON;
+    /* Window 1 over a portrait: every layer, no darkening. (The text box's
+     * open / close animation uses window 1 too; a portrait shows after.) */
+    if (keep_w)
+    {
+        int x1 = keep_x < 0 ? 0 : keep_x, y1 = keep_y < 0 ? 0 : keep_y;
+        int x2 = keep_x + keep_w > 240 ? 240 : keep_x + keep_w, y2 = keep_y + keep_h > 160 ? 160 : keep_y + keep_h;
+        if (x2 > x1 && y2 > y1)
+        {
+            REG_WIN1H = (uint16_t)((x1 << 8) | x2);
+            REG_WIN1V = (uint16_t)((y1 << 8) | y2);
+            REG_WININ = (uint16_t)((REG_WININ & 0x00FF) | (0x1F << 8));
+            REG_DISPCNT |= 1 << 14;
+            keep_shown = 1;
+        }
+    }
 
     /* Line 0 now; lines 1-159 at each H-Blank. */
     REG_WIN0H = t[0];
