@@ -24,6 +24,20 @@ int collision_slope_height(int tile, int xi)
     }
 }
 
+int collision_ceiling_height(int tile, int xi)
+{
+    switch (tile)
+    {
+    case COLLISION_CEIL_R:    return xi + 1;
+    case COLLISION_CEIL_L:    return 8 - xi;
+    case COLLISION_CEIL_R_LO: return (xi + 2) >> 1;
+    case COLLISION_CEIL_R_HI: return 4 + ((xi + 2) >> 1);
+    case COLLISION_CEIL_L_HI: return 4 + ((9 - xi) >> 1);
+    case COLLISION_CEIL_L_LO: return (9 - xi) >> 1;
+    default:                  return -1;
+    }
+}
+
 void collision_set_slopes_soft(int on)
 {
     slopes_soft = on;
@@ -48,8 +62,11 @@ int collision_near_slope(int x, int y, int w, int h)
     if (y0 < 0) y0 = 0;
     for (int ty = y0 >> 3; ty <= y1 >> 3; ty++)
         for (int tx = x0 >> 3; tx <= x1 >> 3; tx++)
-            if (collision_slope_height(collision_get_tile(tx, ty), 0) >= 0)
+        {
+            int c = collision_get_tile(tx, ty);
+            if (collision_slope_height(c, 0) >= 0 || collision_ceiling_height(c, 0) >= 0)
                 return 1;
+        }
     return 0;
 }
 
@@ -112,6 +129,10 @@ int collision_test_point(
     int h = collision_slope_height(c, x & 7);
     if (h >= 0)
         return !slopes_soft && (y & 7) >= 8 - h;
+    /* A ceiling slope's upper triangle: always solid. */
+    h = collision_ceiling_height(c, x & 7);
+    if (h >= 0)
+        return (y & 7) < h;
 
     /* Water blocks walking too, until there's swimming/surfing. */
     return c == COLLISION_SOLID ||

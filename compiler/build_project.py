@@ -638,11 +638,20 @@ COLLISION_CHARS = {
     "2": 14,   # ... high half
     "3": 15,   # gentle slope rising left, high half
     "4": 16,   # ... low half
+    "r": 17,   # ceiling slope, top-right solid (45 degrees)
+    "l": 18,   # ceiling slope, top-left solid
+    "5": 19,   # gentle ceiling slope, top-right, thin half
+    "6": 20,   # ... thick half
+    "7": 21,   # gentle ceiling slope, top-left, thick half
+    "8": 22,   # ... thin half
 }
 COLLISION_NAMES = {0: "walkable", 1: "solid", 2: "water", 3: "damage",
                    4: "top", 5: "bottom", 6: "left", 7: "right", 8: "ladder", 9: "stairs /", 10: "stairs \\",
                    11: "slope /", 12: "slope \\", 13: "gentle slope / low", 14: "gentle slope / high",
-                   15: "gentle slope \\ high", 16: "gentle slope \\ low"}
+                   15: "gentle slope \\ high", 16: "gentle slope \\ low",
+                   17: "ceiling slope top-right", 18: "ceiling slope top-left", 19: "gentle ceiling top-right thin",
+                   20: "gentle ceiling top-right thick", 21: "gentle ceiling top-left thick",
+                   22: "gentle ceiling top-left thin"}
 
 # Direction name -> engine constant
 DIRECTION_MAP = {

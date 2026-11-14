@@ -84,6 +84,8 @@ const COLLISION_TYPES: {
   stairs?: "right" | "left";
   /** Slopes: solid height (of 8) at the tile's left and right edge. */
   slope?: [number, number];
+  /** Ceiling slopes: solid depth (of 8) from the top at the left and right edge. */
+  ceiling?: [number, number];
 }[] = [
   { id: "#", label: "Solid", color: "rgba(255, 64, 64, 0.5)" },
   { id: "^", label: "Top", color: "rgba(255, 210, 0, 0.45)", edge: "top" },
@@ -101,6 +103,12 @@ const COLLISION_TYPES: {
   { id: "2", label: "Gentle / high", color: "rgba(255, 64, 64, 0.5)", slope: [4, 8] },
   { id: "3", label: "Gentle \\ high", color: "rgba(255, 64, 64, 0.5)", slope: [8, 4] },
   { id: "4", label: "Gentle \\ low", color: "rgba(255, 64, 64, 0.5)", slope: [4, 0] },
+  { id: "l", label: "Ceiling slope ◤", color: "rgba(255, 64, 64, 0.5)", ceiling: [8, 0] },
+  { id: "r", label: "Ceiling slope ◥", color: "rgba(255, 64, 64, 0.5)", ceiling: [0, 8] },
+  { id: "7", label: "Gentle ceiling ◤ thick", color: "rgba(255, 64, 64, 0.5)", ceiling: [8, 4] },
+  { id: "8", label: "Gentle ceiling ◤ thin", color: "rgba(255, 64, 64, 0.5)", ceiling: [4, 0] },
+  { id: "5", label: "Gentle ceiling ◥ thin", color: "rgba(255, 64, 64, 0.5)", ceiling: [0, 4] },
+  { id: "6", label: "Gentle ceiling ◥ thick", color: "rgba(255, 64, 64, 0.5)", ceiling: [4, 8] },
 ];
 const COLLISION_BY_CHAR = new Map(COLLISION_TYPES.map((c) => [c.id as string, c]));
 
@@ -466,6 +474,16 @@ export default function SceneCanvas() {
             ctx.lineTo(tx * S + S, ty * S + S);
             ctx.lineTo(tx * S + S, ty * S + S - (hr * S) / 8);
             ctx.lineTo(tx * S, ty * S + S - (hl * S) / 8);
+            ctx.closePath();
+            ctx.fill();
+          } else if (c.ceiling) {
+            // Only the solid part above the ceiling slope.
+            const [dl, dr] = c.ceiling;
+            ctx.beginPath();
+            ctx.moveTo(tx * S, ty * S);
+            ctx.lineTo(tx * S + S, ty * S);
+            ctx.lineTo(tx * S + S, ty * S + (dr * S) / 8);
+            ctx.lineTo(tx * S, ty * S + (dl * S) / 8);
             ctx.closePath();
             ctx.fill();
           } else ctx.fillRect(tx * S, ty * S, S, S);
@@ -1698,11 +1716,24 @@ export default function SceneCanvas() {
                         ? `Stairs rising to the ${c.stairs} (platformer: Up at the bottom or Down at the top to walk them)`
                         : c.slope
                           ? `${c.label}: solid under the slope. Platformers walk up and down it; in Top Down it's a diagonal wall to slide along.${c.slope[0] % 8 && c.slope[1] % 8 ? "" : c.slope[0] === 4 || c.slope[1] === 4 ? " Gentle slopes take two tiles: low then high." : ""}`
-                          : c.label
+                          : c.ceiling
+                            ? `${c.label}: solid above the slope - in Top Down a diagonal wall (the other way round) to slide along, in platformers a sloped ceiling.${c.ceiling[0] === 4 || c.ceiling[1] === 4 ? " Gentle ones take two tiles: thick then thin." : ""}`
+                            : c.label
                   }
                   data-testid={`collision-${c.label.toLowerCase()}`}
                 >
-                  <span className={`scene-canvas-swatch${c.edge ? ` swatch-edge-${c.edge}` : ""}`} style={{ background: c.color }} />
+                  <span
+                    className={`scene-canvas-swatch${c.edge ? ` swatch-edge-${c.edge}` : ""}`}
+                    style={{
+                      background: c.color,
+                      // Slopes show their shape.
+                      ...(c.slope
+                        ? { clipPath: `polygon(0 100%, 100% 100%, 100% ${100 - (c.slope[1] / 8) * 100}%, 0 ${100 - (c.slope[0] / 8) * 100}%)` }
+                        : c.ceiling
+                          ? { clipPath: `polygon(0 0, 100% 0, 100% ${(c.ceiling[1] / 8) * 100}%, 0 ${(c.ceiling[0] / 8) * 100}%)` }
+                          : {}),
+                    }}
+                  />
                   {c.label}
                 </button>
               ))}

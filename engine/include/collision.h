@@ -31,6 +31,18 @@
 #define COLLISION_SLOPE_R_HI  14
 #define COLLISION_SLOPE_L_HI  15
 #define COLLISION_SLOPE_L_LO  16
+/* Ceiling slopes: the upper triangle is solid (Top Down diagonal walls
+ * the other way round; in platformers a sloped ceiling). */
+#define COLLISION_CEIL_R      17   /* top-right solid */
+#define COLLISION_CEIL_L      18   /* top-left solid */
+#define COLLISION_CEIL_R_LO   19   /* gentle, top-right, thin half */
+#define COLLISION_CEIL_R_HI   20   /* ... thick half */
+#define COLLISION_CEIL_L_HI   21   /* gentle, top-left, thick half */
+#define COLLISION_CEIL_L_LO   22   /* ... thin half */
+
+/* A ceiling slope's solid depth (1-8 px from its top) at column 0-7, or
+ * -1 if `tile` isn't one. */
+int collision_ceiling_height(int tile, int x_in_tile);
 
 /* A slope tile's solid height (1-8 px from its bottom) at column 0-7 of
  * the tile, or -1 if `tile` isn't a slope. */
