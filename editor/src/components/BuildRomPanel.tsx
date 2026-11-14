@@ -82,7 +82,7 @@ export default function BuildRomPanel() {
                   {entry.line}
                 </pre>
               ) : (
-                <div key={i} className={`build-panel-line build-panel-line-${entry.stream}`}>
+                <div key={i} className={`build-panel-line build-panel-line-${entry.stream}${lineLevel(entry.line, entry.stream)}`}>
                   {entry.line}
                 </div>
               ),
@@ -138,6 +138,18 @@ export default function BuildRomPanel() {
       </div>
     </div>
   );
+}
+
+/** How serious a log line is, by what it says: red for errors (the build
+ * stops), orange for warnings (worth a look, it still builds), yellow for
+ * minor notes (looks a little off, plays fine). Plain stderr chatter that
+ * isn't any of these isn't shown as an error. */
+function lineLevel(line: string, stream: string): string {
+  const t = line.trim();
+  if (/^(error|fatal)\b|\berror:|^traceback|build failed|\*\*\*|^ERROR/i.test(t)) return " build-level-error";
+  if (/\bwarning\b|^WARNING/i.test(t)) return " build-level-warning";
+  if (/^note:|\bnote:|\bhint:|colou?rs?\b.*\b(over|more than|too many)|drawn solid/i.test(t)) return " build-level-minor";
+  return stream === "stderr" ? " build-level-plain" : "";
 }
 
 /** Export for Web: the ROM plus a browser emulator in the project's Web

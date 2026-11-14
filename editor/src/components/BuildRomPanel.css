@@ -156,3 +156,36 @@
   overflow-x: auto;
   color: var(--accent-hover);
 }
+
+/* Log lines by how serious they are. */
+.build-panel-line.build-level-error {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+.build-panel-line.build-level-warning {
+  color: #ffa04d;
+}
+.build-panel-line.build-level-minor {
+  color: #e8c547;
+}
+.build-panel-line.build-level-plain {
+  color: var(--text-secondary);
+}
+:root[data-theme="light"] .build-panel-line.build-level-error,
+:root[data-theme="sepia"] .build-panel-line.build-level-error,
+:root[data-theme="gameboy"] .build-panel-line.build-level-error,
+:root[data-theme="lemons"] .build-panel-line.build-level-error {
+  color: #b3261e;
+}
+:root[data-theme="light"] .build-panel-line.build-level-warning,
+:root[data-theme="sepia"] .build-panel-line.build-level-warning,
+:root[data-theme="gameboy"] .build-panel-line.build-level-warning,
+:root[data-theme="lemons"] .build-panel-line.build-level-warning {
+  color: #b35a00;
+}
+:root[data-theme="light"] .build-panel-line.build-level-minor,
+:root[data-theme="sepia"] .build-panel-line.build-level-minor,
+:root[data-theme="gameboy"] .build-panel-line.build-level-minor,
+:root[data-theme="lemons"] .build-panel-line.build-level-minor {
+  color: #8a6d00;
+}
