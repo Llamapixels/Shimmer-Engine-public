@@ -1,4 +1,7 @@
 import { useProjectStore } from "../../state/projectStore";
+import SearchSelect from "./SearchSelect";
+import { SpriteThumb } from "../sprites/SpriteNavigator";
+import { useSpriteImage } from "../../sprites/image";
 import { useAssetUrl, useImageStats } from "../views/assetImages";
 import { SCENE_MAX_TILES } from "../sceneColor";
 
@@ -78,22 +81,31 @@ interface NameProps {
   onChange: (name: string | undefined) => void;
 }
 
+/** A sprite's little picture (its idle frame facing down) for pickers. */
+export function SpriteOptionThumb({ name, size = 20 }: { name: string; size?: number }) {
+  const assets = useProjectStore((s) => s.assets);
+  const rootPath = useProjectStore((s) => s.project?.rootPath);
+  const asset = (assets?.sprites ?? []).find((a) => a.name === name) ?? null;
+  const url = useAssetUrl(rootPath, asset);
+  const img = useSpriteImage(url);
+  return <SpriteThumb img={img} name={name} size={size} />;
+}
+
 export function SpriteSelect({ value, onChange }: NameProps) {
   const assets = useProjectStore((s) => s.assets);
   const setSection = useProjectStore((s) => s.setSection);
   const cur = value ?? "player";
   const names = ["player", ...(assets?.sprites ?? []).map((a) => a.name)];
-  const known = names.includes(cur);
   return (
     <div className="asset-select">
-      <select className={!known ? "select-invalid" : undefined} value={cur} onChange={(e) => onChange(e.target.value)}>
-        {!known && <option value={cur}>{cur} (no assets/sprites/{cur}.png)</option>}
-        {names.map((n) => (
-          <option key={n} value={n}>
-            {n === "player" ? "player (built-in)" : n}
-          </option>
-        ))}
-      </select>
+      <SearchSelect
+        value={cur}
+        options={names.map((n) => ({ value: n, label: n === "player" ? "player (built-in)" : n }))}
+        onChange={(v) => onChange(v)}
+        missingLabel={`${cur} (no assets/sprites/${cur}.png)`}
+        renderIcon={(o) => <SpriteOptionThumb name={o.value} />}
+        placeholder="Search sprites…"
+      />
       <button className="btn btn-small" onClick={() => setSection("sprites")}>
         Browse…
       </button>

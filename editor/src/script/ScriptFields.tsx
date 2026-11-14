@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import EngineValueInput from "../engine/EngineValueInput";
 import { ENGINE_MODES, ENGINE_SETTINGS, type EngineValue, SETTING_BY_KEY } from "../engine/engineSettings";
-import { SpriteSelect } from "../components/common/AssetSelect";
+import { SpriteOptionThumb, SpriteSelect } from "../components/common/AssetSelect";
+import SearchSelect from "../components/common/SearchSelect";
 import type {
   ActorRelation,
   ArrayVarMathOp,
@@ -318,24 +319,25 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           label: n.name ? `${n.name}  (#${i})` : `NPC #${i} (unnamed, ${n.sprite ?? "player"})`,
         });
       });
-      const found = choices.some((c) => encode(c.value) === encode(value));
+      // Each NPC's sprite, for the picture beside it and for searching.
+      const spriteOf = (v: string | number): string | undefined => {
+        if (v === "player") return env.scene.player_sprite || useProjectStore.getState().project?.project.playerSprite || "player";
+        const n = typeof v === "number" ? npcs[v] : npcs.find((x) => x.name === v);
+        return n ? (n.sprite ?? "player") : undefined;
+      };
       return (
-        <div className="script-field-combo"><select
-          className={!found ? "select-invalid" : undefined}
+        <div className="script-field-combo">
+        <SearchSelect
           value={encode(value)}
-          onChange={(e) => patch({ [field.key]: JSON.parse(e.target.value) })}
-        >
-          {!found && (
-            <option value={encode(value)}>
-              {value === "self" ? "Self (only works in an NPC's script!)" : `${String(value)} (not in this scene!)`}
-            </option>
-          )}
-          {choices.map((c) => (
-            <option key={encode(c.value)} value={encode(c.value)}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+          options={choices.map((c) => ({ value: encode(c.value), label: c.label, keywords: spriteOf(c.value) }))}
+          onChange={(v) => patch({ [field.key]: JSON.parse(v) })}
+          missingLabel={value === "self" ? "Self (only works in an NPC's script!)" : `${String(value)} (not in this scene!)`}
+          renderIcon={(o) => {
+            const sp = spriteOf(JSON.parse(o.value));
+            return sp ? <SpriteOptionThumb name={sp} /> : null;
+          }}
+          placeholder="Search actors…"
+        />
         {env.addActorInput && <button className="btn btn-small" onClick={() => {
           const input = env.addActorInput?.();
           if (input) patch({ [field.key]: input });
@@ -862,14 +864,21 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       const cur = String(value ?? "");
       const current = numeric ? value : !cur || cur.toLowerCase() === "default" ? "" : cur;
       const found = numeric || !current || names.includes(String(current));
-      return <select className={!found ? "select-invalid" : undefined}
-        title="Named states use the actor's current sprite sheet, including sprite changes. A state absent from that sheet leaves the animation unchanged."
-        value={JSON.stringify(current)} onChange={(e) => patch({ [field.key]: JSON.parse(e.target.value) })}>
-        <option value={JSON.stringify("")}>Default</option>
-        {numeric && <option value={JSON.stringify(value)}>State index {value as number} (legacy)</option>}
-        {!found && <option value={JSON.stringify(cur)}>{cur} (not in project)</option>}
-        {names.map((name) => <option key={name} value={JSON.stringify(name)}>{name}</option>)}
-      </select>;
+      const opts = [
+        { value: JSON.stringify(""), label: "Default" },
+        ...(numeric ? [{ value: JSON.stringify(value), label: `State index ${value as number} (legacy)` }] : []),
+        ...names.map((name) => ({ value: JSON.stringify(name), label: name })),
+      ];
+      return (
+        <SearchSelect
+          value={JSON.stringify(current)}
+          options={opts}
+          onChange={(v) => patch({ [field.key]: JSON.parse(v) })}
+          missingLabel={found ? undefined : `${cur} (not in project)`}
+          title="Named states use the actor's current sprite sheet, including sprite changes. A state absent from that sheet leaves the animation unchanged."
+          placeholder="Search states…"
+        />
+      );
     }
 
     case "cutscene": {

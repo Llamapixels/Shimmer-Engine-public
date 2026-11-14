@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import CommitInput from "../components/common/CommitInput";
+import SearchSelect from "../components/common/SearchSelect";
 import NumberInput from "../components/common/NumberInput";
 import { playerSpriteName } from "../sprites/model";
 import { useProjectStore } from "../state/projectStore";
@@ -69,29 +70,21 @@ function StateSelect({ anim, value, onChange }: { anim: string; value: string; o
     const sheet = project?.spriteSheets?.find((s) => s.name === sprite);
     return { sprite, names: (sheet?.states ?? [{ name: "" }]).map((st) => st.name || "Default") };
   });
-  const all = groups.flatMap((g) => g.names);
+  const options = [
+    { value: "", label: `Auto (${anim})` },
+    ...groups.flatMap((g) => g.names.map((n) => ({ value: n, label: n, group: groups.length > 1 ? g.sprite : undefined }))),
+  ];
+  // Matched by name, any case: show the listed spelling as current.
+  const shown = options.find((o) => o.value.toLowerCase() === value.toLowerCase())?.value ?? value;
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} title="States of every sprite the player can be (matched by name)">
-      <option value="">Auto ({anim})</option>
-      {value && !all.some((n) => n.toLowerCase() === value.toLowerCase()) && <option value={value}>{value} (missing)</option>}
-      {groups.map((g) =>
-        groups.length === 1 ? (
-          g.names.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))
-        ) : (
-          <optgroup key={g.sprite} label={g.sprite}>
-            {g.names.map((n) => (
-              <option key={`${g.sprite}/${n}`} value={n}>
-                {n}
-              </option>
-            ))}
-          </optgroup>
-        ),
-      )}
-    </select>
+    <SearchSelect
+      value={shown}
+      options={options}
+      onChange={(v) => onChange(v)}
+      missingLabel={`${value} (missing)`}
+      title="States of every sprite the player can be (matched by name)"
+      placeholder="Search states…"
+    />
   );
 }
 
