@@ -294,6 +294,32 @@ const SceneCard = memo(function SceneCard({
   );
 });
 
+/** The world map's zoom and scroll, per project: kept when you go to the
+ * scene view and back (and across restarts). */
+type WorldView = { zoom: number; pan: { x: number; y: number } };
+const viewCache = new Map<string, WorldView>();
+function loadView(root: string | undefined): WorldView | null {
+  if (!root) return null;
+  const hit = viewCache.get(root);
+  if (hit) return hit;
+  try {
+    const v = JSON.parse(localStorage.getItem(`worldmap.view:${root}`) ?? "null") as WorldView | null;
+    if (v && typeof v.zoom === "number" && v.pan && typeof v.pan.x === "number") return v;
+  } catch {
+    /* none saved */
+  }
+  return null;
+}
+function saveView(root: string | undefined, v: WorldView) {
+  if (!root) return;
+  viewCache.set(root, v);
+  try {
+    localStorage.setItem(`worldmap.view:${root}`, JSON.stringify(v));
+  } catch {
+    /* not saved */
+  }
+}
+
 function readPref(key: string, fallback: boolean): boolean {
   try {
     const v = localStorage.getItem(key);
@@ -330,8 +356,13 @@ export default function WorldMap() {
     return () => window.removeEventListener("keydown", cancel);
   }, [tool, setPlacingPrefab]);
 
-  const [zoom, setZoom] = useState(0.5);
-  const [pan, setPan] = useState({ x: 40, y: 40 });
+  const savedView = useMemo(() => loadView(project?.rootPath), [project?.rootPath]);
+  const [zoom, setZoom] = useState(savedView?.zoom ?? 0.5);
+  const [pan, setPan] = useState(savedView?.pan ?? { x: 40, y: 40 });
+  // Remember where the map was, for coming back from the scene view.
+  useEffect(() => {
+    saveView(project?.rootPath, { zoom, pan });
+  }, [project?.rootPath, zoom, pan]);
   const [showLinks, setShowLinks] = useState(() => readPref("worldmap.links", true));
   const [drag, setDrag] = useState<
     | { kind: "pan"; sx: number; sy: number; px: number; py: number }
@@ -488,6 +519,13 @@ export default function WorldMap() {
     }
     if (drag?.kind === "scene" && (drag.x !== drag.ox || drag.y !== drag.oy)) {
       const { id, x, y } = drag;
+      // Scenes never moved are laid out below the placed ones, so moving
+      // one would shift them all: pin each where it is now first.
+      for (const s of scenes)
+        if (!s.data.world_pos && s.fileId !== id) {
+          const p = defaults.get(s.fileId);
+          if (p) updateScene(s.fileId, (d) => (d.world_pos ? d : { ...d, world_pos: { x: p.x, y: p.y } }), "world-pin");
+        }
       updateScene(id, (s) => ({ ...s, world_pos: { x, y } }));
     }
     // Select it once it's let go, so opening its properties never
