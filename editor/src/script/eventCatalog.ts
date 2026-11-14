@@ -554,8 +554,46 @@ export const EVENT_DEFS: EventDef[] = [
     type: "menu",
     label: "Menu",
     category: "Dialogue",
-    description: "A 2-4 option menu; each option runs its own events. Put a Display Text before it for a question.",
+    description:
+      "A 2-4 option menu; each option runs its own events. Put a Display Text before it for a question. Left, right, " +
+      "top right and center make a box just as wide as the options (like a Pokemon pause menu).",
     fields: [
+      {
+        key: "position",
+        label: "Position",
+        kind: "select",
+        defaultValue: "bottom",
+        options: [
+          { value: "bottom", label: "Bottom (full width)" },
+          { value: "top", label: "Top (full width)" },
+          { value: "middle", label: "Middle (full width)" },
+          { value: "right", label: "Right side" },
+          { value: "top_right", label: "Top right (Pokemon style)" },
+          { value: "left", label: "Left side" },
+          { value: "center", label: "Center" },
+          { value: "custom", label: "Custom" },
+        ],
+      },
+      { key: "box_x", label: "X (tiles)", kind: "int", min: 0, max: 29, defaultValue: 0, showIf: (e) => e.position === "custom" },
+      { key: "box_y", label: "Y (tiles)", kind: "int", min: 0, max: 19, defaultValue: 0, showIf: (e) => e.position === "custom" },
+      { key: "box_width", label: "Width (tiles)", kind: "int", min: 3, max: 30, defaultValue: 12, showIf: (e) => e.position === "custom" },
+      {
+        key: "transition",
+        label: "Opens / closes with",
+        kind: "select",
+        defaultValue: "default",
+        options: [
+          { value: "default", label: "Settings' text box animation" },
+          { value: "none", label: "Nothing (appears)" },
+          { value: "fade", label: "Fade" },
+          { value: "swipe_left", label: "Swipe from the left" },
+          { value: "swipe_right", label: "Swipe from the right" },
+          { value: "swipe_up", label: "Swipe up" },
+          { value: "swipe_down", label: "Swipe down" },
+          { value: "tv", label: "Old TV" },
+          { value: "book", label: "Book page" },
+        ],
+      },
       {
         key: "focus",
         label: "Focus",

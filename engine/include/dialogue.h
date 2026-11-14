@@ -113,6 +113,18 @@ void dialogue_show_choice(const char *packed);
  * contract as dialogue_show_choice() above.
  */
 void dialogue_show_menu(const char *packed, int option_count);
+/* A menu placed somewhere: `place` = DIALOGUE_MENU_* | (animation + 1) << 4
+ * (0 = Settings'), and for DIALOGUE_MENU_CUSTOM `custom` = x | y << 5 |
+ * width << 10 (tiles). Side places size the box to fit the options. */
+#define DIALOGUE_MENU_BOTTOM    0
+#define DIALOGUE_MENU_TOP       1
+#define DIALOGUE_MENU_MIDDLE    2
+#define DIALOGUE_MENU_CUSTOM    3
+#define DIALOGUE_MENU_LEFT      4
+#define DIALOGUE_MENU_RIGHT     5
+#define DIALOGUE_MENU_TOP_RIGHT 6
+#define DIALOGUE_MENU_CENTER    7
+void dialogue_show_menu_at(const char *packed, int option_count, int place, int custom);
 
 /*
  * Which option was picked: 0-based. Only meaningful right after

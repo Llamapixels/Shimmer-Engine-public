@@ -113,6 +113,10 @@ int ui_char_width(int font, unsigned char ch);
 #define UI_BOX_MIDDLE 2
 #define UI_BOX_CUSTOM 3   /* anywhere: ui_box_open_at() */
 
+/* The next box opens / closes with this animation (UI_ANIM_*) instead of
+ * Settings' (ui_box_transition); -1 = Settings'. */
+void ui_box_set_anim(int kind);
+
 /* Show the box, `lines` text lines tall, at the bottom of the screen,
  * with its canvas cleared to the frame's fill. */
 void ui_box_open(int lines);

@@ -344,6 +344,14 @@ void ui_box_open_at(int lines, int col, int row, int width, int framed)
 #define WININ_W1_ALL  (0x3F << 8)          /* inside window 1: every layer, effects */
 #define WINOUT_NO_BG1 (0x3F & ~(1 << 1))   /* outside: all but BG1, effects */
 
+static int anim_override = -1;   /* ui_box_set_anim() */
+#define ANIM_KIND (anim_override >= 0 ? anim_override : ui_box_transition)
+
+void ui_box_set_anim(int kind)
+{
+    anim_override = kind;
+}
+
 static int anim_t = -1;       /* frames done, -1 = none */
 static int anim_closing;
 
@@ -352,7 +360,7 @@ static void anim_stop(void)
     anim_t = -1;
     REG_DISPCNT &= ~WIN1_ENABLE;
     REG_BG1HOFS = 0;
-    if (ui_box_transition == UI_ANIM_FADE && !light_on())
+    if (ANIM_KIND == UI_ANIM_FADE && !light_on())
     {
         REG_BLDCNT = 0;
         REG_BLDALPHA = 0;
@@ -364,7 +372,7 @@ static void anim_show(int p)
 {
     int l = box_left * 8, t = box_top * 8, w = box_cols * 8, h = box_rows * 8;
     int x1 = l, x2 = l + w, y1 = t, y2 = t + h;
-    switch (ui_box_transition)
+    switch (ANIM_KIND)
     {
     case UI_ANIM_FADE:
     {
@@ -425,7 +433,7 @@ void ui_box_anim_open(void)
         anim_stop();
         return;
     }
-    if (ui_box_transition == UI_ANIM_NONE || ui_box_transition_frames == 0)
+    if (ANIM_KIND == UI_ANIM_NONE || ui_box_transition_frames == 0)
         return;
     anim_closing = 0;
     anim_t = 0;
@@ -434,7 +442,7 @@ void ui_box_anim_open(void)
 
 void ui_box_anim_close(void)
 {
-    if (ui_box_transition == UI_ANIM_NONE || ui_box_transition_frames == 0 || box_top < 0)
+    if (ANIM_KIND == UI_ANIM_NONE || ui_box_transition_frames == 0 || box_top < 0)
     {
         anim_stop();
         ui_box_close();

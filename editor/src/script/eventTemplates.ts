@@ -111,6 +111,8 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
           ev({ type: "pause_world" }),
           ev({
             type: "menu",
+            position: "top_right",
+            focus: "dim",
             options: [
               { label: "Resume", then: [] },
               {

@@ -2148,6 +2148,35 @@ def text_focus(ev, where):
     return TEXT_FOCUS[focus]
 
 
+# Where a Menu box goes (engine DIALOGUE_MENU_*) and how it opens / closes.
+MENU_PLACES = {"bottom": 0, "top": 1, "middle": 2, "custom": 3, "left": 4, "right": 5, "top_right": 6, "center": 7}
+MENU_ANIMS = ["default", "none", "fade", "swipe_left", "swipe_right", "swipe_up", "swipe_down", "tv", "book"]
+
+
+def menu_place(ev, labels, where):
+    """Menu's "position" / "transition" -> SCRIPT_MENU's b (place | anim
+    << 4) and d (custom x | y << 5 | width << 10)."""
+    pos = str(ev.get("position", "bottom")).lower()
+    if pos not in MENU_PLACES:
+        raise BuildError(f"{where}: \"position\" must be one of: {', '.join(MENU_PLACES)}.")
+    anim = str(ev.get("transition", "default")).lower()
+    if anim not in MENU_ANIMS:
+        raise BuildError(f"{where}: \"transition\" must be one of: {', '.join(MENU_ANIMS)}.")
+    custom = 0
+    if pos == "custom":
+        bx = resolve_small_int(ev.get("box_x", 0), "box_x", where, 0, 29)
+        by = resolve_small_int(ev.get("box_y", 0), "box_y", where, 0, 19)
+        bw = resolve_small_int(ev.get("box_width", 12), "box_width", where, 3, 30)
+        if bx + bw > 30:
+            raise BuildError(f"{where}: the menu goes off the right of the screen (X {bx} + width {bw} > 30 tiles).")
+        if by + len(labels) + 2 > 20:
+            raise BuildError(f"{where}: the menu goes off the bottom of the screen.")
+        custom = bx | (by << 5) | (bw << 10)
+    # 0 = Settings' animation; otherwise UI_ANIM_* + 1.
+    anim_code = 0 if anim == "default" else MENU_ANIMS.index(anim)
+    return MENU_PLACES[pos] | (anim_code << 4), custom
+
+
 # The button that moves a text box on (engine DIALOGUE_OPT_ADVANCE).
 TEXT_ADVANCE = ["a", "b", "l", "r", "start", "select", "any"]
 
@@ -2569,7 +2598,8 @@ def compile_events(events, out, ctx, where):
 
             labels = [interpolate_vars(opt["label"], ctx, ev_where) for opt in options]
             packed = "\x01".join(labels)
-            out.append(_instr("SCRIPT_MENU", a=len(options), c=text_focus(ev, ev_where),
+            place, custom = menu_place(ev, labels, ev_where)
+            out.append(_instr("SCRIPT_MENU", a=len(options), b=place, c=text_focus(ev, ev_where), d=custom,
                               text=c_string_literal(packed)))
             _compile_menu_chain(out, options, 0, ctx, ev_where)
 

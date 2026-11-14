@@ -377,6 +377,24 @@ static void draw_options(void)
     ui_box_flush();
 }
 
+/* Where the next options box goes (dialogue_show_menu_at), or bottom. */
+static int options_place, options_custom;
+
+/* Widest option in px. */
+static int widest_option(int count)
+{
+    int best = 0;
+    for (int i = 0; i < count; i++)
+    {
+        int w = 0;
+        for (const char *p = option_start[i]; p < option_end[i]; p++)
+            w += ui_char_width(ui_font(), (unsigned char)*p);
+        if (w > best)
+            best = w;
+    }
+    return best;
+}
+
 static void open_options(const char *packed, int count, int prompt)
 {
     const char *p = packed;
@@ -396,7 +414,27 @@ static void open_options(const char *packed, int count, int prompt)
     option_count = count;
     cursor = 0;
     text_lines = TEXT_LINES;
-    ui_box_open(count + (prompt ? 1 : 0));
+    int lines = count + (prompt ? 1 : 0);
+    int where = options_place & 15;
+    ui_box_set_anim((options_place >> 4) - 1);
+    options_place = 0;
+    if (where == DIALOGUE_MENU_TOP || where == DIALOGUE_MENU_MIDDLE)
+        ui_box_open_ex(lines, where == DIALOGUE_MENU_TOP ? UI_BOX_TOP : UI_BOX_MIDDLE, 1);
+    else if (where == DIALOGUE_MENU_CUSTOM)
+        ui_box_open_at(lines, options_custom & 31, (options_custom >> 5) & 31, (options_custom >> 10) & 31, 1);
+    else if (where >= DIALOGUE_MENU_LEFT && !prompt)
+    {
+        /* Just as wide as the options (cursor, text, frame). */
+        int cols = (OPTION_X + widest_option(count) + 7) / 8 + 3;
+        if (cols > 30)
+            cols = 30;
+        int rows = lines + 2;
+        int col = where == DIALOGUE_MENU_LEFT ? 0 : where == DIALOGUE_MENU_CENTER ? (30 - cols) / 2 : 30 - cols;
+        int row = where == DIALOGUE_MENU_TOP_RIGHT ? 0 : (20 - rows) / 2;
+        ui_box_open_at(lines, col, row, cols, 1);
+    }
+    else
+        ui_box_open(lines);
     ui_box_anim_open();
     focus_pending = 1;
     draw_options();
@@ -618,6 +656,7 @@ static const uint16_t ADVANCE_KEYS[7] = {
 void dialogue_show_ex(const char *text, int options, int place)
 {
     advance_keys = ADVANCE_KEYS[DIALOGUE_OPT_ADVANCE(options) % 7];
+    ui_box_set_anim(-1);
     TextState st = { ui_font(), ui_speed(), 0 };
     int rows = DIALOGUE_OPT_ROWS(options);
     text_lines = rows ? rows : TEXT_LINES;
@@ -769,6 +808,7 @@ static void draw_name_entry(void)
 
 void dialogue_show_name_entry(const char *prompt, int slot, int max_len)
 {
+    ui_box_set_anim(-1);
     mode = MODE_NAME;
     /* prompt is "prompt" or "prompt\x01default name". */
     static char prompt_copy[64];
@@ -875,6 +915,7 @@ static void draw_list(void)
 
 void dialogue_show_list(const char *title, const char *const *items, int count, const uint8_t *pickable)
 {
+    ui_box_set_anim(-1);
     mode = MODE_LIST;
     list_title = title ? title : "";
     list_count = count < 1 ? 1 : count > LIST_MAX ? LIST_MAX : count;
@@ -897,6 +938,13 @@ void dialogue_show_choice(const char *packed)
 {
     mode = MODE_CHOICE;
     open_options(packed, 2, 1);
+}
+
+void dialogue_show_menu_at(const char *packed, int count, int place, int custom)
+{
+    options_place = place;
+    options_custom = custom;
+    dialogue_show_menu(packed, count);
 }
 
 void dialogue_show_menu(const char *packed, int count)

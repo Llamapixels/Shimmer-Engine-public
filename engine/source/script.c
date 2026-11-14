@@ -643,7 +643,7 @@ static void thread_step(ScriptThread *t, int is_main)
             else
             {
                 dialogue_set_focus(ev->c & 3);
-                dialogue_show_menu(ev->str, ev->a);
+                dialogue_show_menu_at(ev->str, ev->a, ev->b, ev->d);   /* b: place | anim, d: custom place */
             }
             if (ui_text_sound >= 256)
                 wav_play(ui_text_sound - 256, 0, 0);
