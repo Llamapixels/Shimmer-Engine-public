@@ -169,6 +169,9 @@ export interface EventDef {
   category: EventCategory;
   description: string;
   fields: FieldDef[];
+  /** A second Add Event entry for another def's type, set up a certain way
+   * (e.g. Speech Bubble = Display Text over an actor). Blocks show the real one. */
+  alias?: boolean;
   branches?: { key: BranchKey; label: string }[];
   /** "menu" has its own per-option branch list instead. */
   menuOptions?: boolean;
@@ -432,6 +435,17 @@ export const EVENT_DEFS: EventDef[] = [
     create: () => ({ type: "text", text: "" }),
     summary: (ev) => `"${short(ev.text)}"${ev.hud ? " (HUD)" : ""}`,
   }),
+  {
+    type: "text",
+    label: "Speech Bubble",
+    category: "Dialogue",
+    description:
+      "Display Text in a speech bubble over an actor, as wide as the text needs. (It's Display Text with Position set to Speech bubble - switch it back any time.)",
+    fields: [],
+    alias: true,
+    create: (c) => ({ type: "text", text: "", position: "bubble", bubble: c.firstActor ?? "player" }) as ScriptEventJSON,
+    summary: () => "",
+  },
   def({
     type: "name_entry",
     label: "Enter Name",
@@ -2907,7 +2921,7 @@ export const EVENT_DEFS: EventDef[] = [
 ];
 
 export const EVENT_DEF_BY_TYPE: Record<string, EventDef> = Object.fromEntries(
-  EVENT_DEFS.map((d) => [d.type, d]),
+  EVENT_DEFS.filter((d) => !d.alias).map((d) => [d.type, d]),
 );
 
 /** For event types the editor doesn't know (e.g. hand-written JSON from
