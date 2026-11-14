@@ -34,7 +34,9 @@ static int crouch_low, crouch_oy, crouch_h, crouch_stuck;
 static int sliding;   /* a Slide (a low dash) is on: the crouch box */
 static int on_stairs, stair_sub;   /* Castlevania stairs: see stairs_update() */
 /* Grapple: see grapple_update(). */
-enum { GRAPPLE_NONE, GRAPPLE_SHOOTING, GRAPPLE_SWINGING };
+/* PULL_ACTOR: reeling an actor in; ZIP: the rope pulling the player to a
+ * point or an actor (the grapple hitting actors, the Top Down hookshot). */
+enum { GRAPPLE_NONE, GRAPPLE_SHOOTING, GRAPPLE_SWINGING, GRAPPLE_PULL_ACTOR, GRAPPLE_ZIP };
 static int grapple_state;
 
 /* Room to stand up from the low box here? */
@@ -383,6 +385,146 @@ static void grapple_release(void)
     grapple_state = GRAPPLE_NONE;
 }
 
+/* What the hook does to an actor it hits (pl_grapple_actors / td_hookshot_actors). */
+enum { HOOK_PASS, HOOK_PULL_ACTOR, HOOK_PULL_PLAYER };
+#define HOOK_PULL_SPEED 4   /* px a frame */
+static int pull_npc = -1;          /* the actor being reeled in, or zipped to (-1 = a point) */
+static int zip_x, zip_y;           /* ZIP to a point: where (world px, the player's middle) */
+static int move_axis(Entity *p, int dx, int dy);
+
+/* A visible actor (not the player) at world point x, y, or -1. */
+static int hook_npc_at(int x, int y)
+{
+    for (int i = 0; i < world_npc_count(); i++)
+    {
+        Entity *n = world_npc(i);
+        if (n && n->sprite.visible && x >= n->x && x < n->x + n->width && y >= n->y && y < n->y + n->height)
+            return i;
+    }
+    return -1;
+}
+
+static void hook_actor(int npc, int action)
+{
+    pull_npc = npc;
+    grapple_state = action == HOOK_PULL_ACTOR ? GRAPPLE_PULL_ACTOR : GRAPPLE_ZIP;
+}
+
+static void hook_zip_to(int x, int y)
+{
+    pull_npc = -1;
+    zip_x = x;
+    zip_y = y;
+    grapple_state = GRAPPLE_ZIP;
+}
+
+static int clamp_step(int d)
+{
+    return d > HOOK_PULL_SPEED ? HOOK_PULL_SPEED : d < -HOOK_PULL_SPEED ? -HOOK_PULL_SPEED : d;
+}
+
+/* Reel an actor in, or the player along the rope. Returns 1 while busy
+ * (the player waits). */
+static int hook_pull_update(Entity *p)
+{
+    int cx = p->x + p->col_ox + p->col_w / 2, cy = p->y + p->col_oy + p->col_h / 2;
+    Entity *n = pull_npc >= 0 ? world_npc(pull_npc) : 0;
+    if (pull_npc >= 0 && (!n || !n->sprite.visible))
+    {
+        grapple_release();
+        return 0;
+    }
+    int tx = n ? n->x + n->width / 2 : zip_x, ty = n ? n->y + n->height / 2 : zip_y;
+    int dx = tx - cx, dy = ty - cy;
+    int near_x = n ? (p->col_w + n->width) / 2 + 1 : 2, near_y = n ? (p->col_h + n->height) / 2 + 1 : 2;
+    if ((dx < 0 ? -dx : dx) <= near_x && (dy < 0 ? -dy : dy) <= near_y)
+    {
+        grapple_release();
+        return 0;
+    }
+    int moved = 0;
+    if (grapple_state == GRAPPLE_PULL_ACTOR)
+    {
+        /* The actor comes to the player (stopping at walls). */
+        int mx = -clamp_step(dx), my = -clamp_step(dy);
+        if (mx && entity_can_move(n, n->x + mx, n->y)) { n->x += mx; moved = 1; }
+        if (my && entity_can_move(n, n->x, n->y + my)) { n->y += my; moved = 1; }
+    }
+    else
+    {
+        /* The player flies along the rope (stopping at walls). */
+        int mx = clamp_step(dx), my = clamp_step(dy);
+        if (mx && !move_axis(p, mx, 0)) moved = 1;
+        if (my && !move_axis(p, 0, my)) moved = 1;
+        pos_x = p->x << 8;
+        pos_y = p->y << 8;
+        vel_x = vel_y = 0;
+    }
+    hook_x = n ? n->x + n->width / 2 : zip_x;
+    hook_y = n ? n->y + n->height / 2 : zip_y;
+    if (!moved)
+        grapple_release();
+    return 1;
+}
+
+/* Top Down hookshot: shoots the way the player faces; it pulls the player
+ * to a wall it hits, and to or from an actor. Returns 1 while it's out. */
+static int hookshot_update(Entity *p)
+{
+    if (!MSET(TD_HOOKSHOT))
+    {
+        if (grapple_state != GRAPPLE_NONE)
+        {
+            grapple_release();
+            grapple_draw(p);
+        }
+        return 0;
+    }
+    if (grapple_state == GRAPPLE_PULL_ACTOR || grapple_state == GRAPPLE_ZIP)
+    {
+        int busy = hook_pull_update(p);
+        grapple_draw(p);
+        return busy;
+    }
+    int cx = p->x + p->col_ox + p->col_w / 2, cy = p->y + p->col_oy + p->col_h / 2;
+    if (grapple_state == GRAPPLE_NONE)
+    {
+        if (!input_pressed(MSET(TD_HOOKSHOT_BUTTON)))
+            return 0;
+        int d = p->direction;
+        hook_dx = d == DIR_LEFT ? -6 : d == DIR_RIGHT ? 6 : 0;
+        hook_dy = d == DIR_UP ? -6 : d == DIR_DOWN ? 6 : 0;
+        hook_x = cx;
+        hook_y = cy;
+        hook_travel = 0;
+        grapple_state = GRAPPLE_SHOOTING;
+    }
+    int max_len = MSET(TD_HOOKSHOT_LENGTH);
+    int sx = hook_dx > 0 ? 1 : hook_dx < 0 ? -1 : 0, sy = hook_dy > 0 ? 1 : hook_dy < 0 ? -1 : 0;
+    for (int i = 0; i < 6 && grapple_state == GRAPPLE_SHOOTING; i++)
+    {
+        hook_x += sx;
+        hook_y += sy;
+        hook_travel++;
+        int act = MSET(TD_HOOKSHOT_ACTORS);
+        int npc = act != HOOK_PASS ? hook_npc_at(hook_x, hook_y) : -1;
+        if (npc >= 0)
+            hook_actor(npc, act);
+        else if (collision_test_point(hook_x, hook_y))
+        {
+            if (MSET(TD_HOOKSHOT_WALLS) && hook_travel > 8)
+                /* Pulled up to the wall, the player's middle half a box short. */
+                hook_zip_to(hook_x - sx * (p->col_w / 2 + 1), hook_y - sy * (p->col_h / 2 + 1));
+            else
+                grapple_release();
+        }
+        else if (hook_travel >= max_len)
+            grapple_release();
+    }
+    grapple_draw(p);
+    return 1;
+}
+
 /* Returns 1 while swinging (it moved the player itself). */
 static int grapple_update(Entity *p, int jump_btn)
 {
@@ -394,6 +536,12 @@ static int grapple_update(Entity *p, int jump_btn)
             grapple_draw(p);
         }
         return 0;
+    }
+    if (grapple_state == GRAPPLE_PULL_ACTOR || grapple_state == GRAPPLE_ZIP)
+    {
+        int busy = hook_pull_update(p);
+        grapple_draw(p);
+        return busy;
     }
     int btn = MSET(PL_GRAPPLE_BUTTON);
     int cx = p->x + p->col_ox + p->col_w / 2, cy = p->y + p->col_oy + p->col_h / 2;
@@ -430,6 +578,16 @@ static int grapple_update(Entity *p, int jump_btn)
             {
                 grapple_release();
                 break;
+            }
+            /* An actor in the way: reel it in, or fly to it (a setting). */
+            if (MSET(PL_GRAPPLE_ACTORS) != HOOK_PASS)
+            {
+                int npc = hook_npc_at(hook_x, hook_y);
+                if (npc >= 0)
+                {
+                    hook_actor(npc, MSET(PL_GRAPPLE_ACTORS));
+                    break;
+                }
             }
             if (collision_test_point(hook_x, hook_y))
             {
@@ -891,6 +1049,8 @@ static const ScriptEvent *step_script(void)
 
 static const ScriptEvent *topdown_update(Entity *p)
 {
+    if (hookshot_update(p))
+        return 0;   /* the hookshot is out: the player waits */
     int grid_mode = MSET(TD_GRID) != 0;
     /* Acceleration, dash, pushing, knockback or left/right-only facing:
      * the smooth free movement (Adventure's). */

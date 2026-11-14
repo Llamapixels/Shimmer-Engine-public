@@ -4364,8 +4364,10 @@ def build(project_dir, out_dir):
         raise BuildError(f"{len(sprite_names)} different sprites are used; the most is 255.")
     compiled_sprites = compile_project_sprites(project, project_dir, sprite_names)
     # The grapple's rope keeps a few sprites free (engine sprite.c).
-    ctx["ui"]["grapple_used"] = bool((project.get("engine") or {}).get("pl_grapple")) or any(
-        (s.get("engine") or {}).get("pl_grapple") for _, s in scene_data_list)
+    def _uses_rope(eng):
+        return bool((eng or {}).get("pl_grapple") or (eng or {}).get("td_hookshot"))
+    ctx["ui"]["grapple_used"] = _uses_rope(project.get("engine")) or any(
+        _uses_rope(s.get("engine")) for _, s in scene_data_list)
     # Show Emote keeps a sprite free for its bubble (engine sprite.c).
     ctx["ui"]["emotes_used"] = '"actor_emote"' in json.dumps(project) or any(
         '"actor_emote"' in json.dumps(scene) for _, scene in scene_data_list)
