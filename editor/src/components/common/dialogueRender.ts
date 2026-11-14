@@ -170,6 +170,34 @@ function tokenize(text: string): Item[] {
   return out;
 }
 
+/** Widest line in px, as dialogue.c's text_width_px() measures a speech
+ * bubble (every page and line break; variables as 3 digits). */
+export function widestLinePx(text: string, fonts: Record<string, UiFont>, startFont: string): number {
+  let font = startFont;
+  let best = 0;
+  for (const para of text.split("\n")) {
+    let x = 0;
+    for (const it of tokenize(para.replace(/\{[^{}]+\}/g, "000"))) {
+      const f = fonts[font];
+      if (it.kind === "break") {
+        best = Math.max(best, x);
+        x = 0;
+      } else if (it.kind === "font") {
+        if (fonts[it.name]) font = it.name;
+      } else if (f && it.kind === "space") x += charWidth(f, " ");
+      else if (f && it.kind === "char") x += charWidth(f, it.ch);
+    }
+    best = Math.max(best, x);
+  }
+  return best;
+}
+
+/** A speech bubble's width in tiles for that text (dialogue.c open_bubble). */
+export function bubbleCols(textPx: number, framed: boolean): number {
+  const cols = Math.ceil(textPx / TILE) + (framed ? 2 : 0) + 1;
+  return Math.max(framed ? 4 : 2, Math.min(28, cols));
+}
+
 export interface Glyph {
   font: string;
   ch: string;

@@ -597,7 +597,7 @@ static int open_bubble(const char *text, int actor, int framed, int font, int in
     }
     sy += top;
     int cols = (text_width_px(text, font) + 7) / 8 + inset + (framed ? 2 : 0) + 1;
-    if (cols > 22) cols = 22;
+    if (cols > 28) cols = 28;   /* the normal box width: long text wraps there, not squeezed */
     if (cols < (framed ? 4 : 2)) cols = framed ? 4 : 2;
     int rows = text_lines + (framed ? 2 : 0);
     int col = (sx + e->width / 2) / 8 - cols / 2;

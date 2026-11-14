@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AssetInfo } from "../../../shared/ipc";
 import { useProjectStore } from "../../state/projectStore";
 import { loadAssetUrl } from "../views/assetImages";
-import { boxHeight, boxMetrics, drawPage, fontsIn, layoutPages, loadImage, parseFont, parseFrame, type UiFont } from "./dialogueRender";
+import { boxHeight, boxMetrics, bubbleCols, widestLinePx, drawPage, fontsIn, layoutPages, loadImage, parseFont, parseFrame, type UiFont } from "./dialogueRender";
 
 /** The built-in font/frame (engine/data/ui), shown as "default". */
 export const BUILT_IN_UI: Record<"font" | "frame", AssetInfo> = {
@@ -78,6 +78,7 @@ export default function DialogueBoxPreview({
   lines = 2,
   framed = true,
   cols = 30,
+  fit = false,
 }: {
   text: string;
   /** Defaults to the font/frame the game starts with. */
@@ -89,6 +90,8 @@ export default function DialogueBoxPreview({
   framed?: boolean;
   /** Box width in tiles (Display Text's custom width); 30 = full. */
   cols?: number;
+  /** A speech bubble: as wide as the text needs (overrides cols). */
+  fit?: boolean;
 }) {
   const rootPath = useProjectStore((s) => s.project?.rootPath);
   const start = useStartUi();
@@ -111,15 +114,16 @@ export default function DialogueBoxPreview({
       if (cancelled) return;
       const fonts: Record<string, UiFont> = {};
       for (const [name, f] of loaded) if (f) fonts[name] = f;
-      const { textWidth } = boxMetrics(cols, framed);
-      setPages(layoutPages(text, fonts, font, lines, textWidth).map((p) => drawPage(p, fonts, frameData, lines, framed, cols)));
+      const c = fit ? bubbleCols(widestLinePx(text, fonts, font), framed) : cols;
+      const { textWidth } = boxMetrics(c, framed);
+      setPages(layoutPages(text, fonts, font, lines, textWidth).map((p) => drawPage(p, fonts, frameData, lines, framed, c)));
     });
     return () => {
       cancelled = true;
     };
     // fontAssets/frameAsset are covered by assetKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootPath, text, font, assetKey, lines, framed, cols]);
+  }, [rootPath, text, font, assetKey, lines, framed, cols, fit]);
 
   const shown = pages.slice(0, maxPages);
   return (

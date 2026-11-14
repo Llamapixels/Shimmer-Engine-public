@@ -155,6 +155,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
           lines={typeof rec.rows === "number" ? rec.rows : 2}
           framed={rec.frame !== false}
           cols={rec.position === "custom" && typeof rec.box_width === "number" ? rec.box_width : 30}
+          fit={rec.position === "bubble"}
         />
       );
     }
@@ -1079,6 +1080,7 @@ function DialogueTextField({
   lines,
   framed,
   cols,
+  fit,
 }: {
   boxes: string[];
   onChange: (boxes: string[]) => void;
@@ -1087,6 +1089,7 @@ function DialogueTextField({
   lines: number;
   framed: boolean;
   cols: number;
+  fit?: boolean;
 }) {
   const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const nameSlots = useProjectStore((s) => s.project?.project.names) ?? [];
@@ -1219,7 +1222,7 @@ function DialogueTextField({
           </select>
         )}
       </div>
-      {boxes.some((b) => b.trim()) && <DialogueBoxPreview text={gameText} lines={lines} framed={framed} cols={cols} />}
+      {boxes.some((b) => b.trim()) && <DialogueBoxPreview text={gameText} lines={lines} framed={framed} cols={cols} fit={fit} />}
     </div>
   );
 }
