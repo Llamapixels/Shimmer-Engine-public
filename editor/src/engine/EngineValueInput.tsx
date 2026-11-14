@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+
 import CommitInput from "../components/common/CommitInput";
 import NumberInput from "../components/common/NumberInput";
 import { playerSpriteName } from "../sprites/model";
@@ -33,20 +35,62 @@ function SoundSelect({ value, onChange }: { value: string; onChange: (v: EngineV
 
 /** One of the (project's default) player sprite's animation states, or
  * Auto: the state named after the ability. */
+/** Every sprite the player can be: the project's, each scene's Player
+ * sprite, and any Set Player Sprite event's. */
+function usePlayerSprites(): string[] {
+  const project = useProjectStore((s) => s.project?.project);
+  const scenes = useProjectStore((s) => s.project?.scenes);
+  return useMemo(() => {
+    const names = new Set<string>();
+    if (project) names.add(playerSpriteName(project));
+    const walk = (v: unknown): void => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") {
+        const o = v as Record<string, unknown>;
+        if (o.type === "player_set_sprite" && typeof o.sprite === "string" && o.sprite) names.add(o.sprite);
+        for (const x of Object.values(o)) if (x && typeof x === "object") walk(x);
+      }
+    };
+    for (const sc of scenes ?? []) {
+      if (sc.data.player_sprite) names.add(sc.data.player_sprite);
+      walk(sc.data);
+    }
+    walk(project?.customScripts);
+    walk(project?.prefabs);
+    return [...names];
+  }, [project, scenes]);
+}
+
 function StateSelect({ anim, value, onChange }: { anim: string; value: string; onChange: (v: EngineValue) => void }) {
   const project = useProjectStore((s) => s.project?.project);
-  const sprite = project ? playerSpriteName(project) : "player";
-  const sheet = project?.spriteSheets?.find((s) => s.name === sprite);
-  const names = (sheet?.states ?? [{ name: "" }]).map((st) => st.name || "Default");
+  const sprites = usePlayerSprites();
+  // States are matched by name on whichever sprite the player has then.
+  const groups = sprites.map((sprite) => {
+    const sheet = project?.spriteSheets?.find((s) => s.name === sprite);
+    return { sprite, names: (sheet?.states ?? [{ name: "" }]).map((st) => st.name || "Default") };
+  });
+  const all = groups.flatMap((g) => g.names);
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} title={`States of the player sprite "${sprite}"`}>
+    <select value={value} onChange={(e) => onChange(e.target.value)} title="States of every sprite the player can be (matched by name)">
       <option value="">Auto ({anim})</option>
-      {value && !names.some((n) => n.toLowerCase() === value.toLowerCase()) && <option value={value}>{value} (missing)</option>}
-      {names.map((n) => (
-        <option key={n} value={n}>
-          {n}
-        </option>
-      ))}
+      {value && !all.some((n) => n.toLowerCase() === value.toLowerCase()) && <option value={value}>{value} (missing)</option>}
+      {groups.map((g) =>
+        groups.length === 1 ? (
+          g.names.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))
+        ) : (
+          <optgroup key={g.sprite} label={g.sprite}>
+            {g.names.map((n) => (
+              <option key={`${g.sprite}/${n}`} value={n}>
+                {n}
+              </option>
+            ))}
+          </optgroup>
+        ),
+      )}
     </select>
   );
 }
