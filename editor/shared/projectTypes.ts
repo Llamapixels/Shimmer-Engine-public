@@ -472,6 +472,9 @@ export interface SceneRecord {
   /** Filename stem under <project>/scenes/, e.g. "town" for town.json. */
   fileId: string;
   data: SceneJSON;
+  /** When its file was made / last changed (ms), for sorting the list. */
+  createdMs?: number;
+  modifiedMs?: number;
 }
 
 export interface ProjectData {

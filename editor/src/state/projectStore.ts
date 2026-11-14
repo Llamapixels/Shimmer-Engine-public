@@ -655,7 +655,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
       recordHistory(coalesceKey ? `${sceneId}:${coalesceKey}` : undefined);
       const nextScenes = project.scenes.slice();
-      nextScenes[idx] = { fileId: sceneId, data: nextScene };
+      nextScenes[idx] = { ...project.scenes[idx], fileId: sceneId, data: nextScene, modifiedMs: Date.now() };
       set({ project: { ...project, scenes: nextScenes } });
       persistScene(project.rootPath, sceneId, nextScene);
     },

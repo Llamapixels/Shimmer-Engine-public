@@ -164,9 +164,11 @@ export async function openProjectAtPath(rootPath: string): Promise<OpenProjectRe
 
   const scenes: SceneRecord[] = [];
   for (const fileId of sceneIds) {
-    const sceneRaw = await fs.readFile(sceneFilePath(rootPath, fileId), "utf-8");
+    const file = sceneFilePath(rootPath, fileId);
+    const sceneRaw = await fs.readFile(file, "utf-8");
     const data = JSON.parse(sceneRaw) as SceneJSON;
-    scenes.push({ fileId, data });
+    const st = await fs.stat(file).catch(() => null);
+    scenes.push({ fileId, data, createdMs: st?.birthtimeMs, modifiedMs: st?.mtimeMs });
   }
 
   await ensureAssetFolders(rootPath).catch(() => undefined);

@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import type { SceneRecord } from "../../shared/projectTypes";
 
 import { NAMED_LIST_LIMIT, validateName } from "./common/NamedListSelect";
 import FolderTree from "./common/FolderTree";
@@ -135,8 +136,59 @@ function AddSceneButton() {
   );
 }
 
+type SceneSort = "name" | "made" | "modified" | "color";
+const SCENE_SORTS: { id: SceneSort; label: string }[] = [
+  { id: "name", label: "Name" },
+  { id: "made", label: "Newest made" },
+  { id: "modified", label: "Last edited" },
+  { id: "color", label: "Color" },
+];
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** Scenes in the list's order (the start scene first in each sort). */
+function sortScenes(scenes: SceneRecord[], sort: SceneSort, start: string | undefined): SceneRecord[] {
+  const name = (s: SceneRecord) => sceneName(s);
+  const hue = (s: SceneRecord) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(s.data.color ?? "");
+    if (!m) return 999; // no color: last
+    const n = parseInt(m[1], 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    if (max === min) return 360; // greys after colors
+    const d = max - min;
+    const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
+  };
+  const cmp: Record<SceneSort, (a: SceneRecord, b: SceneRecord) => number> = {
+    name: (a, b) => byName.compare(name(a), name(b)),
+    made: (a, b) => (b.createdMs ?? 0) - (a.createdMs ?? 0) || byName.compare(name(a), name(b)),
+    modified: (a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0) || byName.compare(name(a), name(b)),
+    color: (a, b) => hue(a) - hue(b) || byName.compare(name(a), name(b)),
+  };
+  return scenes.slice().sort((a, b) => (name(a) === start ? -1 : name(b) === start ? 1 : cmp[sort](a, b)));
+}
+
+function loadSceneSort(): SceneSort {
+  try {
+    const v = localStorage.getItem("sceneSort");
+    if (v && SCENE_SORTS.some((s) => s.id === v)) return v as SceneSort;
+  } catch {
+    /* no storage */
+  }
+  return "name";
+}
+
 function ScenesSection() {
-  const scenes = useProjectStore((s) => s.project?.scenes ?? []);
+  const allScenes = useProjectStore((s) => s.project?.scenes ?? []);
+  const [sort, setSortState] = useState<SceneSort>(loadSceneSort);
+  const setSort = (v: SceneSort) => {
+    setSortState(v);
+    try {
+      localStorage.setItem("sceneSort", v);
+    } catch {
+      /* no storage */
+    }
+  };
   const startScene = useProjectStore((s) => s.project?.project.start_scene);
   const activeSceneId = useProjectStore((s) => s.activeSceneId);
   const selection = useProjectStore((s) => s.selection);
@@ -148,10 +200,22 @@ function ScenesSection() {
   const updateProject = useProjectStore((s) => s.updateProject);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; label: string } | null>(null);
 
+  const scenes = useMemo(() => sortScenes(allScenes, sort, startScene), [allScenes, sort, startScene]);
+
   if (scenes.length === 0) return <div className="navigator-empty">No scenes yet.</div>;
 
   return (
     <div className="navigator-list">
+      <label className="navigator-sort" title="How the scene list is ordered (the start scene stays at the top)">
+        Sort
+        <select value={sort} onChange={(e) => setSort(e.target.value as SceneSort)}>
+          {SCENE_SORTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <FolderTree
         items={scenes}
         getName={sceneName}
