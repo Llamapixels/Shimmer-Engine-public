@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.7.0-alpha — 2026-11-14
+
+### Edit scenes on the world map
+
+- The world map is a real editor, like GB Studio's world view: the selected scene is the full scene editor in place (paint, place, select and drag with every tool), with the other scenes around it. Click another scene to edit it, drag a scene's name bar to move it, wheel to zoom, middle-drag to pan.
+- The world map keeps its zoom and scroll when you go to the scene view and back, and moving one scene no longer shifts scenes that haven't been placed.
+
+### Fixes
+
+- Scenes in a folder find their animated tiles' images.
+- Long Draw Text wraps to the room left on screen (up to 18 lines); Draw Text slots share one bigger pool of tiles.
+- Set Actor Transparency works while a light or dialogue dim is on; Control Actor On Update works on the player.
+- Dialogue portraits keep their colors under screen tint, lights and dialogue dim.
+- On Init's instant events run before a scene fades in, so tint, day / night and lights don't pop in afterwards; a light takes over from the fade without a bright frame.
+- Event blocks don't fold by surprise; events drop anywhere on a block or between blocks.
+- Speech bubbles: the preview matches the game and long text uses the normal box width.
+- Engine settings' state pickers list every player sprite's states; Change Scene's Pick opens the target scene.
+
+### Scenes and actors
+
+- 32 actors per scene (was 16).
+- Ceiling slope collision tiles (45 degrees and gentle, both ways).
+- Show Emote event (exclaim, question, heart, dots, music, anger, sweat, sleep).
+- Top Down hookshot; the platformer grapple can reel actors in or fly the player to them.
+- Replace Tile can copy from another background, with a picture to click the tile on.
+
+### Dialogue and menus
+
+- Menu position (bottom, top, middle, left, right, top right, center, custom) and its own open / close animation; the pause template opens top right.
+- Menu cursor styles or your own assets/ui/cursor.png (Settings > Dialogue).
+- Speech Bubble in Add Event > Dialogue; Display Text can use A, B, L, R, START, SELECT or any to move on.
+
+### Editor
+
+- Searchable pickers for sprites (with pictures), actors and animation states.
+- Select several events (Ctrl / Shift + click) to copy, cut, disable, snippet or delete them.
+- Duplicate, copy and paste whole scenes; sort the scene list by name, newest, last edited or color.
+- Listen buttons next to sound pickers; color-coded build log; Set Actor Frame shows the frames to click.
+- Hovering If Actor Distance or Line Of Sight shows the tiles it covers.
+
+
 ## 0.6.1-alpha — 2026-10-31
 
 ### Pickup collection and prefab placement
