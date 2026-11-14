@@ -672,7 +672,7 @@ MAX_VARIABLES = 512    # one int16_t per named variable, in SaveData.variables.
 MAX_TIMERS = 8         # background timers per scene - keep in sync with
                         # MAX_TIMERS in engine/source/main.c
 MAX_MENU_OPTIONS = 4   # keep in sync with MENU_MAX_OPTIONS in dialogue.c
-MAX_NPCS = 16          # actors per scene - keep in sync with NPC_MAX in
+MAX_NPCS = 32          # actors per scene - keep in sync with NPC_MAX in
                         # engine/source/main.c (more were silently dropped)
 
 # Event "play_sound" names -> engine/include/script.h SoundEffect constants.

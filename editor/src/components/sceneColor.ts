@@ -10,6 +10,6 @@ export function inkOn(color: string): string {
 
 /** Per-scene limits (the compiler's MAX_NPCS, MAX_TILES and the engine's
  * 8-bit trigger count). */
-export const SCENE_MAX_ACTORS = 16;
+export const SCENE_MAX_ACTORS = 32;
 export const SCENE_MAX_TRIGGERS = 255;
 export const SCENE_MAX_TILES = 1024;

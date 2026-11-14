@@ -1177,7 +1177,7 @@ export const EVENT_DEFS: EventDef[] = [
     description:
       "Make a new actor from an actor prefab while the game runs (enemies, pickups, bullets...). It appears at a tile, " +
       "next to an actor, or at a position held in variables, and runs the prefab's On Init; its On Update starts too. " +
-      "The scene keeps \"max at once\" hidden copies of the prefab (they count towards its 16 actors); with all of them " +
+      "The scene keeps \"max at once\" hidden copies of the prefab (they count towards its 32 actors); with all of them " +
       "out, nothing more spawns until one is removed with Remove Actor (e.g. \"self\" in its On Hit).",
     fields: [
       { key: "prefab", label: "Prefab", kind: "prefab" },

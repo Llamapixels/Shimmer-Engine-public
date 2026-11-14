@@ -34,7 +34,7 @@
 
 #define PLAYER_PALETTE    0   /* OBJ palette bank */
 
-#define NPC_MAX           16  /* max NPCs alive at once */
+#define NPC_MAX           32  /* max NPCs alive at once (compiler MAX_NPCS) */
 
 /* How far in front of the player (from its center) an A-press reaches. */
 #define INTERACT_REACH    12
@@ -134,10 +134,11 @@ static uint8_t player_update_thread;
 static uint8_t npc_update_paused[NPC_MAX];   /* "Actor On Update" paused / stopped: no wandering */
 /* "Knock Back Actor": speed at the start (1/256 px a frame), frames left
  * / in all, and the 1/256 px carried over between frames. */
-static int16_t npc_kb_vx[NPC_MAX], npc_kb_vy[NPC_MAX], npc_kb_subx[NPC_MAX], npc_kb_suby[NPC_MAX];
+/* In EWRAM: keeps IWRAM (and the stack) as roomy as with 16 actors. */
+static int16_t npc_kb_vx[NPC_MAX] EWRAM_BSS, npc_kb_vy[NPC_MAX] EWRAM_BSS, npc_kb_subx[NPC_MAX] EWRAM_BSS, npc_kb_suby[NPC_MAX] EWRAM_BSS;
 static uint8_t npc_kb_left[NPC_MAX], npc_kb_total[NPC_MAX];
 /* Each NPC's position last frame, for "Pushes the player". */
-static int npc_prev_x[NPC_MAX], npc_prev_y[NPC_MAX];
+static int npc_prev_x[NPC_MAX] EWRAM_BSS, npc_prev_y[NPC_MAX] EWRAM_BSS;
 
 static uint16_t npc_wander_timer[NPC_MAX];
 static uint8_t  npc_wander_dir[NPC_MAX];     /* Direction */

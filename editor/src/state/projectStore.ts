@@ -1,3 +1,4 @@
+import { SCENE_MAX_ACTORS } from "../components/sceneColor";
 import { create } from "zustand";
 
 import { migrateProjectSprites } from "../sprites/model";
@@ -928,8 +929,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const rec = project?.scenes.find((s) => s.fileId === sceneId);
       const prefab = project?.project.prefabs?.find((p) => p.id === prefabId);
       if (!project || !rec || !prefab || !Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0) return false;
-      if (prefab.kind === "npc" && (rec.data.npcs?.length ?? 0) >= 16) {
-        set({ error: "This scene already has 16 actors. Remove an actor before placing another prefab. Scripted spawn pools also count toward the build limit." });
+      if (prefab.kind === "npc" && (rec.data.npcs?.length ?? 0) >= SCENE_MAX_ACTORS) {
+        set({ error: "This scene already has 32 actors. Remove an actor before placing another prefab. Scripted spawn pools also count toward the build limit." });
         return false;
       }
       const copy = prefabCopy(prefab, rec.data, x, y, project.project.playerSprite || "player");
@@ -947,8 +948,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const rec = project?.scenes.find((s) => s.fileId === sceneId);
       const prefab = project?.project.prefabs?.find((p) => p.id === prefabId);
       if (!rec || prefab?.kind !== "npc") return;
-      if ((rec.data.npcs?.length ?? 0) >= 16) {
-        set({ error: "This scene already has 16 placed actors, leaving no slot for Spawn Prefab. Remove an actor first." });
+      if ((rec.data.npcs?.length ?? 0) >= SCENE_MAX_ACTORS) {
+        set({ error: "This scene already has 32 placed actors, leaving no slot for Spawn Prefab. Remove an actor first." });
         return;
       }
       get().updateScene(sceneId, (s) => ({ ...s, on_init: [...(s.on_init ?? []), {
