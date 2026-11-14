@@ -539,3 +539,36 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* Settings > Dialogue: menu cursor picker. */
+.cursor-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.cursor-choice select {
+  flex: 1;
+  min-width: 140px;
+}
+.cursor-preview {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: #1c1c2c;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.cursor-preview img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+.cursor-hint {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-muted);
+}

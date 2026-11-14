@@ -199,6 +199,9 @@ export interface UiSettingsJSON {
   musicFade?: number;
   /** Sound simple door triggers play: "door" (default), "none", a built-in or a WAV name. */
   doorSound?: string;
+  /** Menu cursor: "default" (arrow), a built-in style (engine/data/ui/cursors),
+   * or "custom" / unset = assets/ui/cursor.png when the project has one. */
+  cursor?: string;
 }
 
 export interface DoorJSON {

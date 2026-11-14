@@ -1,5 +1,5 @@
 import SoundPreviewButton from "../common/SoundPreview";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { AssetKind } from "../../../shared/ipc";
 import type { UiSettingsJSON } from "../../../shared/projectTypes";
@@ -138,6 +138,10 @@ export default function DialogueCard() {
           />
         </label>
       )}
+      <div className="settings-field">
+        Menu cursor (choices, menus, save slots)
+        <CursorChoice value={ui.cursor ?? "custom"} onChange={(v) => setUi({ cursor: v })} />
+      </div>
       <label className="settings-field">
         Sound when a text box opens
         <SoundChoice value={ui.textSound ?? "blip"} onChange={(v) => setUi({ textSound: v })} />
@@ -185,6 +189,64 @@ export default function DialogueCard() {
 }
 
 /** None, a built-in sound or a WAV from assets/sounds. */
+const CURSOR_STYLES = [
+  { value: "default", label: "Arrow (built in)" },
+  { value: "triangle", label: "Triangle" },
+  { value: "big_arrow", label: "Big arrow" },
+  { value: "dot", label: "Dot" },
+  { value: "bar", label: "Bar" },
+  { value: "heart", label: "Heart" },
+  { value: "star", label: "Star" },
+  { value: "custom", label: "My own (assets/ui/cursor.png)" },
+];
+
+/** The menu cursor: a built-in style or the project's own 8x8 PNG, with a
+ * big preview of it. */
+function CursorChoice({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const rootPath = useProjectStore((s) => s.project?.rootPath);
+  const [url, setUrl] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    if (!rootPath) return;
+    let cancelled = false;
+    const tryRead = async () => {
+      // The project's own cursor (also what "custom" falls back from).
+      if (value === "custom") {
+        const own = await window.api.readAsset({ rootPath, relPath: "assets/ui/cursor.png", base: "project" });
+        if (own.ok) return { url: own.value.dataUrl, missing: false };
+      }
+      const rel = value === "default" || value === "custom" ? "engine/data/ui/cursor.png" : `engine/data/ui/cursors/${value}.png`;
+      const r = await window.api.readAsset({ rootPath, relPath: rel, base: "engine" });
+      return { url: r.ok ? r.value.dataUrl : null, missing: value === "custom" };
+    };
+    void tryRead().then((r) => {
+      if (cancelled) return;
+      setUrl(r.url);
+      setMissing(r.missing);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [rootPath, value]);
+  return (
+    <div className="cursor-choice">
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {CURSOR_STYLES.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      <span className="cursor-preview" title="How it looks (8x8, shown 4x)">
+        {url && <img src={url} alt="" />}
+      </span>
+      {missing && (
+        <span className="cursor-hint">No assets/ui/cursor.png yet (using the arrow): draw an 8x8 one in the Art Editor and save it there.</span>
+      )}
+    </div>
+  );
+}
+
 export function SoundChoice({ value, onChange, extra }: { value: string; onChange: (v: string) => void; extra?: { value: string; label: string } }) {
   const wavs = useProjectStore((s) => s.assets?.sounds ?? []);
   return (

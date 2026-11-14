@@ -235,8 +235,16 @@ def build_ui(project, project_dir, defaults_dir, referenced):
             fonts.append(load_font(path, palette, name))
         frames = [load_tiles(path, palette, f"frame '{name}' ({path.name})", 3, 3)
                   for name, path in frame_files.items()]
+        # ui.cursor: a built-in style (engine/data/ui/cursors/<style>.png),
+        # "default" (the arrow) or "custom" / unset (assets/ui/cursor.png if
+        # the project has one).
+        style = str((project.get("ui") or {}).get("cursor") or "custom")
         cursor_path = project_dir / "assets" / "ui" / "cursor.png"
-        if not cursor_path.exists():
+        if style not in ("custom", "default"):
+            cursor_path = defaults_dir / "cursors" / f"{style}.png"
+            if not cursor_path.exists():
+                raise UiError(f"Settings > Dialogue: unknown menu cursor '{style}'.")
+        elif style == "default" or not cursor_path.exists():
             cursor_path = defaults_dir / "cursor.png"
         cursor = load_tiles(cursor_path, palette, f"cursor ({cursor_path.name})", 1, 1,
                             corner_clear=True)[0]
