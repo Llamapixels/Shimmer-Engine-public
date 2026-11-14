@@ -157,7 +157,7 @@ void light_vblank(void)
         return;
     stop_dma();
     /* Scene fades and First Person 3D use these registers themselves. */
-    if (transition_active() || raycast_active())
+    if (raycast_active() || (transition_active() && !transition_fade_in_handoff(darkness)))
         return;
     shown_buf ^= 1;
     const uint16_t *t = edges[shown_buf];

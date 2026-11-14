@@ -32,6 +32,7 @@
 static int fade_frames_total = 1;   /* never 0 - divides fade_frames_elapsed */
 static int fade_frames_elapsed;
 static int fade_dir;                /* +1 = fading out, -1 = fading in, 0 = idle */
+static int fade_level;              /* the BLDY last written */
 
 static void start_fade(TransitionColor color, int frames, int dir)
 {
@@ -226,6 +227,17 @@ void transition_fade_in_ex(TransitionColor color, int frames)
     start_fade(color, frames, -1);
 }
 
+int transition_fade_in_handoff(int darkness)
+{
+    /* A fade in from black that's already no darker than the light. */
+    if (fade_dir < 0 && !effect_kind && ((REG_BLDCNT >> 6) & 3) == 3 && fade_level <= darkness)
+    {
+        fade_dir = 0;
+        return 1;
+    }
+    return 0;
+}
+
 int transition_active(void)
 {
     return fade_dir != 0 || effect_kind != 0;
@@ -270,4 +282,5 @@ void transition_update(void)
     }
 
     REG_BLDY = (uint16_t)level;
+    fade_level = level;
 }

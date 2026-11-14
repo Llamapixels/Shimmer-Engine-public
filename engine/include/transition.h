@@ -52,6 +52,10 @@ void transition_fade_in_ex(TransitionColor color, int frames);
 /* Returns 1 while a fade is still in progress. */
 int transition_active(void);
 
+/* A scene's light taking over a fade in from black once the fade is no
+ * darker than the light's darkness: ends the fade, returns 1 if it did. */
+int transition_fade_in_handoff(int darkness);
+
 /* Call once per VBlank to advance the fade. */
 void transition_update(void);
 

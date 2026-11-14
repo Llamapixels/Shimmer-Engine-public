@@ -1973,7 +1973,6 @@ int main(void)
     {
         VBlankIntrWait();
         raycast_vblank();
-        light_vblank();
         background_vblank();
         ui_labels_tick();
         ui_box_anim_tick();
@@ -1983,6 +1982,9 @@ int main(void)
         audio_update();
         input_update();
         transition_update();
+        /* After the fade: on the frame it ends the light takes over at
+         * once (no bright frame), and it can end a fade in early. */
+        light_vblank();
         timers_update();
         update_invincibility(player);
 
@@ -2219,6 +2221,18 @@ int main(void)
                 camera_get_y()
             );
 
+            /* Run On Init's instant events (tint, light, variables, actor
+             * placement...) before the fade in, like GB Studio, so the
+             * scene fades in as it's meant to look; whatever waits (text,
+             * Wait, moves) carries on once the fade is done. */
+            if (pending_restore < 0)
+            {
+                start_scene_scripts(scene_current());
+                script_update();
+                tint_update();
+                light_update();
+                blend_update();
+            }
             transition_fade_in();
             game_state = STATE_FADE_IN;
             break;
@@ -2236,8 +2250,6 @@ int main(void)
                     script_snapshot_restore(pending_restore);
                     pending_restore = -1;
                 }
-                else
-                    start_scene_scripts(scene_current());
                 if (pending_return_script)
                 {
                     world_run_script(pending_return_script);
