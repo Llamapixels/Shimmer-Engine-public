@@ -812,18 +812,43 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             className="btn btn-small"
             title={
               ev.type === "switch_scene"
-                ? "Pick the tile on the target scene's map isn't possible from here - type it, or open that scene to look"
+                ? "Opens the target scene: click the tile the player arrives on (Escape to cancel)"
                 : "Click a tile on the scene canvas"
             }
-            disabled={ev.type === "switch_scene"}
-            onClick={() =>
+            disabled={ev.type === "switch_scene" && !env.scenes.some((s) => sceneName(s) === rec.scene)}
+            onClick={() => {
+              const setPos = (px: number, py: number) =>
+                patch(rec.units === "pixels" ? { [xKey]: px * 8, [yKey]: py * 8 } : { [xKey]: px, [yKey]: py });
+              if (ev.type === "switch_scene") {
+                // Show the target scene, pick there, then come back here.
+                const target = env.scenes.find((s) => sceneName(s) === rec.scene);
+                if (!target) return;
+                const st = useProjectStore.getState();
+                const back = { scene: st.activeSceneId, selection: st.selection };
+                const goBack = () => {
+                  const s = useProjectStore.getState();
+                  if (back.scene) s.setActiveScene(back.scene);
+                  s.setSelection(back.selection);
+                };
+                st.setActiveScene(target.fileId);
+                st.setTilePick({
+                  label: `${field.label} in ${rec.scene}`,
+                  actorBox: true,
+                  onPick: (px, py) => {
+                    setPos(px, py);
+                    goBack();
+                  },
+                  onCancel: goBack,
+                });
+                return;
+              }
               setTilePick({
                 label: field.label,
-                onPick: (px, py) => patch(rec.units === "pixels" ? { [xKey]: px * 8, [yKey]: py * 8 } : { [xKey]: px, [yKey]: py }),
+                onPick: setPos,
                 screenOutline: ev.type === "camera_move_to" || ev.type === "camera_lock_point",
                 actorBox: ev.type.startsWith("actor_"),
-              })
-            }
+              });
+            }}
           >
             <Icon name="pick" /> Pick
           </button>

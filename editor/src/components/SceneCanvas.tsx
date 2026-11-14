@@ -1122,7 +1122,11 @@ export default function SceneCanvas() {
     }
     if (e.key === "Escape") {
       if (document.querySelector(".popover-menu, .add-event-menu")) return;
-      if (useProjectStore.getState().tilePick) setTilePick(null);
+      const pick = useProjectStore.getState().tilePick;
+      if (pick) {
+        setTilePick(null);
+        pick.onCancel?.();
+      }
       else if (useProjectStore.getState().placingPrefabId) setPlacingPrefab(null);
       else if (selRect) setSelRect(null);
       else setTool("select");

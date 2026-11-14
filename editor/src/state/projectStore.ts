@@ -110,6 +110,8 @@ export interface TilePick {
   screenOutline?: boolean;
   /** An actor position: show the actor's 16x16 box, top-left at the tile. */
   actorBox?: boolean;
+  /** Called if it's cancelled (Escape) instead of picked. */
+  onCancel?: () => void;
 }
 
 /** A script field's position being looked at (hovered or edited): the
