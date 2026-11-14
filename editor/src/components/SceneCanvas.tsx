@@ -1,4 +1,15 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
+import { createPortal } from "react-dom";
 
 import type { BgLayerJSON, DoorJSON, NoteJSON, NpcJSON, ProjectJSON, SceneJSON } from "../../shared/projectTypes";
 import { PREFAB_DRAG_TYPE, prefabDropTile } from "../world/prefabs";
@@ -220,7 +231,25 @@ function noteRect(n: NoteJSON): Rect {
   return { x: n.x, y: n.y, w: Math.ceil(longest * 0.75) + 1, h: Math.max(2, lines.length * 1.5 + 0.5) };
 }
 
-export default function SceneCanvas() {
+/** The scene editor running inside the world map (GB Studio style): its
+ * toolbar and floating panels as usual, its canvas drawn at the scene's
+ * place on the world map, which zooms and pans it. */
+export interface EmbeddedWorld {
+  /** Where the canvas goes: the scene's spot on the world map. */
+  slot: HTMLElement | null;
+  /** The world map's zoom (the canvas is drawn sharp enough for it). */
+  worldZoom: number;
+  /** The world map's own buttons, at the start of the toolbar. */
+  bar: ReactNode;
+  /** The world map itself, filling the editing area. */
+  area: ReactNode;
+  /** Wheel over the canvas zooms the world map. */
+  onWheel: (e: ReactWheelEvent) => void;
+  /** Middle-drag (or Space + drag) over the canvas pans the world map. */
+  onPanStart: (e: ReactPointerEvent) => void;
+}
+
+export default function SceneCanvas({ embedded }: { embedded?: EmbeddedWorld } = {}) {
   const rootPath = useProjectStore((s) => s.project?.rootPath ?? null);
   const scenes = useProjectStore((s) => s.project?.scenes);
   const activeSceneId = useProjectStore((s) => s.activeSceneId);
@@ -400,6 +429,14 @@ export default function SceneCanvas() {
   }, [data, drag, tileW, tileH]);
 
   const S = TILE * zoom;
+
+  // On the world map: the canvas goes into the scene's spot there, drawn
+  // sharp enough for the map's zoom (it scales it).
+  const inSlot = (el: ReactNode) => (embedded ? (embedded.slot ? createPortal(el, embedded.slot) : null) : el);
+  const worldSharp = embedded ? (embedded.worldZoom > 1.01 ? 2 : 1) : 0;
+  useEffect(() => {
+    if (worldSharp) setZoom(worldSharp);
+  }, [worldSharp]);
 
   /** The cells a brush stroke covers at `t` (and between it and `from`). */
   const strokeCells = (layer: PaintLayer, erase: boolean, anchor: Pt, from: Pt | null, t: Pt, into: Cells) => {
@@ -1212,11 +1249,14 @@ export default function SceneCanvas() {
 
   const tileAt = (e: { clientX: number; clientY: number }) => {
     const r = canvasRef.current!.getBoundingClientRect();
+    // On the world map the canvas is shown scaled: measure it as shown.
+    const k = r.width > 0 && tileW > 0 ? r.width / (tileW * S) : 1;
+    const px = (e.clientX - r.left) / k, py = (e.clientY - r.top) / k;
     return {
-      x: Math.max(0, Math.min(tileW - 1, Math.floor((e.clientX - r.left) / S))),
-      y: Math.max(0, Math.min(tileH - 1, Math.floor((e.clientY - r.top) / S))),
-      px: e.clientX - r.left,
-      py: e.clientY - r.top,
+      x: Math.max(0, Math.min(tileW - 1, Math.floor(px / S))),
+      y: Math.max(0, Math.min(tileH - 1, Math.floor(py / S))),
+      px,
+      py,
     };
   };
 
@@ -1609,16 +1649,22 @@ export default function SceneCanvas() {
   return (
     <div className="scene-canvas-wrap">
       <div className="scene-canvas-toolbar">
-        <button className="btn btn-small" title="See every scene and how they connect" onClick={() => setWorldMap(true)}>
-          World map
-        </button>
-        <button
-          className="btn btn-small"
-          title="Every line of text in the game: proofread, find and replace (text, variables, flags, items, actors), export for translation"
-          onClick={() => setDialogueView(true)}
-        >
-          Dialogue & Find
-        </button>
+        {embedded ? (
+          embedded.bar
+        ) : (
+          <>
+            <button className="btn btn-small" title="See every scene and how they connect, and edit them there" onClick={() => setWorldMap(true)}>
+              World map
+            </button>
+            <button
+              className="btn btn-small"
+              title="Every line of text in the game: proofread, find and replace (text, variables, flags, items, actors), export for translation"
+              onClick={() => setDialogueView(true)}
+            >
+              Dialogue & Find
+            </button>
+          </>
+        )}
         <div className="tool-group" role="toolbar" aria-label="Canvas tools">
           {tools.map((t, i) => (
             <span key={t.id} className="tool-slot">
@@ -1634,7 +1680,7 @@ export default function SceneCanvas() {
             </span>
           ))}
         </div>
-        <div className="scene-canvas-zoom">
+        <div className="scene-canvas-zoom" style={embedded ? { display: "none" } : undefined}>
           <button
             className="scene-canvas-zoom-btn"
             title="Zoom out (Ctrl+wheel)"
@@ -1854,10 +1900,11 @@ export default function SceneCanvas() {
             onStairs={makeStairs}
           />
         )}
+        {embedded?.area}
         <div
-          ref={scrollRef}
-          className="scene-canvas-scroll"
-          onMouseDownCapture={startPan}
+          ref={embedded ? undefined : scrollRef}
+          className={embedded ? "scene-canvas-scroll-embedded" : "scene-canvas-scroll"}
+          onMouseDownCapture={embedded ? undefined : startPan}
           style={spaceHeld || panning ? { cursor: panning ? "grabbing" : "grab" } : undefined}
           onWheel={(e) => {
             if (!e.ctrlKey) return;
@@ -1881,11 +1928,11 @@ export default function SceneCanvas() {
             setZoom(next);
           }}
         >
-          {bgError && <div className="scene-canvas-error">{bgError}</div>}
-          {!data.background && (
+          {bgError && !embedded && <div className="scene-canvas-error">{bgError}</div>}
+          {!data.background && !embedded && (
             <div className="scene-canvas-error scene-canvas-hint">No background set — pick one in the Properties panel.</div>
           )}
-          {bgImage && (
+          {bgImage && !embedded && (
             <div
               className={`scene-frame-bar scene-frame-title${bgImage.width * zoom > 640 ? " scene-frame-wide" : ""}`}
               style={{ width: bgImage.width * zoom, ...(data.color ? { background: data.color, color: inkOn(data.color) } : {}) }}
@@ -1894,11 +1941,23 @@ export default function SceneCanvas() {
               <span className="scene-frame-text">{data.name || sceneId}</span>
             </div>
           )}
-          <canvas
+          {inSlot(<canvas
             ref={canvasRef}
             className="scene-canvas"
-            style={{ cursor, ...(data.color ? { boxShadow: `0 0 0 2px ${data.color}` } : {}) }}
-            onMouseDown={onMouseDown}
+            style={{
+              cursor,
+              ...(data.color ? { boxShadow: `0 0 0 2px ${data.color}` } : {}),
+              // On the world map it fills the scene's spot; the map scales it.
+              ...(embedded ? { width: "100%", height: "100%" } : {}),
+            }}
+            onWheel={embedded?.onWheel}
+            onPointerDown={embedded ? (e) => {
+              if (e.button === 1 || spaceHeld) embedded.onPanStart(e);
+            } : undefined}
+            onMouseDown={embedded ? (e) => {
+              if (e.button === 1 || spaceHeld) return;   // panning the world map
+              onMouseDown(e);
+            } : onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={finishDrag}
             onMouseLeave={() => {
@@ -1923,8 +1982,8 @@ export default function SceneCanvas() {
               if (tile) placePrefab(sceneId, id, tile.x, tile.y);
             }}
             data-testid="scene-canvas"
-          />
-          {bgImage && (
+          />)}
+          {bgImage && !embedded && (
             <div
               className={`scene-frame-bar scene-canvas-stats${bgImage.width * zoom > 640 ? " scene-frame-wide" : ""}`}
               style={{ width: bgImage.width * zoom, ...(data.color ? { background: data.color, color: inkOn(data.color) } : {}) }}

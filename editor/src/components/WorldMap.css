@@ -161,3 +161,37 @@
 .world-map-info-over {
   color: #ff8a80;
 }
+
+/* Editing the selected scene right on the world map (GB Studio style):
+   the scene editor's toolbar on top, the map below, its canvas in the
+   scene's spot. */
+.world-map-editing > .scene-canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+.world-map-editing .scene-canvas-stage {
+  flex: 1;
+  min-height: 0;
+}
+.world-map-editing .world-map-area {
+  flex: 1;
+}
+.scene-canvas-scroll-embedded {
+  display: contents;
+}
+.world-map-edit-slot {
+  position: absolute;
+  inset: 0;
+  cursor: default;
+}
+.world-map-edit-slot canvas {
+  display: block;
+}
+.world-map-scene-editing {
+  outline: 2px solid var(--canvas-accent, #ffd23f);
+  cursor: default;
+}
+.world-map-scene-editing .world-map-label {
+  cursor: move;
+}

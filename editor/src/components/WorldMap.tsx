@@ -6,6 +6,7 @@
  * select it (its properties show on the right). Lines show where Change
  * Scene events and doors lead (toggle with "Connections").
  */
+import SceneCanvas from "./SceneCanvas";
 import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 import type { NpcJSON, ProjectJSON, SceneJSON, SceneRecord } from "../../shared/projectTypes";
@@ -186,8 +187,14 @@ const SceneCard = memo(function SceneCard({
   playerSprite,
   actions,
   placing,
+  editing,
+  slotRef,
 }: {
   placing: boolean;
+  /** This scene is edited right here: the scene editor's canvas goes in
+   * its slot (and its name bar is the handle to move it). */
+  editing: boolean;
+  slotRef?: (el: HTMLDivElement | null) => void;
   rec: SceneRecord;
   index: number;
   x: number;
@@ -205,7 +212,7 @@ const SceneCard = memo(function SceneCard({
   const [prefabHover, setPrefabHover] = useState(false);
   return (
     <div
-      className={`world-map-scene${active ? " world-map-scene-active" : ""}${prefabHover ? " world-map-scene-prefab-drop" : ""}`}
+      className={`world-map-scene${active ? " world-map-scene-active" : ""}${editing ? " world-map-scene-editing" : ""}${prefabHover ? " world-map-scene-prefab-drop" : ""}`}
       style={{
         transform: `translate(${x}px, ${y}px)`,
         width: img?.w ?? 240,
@@ -247,8 +254,14 @@ const SceneCard = memo(function SceneCard({
           T: {(rec.data.doors ?? []).length}
         </span>
       </div>
-      {img ? <img src={img.url} alt="" draggable={false} /> : <div className="world-map-missing">no background</div>}
-      {(rec.data.doors ?? []).map((d, k) => (
+      {editing ? (
+        <div ref={slotRef} className="world-map-edit-slot" />
+      ) : img ? (
+        <img src={img.url} alt="" draggable={false} />
+      ) : (
+        <div className="world-map-missing">no background</div>
+      )}
+      {!editing && (rec.data.doors ?? []).map((d, k) => (
         <div
           key={`d${k}`}
           className={`world-map-thing world-map-door${selDoor === k ? " world-map-thing-on" : ""}`}
@@ -261,10 +274,10 @@ const SceneCard = memo(function SceneCard({
           onContextMenu={(e) => actions.menu(e, rec, { kind: "door", index: k })}
         />
       ))}
-      {(rec.data.npcs ?? []).map((n, k) => (
+      {!editing && (rec.data.npcs ?? []).map((n, k) => (
         <ActorSprite key={`s${k}`} npc={n} img={sheets[n.sprite || playerSprite]} project={project} sprite={n.sprite || playerSprite} />
       ))}
-      {(rec.data.npcs ?? []).map((n, k) => (
+      {!editing && (rec.data.npcs ?? []).map((n, k) => (
         <div
           key={`n${k}`}
           className={`world-map-thing world-map-npc${selNpc === k ? " world-map-thing-on" : ""}`}
@@ -339,6 +352,8 @@ export default function WorldMap() {
   // While dragging the view, it moves by setting the transform directly
   // (no re-render per mouse move); the new pan is saved on release.
   const livePan = useRef<{ x: number; y: number } | null>(null);
+  // The selected scene is edited in place: the scene editor's canvas goes here.
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
 
   // Scenes not placed yet: in rows of 4, spaced by their real sizes,
   // below any that have been placed.
@@ -481,6 +496,24 @@ export default function WorldMap() {
     setDrag(null);
   };
 
+  /** Middle-drag (or Space + drag) over the scene being edited pans the map. */
+  const panFromCanvas = (e: ReactPointerEvent) => {
+    e.preventDefault();
+    const start = { sx: e.clientX, sy: e.clientY, px: pan.x, py: pan.y };
+    let last = { x: pan.x, y: pan.y };
+    const move = (ev: PointerEvent) => {
+      last = { x: start.px + ev.clientX - start.sx, y: start.py + ev.clientY - start.sy };
+      if (planeRef.current) planeRef.current.style.transform = `translate(${last.x}px, ${last.y}px) scale(${zoom})`;
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setPan(last);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   const actionsRef = useRef<CardActions>(null!);
   actionsRef.current = {
     drop: (e, rec) => {
@@ -536,10 +569,10 @@ export default function WorldMap() {
     setPan({ x: 40 - x0 * z, y: 40 - y0 * z });
   };
 
-  return (
-    <div className="world-map">
-      <div className="world-map-bar">
-        <button className="btn btn-small" onClick={() => setWorldMap(false)} title="Back to editing the selected scene">
+  const editingRec = scenes.find((s) => s.fileId === activeSceneId);
+  const bar = (
+    <>
+        <button className="btn btn-small" onClick={() => setWorldMap(false)} title="Edit the selected scene on its own">
           ← Scene view
         </button>
         <button className="btn btn-small" onClick={fit}>
@@ -564,8 +597,10 @@ export default function WorldMap() {
         {tool === "placePrefab" && placingPrefabId ? <>
           <span className="world-map-hint">Click a scene tile to place {project?.project.prefabs?.find((p) => p.id === placingPrefabId)?.name ?? "prefab"}</span>
           <button className="btn btn-small" onClick={() => setPlacingPrefab(null)}>Cancel placement</button>
-        </> : <span className="world-map-hint">Drag prefabs onto scenes · drag scenes to arrange · double-click to open · wheel to zoom</span>}
-      </div>
+        </> : <span className="world-map-hint">Edit the selected scene right here · drag a scene (or its name bar) to move it · click one to edit it · wheel to zoom · middle-drag to pan</span>}
+    </>
+  );
+  const area = (
       <div
         ref={boxRef}
         className={`world-map-area${drag?.kind === "pan" ? " world-map-panning" : ""}`}
@@ -596,6 +631,8 @@ export default function WorldMap() {
                   playerSprite={playerSprite}
                   actions={actions}
                   placing={tool === "placePrefab" && !!placingPrefabId}
+                  editing={rec.fileId === editingRec?.fileId}
+                  slotRef={rec.fileId === editingRec?.fileId ? setSlot : undefined}
                 />
               );
             })}
@@ -674,6 +711,18 @@ export default function WorldMap() {
           )}
         </div>
       </div>
+  );
+
+  if (editingRec)
+    return (
+      <div className="world-map world-map-editing">
+        <SceneCanvas embedded={{ slot, worldZoom: zoom, bar, area, onWheel, onPanStart: panFromCanvas }} />
+      </div>
+    );
+  return (
+    <div className="world-map">
+      <div className="world-map-bar">{bar}</div>
+      {area}
     </div>
   );
 }
