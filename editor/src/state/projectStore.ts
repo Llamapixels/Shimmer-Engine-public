@@ -124,9 +124,14 @@ export interface PosPreview {
   /** In tiles. */
   x: number;
   y: number;
-  kind: "actor" | "camera" | "tile";
+  kind: "actor" | "camera" | "tile" | "radius" | "sight";
   /** The event's "actor" (a name, an index, "player" or "self"). */
   actor?: unknown;
+  /** radius: tiles around the actor (If Actor Distance); sight: how far it
+   * sees straight ahead (Line Of Sight). */
+  radius?: number;
+  /** sight: solid tiles block the view. */
+  walls?: boolean;
 }
 
 interface Snapshot {

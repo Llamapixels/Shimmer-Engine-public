@@ -499,8 +499,25 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
     useDragState.getState().setTarget({ rootId: env.rootId, path: loc.path, index: before ? loc.index : loc.index + 1 });
   };
 
+  // If Actor Distance / Line Of Sight: hovering the block shows the tiles
+  // it covers on the scene canvas.
+  const setPosPreview = useProjectStore((s) => s.setPosPreview);
+  const areaPreview =
+    ev.type === "if_actor_distance" && typeof (ev as { distance?: unknown }).distance === "number"
+      ? { kind: "radius" as const, actor: (ev as { other?: unknown }).other, radius: (ev as { distance: number }).distance }
+      : ev.type === "actor_line_of_sight"
+        ? {
+            kind: "sight" as const,
+            actor: (ev as { actor?: unknown }).actor,
+            radius: Number((ev as { range?: unknown }).range ?? 4),
+            walls: (ev as { walls?: unknown }).walls !== false,
+          }
+        : null;
+
   return (
     <div
+      onMouseEnter={areaPreview ? () => setPosPreview({ sceneId: env.sceneId, x: 0, y: 0, ...areaPreview }) : undefined}
+      onMouseLeave={areaPreview ? () => setPosPreview(null) : undefined}
       onDragOver={onBlockDragOver}
       onDrop={(e) => performDrop(e, env.rootId, apply)}
       className={`event-block${selected ? " event-block-selected" : ""}${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}${disabled ? " event-block-disabled" : ""}${tint ? " event-block-tinted" : ""}`}

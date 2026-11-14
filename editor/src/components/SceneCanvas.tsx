@@ -828,7 +828,49 @@ export default function SceneCanvas() {
       const px = S / TILE;
       const { x, y } = posPreview;
       ctx.save();
-      if (posPreview.kind === "camera") {
+      if (posPreview.kind === "radius" || posPreview.kind === "sight") {
+        // The tiles an If Actor Distance / Line Of Sight covers around its actor.
+        const npcs = view.npcs ?? [];
+        const ref = posPreview.actor;
+        const idx =
+          typeof ref === "number" ? ref : typeof ref === "string" && ref !== "player" && ref !== "self" ? npcs.findIndex((n) => n.name === ref) : -1;
+        const npc = idx >= 0 ? npcs[idx] : undefined;
+        const at = npc ? { x: npc.x, y: npc.y } : ref === "player" ? view.player_start : undefined;
+        const r = Math.max(0, Math.min(64, posPreview.radius ?? 0));
+        if (at) {
+          ctx.fillStyle = "rgba(255, 210, 63, 0.32)";
+          const solid = (tx: number, ty: number) => {
+            const ch = view.collision?.[ty]?.[tx];
+            return ch === "#" || ch === "~";
+          };
+          if (posPreview.kind === "radius") {
+            // Whole tiles, straight-line distance (as the engine measures it).
+            for (let ty = at.y - r; ty <= at.y + r; ty++)
+              for (let tx = at.x - r; tx <= at.x + r; tx++) {
+                if (tx < 0 || ty < 0 || tx >= tileW || ty >= tileH) continue;
+                const dx = tx - at.x, dy = ty - at.y;
+                if (dx * dx + dy * dy <= r * r) ctx.fillRect(tx * S, ty * S, S, S);
+              }
+          } else {
+            // Straight ahead of the actor's 2x2 footprint, up to the range.
+            const dir = (npc?.direction as string) ?? (ref === "player" ? view.player_start_direction : "down") ?? "down";
+            const step = dir === "up" ? [0, -1] : dir === "left" ? [-1, 0] : dir === "right" ? [1, 0] : [0, 1];
+            const lanes = [0, 1];   /* both columns (or rows) of the footprint */
+            for (const lane of lanes) {
+              for (let k = 1; k <= r; k++) {
+                const tx = step[0] ? (step[0] > 0 ? at.x + 1 + k : at.x - k) : at.x + lane;
+                const ty = step[1] ? (step[1] > 0 ? at.y + 1 + k : at.y - k) : at.y + lane;
+                if (tx < 0 || ty < 0 || tx >= tileW || ty >= tileH) break;
+                if (posPreview.walls && solid(tx, ty)) break;
+                ctx.fillRect(tx * S, ty * S, S, S);
+              }
+            }
+          }
+          ctx.strokeStyle = accent;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(at.x * S + 1, at.y * S + 1, ACTOR_TILES * S - 2, ACTOR_TILES * S - 2);
+        }
+      } else if (posPreview.kind === "camera") {
         const mapW = tileW * TILE;
         const mapH = tileH * TILE;
         const camX = Math.max(0, Math.min(mapW - SCREEN_W, x * TILE - SCREEN_W / 2));
