@@ -1,4 +1,4 @@
-import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 
 import type { EventScript, MenuEvent, ScriptEventJSON, SwitchEvent } from "../../shared/eventTypes";
@@ -8,6 +8,7 @@ import NamePrompt from "../components/common/NamePrompt";
 import { sceneName, useProjectStore } from "../state/projectStore";
 import AddEventMenu from "./AddEventMenu";
 import { useDragState, pathKey } from "./dragState";
+import { removeSelected, selectedEvents, toggleDisabled, useEventSelection } from "./eventSelection";
 import { CATEGORY_COLOR, eventSummary, getEventDef, setCustomScriptNames, setFirstName, setPrefabNames, type CreateContext, type EventDef } from "./eventCatalog";
 import { FieldControl, type ScriptEnv } from "./ScriptFields";
 import {
@@ -86,6 +87,8 @@ interface Props {
  * compiler reads - nothing editor-specific is saved.
  */
 /** Save events as a named snippet (Add Event > Snippets). */
+const NO_KEYS: string[] = [];
+
 function saveSnippet(name: string, events: EventScript) {
   const id = `snip_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   useProjectStore.getState().updateProject((p) => ({ ...p, snippets: [...(p.snippets ?? []), { id, name, events: events.map(cloneEvent) }] }));
@@ -135,6 +138,11 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
   let total = 0;
   walkEvents(root, () => (total += 1));
 
+  // Blocks selected with Ctrl / Shift + click, in this script.
+  const selKeys = useEventSelection((s) => (s.rootId === env.rootId ? s.keys : NO_KEYS));
+  const clearSel = useEventSelection((s) => s.clear);
+  const [selSnippetAt, setSelSnippetAt] = useState<{ x: number; y: number } | null>(null);
+
   return (
     <EditorContext.Provider value={ctx}>
       <div className="script-editor">
@@ -182,6 +190,50 @@ export default function ScriptEditor({ value, onChange, env, emptyHint }: Props)
             Clear
           </button>
         </div>
+        {selKeys.length > 0 && (
+          <div className="script-select-bar">
+            <span className="script-select-count">{selKeys.length} selected</span>
+            <button className="link-btn" onClick={() => setClipboard(selectedEvents(root, selKeys))}>
+              Copy
+            </button>
+            <button
+              className="link-btn"
+              onClick={() => {
+                setClipboard(selectedEvents(root, selKeys));
+                onChange((r) => removeSelected(r, selKeys));
+                clearSel();
+              }}
+            >
+              Cut
+            </button>
+            <button className="link-btn" onClick={() => onChange((r) => toggleDisabled(r, selKeys))}>
+              Disable / enable
+            </button>
+            <button className="link-btn" onClick={(e) => setSelSnippetAt({ x: e.clientX, y: e.clientY })}>
+              Save as snippet
+            </button>
+            <button
+              className="link-btn link-btn-danger"
+              onClick={() => {
+                onChange((r) => removeSelected(r, selKeys));
+                clearSel();
+              }}
+            >
+              Delete
+            </button>
+            <button className="link-btn" onClick={clearSel} title="Deselect (or click a block without Ctrl / Shift)">
+              ✕
+            </button>
+            {selSnippetAt && (
+              <NamePrompt
+                at={selSnippetAt}
+                title="Name the snippet"
+                onDone={(name) => saveSnippet(name, selectedEvents(root, selKeys))}
+                onClose={() => setSelSnippetAt(null)}
+              />
+            )}
+          </div>
+        )}
         {root.length === 0 && emptyHint && <div className="script-empty-hint">{emptyHint}</div>}
         <EventList path={[]} list={root} />
         {clipboard && clipboard.length > 0 && (
@@ -293,8 +345,27 @@ function performDrop(e: DragEvent, rootId: string, apply: ScriptUpdater) {
 // ---------------------------------------------------------------------------
 
 const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; loc: EventLocation }) {
-  const { env, apply, createCtx } = useEditor();
+  const { env, apply, createCtx, root } = useEditor();
   const key = eventKey(ev);
+  const selected = useEventSelection((s) => s.rootId === env.rootId && s.keys.includes(key));
+  /** Ctrl+click adds / removes this block; Shift+click selects the run
+   * from the last one clicked in the same list; a plain click deselects. */
+  const onHeaderClick = (e: ReactMouseEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    const S = useEventSelection.getState();
+    const pk = pathKey(loc.path);
+    if (e.shiftKey && S.anchor && S.anchor.pathKey === pk && S.rootId === env.rootId) {
+      const list = getList(root, loc.path);
+      const a = Math.min(S.anchor.index, loc.index), b = Math.max(S.anchor.index, loc.index);
+      S.setRun(env.rootId, list.slice(a, b + 1).map((x) => eventKey(x)));
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+      S.toggle(env.rootId, key, { pathKey: pk, index: loc.index });
+      return;
+    }
+    S.clear();
+  };
   const bigByDefault = useMemo(() => {
     let d = foldDefaults.get(key);
     if (d === undefined) {
@@ -432,7 +503,7 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
     <div
       onDragOver={onBlockDragOver}
       onDrop={(e) => performDrop(e, env.rootId, apply)}
-      className={`event-block${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}${disabled ? " event-block-disabled" : ""}${tint ? " event-block-tinted" : ""}`}
+      className={`event-block${selected ? " event-block-selected" : ""}${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}${disabled ? " event-block-disabled" : ""}${tint ? " event-block-tinted" : ""}`}
       style={{ ["--cat" as string]: tint ?? color, ...(tint ? { ["--tint" as string]: tint } : {}) }}
     >
       <div
@@ -453,7 +524,9 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
           e.stopPropagation();
           setMenu({ x: e.clientX, y: e.clientY });
         }}
+        onClick={onHeaderClick}
         onDoubleClick={(e) => {
+          if (e.ctrlKey || e.metaKey || e.shiftKey) return;
           // Double-clicking the fold arrow or the menu button already acted
           // on each click; don't fold again on top of that.
           if ((e.target as HTMLElement).closest("button")) return;
