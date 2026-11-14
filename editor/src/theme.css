@@ -640,3 +640,19 @@ html .engine-bool > input[type="checkbox"]:not(.raw):checked::after {
   left: 14px;
   background: var(--accent-text);
 }
+
+/* A sound picker with its listen button. */
+.sound-choice {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.sound-choice select {
+  flex: 1;
+  min-width: 0;
+}
+.sound-preview-btn {
+  flex: none;
+  padding: 3px 8px;
+}

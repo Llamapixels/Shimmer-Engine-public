@@ -1,3 +1,4 @@
+import SoundPreviewButton from "../common/SoundPreview";
 import { useState } from "react";
 
 import type { AssetKind } from "../../../shared/ipc";
@@ -187,6 +188,7 @@ export default function DialogueCard() {
 export function SoundChoice({ value, onChange, extra }: { value: string; onChange: (v: string) => void; extra?: { value: string; label: string } }) {
   const wavs = useProjectStore((s) => s.assets?.sounds ?? []);
   return (
+    <div className="sound-choice">
     <select value={value} onChange={(e) => onChange(e.target.value)}>
       {extra && <option value={extra.value}>{extra.label}</option>}
       <option value="none">None (silent)</option>
@@ -207,5 +209,7 @@ export function SoundChoice({ value, onChange, extra }: { value: string; onChang
         </optgroup>
       )}
     </select>
+    <SoundPreviewButton name={value} />
+    </div>
   );
 }

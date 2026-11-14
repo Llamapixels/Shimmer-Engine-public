@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import CommitInput from "../components/common/CommitInput";
 import SearchSelect from "../components/common/SearchSelect";
+import SoundPreviewButton from "../components/common/SoundPreview";
 import NumberInput from "../components/common/NumberInput";
 import { playerSpriteName } from "../sprites/model";
 import { useProjectStore } from "../state/projectStore";
@@ -22,15 +23,18 @@ function SoundSelect({ value, onChange }: { value: string; onChange: (v: EngineV
   const sounds = useProjectStore((s) => s.assets?.sounds ?? []);
   const names = sounds.map((a) => a.name);
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">(none)</option>
-      {value && !names.includes(value) && <option value={value}>{value} (missing)</option>}
-      {names.map((n) => (
-        <option key={n} value={n}>
-          {n}
-        </option>
-      ))}
-    </select>
+    <div className="sound-choice">
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">(none)</option>
+        {value && !names.includes(value) && <option value={value}>{value} (missing)</option>}
+        {names.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+      <SoundPreviewButton name={value} />
+    </div>
   );
 }
 

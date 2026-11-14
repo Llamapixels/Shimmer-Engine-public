@@ -4,6 +4,7 @@ import EngineValueInput from "../engine/EngineValueInput";
 import { ENGINE_MODES, ENGINE_SETTINGS, type EngineValue, SETTING_BY_KEY } from "../engine/engineSettings";
 import { SpriteOptionThumb, SpriteSelect } from "../components/common/AssetSelect";
 import SearchSelect from "../components/common/SearchSelect";
+import SoundPreviewButton from "../components/common/SoundPreview";
 import type {
   ActorRelation,
   ArrayVarMathOp,
@@ -451,6 +452,7 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       const cur = String(value ?? "blip");
       const known = SOUNDS.includes(cur as SoundEffect) || wavs.some((w) => w.name === cur);
       return (
+        <div className="sound-choice">
         <select className={!known ? "select-invalid" : undefined} value={cur} onChange={(e) => patch({ [field.key]: e.target.value })}>
           {!known && <option value={cur}>{cur} (not in assets/sounds)</option>}
           {wavs.length > 0 && (
@@ -470,6 +472,8 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             ))}
           </optgroup>
         </select>
+        <SoundPreviewButton name={cur} />
+        </div>
       );
     }
 
