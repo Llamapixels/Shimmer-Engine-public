@@ -608,8 +608,16 @@ static int open_bubble(const char *text, int actor, int framed, int font, int in
     return 1;
 }
 
+/* The button that moves a text box on (DIALOGUE_OPT_ADVANCE). */
+static uint16_t advance_keys = INPUT_A;
+static const uint16_t ADVANCE_KEYS[7] = {
+    INPUT_A, INPUT_B, INPUT_L, INPUT_R, INPUT_START, INPUT_SELECT,
+    INPUT_A | INPUT_B | INPUT_L | INPUT_R | INPUT_START | INPUT_SELECT,
+};
+
 void dialogue_show_ex(const char *text, int options, int place)
 {
+    advance_keys = ADVANCE_KEYS[DIALOGUE_OPT_ADVANCE(options) % 7];
     TextState st = { ui_font(), ui_speed(), 0 };
     int rows = DIALOGUE_OPT_ROWS(options);
     text_lines = rows ? rows : TEXT_LINES;
@@ -997,7 +1005,7 @@ void dialogue_update(void)
     /* Revealing the page. */
     if (shown < page_chars)
     {
-        if (input_pressed(INPUT_A) || skipping)
+        if (input_pressed(advance_keys) || skipping)
         {
             shown = page_chars;
             render_page();
@@ -1011,7 +1019,7 @@ void dialogue_update(void)
         return;
     }
 
-    int go = input_pressed(INPUT_A);
+    int go = input_pressed(advance_keys);
     if (skipping && ++skip_timer >= SKIP_TURN_FRAMES)
         go = 1;
     if (auto_frames && ++auto_timer >= auto_frames)

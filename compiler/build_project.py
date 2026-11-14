@@ -2148,6 +2148,10 @@ def text_focus(ev, where):
     return TEXT_FOCUS[focus]
 
 
+# The button that moves a text box on (engine DIALOGUE_OPT_ADVANCE).
+TEXT_ADVANCE = ["a", "b", "l", "r", "start", "select", "any"]
+
+
 def text_options(ev, where):
     """Display Text's box options -> SCRIPT_TEXT's `a` and `b` (see
     engine/include/dialogue.h DIALOGUE_OPT_* / DIALOGUE_PLACE_*)."""
@@ -2158,8 +2162,11 @@ def text_options(ev, where):
     if isinstance(rows, bool) or not isinstance(rows, int) or not 1 <= rows <= 4:
         raise BuildError(f"{where}: \"rows\" must be 1 to 4.")
     framed = ev.get("frame", True) is not False
+    advance = str(ev.get("advance", "a")).lower()
+    if advance not in TEXT_ADVANCE:
+        raise BuildError(f"{where}: \"advance\" must be one of: {', '.join(TEXT_ADVANCE)}.")
     a = (TEXT_POSITIONS[pos] | ((0 if rows == 2 else rows) << 2) | (0 if framed else 0x20)
-         | (text_focus(ev, where) << 6) | (0x100 if ev.get("hud") else 0))
+         | (text_focus(ev, where) << 6) | (0x100 if ev.get("hud") else 0) | (TEXT_ADVANCE.index(advance) << 9))
     b = 0
     if pos == "custom":
         bx = resolve_small_int(ev.get("box_x", 0), "box_x", where, 0, 29)

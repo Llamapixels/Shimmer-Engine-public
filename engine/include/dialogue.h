@@ -31,6 +31,9 @@ void dialogue_show(const char *text);
  * script) carry on, until dialogue_hud_close(), another box, or a scene
  * change. */
 #define DIALOGUE_OPT_HUD         0x100
+/* Bits 9-11: the button that turns pages / closes the box: 0 = A, 1 = B,
+ * 2 = L, 3 = R, 4 = START, 5 = SELECT, 6 = any of those. */
+#define DIALOGUE_OPT_ADVANCE(o)  (((o) >> 9) & 7)
 /* With position UI_BOX_CUSTOM, SCRIPT_TEXT's `b` places the box: tile
  * column, row and width (frame included). */
 #define DIALOGUE_PLACE_X(p)      ((p) & 31)
