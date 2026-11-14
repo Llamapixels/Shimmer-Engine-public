@@ -1524,6 +1524,10 @@ static void thread_step(ScriptThread *t, int is_main)
             background_set_tile(ev->a, ev->b, background_get_tile(ev->c, ev->d));
             break;
 
+        case SCRIPT_REPLACE_TILE_ENTRY:
+            background_set_tile(ev->a, ev->b, (uint16_t)ev->c);
+            break;
+
         case SCRIPT_SOUND_TONE:
             audio_play_tone((uint16_t)ev->a, ev->b);
             break;

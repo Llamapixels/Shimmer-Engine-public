@@ -5,6 +5,7 @@ import { ENGINE_MODES, ENGINE_SETTINGS, type EngineValue, SETTING_BY_KEY } from 
 import { SpriteOptionThumb, SpriteSelect } from "../components/common/AssetSelect";
 import SearchSelect from "../components/common/SearchSelect";
 import SoundPreviewButton from "../components/common/SoundPreview";
+import TileSourceField from "./TileSourceField";
 import type {
   ActorRelation,
   ArrayVarMathOp,
@@ -520,6 +521,17 @@ export function FieldControl({ field, ev, env, patch }: Props) {
       );
     }
 
+    case "tileSource":
+      return (
+        <TileSourceField
+          sceneBackground={env.scene.background}
+          background={typeof rec.source_background === "string" ? rec.source_background : undefined}
+          x={typeof rec.sourceX === "number" ? rec.sourceX : 0}
+          y={typeof rec.sourceY === "number" ? rec.sourceY : 0}
+          onChange={(p) => patch(p)}
+        />
+      );
+
     case "sprite":
       return <SpriteSelect value={String(value ?? "player")} onChange={(v) => patch({ [field.key]: v ?? "player" })} />;
 
@@ -821,7 +833,11 @@ export function FieldControl({ field, ev, env, patch }: Props) {
                 ? "Opens the target scene: click the tile the player arrives on (Escape to cancel)"
                 : "Click a tile on the scene canvas"
             }
-            disabled={ev.type === "switch_scene" && !env.scenes.some((s) => sceneName(s) === rec.scene)}
+            disabled={
+              (ev.type === "switch_scene" && !env.scenes.some((s) => sceneName(s) === rec.scene)) ||
+              // Copying from another background: click it in the picture below.
+              (field.xKey === "sourceX" && !!rec.source_background)
+            }
             onClick={() => {
               const setPos = (px: number, py: number) =>
                 patch(rec.units === "pixels" ? { [xKey]: px * 8, [yKey]: py * 8 } : { [xKey]: px, [yKey]: py });

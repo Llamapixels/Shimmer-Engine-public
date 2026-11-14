@@ -795,3 +795,29 @@
 .text-code-color input[type="color"] {
   height: 26px;
 }
+
+/* Replace Tile: where the tile comes from. */
+.tile-source {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.tile-source-pic {
+  max-height: 200px;
+  overflow: auto;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.tile-source-pic canvas {
+  display: block;
+  image-rendering: pixelated;
+  cursor: crosshair;
+}
+.tile-source-empty {
+  display: block;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

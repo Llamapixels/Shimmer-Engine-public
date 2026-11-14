@@ -454,6 +454,7 @@ typedef enum
     SCRIPT_SLOT_MENU,           /* a = slots, b = 1 for loading (empty ones can't be picked), str = title \x01 empty \x01 "Slot" */
     SCRIPT_SLOT_RESULT,         /* a = variable: the slot picked, -1 = cancelled */
     SCRIPT_ACTOR_EMOTE,         /* a = actor, b = EMOTE_*, c = frames, d = 1 wait until it's gone */
+    SCRIPT_REPLACE_TILE_ENTRY,  /* a, b = tile, c = map entry (a tile the compiler added from another background) */
 } ScriptOp;
 
 #define MOVE_F_PIXELS     0x01   /* b/c are pixels, not tiles */

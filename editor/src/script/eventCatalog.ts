@@ -36,6 +36,8 @@ export type FieldKind =
   | "buttons"
   | "compareOp"
   | "tilePos"
+  /** Replace Tile's source: a background (this scene's or another) and a picture to click the tile on. */
+  | "tileSource"
   | "choiceOptions"
   | "state"
   | "bool"
@@ -2791,13 +2793,17 @@ export const EVENT_DEFS: EventDef[] = [
     type: "replace_tile",
     label: "Replace Tile",
     category: "Screen",
-    description: "Copy the tile at the source position onto another tile of this scene's map (until the scene reloads).",
+    description:
+      "Copy a tile onto another tile of this scene's map (until the scene reloads). The tile can come from this scene's " +
+      "background or from another one - then it's added to this scene's tiles when building (its colors must fit).",
     fields: [
       { key: "pos", label: "Tile", kind: "tilePos" },
       { key: "source", label: "Copy from", kind: "tilePos", xKey: "sourceX", yKey: "sourceY" },
+      { key: "source_background", label: "From", kind: "tileSource" },
     ],
     create: () => ({ type: "replace_tile", x: 0, y: 0, sourceX: 0, sourceY: 0 }),
-    summary: (ev) => `(${ev.x}, ${ev.y}) ← (${ev.sourceX}, ${ev.sourceY})`,
+    summary: (ev) =>
+      `(${ev.x}, ${ev.y}) ← (${ev.sourceX}, ${ev.sourceY})${ev.source_background ? ` of ${String(ev.source_background).split("/").pop()?.replace(/\.png$/i, "")}` : ""}`,
   }),
 
   // Save data

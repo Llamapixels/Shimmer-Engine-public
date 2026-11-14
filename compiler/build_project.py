@@ -988,10 +988,13 @@ def assign_banks(unique_tiles, backdrop, name, tile_positions, palette_map=None)
 SEE_THROUGH = (-1, -1, -1)
 
 
-def convert_background(path, name, palette_map=None, tile_overrides=None, see_through_only=False, image=None):
+def convert_background(path, name, palette_map=None, tile_overrides=None, see_through_only=False, image=None,
+                       extra_tiles=None):
     """`see_through_only`: only transparent pixels become palette index 0
     (see-through to the layers behind); otherwise the most common color
-    is the backdrop, free in every palette bank."""
+    is the backdrop, free in every palette bank. `extra_tiles`: 8x8 RGBA
+    pixel lists (from other backgrounds, for Replace Tile) added to the
+    tile set; their screen entries come back as "extra_entries"."""
     if image is None:
         image = load_background(path, tile_overrides, name)
     w_tiles = image.width // TILE
@@ -1040,6 +1043,20 @@ def convert_background(path, name, palette_map=None, tile_overrides=None, see_th
 
             cells.append((index, 0, 0))
 
+    extra_cells = []
+    for pixels in extra_tiles or []:
+        tile = tuple(backdrop if p[3] == 0 else p[:3] for p in pixels)
+        if tile in lookup:
+            extra_cells.append(lookup[tile])
+            continue
+        index = len(unique)
+        unique.append(tile)
+        unique_pos.append((0, 0))
+        for flipped, hf, vf in flips(tile):
+            if flipped not in lookup:
+                lookup[flipped] = (index, hf, vf)
+        extra_cells.append((index, 0, 0))
+
     if len(unique) > MAX_TILES:
         raise BuildError(
             f"{name}: {len(unique)} unique tiles, max is {MAX_TILES}. "
@@ -1067,6 +1084,7 @@ def convert_background(path, name, palette_map=None, tile_overrides=None, see_th
         t | (hf << 10) | (vf << 11) | (tile_bank[t] << 12)
         for t, hf, vf in cells
     ]
+    extra_entries = [t | (hf << 10) | (vf << 11) | (tile_bank[t] << 12) for t, hf, vf in extra_cells]
 
     return {
         "image": image,
@@ -1077,6 +1095,7 @@ def convert_background(path, name, palette_map=None, tile_overrides=None, see_th
         "palette": palette,
         "palette_count": len(banks),
         "map": screen,
+        "extra_entries": extra_entries,
         "colors": 1 + len(set().union(*[set(b) for b in banks])),
         "banks": banks,
         "backdrop": backdrop,
@@ -1093,6 +1112,37 @@ def _fixed8(value, field, where, lo, hi):
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not lo <= value <= hi:
         raise BuildError(f"{where}: \"{field}\" must be a number from {lo} to {hi}.")
     return int(round(value * 256))
+
+
+def replace_tile_sources(scene, scene_file, name):
+    """[((background ref, x, y), 64 RGBA pixels)] for every Replace Tile in
+    the scene that copies from another background."""
+    found, out = set(), []
+
+    def walk(v):
+        if isinstance(v, list):
+            for x in v:
+                walk(x)
+        elif isinstance(v, dict):
+            if v.get("type") == "replace_tile" and v.get("source_background"):
+                key = (str(v["source_background"]), int(v.get("sourceX", 0)), int(v.get("sourceY", 0)))
+                if key not in found:
+                    found.add(key)
+                    path = (scenes_root(scene_file) / key[0]).resolve()
+                    if not path.exists():
+                        raise BuildError(f"{name}: Replace Tile copies from a background that isn't there: {key[0]}")
+                    img = Image.open(path).convert("RGBA")
+                    x0, y0 = key[1] * TILE, key[2] * TILE
+                    if x0 + TILE > img.width or y0 + TILE > img.height:
+                        raise BuildError(f"{name}: Replace Tile copies tile ({key[1]}, {key[2]}), outside {path.name}.")
+                    tile = img.crop((x0, y0, x0 + TILE, y0 + TILE))
+                    out.append((key, list(tile.getdata())))
+            for x in v.values():
+                if isinstance(x, (list, dict)):
+                    walk(x)
+
+    walk(scene)
+    return out
 
 
 def scenes_root(scene_file):
@@ -3662,7 +3712,16 @@ def compile_parity_event(etype, ev, out, ctx, where):
         y = resolve_small_int(_require(ev, "y", where), "y", where, 0, 255)
         sx = resolve_small_int(_require(ev, "sourceX", where), "sourceX", where, 0, 255)
         sy = resolve_small_int(_require(ev, "sourceY", where), "sourceY", where, 0, 255)
-        out.append(_instr("SCRIPT_REPLACE_TILE", a=x, b=y, c=sx, d=sy))
+        if ev.get("source_background"):
+            key = (str(ev["source_background"]), sx, sy)
+            entry = (ctx.get("replace_sources") or {}).get(key)
+            if entry is None:
+                raise BuildError(f"{where}: copying a tile from another background only works in a scene's own "
+                                 "scripts (its On Init, actors and triggers), not in custom scripts or prefabs.")
+            # The tile was added to this scene's tiles: write its map entry.
+            out.append(_instr("SCRIPT_REPLACE_TILE_ENTRY", a=x, b=y, c=entry - 0x10000 if entry >= 0x8000 else entry))
+        else:
+            out.append(_instr("SCRIPT_REPLACE_TILE", a=x, b=y, c=sx, d=sy))
 
     # ---- Sound ----
     elif etype == "sound_tone":
@@ -4414,8 +4473,12 @@ def build(project_dir, out_dir):
         # With a layer behind it, only the background's transparent pixels
         # are see-through (normally its most common color is the backdrop).
         behind = any(isinstance(l, dict) and not l.get("front") for l in layers)
+        # Replace Tile copying from another background: those tiles join
+        # this scene's tile set (and palettes).
+        sources = replace_tile_sources(scene, scene_file, name)
         bg = convert_background(bg_path, name, scene.get("palette_map"), scene.get("tile_overrides"),
-                                see_through_only=behind)
+                                see_through_only=behind, extra_tiles=[px for _, px in sources])
+        ctx["replace_sources"] = {key: entry for (key, _), entry in zip(sources, bg["extra_entries"])}
         w, h = bg["width"], bg["height"]
         layer_data = []
         for li, layer in enumerate(layers):

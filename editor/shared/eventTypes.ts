@@ -1295,6 +1295,8 @@ export interface PaletteSetEvent extends EventBase {
 /** Copies the map entry at tile (sourceX, sourceY) onto tile (x, y). */
 export interface ReplaceTileEvent extends EventBase {
   type: "replace_tile";
+  /** Copy from another background (scene-relative ref); unset = this scene's. */
+  source_background?: string;
   x: number;
   y: number;
   sourceX: number;
