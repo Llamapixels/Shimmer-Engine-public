@@ -51,6 +51,11 @@ function useEditor(): Ctx {
  * script opens at once instead of drawing thousands of blocks. */
 const FOLD_OVER = 40;
 
+/** Each block's default fold, decided once when it first shows (by its
+ * key, which survives edits): adding or pasting into a group must not
+ * push it over FOLD_OVER and fold it under the user. */
+const foldDefaults = new Map<string, boolean>();
+
 function foldsByDefault(ev: ScriptEventJSON): boolean {
   let n = 0;
   const walk = (v: unknown): void => {
@@ -219,8 +224,22 @@ function EventList({ path, list }: { path: ListPath; list: EventScript }) {
     apply((root) => insertEvents(root, path, getList(root, path).length, [ev]));
   };
 
+  // The gaps between blocks: keep the line where it is and accept the drop
+  // there (it used to do nothing if released between blocks).
+  const listDragOver = (e: DragEvent) => {
+    const { source: src, target: t } = useDragState.getState();
+    if (!src || src.rootId !== env.rootId || !t || t.rootId !== env.rootId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = e.altKey || e.ctrlKey ? "copy" : "move";
+  };
+
   return (
-    <div className={`event-list${path.length ? " event-list-nested" : ""}`}>
+    <div
+      className={`event-list${path.length ? " event-list-nested" : ""}`}
+      onDragOver={listDragOver}
+      onDrop={(e) => performDrop(e, env.rootId, apply)}
+    >
       {list.map((ev, i) => (
         <div key={eventKey(ev)}>
           {lineAt === i && <div className="drop-line" />}
@@ -276,8 +295,15 @@ function performDrop(e: DragEvent, rootId: string, apply: ScriptUpdater) {
 const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; loc: EventLocation }) {
   const { env, apply, createCtx } = useEditor();
   const key = eventKey(ev);
-
-  const bigByDefault = useMemo(() => foldsByDefault(ev), [ev]);
+  const bigByDefault = useMemo(() => {
+    let d = foldDefaults.get(key);
+    if (d === undefined) {
+      d = foldsByDefault(ev);
+      foldDefaults.set(key, d);
+    }
+    return d;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   const collapsed = ev.__collapsed ?? bigByDefault;
   const tint = typeof ev.__color === "string" ? ev.__color : undefined;
   const setCollapsed = (c: boolean) => patch({ __collapsed: c });
@@ -388,8 +414,24 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
     useDragState.getState().setTarget({ rootId: env.rootId, path: loc.path, index: before ? loc.index : loc.index + 1 });
   };
 
+  // Anywhere else on the block (its fields, branch labels): before it in
+  // the top half, after it in the bottom half. Also stops a drop on a text
+  // field from typing the event's name into it.
+  const onBlockDragOver = (e: DragEvent<HTMLDivElement>) => {
+    const src = useDragState.getState().source;
+    if (!src || src.rootId !== env.rootId || isInside(src.from, loc.path)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = e.altKey || e.ctrlKey ? "copy" : "move";
+    const r = e.currentTarget.getBoundingClientRect();
+    const before = e.clientY < r.top + r.height / 2;
+    useDragState.getState().setTarget({ rootId: env.rootId, path: loc.path, index: before ? loc.index : loc.index + 1 });
+  };
+
   return (
     <div
+      onDragOver={onBlockDragOver}
+      onDrop={(e) => performDrop(e, env.rootId, apply)}
       className={`event-block${dragging ? " event-block-dragging" : ""}${def ? "" : " event-block-unknown"}${disabled ? " event-block-disabled" : ""}${tint ? " event-block-tinted" : ""}`}
       style={{ ["--cat" as string]: tint ?? color, ...(tint ? { ["--tint" as string]: tint } : {}) }}
     >
@@ -411,7 +453,12 @@ const EventBlock = memo(function EventBlock({ ev, loc }: { ev: ScriptEventJSON; 
           e.stopPropagation();
           setMenu({ x: e.clientX, y: e.clientY });
         }}
-        onDoubleClick={() => setCollapsed(!collapsed)}
+        onDoubleClick={(e) => {
+          // Double-clicking the fold arrow or the menu button already acted
+          // on each click; don't fold again on top of that.
+          if ((e.target as HTMLElement).closest("button")) return;
+          setCollapsed(!collapsed);
+        }}
       >
         <span className="event-grip" aria-hidden>
           ⠿
