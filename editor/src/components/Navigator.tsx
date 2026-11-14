@@ -318,6 +318,31 @@ function ScenesSection() {
                 setCtxMenu(null);
               },
             },
+            "separator",
+            {
+              label: "Duplicate scene",
+              onClick: () => {
+                const rec = scenes.find((s) => sceneName(s) === ctxMenu.label);
+                setCtxMenu(null);
+                if (rec) void useProjectStore.getState().duplicateScene(rec.fileId);
+              },
+            },
+            {
+              label: "Copy scene",
+              onClick: () => {
+                const rec = scenes.find((s) => sceneName(s) === ctxMenu.label);
+                setCtxMenu(null);
+                if (rec) useProjectStore.getState().copyScene(rec.fileId);
+              },
+            },
+            {
+              label: "Paste scene",
+              disabled: !useProjectStore.getState().sceneClipboard,
+              onClick: () => {
+                setCtxMenu(null);
+                void useProjectStore.getState().pasteScene();
+              },
+            },
           ]}
         />
       )}

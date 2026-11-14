@@ -313,6 +313,13 @@ interface ProjectState {
    * ("" = out of any folder), moving their files. */
   renameSceneFolder: (from: string, to: string) => void;
   addScene: (name: string, background?: string) => Promise<void>;
+  /** A copy of a scene - actors, triggers, scripts, collisions and all -
+   * as a new scene ("<name> copy"), beside it on the world map. */
+  duplicateScene: (sceneId: string) => Promise<void>;
+  /** Copy / paste a whole scene (paste makes a new scene from it). */
+  sceneClipboard: SceneJSON | null;
+  copyScene: (sceneId: string) => void;
+  pasteScene: () => Promise<void>;
   removeScene: (sceneId: string) => Promise<void>;
   addNpc: (sceneId: string, x: number, y: number) => void;
   addDoor: (sceneId: string, door: DoorJSON) => void;
@@ -828,6 +835,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     },
 
+    sceneClipboard: null,
+
+    copyScene: (sceneId) => {
+      const rec = get().project?.scenes.find((s) => s.fileId === sceneId);
+      if (rec) set({ sceneClipboard: JSON.parse(JSON.stringify(rec.data)) as SceneJSON });
+    },
+
+    duplicateScene: async (sceneId) => {
+      const rec = get().project?.scenes.find((s) => s.fileId === sceneId);
+      if (rec) await createSceneCopy(JSON.parse(JSON.stringify(rec.data)) as SceneJSON, sceneName(rec));
+    },
+
+    pasteScene: async () => {
+      const data = get().sceneClipboard;
+      if (data) await createSceneCopy(JSON.parse(JSON.stringify(data)) as SceneJSON, data.name || "scene");
+    },
+
     addScene: async (name, background) => {
       const { project } = get();
       if (!project) return;
@@ -1187,6 +1211,33 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
 /** Scene display name, the way the compiler identifies a scene:
  * its "name", or its file stem when unnamed. */
+/** Save `data` as a new scene named "<base> copy" (2, 3... if taken),
+ * beside the original on the world map, and open it. */
+async function createSceneCopy(data: SceneJSON, base: string): Promise<void> {
+  const st = useProjectStore.getState();
+  const project = st.project;
+  if (!project) return;
+  const names = new Set(project.scenes.map(sceneName));
+  let name = `${base} copy`;
+  for (let n = 2; names.has(name); n++) name = `${base} copy ${n}`;
+  const scene: SceneJSON = { ...data, name };
+  if (data.world_pos) scene.world_pos = { x: data.world_pos.x + 32, y: data.world_pos.y + 32 };
+  const result = await window.api.createScene({ rootPath: project.rootPath, fileId: name, scene });
+  if (!result.ok) {
+    useProjectStore.setState({ saveError: result.error });
+    return;
+  }
+  const cur = useProjectStore.getState().project!;
+  useProjectStore.setState({
+    project: { ...cur, scenes: [...cur.scenes, { fileId: result.value.fileId, data: result.value.scene, createdMs: Date.now(), modifiedMs: Date.now() }] },
+    activeSceneId: result.value.fileId,
+    selection: { kind: "scene", sceneId: result.value.fileId },
+    tilePick: null,
+    past: [],
+    future: [],
+  });
+}
+
 export function sceneName(rec: SceneRecord): string {
   return rec.data.name || rec.fileId;
 }

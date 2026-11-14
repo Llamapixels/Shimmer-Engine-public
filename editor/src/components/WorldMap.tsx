@@ -617,6 +617,13 @@ export default function WorldMap() {
                     ]
                   : [
                       { label: "Open", onClick: () => actionsRef.current.open(ctx.rec) },
+                      { label: "Duplicate", onClick: () => void useProjectStore.getState().duplicateScene(ctx.rec.fileId) },
+                      { label: "Copy scene", onClick: () => useProjectStore.getState().copyScene(ctx.rec.fileId) },
+                      {
+                        label: "Paste scene",
+                        disabled: !useProjectStore.getState().sceneClipboard,
+                        onClick: () => void useProjectStore.getState().pasteScene(),
+                      },
                       { label: ctx.rec.data.color ? "Change color…" : "Color…", onClick: () => setColorFor({ x: ctx.x, y: ctx.y, id: ctx.rec.fileId }) },
                       ...(ctx.rec.data.color
                         ? [{ label: "Remove color", onClick: () => updateScene(ctx.rec.fileId, (s) => ({ ...s, color: undefined })) }]
