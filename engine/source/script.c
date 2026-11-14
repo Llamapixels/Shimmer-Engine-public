@@ -1288,6 +1288,20 @@ static void thread_step(ScriptThread *t, int is_main)
             actor_set_transparent(ev->a, ev->b, ev->c);
             break;
 
+        case SCRIPT_ACTOR_EMOTE:
+            if (!t->play_once_started)
+            {
+                actor_emote(ev->a, ev->b, ev->c);
+                t->play_once_started = 1;   /* "started, now waiting" */
+            }
+            if (ev->d && actor_emote_active())
+            {
+                t->ip--;
+                return;
+            }
+            t->play_once_started = 0;
+            break;
+
         case SCRIPT_ACTOR_KNOCKBACK:
         {
             const int16_t *p = (const int16_t *)ev->ptr;

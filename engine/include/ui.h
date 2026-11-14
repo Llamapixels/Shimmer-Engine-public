@@ -49,6 +49,8 @@ extern const int16_t ui_text_sound;
 extern const uint8_t ui_music_fade;
 /* A scene has the platformer grapple on: keep sprites free for its rope. */
 extern const uint8_t ui_grapple_used;
+/* The project uses Show Emote: keep a sprite free for the bubble. */
+extern const uint8_t ui_emotes_used;
 extern const uint8_t ui_portraits_used;
 
 enum

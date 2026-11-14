@@ -87,6 +87,13 @@ void sprite_init_portrait(ASprite *sprite, const ASpriteFrame *frames, uint16_t 
  * sprite_init() while reserved (projects with a grapple). */
 #define SPRITE_ROPE_DOTS 8
 void sprite_reserve_rope(int on);
+
+/* Emote bubble: one 16x16 OBJ (and 4 tiles) kept out of the allocator,
+ * below the rope's, while a project uses Show Emote. */
+void sprite_reserve_emote(int on);
+/* Show emote `kind` (EMOTE_*) with its top-left at screen x, y, or hide
+ * it (kind < 0). */
+void sprite_emote_draw(int kind, int x, int y);
 /* Show the dots at these screen points (n up to SPRITE_ROPE_DOTS; 0 hides). */
 void sprite_rope_draw(int n, const int16_t *xs, const int16_t *ys);
 

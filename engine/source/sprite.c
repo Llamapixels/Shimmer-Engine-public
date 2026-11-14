@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "sprite.h"
+#include "emote.h"
 #include "tint.h"
 
 #define SPRITE_MAX 128
@@ -177,14 +178,50 @@ void sprite_alloc_reset(uint32_t mark)
 
 /* The blocks at the top of OAM / OBJ VRAM: the portrait's (always that
  * place), then the rope's just below it. */
-static int portrait_reserved, rope_reserved;
-#define ROPE_OAM  (SPRITE_MAX - SPRITE_PORTRAIT_OBJS - SPRITE_ROPE_DOTS)
-#define ROPE_TILE (OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES - 1)
+static int portrait_reserved, rope_reserved, emote_reserved;
+#define ROPE_OAM   (SPRITE_MAX - SPRITE_PORTRAIT_OBJS - SPRITE_ROPE_DOTS)
+#define ROPE_TILE  (OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES - 1)
+#define EMOTE_OAM  (ROPE_OAM - 1)
+#define EMOTE_TILE (ROPE_TILE - 4)
 
 static void set_limits(void)
 {
-    oam_limit = rope_reserved ? ROPE_OAM : portrait_reserved ? SPRITE_MAX - SPRITE_PORTRAIT_OBJS : SPRITE_MAX;
-    tile_limit = rope_reserved ? ROPE_TILE : portrait_reserved ? OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES : OBJ_TILE_MAX;
+    oam_limit = emote_reserved ? EMOTE_OAM : rope_reserved ? ROPE_OAM
+              : portrait_reserved ? SPRITE_MAX - SPRITE_PORTRAIT_OBJS : SPRITE_MAX;
+    tile_limit = emote_reserved ? EMOTE_TILE : rope_reserved ? ROPE_TILE
+               : portrait_reserved ? OBJ_TILE_MAX - SPRITE_PORTRAIT_TILES : OBJ_TILE_MAX;
+}
+
+static int emote_loaded = -1;   /* which emote's tiles are in EMOTE_TILE */
+
+void sprite_reserve_emote(int on)
+{
+    emote_reserved = on;
+    set_limits();
+    emote_loaded = -1;
+    if (on)
+        write_hidden(EMOTE_OAM);
+}
+
+void sprite_emote_draw(int kind, int x, int y)
+{
+    if (!emote_reserved)
+        return;
+    if (kind < 0 || kind >= EMOTE_COUNT || x <= -16 || x >= SCREEN_W || y <= -16 || y >= SCREEN_H)
+    {
+        write_hidden(EMOTE_OAM);
+        return;
+    }
+    if (kind != emote_loaded)
+    {
+        volatile uint32_t *t = (volatile uint32_t *)(ADV_OBJ_VRAM + EMOTE_TILE * 16);
+        for (int i = 0; i < 32; i++)
+            t[i] = emote_tiles[kind][i];
+        emote_loaded = kind;
+    }
+    ADV_OAM[EMOTE_OAM * 4] = (uint16_t)(y & 0xFF);                              /* square, 4bpp */
+    ADV_OAM[EMOTE_OAM * 4 + 1] = (uint16_t)((x & 0x1FF) | (1 << 14));            /* 16x16 */
+    ADV_OAM[EMOTE_OAM * 4 + 2] = (uint16_t)(EMOTE_TILE | (EMOTE_BANK << 12));    /* priority 0: on top */
 }
 
 void sprite_reserve_portrait(int on)

@@ -2177,6 +2177,9 @@ def menu_place(ev, labels, where):
     return MENU_PLACES[pos] | (anim_code << 4), custom
 
 
+# Show Emote's bubbles, in engine emote_gfx.c order.
+EMOTES = ["exclaim", "question", "heart", "dots", "music", "anger", "sweat", "sleep"]
+
 # The button that moves a text box on (engine DIALOGUE_OPT_ADVANCE).
 TEXT_ADVANCE = ["a", "b", "l", "r", "start", "select", "any"]
 
@@ -2867,7 +2870,7 @@ PARITY_EVENT_TYPES = [
     "text_draw", "text_clear", "projectile_recall", "projectile_remove", "actor_lock_direction",
     "spawn_prefab", "actor_remove", "actor_set_sprite", "actor_jump", "text_hud_close", "raycast_set_heights",
     "pause_world", "resume_world", "light_set",
-    "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update",
+    "player_state_script", "player_state_script_remove", "player_state_var", "input_lock", "actor_update", "actor_emote",
     "actor_knockback", "actor_set_transparent", "playtime", "playtime_read", "persist", "music_fade",
     "screen_tint", "day_night", "time_of_day_var", "name_entry",
     "if_actor_at_position", "if_actor_direction", "if_actor_distance",
@@ -3448,6 +3451,15 @@ def compile_parity_event(etype, ev, out, ctx, where):
         if action not in actions:
             raise BuildError(f"{where}: \"action\" must be one of: {', '.join(actions)}.")
         out.append(_instr("SCRIPT_ACTOR_UPDATE", a=idx, b=actions.index(action)))
+
+    elif etype == "actor_emote":
+        idx = resolve_actor(_require(ev, "actor", where), ctx, where)
+        emote = str(ev.get("emote", "exclaim")).lower()
+        if emote not in EMOTES:
+            raise BuildError(f"{where}: \"emote\" must be one of: {', '.join(EMOTES)}.")
+        frames = resolve_small_int(ev.get("frames", 60), "frames", where, 1, INT16_MAX)
+        out.append(_instr("SCRIPT_ACTOR_EMOTE", a=idx, b=EMOTES.index(emote), c=frames,
+                          d=1 if ev.get("wait", True) else 0))
 
     elif etype == "input_lock":
         scope = str(ev.get("scope", "player"))
@@ -4295,6 +4307,9 @@ def build(project_dir, out_dir):
     # The grapple's rope keeps a few sprites free (engine sprite.c).
     ctx["ui"]["grapple_used"] = bool((project.get("engine") or {}).get("pl_grapple")) or any(
         (s.get("engine") or {}).get("pl_grapple") for _, s in scene_data_list)
+    # Show Emote keeps a sprite free for its bubble (engine sprite.c).
+    ctx["ui"]["emotes_used"] = '"actor_emote"' in json.dumps(project) or any(
+        '"actor_emote"' in json.dumps(scene) for _, scene in scene_data_list)
     # Portraits keep a block of sprite memory free (engine sprite.c).
     ctx["ui"]["portraits_used"] = bool(
         text_avatar_sprites(project.get("customScripts") or []) or text_avatar_sprites(project.get("prefabs") or [])

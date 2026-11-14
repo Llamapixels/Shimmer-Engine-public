@@ -2299,6 +2299,37 @@ export const EVENT_DEFS: EventDef[] = [
     summary: (ev) => `${actorLabel(ev.actor)} away from ${ev.away_from === "actor" ? actorLabel(ev.from_actor ?? 0) : ev.away_from === "direction" ? `going ${ev.direction ?? "right"}` : "the player"}, speed ${ev.speed}`,
   }),
   def({
+    type: "actor_emote",
+    label: "Show Emote",
+    category: "Actors",
+    description:
+      "A little bubble over an actor's head, like Pokemon's \"!\" when a trainer spots you: exclaim, question, heart, dots, " +
+      "music, anger, sweat or sleep. One at a time; a new one replaces it.",
+    fields: [
+      { key: "actor", label: "Actor", kind: "actor" },
+      {
+        key: "emote",
+        label: "Emote",
+        kind: "select",
+        defaultValue: "exclaim",
+        options: [
+          { value: "exclaim", label: "! (surprised)" },
+          { value: "question", label: "? (confused)" },
+          { value: "heart", label: "Heart" },
+          { value: "dots", label: "... (speechless)" },
+          { value: "music", label: "Music note" },
+          { value: "anger", label: "Anger" },
+          { value: "sweat", label: "Sweat drop" },
+          { value: "sleep", label: "Zz (asleep)" },
+        ],
+      },
+      { key: "frames", label: "Shown for", kind: "duration", min: 1, max: 32767, defaultValue: 60 },
+      { key: "wait", label: "Wait until it's gone", kind: "bool", defaultValue: true },
+    ],
+    create: (c) => ({ type: "actor_emote", actor: c.firstActor ?? "player", emote: "exclaim", frames: 60, wait: true }),
+    summary: (ev) => `${ev.emote ?? "exclaim"} over ${actorLabel(ev.actor)}`,
+  }),
+  def({
     type: "actor_update",
     label: "Control Actor On Update",
     category: "Actors",

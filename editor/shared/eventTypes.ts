@@ -1098,6 +1098,17 @@ export interface ActorUpdateEvent extends EventBase {
   action: "start" | "pause" | "resume" | "stop";
 }
 
+/** An emote bubble over an actor's head for a while. */
+export interface ActorEmoteEvent extends EventBase {
+  type: "actor_emote";
+  actor: ActorRef;
+  emote: "exclaim" | "question" | "heart" | "dots" | "music" | "anger" | "sweat" | "sleep";
+  /** Frames it stays (1-32767). */
+  frames: number;
+  /** Wait until it's gone (default true). */
+  wait?: boolean;
+}
+
 /** Player controls (or all game input) off / back on. */
 export interface InputLockEvent extends EventBase {
   type: "input_lock";
@@ -1431,6 +1442,7 @@ export type ScriptEventJSON =
   | PlayerStateVarEvent
   | InputLockEvent
   | ActorUpdateEvent
+  | ActorEmoteEvent
   | ActorKnockbackEvent
   | ActorSetTransparentEvent
   | PlaytimeEvent

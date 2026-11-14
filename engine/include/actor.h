@@ -112,6 +112,10 @@ void actor_knockback(const int16_t *p);
 /* "Set Actor Transparency": see-through on/off; `opacity` 1-15 (of 16) is
  * shared by every see-through actor (the GBA has one blend level). */
 void actor_set_transparent(int index, int on, int opacity);
+/* An emote bubble over an actor for `frames` frames (Show Emote), and is
+ * one still up? */
+void actor_emote(int index, int kind, int frames);
+int actor_emote_active(void);
 int actor_knockback_active(int index);
 int actor_anim_done(int index);
 
