@@ -6,6 +6,7 @@ import { SpriteOptionThumb, SpriteSelect } from "../components/common/AssetSelec
 import SearchSelect from "../components/common/SearchSelect";
 import SoundPreviewButton from "../components/common/SoundPreview";
 import TileSourceField from "./TileSourceField";
+import FramePreview from "./FramePreview";
 import type {
   ActorRelation,
   ArrayVarMathOp,
@@ -518,6 +519,27 @@ export function FieldControl({ field, ev, env, patch }: Props) {
             </option>
           ))}
         </select>
+      );
+    }
+
+    case "framePreview": {
+      // The actor's sprite: the player's (scene or project), or an NPC's.
+      const a = rec.actor;
+      const npcs = env.scene.npcs ?? [];
+      const npc = typeof a === "number" ? npcs[a] : typeof a === "string" && a !== "player" && a !== "self" ? npcs.find((n) => n.name === a) : undefined;
+      const sprite =
+        a === "player" || a === undefined
+          ? env.scene.player_sprite || useProjectStore.getState().project?.project.playerSprite || "player"
+          : npc
+            ? (npc.sprite ?? "player")
+            : undefined;
+      const f = rec.frame;
+      return (
+        <FramePreview
+          sprite={sprite}
+          frame={typeof f === "number" ? f : null}
+          onPick={(n) => patch({ frame: n }, true)}
+        />
       );
     }
 

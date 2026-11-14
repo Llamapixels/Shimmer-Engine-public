@@ -821,3 +821,25 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* Set Actor Frame: the actor's frames. */
+.frame-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+  overflow-x: auto;
+  background: var(--input-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.frame-preview canvas {
+  display: block;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+.frame-preview-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+}

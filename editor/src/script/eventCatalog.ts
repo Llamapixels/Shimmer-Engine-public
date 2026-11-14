@@ -38,6 +38,8 @@ export type FieldKind =
   | "tilePos"
   /** Replace Tile's source: a background (this scene's or another) and a picture to click the tile on. */
   | "tileSource"
+  /** Set Actor Frame: the actor's frames to look at and click. */
+  | "framePreview"
   | "choiceOptions"
   | "state"
   | "bool"
@@ -1304,6 +1306,7 @@ export const EVENT_DEFS: EventDef[] = [
     fields: [
       { key: "actor", label: "Actor", kind: "actor" },
       { key: "frame", label: "Frame", kind: "varOrLiteral", min: 0, max: 255 },
+      { key: "frame_preview", label: "Frames", kind: "framePreview" },
     ],
     create: (c) => ({ type: "actor_set_frame", actor: c.firstActor ?? "self", frame: 0 }),
     summary: (ev) => `${actorLabel(ev.actor)} → frame ${valLabel(ev.frame as never)}`,

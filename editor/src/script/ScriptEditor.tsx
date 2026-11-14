@@ -620,7 +620,7 @@ export function ColorPopover({ at, value, onChange, onClose }: {
   );
 }
 
-const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits", "scriptArgs", "combo", "tileSource"]);
+const WIDE_FIELDS = new Set(["multiline", "buttons", "expression", "bits", "scriptArgs", "combo", "tileSource", "framePreview"]);
 
 const MAX_MENU_OPTIONS = 4;
 const MIN_MENU_OPTIONS = 2;
